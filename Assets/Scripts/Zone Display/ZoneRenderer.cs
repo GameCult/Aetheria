@@ -76,7 +76,7 @@ public class ZoneRenderer : MonoBehaviour
     private Dictionary<CultRecordKey, InstancedMesh[]> _beltMeshes = new Dictionary<CultRecordKey, InstancedMesh[]>();
     private Dictionary<CultRecordKey, Matrix4x4[][]> _beltMatrices = new Dictionary<CultRecordKey, Matrix4x4[][]>();
     // Per rock: the mesh it takes and its slot in that mesh's matrix batch (ruling rock-meshes-by-size).
-    private Dictionary<CultRecordKey, int[]> _beltMeshOf = new Dictionary<CultRecordKey, int[]>();
+    private Dictionary<CultRecordKey, DrawAhead.RockMeshing> _beltMeshing = new Dictionary<CultRecordKey, DrawAhead.RockMeshing>();
     private Dictionary<CultRecordKey, int[]> _beltSlotOf = new Dictionary<CultRecordKey, int[]>();
     // Cut 1 (docs/mining-cut.md): the renderer's own buffer, filled from Zone.EvaluateBelt each frame. No pose
     // is stored on AsteroidBelt any more.
@@ -386,7 +386,7 @@ public class ZoneRenderer : MonoBehaviour
             Map.Clear();
             _beltMeshes.Clear();
             _beltMatrices.Clear();
-            _beltMeshOf.Clear();
+            _beltMeshing.Clear();
             _beltSlotOf.Clear();
             _beltTransforms.Clear();
             _tourPlanets.Clear();
@@ -452,15 +452,15 @@ public class ZoneRenderer : MonoBehaviour
             var meshes = AsteroidMeshes.ToList();
             while (meshes.Count > Settings.AsteroidMeshCount)
                 meshes.RemoveAt(Random.Range(0, meshes.Count));
-            // Ruling rock-meshes-by-size: meshes in ascending measured radius, rocks ranked by unworn size take them in that order.
-            meshes.Sort((a, b) => a.Radius.CompareTo(b.Radius));
             _beltMeshes[key] = meshes.ToArray();
             _beltTransforms[key] = new float4[beltData.Asteroids.Length];
-            var meshOf = DrawAhead.AssignRockMeshes(Zone.AsteroidBelts[key], Zone.Settings, meshes.Count);
+            // Ruling rock-meshes-by-size: DrawAhead ranks the meshes by radius and the rocks by size, and refuses a mesh with no radius.
+            var meshing = DrawAhead.AssignRockMeshes(Zone.AsteroidBelts[key], Zone.Settings, meshes.Select(m => m.Radius).ToArray());
+            _beltMeshing[key] = meshing;
+            var meshOf = meshing.Mesh;
             var slotOf = new int[meshOf.Length];
             var perMesh = new int[meshes.Count];
             for (int i = 0; i < meshOf.Length; i++) slotOf[i] = perMesh[meshOf[i]]++;
-            _beltMeshOf[key] = meshOf;
             _beltSlotOf[key] = slotOf;
             _beltMatrices[key] = perMesh.Select(n => new Matrix4x4[n]).ToArray();
 
@@ -558,7 +558,8 @@ public class ZoneRenderer : MonoBehaviour
             {
                 var meshes = _beltMeshes[key];
                 var matrices = _beltMatrices[key];
-                var meshOf = _beltMeshOf[key];
+                var meshing = _beltMeshing[key];
+                var meshOf = meshing.Mesh;
                 var slotOf = _beltSlotOf[key];
                 for (int tx = 0; tx < transforms.Length; tx++)
                 {
@@ -569,7 +570,7 @@ public class ZoneRenderer : MonoBehaviour
                             cos(transform.z + (float)i / meshes.Length) * 100,
                             sin(transform.z + (float)i / meshes.Length) * 100,
                             (float)tx / transforms.Length * 360),
-                        Vector3.one * DrawAhead.RockScale(transform.w, meshes[i].Radius));
+                        Vector3.one * meshing.Scale(tx, transform.w));
                 }
 
                 for (int i = 0; i < meshes.Length; i++)

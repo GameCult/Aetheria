@@ -41,23 +41,39 @@ public static class DrawAhead
         ChunkAt(zone, settings, zone.ChunkPose(chunk.Field, chunk.Index, Time(zone, lead)), lead);
 
     // The scale that draws a mesh of the given measured radius (its farthest vertex from the mesh origin, a bound under any rotation) at the
-    // rock's gameplay radius (ruling rock-meshes-by-size).
-    public static float RockScale(float gameplayRadius, float meshRadius) => gameplayRadius / meshRadius;
+    // rock's gameplay radius (ruling rock-meshes-by-size). A radius that is not set is refused by name, never divided by.
+    public static float RockScale(float gameplayRadius, float meshRadius) =>
+        meshRadius > 0f ? gameplayRadius / meshRadius : throw new System.ArgumentException("InstancedMesh.Radius is not set (zero, negative or not a number): run RockMeshRadius.Fill.");
 
-    // Which mesh each rock of a belt takes (ruling rock-meshes-by-size): rocks ranked by unworn size take meshes ranked by authored size, the
-    // meshes in ascending radius order. The rocks split into meshCount runs by rank, the last run taking the remainder; equal sizes rank by
-    // index, so the answer is stable. Unworn, so a mined rock keeps its mesh and only shrinks.
-    public static int[] AssignRockMeshes(AsteroidBelt belt, PlanetSettings settings, int meshCount) =>
-        AssignRockMeshes(Enumerable.Range(0, belt.Data.Asteroids.Length).Select(i => belt.UndamagedSize(i, settings)).ToArray(), meshCount);
-
-    public static int[] AssignRockMeshes(IReadOnlyList<float> unwornSizes, int meshCount)
+    // Which mesh each rock of a belt takes, and at what scale (ruling rock-meshes-by-size). meshRadii are the kept meshes' measured radii in
+    // the renderer's own order; the meshes are ranked by radius here, not by the caller. Rocks ranked by unworn size split into one run per mesh,
+    // smallest rocks on the smallest mesh and the last run taking the remainder; equal sizes and equal radii rank by index, so the answer is stable.
+    // Unworn, so a mined rock keeps its mesh and only shrinks. The renderer builds its instance matrices from Mesh and Scale and decides neither.
+    public sealed class RockMeshing
     {
-        var order = Enumerable.Range(0, unwornSizes.Count).OrderBy(i => unwornSizes[i]).ThenBy(i => i).ToArray();
-        var run = System.Math.Max(1, unwornSizes.Count / meshCount);
-        var mesh = new int[unwornSizes.Count];
-        for (var rank = 0; rank < order.Length; rank++) mesh[order[rank]] = System.Math.Min(rank / run, meshCount - 1);
-        return mesh;
+        private readonly float[] _meshRadii;
+
+        // Per rock: the index into meshRadii (as given) of the mesh it takes.
+        public int[] Mesh { get; }
+
+        public RockMeshing(IReadOnlyList<float> unwornSizes, IReadOnlyList<float> meshRadii)
+        {
+            _meshRadii = meshRadii.ToArray();
+            for (var m = 0; m < _meshRadii.Length; m++)
+                if (!(_meshRadii[m] > 0f)) throw new System.ArgumentException($"InstancedMesh.Radius of mesh #{m} is not set (zero, negative or not a number): run RockMeshRadius.Fill.");
+            var meshByRank = Enumerable.Range(0, _meshRadii.Length).OrderBy(m => _meshRadii[m]).ThenBy(m => m).ToArray();
+            var rockByRank = Enumerable.Range(0, unwornSizes.Count).OrderBy(i => unwornSizes[i]).ThenBy(i => i).ToArray();
+            var run = System.Math.Max(1, unwornSizes.Count / _meshRadii.Length);
+            Mesh = new int[unwornSizes.Count];
+            for (var rank = 0; rank < rockByRank.Length; rank++) Mesh[rockByRank[rank]] = meshByRank[System.Math.Min(rank / run, meshByRank.Length - 1)];
+        }
+
+        // The scale that draws the rock at its current gameplay radius on the mesh it was given.
+        public float Scale(int rock, float gameplayRadius) => RockScale(gameplayRadius, _meshRadii[Mesh[rock]]);
     }
+
+    public static RockMeshing AssignRockMeshes(AsteroidBelt belt, PlanetSettings settings, IReadOnlyList<float> meshRadii) =>
+        new(Enumerable.Range(0, belt.Data.Asteroids.Length).Select(i => belt.UndamagedSize(i, settings)).ToArray(), meshRadii);
 
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
     // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.
