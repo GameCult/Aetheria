@@ -54,6 +54,9 @@ public static class RunStart
             placed.Entity.SetIff(player, hostile);
             player.SetIff(placed.Entity, hostile);
             arena.Admit(placed.Entity, placed.Piloted);
+            // A stated patrol order replaces the circuit the zone drew for the pilot it just admitted.
+            if (placed.Circuit != null)
+                ((PatrolOrbitsTask) arena.Agents.Last(agent => ReferenceEquals(agent.Ship, placed.Entity)).Task).Circuit = placed.Circuit;
         }
         return new Staged { Player = player, Credits = stage.Credits, Entities = stage.Placed.Select(placed => placed.Entity).ToList() };
     }

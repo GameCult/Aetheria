@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using CultMath;
 using GameCult.Caching;
 using Xunit;
@@ -137,6 +138,28 @@ public sealed class FloatingBodyTests : IDisposable
         var zero = SimulationDice.For(0u, 0u, 0u);
         Assert.Equal(1u, zero.state);
     }
+
+    // The stream is mixed into the seed, not added beside it: over many ordinals no two streams give the same first
+    // draw, and none of them tracks another's.
+    [Fact]
+    public void EveryStreamDrawsIndependentlyOfEveryOther()
+    {
+        uint[] streams = { SimulationDice.LootStream, SimulationDice.MineStream, SimulationDice.CombatSampleStream, SimulationDice.PatrolStream };
+        const int count = 512;
+        var draws = streams.Select(s => Enumerable.Range(1, count).Select(n => SimulationDice.For(1234u, s, (uint) n).NextFloat()).ToArray()).ToArray();
+        for (var a = 0; a < streams.Length; a++)
+        for (var b = a + 1; b < streams.Length; b++)
+        {
+            Assert.Equal(0, Enumerable.Range(0, count).Count(i => draws[a][i] == draws[b][i]));
+            var meanA = draws[a].Average();
+            var meanB = draws[b].Average();
+            var covariance = Enumerable.Range(0, count).Sum(i => (draws[a][i] - meanA) * (draws[b][i] - meanB)) / count;
+            var correlation = covariance / (StandardDeviation(draws[a], meanA) * StandardDeviation(draws[b], meanB));
+            Assert.InRange(correlation, -.15f, .15f); // 512 independent draws: sigma ~ .044
+        }
+    }
+
+    private static float StandardDeviation(float[] xs, float mean) => MathF.Sqrt(xs.Sum(x => (x - mean) * (x - mean)) / xs.Length);
 
     [Fact]
     public void NeighbouringZonesAndOrdinalsNeverShareADraw()

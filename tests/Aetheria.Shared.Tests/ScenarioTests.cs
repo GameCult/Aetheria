@@ -291,6 +291,31 @@ public sealed partial class RunStartTests
         Assert.Contains("No Such Gun", Assert.Single(failures));
     }
 
+    // A pilot's patrol circuit is its own draw (zone seed, agent id), not the item stream's: two arenas that differ only
+    // in items minted before the pilot is admitted give it the same circuit. Kills: the circuit drawn from ItemManager.Random.
+    [Fact]
+    public void APilotsPatrolCircuitDoesNotRideTheItemStream()
+    {
+        Zone Arena(int itemsMintedFirst)
+        {
+            var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
+            {
+                stage.Player(stage.Bare("Djinni"), float2(0, 0));
+                for (var i = 0; i < itemsMintedFirst; i++) stage.Place(stage.Generated("Longinus"), float2(900 + 40 * i, 0));
+                stage.Place(stage.Generated("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
+            }));
+            Assert.True(failures.Count == 0, string.Join("; ", failures));
+            return arena;
+        }
+        CultRecordKey[] Circuit(Zone arena) => ((PatrolOrbitsTask) Assert.Single(arena.Agents).Task).Circuit;
+
+        var plain = Arena(0);
+        var disturbed = Arena(3);
+        Assert.True(plain.Orbits.Count > 4, "the zone has orbits to choose a circuit among");
+        Assert.Equal(4, Circuit(plain).Length);
+        Assert.Equal(Circuit(plain), Circuit(disturbed));
+    }
+
     // A fit that states its quality mints every lot it builds at it, assembly and role fills alike; the same fit without one
     // draws them from the item stream, so some lot comes out otherwise. A scenario's checks rest on the first.
     [Fact]

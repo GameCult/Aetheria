@@ -18,11 +18,15 @@ public sealed class LockOn : Scenario
     // within a second.
     public static readonly CultMath.float2 HostileAt = float2(-2000, 3450);
 
+    // The fit's lots are minted at this quality, and the hostile's patrol order is stated, so the lock follows from the
+    // staged situation and not from item draws or the pilot's drawn circuit (ruling scenario-stages-hostile-task).
+    const float StagedQuality = .6f;
+
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {
-        var fighter = stage.Fit("Longinus",
+        var fighter = stage.Fit("Longinus", StagedQuality,
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
             ("Large Drive", int2(3, 0), Reversed),
@@ -41,6 +45,7 @@ public sealed class LockOn : Scenario
             ("Store-All Plus", int2(2, 8), None)); // Cargo Bay
 
         stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
-        stage.Place(fighter, HostileAt, facing: normalize(-HostileAt), stance: ScenarioStance.Hostile, piloted: true);
+        var hostile = stage.Place(fighter, HostileAt, facing: normalize(-HostileAt), stance: ScenarioStance.Hostile, piloted: true);
+        stage.Patrol(hostile, float2(0, 0)); // it patrols the orbit by the player, which brings it into lock range
     }
 }
