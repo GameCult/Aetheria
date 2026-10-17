@@ -75,6 +75,9 @@ public class ZoneRenderer : MonoBehaviour
 
     private Dictionary<CultRecordKey, InstancedMesh[]> _beltMeshes = new Dictionary<CultRecordKey, InstancedMesh[]>();
     private Dictionary<CultRecordKey, Matrix4x4[][]> _beltMatrices = new Dictionary<CultRecordKey, Matrix4x4[][]>();
+    // Per rock: the mesh it takes and its slot in that mesh's matrix batch (ruling rock-meshes-by-size).
+    private Dictionary<CultRecordKey, int[]> _beltMeshOf = new Dictionary<CultRecordKey, int[]>();
+    private Dictionary<CultRecordKey, int[]> _beltSlotOf = new Dictionary<CultRecordKey, int[]>();
     // Cut 1 (docs/mining-cut.md): the renderer's own buffer, filled from Zone.EvaluateBelt each frame. No pose
     // is stored on AsteroidBelt any more.
     private Dictionary<CultRecordKey, float4[]> _beltTransforms = new Dictionary<CultRecordKey, float4[]>();
@@ -383,6 +386,8 @@ public class ZoneRenderer : MonoBehaviour
             Map.Clear();
             _beltMeshes.Clear();
             _beltMatrices.Clear();
+            _beltMeshOf.Clear();
+            _beltSlotOf.Clear();
             _beltTransforms.Clear();
             _tourPlanets.Clear();
         }
@@ -447,15 +452,17 @@ public class ZoneRenderer : MonoBehaviour
             var meshes = AsteroidMeshes.ToList();
             while (meshes.Count > Settings.AsteroidMeshCount)
                 meshes.RemoveAt(Random.Range(0, meshes.Count));
+            // Ruling rock-meshes-by-size: meshes in ascending measured radius, rocks ranked by unworn size take them in that order.
+            meshes.Sort((a, b) => a.Radius.CompareTo(b.Radius));
             _beltMeshes[key] = meshes.ToArray();
-            _beltMatrices[key] = new Matrix4x4[meshes.Count][];
             _beltTransforms[key] = new float4[beltData.Asteroids.Length];
-            var count = beltData.Asteroids.Length / meshes.Count;
-            var remainder = beltData.Asteroids.Length - count * meshes.Count;
-            for (int i = 0; i < meshes.Count; i++)
-            {
-                _beltMatrices[key][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
-            }
+            var meshOf = DrawAhead.AssignRockMeshes(Zone.AsteroidBelts[key], Zone.Settings, meshes.Count);
+            var slotOf = new int[meshOf.Length];
+            var perMesh = new int[meshes.Count];
+            for (int i = 0; i < meshOf.Length; i++) slotOf[i] = perMesh[meshOf[i]]++;
+            _beltMeshOf[key] = meshOf;
+            _beltSlotOf[key] = slotOf;
+            _beltMatrices[key] = perMesh.Select(n => new Matrix4x4[n]).ToArray();
 
             Map.RegisterBelt(key, _beltTransforms[key]);
         }
@@ -551,23 +558,22 @@ public class ZoneRenderer : MonoBehaviour
             {
                 var meshes = _beltMeshes[key];
                 var matrices = _beltMatrices[key];
-                var count = transforms.Length / meshes.Length;
-                for (int i = 0; i < meshes.Length; i++)
+                var meshOf = _beltMeshOf[key];
+                var slotOf = _beltSlotOf[key];
+                for (int tx = 0; tx < transforms.Length; tx++)
                 {
-                    for (int t = 0; t < matrices[i].Length; t++)
-                    {
-                        var tx = t + i * count;
-                        var transform = transforms[tx];
-                        matrices[i][t] = Matrix4x4.TRS(new Vector3(transform.x,DrawAhead.ChunkHeight(Zone,ItemManager.GameplaySettings,transform,lead),transform.y),
-                            Quaternion.Euler(
-                                cos(transform.z + (float)i / meshes.Length) * 100,
-                                sin(transform.z + (float)i / meshes.Length) * 100,
-                                (float)tx / transforms.Length * 360),
-                            Vector3.one * transform.w);
-                    }
-
-                    Graphics.DrawMeshInstanced(meshes[i].Mesh, 0, meshes[i].Material, matrices[i]);
+                    var transform = transforms[tx];
+                    var i = meshOf[tx];
+                    matrices[i][slotOf[tx]] = Matrix4x4.TRS(DrawAhead.ChunkAt(Zone, ItemManager.GameplaySettings, transform, lead).ToUnity(),
+                        Quaternion.Euler(
+                            cos(transform.z + (float)i / meshes.Length) * 100,
+                            sin(transform.z + (float)i / meshes.Length) * 100,
+                            (float)tx / transforms.Length * 360),
+                        Vector3.one * DrawAhead.RockScale(transform.w, meshes[i].Radius));
                 }
+
+                for (int i = 0; i < meshes.Length; i++)
+                    Graphics.DrawMeshInstanced(meshes[i].Mesh, 0, meshes[i].Material, matrices[i]);
             }
         }
 
@@ -623,4 +629,7 @@ public class InstancedMesh
 {
     public Mesh Mesh;
     public Material Material;
+    // The mesh's farthest vertex from its origin, measured by Aetheria.EditorTools.RockMeshRadius and verified against the mesh;
+    // the renderer scales the mesh by gameplay radius over this.
+    public float Radius;
 }

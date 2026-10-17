@@ -348,7 +348,7 @@ public sealed class DrawnPoseTests : IDisposable
         }
     }
 
-    // The reticle (DrawAhead.Chunk) and the renderer's per-rock instance (DrawAhead.ChunkHeight on EvaluateBelt's drawn pose)
+    // The reticle (DrawAhead.Chunk) and the renderer's per-rock instance (DrawAhead.ChunkAt on EvaluateBelt's drawn pose)
     // are one height: the field at the rock's planar position at the drawn time, plus the floater layer, less its drawn radius, so its top
     // is at the layer. Rulings asteroids-on-floater-layer, asteroid-tops-at-layer.
     [Fact]
@@ -373,10 +373,100 @@ public sealed class DrawnPoseTests : IDisposable
             Assert.Equal(radius, drawn[i].w, 4);
             Assert.Equal(field + FloaterLayerHeight - radius, reticle.y, 3);
             Assert.Equal(field + FloaterLayerHeight, reticle.y + radius, 3);
-            Assert.Equal(reticle.y, DrawAhead.ChunkHeight(w.Zone, settings, drawn[i], lead), 4);
+            Assert.Equal(reticle.y, DrawAhead.ChunkAt(w.Zone, settings, drawn[i], lead).y, 4);
             if (abs(field) > 1f) deep++;
         }
         Assert.True(deep > 0, "some rock sits where the field is more than a unit from zero, so a dropped field fails");
+    }
+
+    // Ruling rock-meshes-by-size: a mesh is scaled by the gameplay radius over its own measured radius, so the drawn extent (scale x mesh
+    // radius) is the gameplay radius and the drawn top is the floater layer. Mesh radii as measured in the project (0.96 to 2.43 around a median of 1.5).
+    [Theory]
+    [InlineData(0.958f)]
+    [InlineData(1.502f)]
+    [InlineData(2.430f)]
+    public void ARockIsDrawnAtItsGameplayRadiusWhateverItsMeshRadius(float meshRadius)
+    {
+        var w = Build();
+        Step(w, 1f / 60f, 301);
+        const float lead = .01f;
+        var time = w.Zone.ExactTime + lead;
+        var drawn = new float4[w.Asteroids.Length];
+        w.Zone.EvaluateBelt(w.Belt, drawn, time);
+        var settings = w.Items.GameplaySettings;
+        for (var i = 0; i < drawn.Length; i++)
+        {
+            var scale = DrawAhead.RockScale(drawn[i].w, meshRadius);
+            Assert.Equal(w.Zone.ChunkRadius(new ChunkId(w.Belt, i)), scale * meshRadius, 3);
+            Assert.Equal(FieldAt(w, drawn[i].xy, time) + FloaterLayerHeight, DrawAhead.ChunkAt(w.Zone, settings, drawn[i], lead).y + scale * meshRadius, 3);
+        }
+    }
+
+    // Biggest rock, biggest mesh; smallest, smallest; sizes from the belt's own authored asteroids.
+    [Fact]
+    public void RocksRankedBySizeTakeMeshesRankedByRadius()
+    {
+        var w = Build();
+        var belt = w.Zone.AsteroidBelts[w.Belt];
+        var sizes = Enumerable.Range(0, w.Asteroids.Length).Select(i => belt.UndamagedSize(i, w.Zone.Settings)).ToArray();
+        var meshOf = DrawAhead.AssignRockMeshes(belt, w.Zone.Settings, 3);
+        var biggest = Array.IndexOf(sizes, sizes.Max());
+        var smallest = Array.IndexOf(sizes, sizes.Min());
+        Assert.Equal(2, meshOf[biggest]);
+        Assert.Equal(0, meshOf[smallest]);
+        for (var a = 0; a < sizes.Length; a++)
+            for (var b = 0; b < sizes.Length; b++)
+                if (sizes[a] < sizes[b]) Assert.True(meshOf[a] <= meshOf[b], $"rock {a} (size {sizes[a]}) is smaller than rock {b} ({sizes[b]}) and takes a bigger mesh");
+        Assert.Equal(new[] { 0, 1, 2 }, meshOf.Distinct().OrderBy(m => m).ToArray());
+    }
+
+    [Fact]
+    public void EqualRocksTakeMeshesByIndex()
+    {
+        Assert.Equal(new[] { 0, 0, 1, 1, 2, 2, 2 }, DrawAhead.AssignRockMeshes(new[] { 5f, 5f, 5f, 5f, 5f, 5f, 5f }, 3));
+        Assert.Equal(new[] { 2, 0, 1, 0, 2 }, DrawAhead.AssignRockMeshes(new[] { 9f, 1f, 4f, 2f, 7f }, 3));
+        Assert.Equal(new[] { 0, 1, 1 }, DrawAhead.AssignRockMeshes(new[] { 1f, 2f, 3f }, 2));
+        Assert.Equal(new[] { 0, 1 }, DrawAhead.AssignRockMeshes(new[] { 1f, 2f }, 5));
+    }
+
+    // A mined rock keeps its mesh and only shrinks: the assignment reads the unworn size.
+    [Fact]
+    public void AMinedRockKeepsItsMesh()
+    {
+        var w = Build();
+        var belt = w.Zone.AsteroidBelts[w.Belt];
+        var before = DrawAhead.AssignRockMeshes(belt, w.Zone.Settings, 3);
+        var chunk = new ChunkId(w.Belt, 5);
+        var hitpoints = w.Zone.Settings.AsteroidHitpoints.Evaluate(w.Asteroids[5].Size);
+        var unworn = w.Zone.ChunkRadius(chunk);
+        Assert.False(w.Zone.Wear(chunk, hitpoints * .9f));
+        Assert.True(w.Zone.ChunkRadius(chunk) < unworn * .5f, "the rock has shrunk to less than half its size");
+        Assert.Equal(before, DrawAhead.AssignRockMeshes(belt, w.Zone.Settings, 3));
+    }
+
+    // Where the renderer decides a rock's height and scale it calls DrawAhead, and the reticle calls the same function: no inline copy of the rock
+    // height in any of the three sites (finding owner-not-pinned). The renderer and the HUD are Unity-only, so this reads their source.
+    [Fact]
+    public void TheRendererAndTheReticleReadTheOneRockHeight()
+    {
+        var root = RunStartTests.FindRepoRoot();
+        string Source(string path) => File.ReadAllText(Path.Combine(root, path));
+        var renderer = Source("Assets/Scripts/Zone Display/ZoneRenderer.cs");
+        var manager = Source("Assets/Scripts/Gameplay/ActionGameManager.cs");
+        var drawAhead = Source("Assets/Scripts/ServerShared/DrawAhead.cs");
+        Assert.Contains("DrawAhead.ChunkAt(", renderer);
+        Assert.Contains("DrawAhead.RockScale(", renderer);
+        Assert.Contains("DrawAhead.AssignRockMeshes(", renderer);
+        Assert.DoesNotContain("FloaterHeight(", renderer);
+        Assert.DoesNotContain("Vector3.one * transform.w", renderer);
+        Assert.Contains("DrawAhead.Chunk(", manager);
+        Assert.DoesNotContain("FloaterHeight(", manager);
+        var start = drawAhead.IndexOf("public static float3 Chunk(", StringComparison.Ordinal);
+        Assert.True(start >= 0, "DrawAhead.Chunk exists");
+        var chunk = drawAhead.Substring(start, drawAhead.IndexOf(';', start) - start);
+        Assert.Contains("ChunkAt(", chunk);
+        Assert.DoesNotContain("FloaterHeight", chunk);
+        Assert.DoesNotContain("pose.w", chunk);
     }
 
     // The term the shader takes sits on its node's rail at the drawn time: the lowering copies DrawAhead.Orbit of the term's

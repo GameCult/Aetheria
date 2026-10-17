@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using System.Collections.Generic;
+using System.Linq;
 using CultMath;
 using GameCult.Caching;
 using static CultMath.math;
@@ -29,15 +31,32 @@ public static class DrawAhead
     // The drawn height of a floater (loot, mines): the field at the drawn time plus the floater layer.
     public static float FloaterHeight(Zone zone, GameplaySettings settings, float2 planar, float lead) => Height(zone, planar, lead) + settings.FloaterLayerHeight;
 
-    // A belt rock's drawn position (ruling asteroids-on-floater-layer): its planar pose at the drawn time, on the floater layer over the field.
-    // Ruling asteroid-tops-at-layer: the rock's top sits at the layer, so its centre is a drawn radius below it. pose.w is that radius: ZoneRenderer scales the rock by
-    // Vector3.one * pose.w, and Zone.ChunkRadius is the same number.
-    public static float ChunkHeight(Zone zone, GameplaySettings settings, float4 pose, float lead) => FloaterHeight(zone, settings, pose.xy, lead) - pose.w;
+    // A belt rock's drawn position (rulings asteroids-on-floater-layer, asteroid-tops-at-layer): its planar pose at the drawn time, its top on
+    // the floater layer over the field, so its centre is a drawn radius below it. pose.w is that radius because the renderer scales each mesh by
+    // RockScale(pose.w, the mesh's own measured radius). The renderer's belt loop and the reticle both call this; nothing else derives a rock height.
+    public static float3 ChunkAt(Zone zone, GameplaySettings settings, float4 pose, float lead) =>
+        float3(pose.x, FloaterHeight(zone, settings, pose.xy, lead) - pose.w, pose.y);
 
-    public static float3 Chunk(Zone zone, GameplaySettings settings, ChunkId chunk, float lead)
+    public static float3 Chunk(Zone zone, GameplaySettings settings, ChunkId chunk, float lead) =>
+        ChunkAt(zone, settings, zone.ChunkPose(chunk.Field, chunk.Index, Time(zone, lead)), lead);
+
+    // The scale that draws a mesh of the given measured radius (its farthest vertex from the mesh origin, a bound under any rotation) at the
+    // rock's gameplay radius (ruling rock-meshes-by-size).
+    public static float RockScale(float gameplayRadius, float meshRadius) => gameplayRadius / meshRadius;
+
+    // Which mesh each rock of a belt takes (ruling rock-meshes-by-size): rocks ranked by unworn size take meshes ranked by authored size, the
+    // meshes in ascending radius order. The rocks split into meshCount runs by rank, the last run taking the remainder; equal sizes rank by
+    // index, so the answer is stable. Unworn, so a mined rock keeps its mesh and only shrinks.
+    public static int[] AssignRockMeshes(AsteroidBelt belt, PlanetSettings settings, int meshCount) =>
+        AssignRockMeshes(Enumerable.Range(0, belt.Data.Asteroids.Length).Select(i => belt.UndamagedSize(i, settings)).ToArray(), meshCount);
+
+    public static int[] AssignRockMeshes(IReadOnlyList<float> unwornSizes, int meshCount)
     {
-        var pose = zone.ChunkPose(chunk.Field, chunk.Index, Time(zone, lead));
-        return float3(pose.x, ChunkHeight(zone, settings, pose, lead), pose.y);
+        var order = Enumerable.Range(0, unwornSizes.Count).OrderBy(i => unwornSizes[i]).ThenBy(i => i).ToArray();
+        var run = System.Math.Max(1, unwornSizes.Count / meshCount);
+        var mesh = new int[unwornSizes.Count];
+        for (var rank = 0; rank < order.Length; rank++) mesh[order[rank]] = System.Math.Min(rank / run, meshCount - 1);
+        return mesh;
     }
 
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
