@@ -9,6 +9,7 @@ using GameCult.Caching.MessagePack;
 using MessagePack;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using UniRx;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
@@ -1764,7 +1765,7 @@ public sealed partial class ContactRevealTests : IDisposable
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         _zone.GalaxyZone.Owner = o.Faction;
-        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
+        Forbid(e);
         var gun = Guns(e)[0];
         Fire(e, gun);
         ShowOnly(e, 1f, gun);
@@ -1789,7 +1790,7 @@ public sealed partial class ContactRevealTests : IDisposable
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         _zone.GalaxyZone.Owner = o.Faction;
-        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
+        Forbid(e);
         var gun = Guns(e)[0];
         Fire(e, gun);
         ShowOnly(e, 1f, gun);
@@ -1814,7 +1815,7 @@ public sealed partial class ContactRevealTests : IDisposable
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         _zone.GalaxyZone.Owner = o.Faction;
-        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
+        Forbid(e);
         var gun = Guns(e)[0];
         Fire(e, gun);
         ShowOnly(e, 1f, gun);

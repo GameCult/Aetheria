@@ -281,6 +281,8 @@ public sealed class IffAndCombatTests : IDisposable
         Assert.Null(none); // received, and it claims no faction
         Assert.True(patrol.IsHostileTo(stranger));
         Assert.Equal(1, patrol.VisibleEnemies.Count(e => e == stranger)); // filed hostile at once, listed once
+        zone.Update(.01f);
+        Assert.Equal(1, patrol.VisibleEnemies.Count(e => e == stranger)); // still listed once after the per-tick refresh
         Assert.DoesNotContain(stranger, patrol.VisibleFriendlies);
     }
 
