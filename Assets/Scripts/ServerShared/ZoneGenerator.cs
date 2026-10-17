@@ -631,14 +631,19 @@ public static class ZoneGenerator
 			var g = children.Count > 1 ? pow(upper / positions[positions.Count - 1], 1f / (children.Count - 1)) : 1f;
 			for (var k = 0; k < children.Count; k++)
 				children[k].Distance = positions[k] * pow(g, k);
+			// A belt is an interval inside its slot: inner edge outside the lower bound and the previous sibling's spacing, outer edge
+			// inside the next sibling's spacing and the window; the authored width is the widest it may be.
+			var outer = 0f;
 			for (var k = 0; k < children.Count; k++)
 			{
-				if (!children[k].Belt) continue;
-				var d = children[k].Distance;
-				var half = Math.Min(children[k].Settings.AsteroidBeltWidth.Evaluate(d) / 2, d - Math.Max(lo, k > 0 ? children[k - 1].Distance * q : 0f));
-				half = Math.Min(half, upper - d);
-				if (k + 1 < children.Count) half = Math.Min(half, children[k + 1].Distance / q - d);
-				children[k].BeltHalfWidth = Math.Max(half, 0f);
+				var c = children[k];
+				if (!c.Belt) { outer = c.Distance; continue; }
+				var inner = Math.Max(lo, outer * q);
+				var outerLimit = k + 1 < children.Count ? Math.Min(upper, children[k + 1].Distance / q) : upper;
+				c.Distance = (inner + outerLimit) / 2;
+				var half = Math.Max(0f, Math.Min(c.Settings.AsteroidBeltWidth.Evaluate(c.Distance), outerLimit - inner) / 2);
+				c.BeltHalfWidth = half;
+				outer = c.Distance + half;
 			}
 		}
 
@@ -699,8 +704,8 @@ public class GeneratorPlanet
 	public float Distance;
 	public float Phase;
 	public float Mass;
-	// A belt's half width, written by ZoneGenerator.Place: its inner edge sits outside the parent's Roche margin and its outer
-	// edge inside the parent's window.
+	// A belt's half width, written by ZoneGenerator.Place: the belt fills the slot between its siblings' spacing, the parent's
+	// Roche margin and the parent's window, up to the authored width (ruling belt-fills-its-slot).
 	public float BeltHalfWidth;
 	public bool Empty = false;
 	public bool Belt = false;
