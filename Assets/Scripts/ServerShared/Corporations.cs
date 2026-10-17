@@ -63,6 +63,15 @@ public class Faction
     // The faction's rules of engagement; null fights as FactionDoctrine.Default.
     [Inspectable, JsonProperty("doctrine"), Key(17)]
     public FactionDoctrine Doctrine;
+
+    // The maker's final-assembly technology (mean) and quality control (deviation): the distribution every lot of
+    // theirs draws its own quality from, and the hard ceiling on every one of its roles (quality-lean-assembly-hard-ceiling).
+    // Key 18 is reserved for Livery and 16 for Relations.
+    [Inspectable, JsonProperty("assemblyMean"), Key(19)]
+    public float AssemblyMean = .5f;
+
+    [Inspectable, JsonProperty("assemblyDeviation"), Key(20)]
+    public float AssemblyDeviation = .15f;
 }
 
 [CultDocument("aetheria.namefile", "1"), Inspectable, MessagePackObject]

@@ -20,7 +20,7 @@ public sealed class RoleAuthoringTests : IDisposable
     private GameplaySettings Settings() => new GameplaySettings
     {
         DefaultEntitySettings = new EntitySettings(),
-        Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
+        Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp()
     };
 
@@ -84,7 +84,7 @@ public sealed class RoleAuthoringTests : IDisposable
     public void TwoProductsOfOneDesignWithDifferentRoleMeansResolveDifferentValues()
     {
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        var makerRef = cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
+        var makerRef = cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR", AssemblyMean = 1f, AssemblyDeviation = 0 });
         var lensGear = cache.Upsert(new GearData
         {
             Name = "Lensed", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10,

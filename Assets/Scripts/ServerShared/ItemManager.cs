@@ -117,31 +117,20 @@ public class ItemManager
         return (int) (GameplaySettings.QualityPriceModifier.Evaluate(GetLot(item).Quality) * data.Price);
     }
 
-    // The tier roll every mint applies, whether or not the lot fills roles.
-    public float RollQuality()
-    {
-        var quality = Random.NextFloat();
-        var tier = GameplaySettings.Tiers[0];
-        foreach (var t in GameplaySettings.Tiers)
-        {
-            if (t.Rarity > quality)
-                tier = t;
-        }
-
-        return tier.Quality;
-    }
-
-    // Builds one of a manufacturer's branded products: the unit's own workmanship rolled as before, and each of
-    // the design's roles filled with a part whose quality is drawn from that manufacturer's distribution for it.
+    // Builds one of a manufacturer's branded products (quality-is-assembly-over-supply-chain): the unit's own quality is its
+    // final assembly, drawn from the maker's assembly distribution, and each of the design's roles is filled with a part whose
+    // quality is drawn from the product's distribution for it. A maker the catalog cannot resolve assembles at a new Faction's
+    // defaults.
     public int CreateLot(FactionProductData product)
     {
         var design = ItemData.Get(product.Design);
+        var maker = ItemData.Get(product.Manufacturer) ?? new Faction();
         var lot = new Lot
         {
             Design = ItemData.RefOf<ItemData>(design),
             Origin = new Attributed { Faction = product.Manufacturer },
             Product = ItemData.RefOf(product),
-            Quality = RollQuality(),
+            Quality = clamp(Random.NextGaussian(maker.AssemblyMean, maker.AssemblyDeviation), .01f, 1),
             Roles = new List<RoleFill>()
         };
         if (design.Roles != null)
