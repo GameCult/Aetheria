@@ -10,9 +10,10 @@ public sealed class Belt : Scenario
                                     "across the belt without a hitch; Previous with nothing targeted takes the farthest rock; the target indicator " +
                                     "sits on the rock it names.";
 
-    // Seeds 1-256 scanned for the arena whose entrance zone holds the belt with the most asteroids: seed 24, a belt of
-    // 615 rocks. The next four: 179 (553), 251 (548), 221 (532), 29 (515).
-    public override uint Seed => 24;
+    // Seeds 1-90 scanned for the arena whose entrance zone holds the belt with the most asteroids once the generator
+    // placed belts by their parent's window (children-within-reach): seed 86, a belt of 484 rocks. The next four:
+    // 55 (478), 83 (402), 64 (383), 63 (323). 37 of the 90 arenas hold no belt.
+    public override uint Seed => 86;
     public override bool Ambient => false;
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);

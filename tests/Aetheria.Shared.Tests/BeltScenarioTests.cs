@@ -7,9 +7,9 @@ using static CultMath.math;
 // mining-merge-on-agent-proof). The test launches the scenario the way New Game does and reads what it staged.
 public sealed partial class RunStartTests
 {
-    // The scan behind Belt's seed: seeds 1-256 of the demo cast's arena, no ambient traffic, the most asteroids in one belt
-    // per seed. Seed 24 holds 615; seed 1 holds 299.
-    private const int ScannedBeltAsteroids = 615;
+    // The scan behind Belt's seed: seeds 1-90 of the demo cast's arena, no ambient traffic, the most asteroids in one belt
+    // per seed. Seed 86 holds 484.
+    private const int ScannedBeltAsteroids = 484;
 
     // Belt: the arena carries a belt of at least the scanned asteroid count, nothing else flies in it, the player stands
     // 100 m outside the ring on the side nearest the origin and faces along it, and the player's sensors see rocks within
