@@ -818,8 +818,8 @@ public static class StatValidation
     // ApplyModifier threw an unhelpful NullReferenceException at random equip time. Resolving it here, once,
     // memoized, and failing loudly at catalog load or Upsert (through ValidateStatModifiers below) names the
     // record instead of leaving the bug for whoever equips the item first.
-    private static readonly Dictionary<(string Target, string Stat), (Type Type, FieldInfo Field)> _resolvedStatFields =
-        new Dictionary<(string, string), (Type, FieldInfo)>();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Target, string Stat), (Type Type, FieldInfo Field)> _resolvedStatFields =
+        new System.Collections.Concurrent.ConcurrentDictionary<(string, string), (Type, FieldInfo)>();
 
     private static Type[] _statReferenceTypes;
     private static Type[] StatReferenceTypes => _statReferenceTypes ??= typeof(BehaviorData).GetAllChildClasses()
