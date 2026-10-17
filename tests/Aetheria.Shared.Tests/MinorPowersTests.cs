@@ -136,7 +136,10 @@ public sealed partial class RunStartTests
         }
         Assert.True(For("AU", 1).IsAvailable(pattern30));
         // Seeds 1-64 spread by a multiplicative hash: the generator's first draws of adjacent small seeds are close together.
-        Assert.Contains(Enumerable.Range(1, 64), seed => For("AU", unchecked((uint) seed * 2654435761u)).ChooseProduct(autocannon)?.Name == pattern30.Name);
+        var picks = Enumerable.Range(1, 64).Select(seed => For("AU", unchecked((uint) seed * 2654435761u)).ChooseProduct(autocannon)?.Name).ToArray();
+        var gen = For("AU", 1);
+        var weights = string.Join(", ", _cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(_cache.RefOf(autocannon).Key) && gen.IsAvailable(p)).Select(p => $"{p.Name}={gen.ProductWeight(p)}"));
+        Assert.True(picks.Contains(pattern30.Name), $"picks {string.Join("|", picks.Distinct())}; weights {weights}");
 
         var terri = For("Miss Terri's", 1);
         var theirs = _cache.GetAll<FactionProductData>().Where(p => new[] { "Aya", "Megiddo", "Forge" }.Contains(_cache.Get(p.Manufacturer).ShortName)).ToArray();
