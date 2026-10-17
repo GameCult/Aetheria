@@ -157,6 +157,25 @@ public sealed class StationPlacementTests : IDisposable
         Assert.True(binaries > 5 && stations > 5, $"{binaries} bodyless nodes and {stations} stations: the seeds do not exercise the rule");
     }
 
+    // The zone's own well tree counts a station's rail as a member of its root's family, so the extent the generator checked
+    // (the bodies' alone) is rebuilt here from the generated bodies' orbits and their ancestors.
+    private static float ExtentOfBodies(Zone zone, CultRecordKey orbit)
+    {
+        var mass = zone.Planets.Values.Where(b => !(b is AsteroidBeltData)).GroupBy(b => b.Orbit.Key).ToDictionary(g => g.Key, g => g.First().Mass);
+        var placed = new HashSet<CultRecordKey>();
+        foreach (var body in zone.Planets.Values)
+            for (var key = body.Orbit.Key; placed.Add(key) && zone.Orbits[key].Data.Parent.IsSet();) key = zone.Orbits[key].Data.Parent.Key;
+        var beltExtent = zone.AsteroidBelts.ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Data.Asteroids.Select(a => a.Distance).DefaultIfEmpty(0f).Max());
+        var nodes = placed.Select(k =>
+        {
+            var d = zone.Orbits[k].Data;
+            return new WellNode(k, d.Parent.Key, d.Distance, d.Phase, mass.TryGetValue(k, out var m) ? m : 0f,
+                beltExtent.TryGetValue(k, out var e) ? Math.Max(e, d.Distance) : d.Distance, d.FixedPosition + OrbitData.Evaluate(frac(d.Phase)) * d.Distance);
+        }).ToList();
+        var wells = WellTree.Build(nodes, zone.Settings, zone.Pack.Radius);
+        return Math.Max(wells.Support(orbit), 1.5f * zone.Settings.RocheLimit.Evaluate(mass[orbit]));
+    }
+
     // How far a body keeps others out: its family's support, or 1.5 Roche limits (tail-taming-law-r3-band-loose-cusp) if more.
     private static float BaseExtent(Zone zone, CultRecordKey orbit)
     {
@@ -367,6 +386,7 @@ public sealed class StationPlacementTests : IDisposable
                     var wouldBe = (side.Count == 0 ? 0f : side[side.Count - 1]) + sign * ((side.Count == 0 ? Contacts.Radius(station) : reach) + 2 * reach);
                     var phase = orbit.Data.Phase + wouldBe / circumference;
                     var chord = 2 * orbit.Data.Distance * Math.Abs((float) Math.Sin(PI * (phase - zone.Orbits[source[0]].Data.Phase)));
+                    _output.WriteLine($"DIAG seed {built.Seed} total {mine.Count} sign {sign} side {side.Count} chord {chord} extent {extent} reach {reach} circ {circumference} D {orbit.Data.Distance} stationR {Contacts.Radius(station)}");
                     if (side.Count >= turrets / 2) continue;
                     stops++;
                     Assert.True(chord < (extent + reach) * (1 + 1e-3f), $"seed {built.Seed}: a side stopped at {side.Count} turrets with its next turret still {chord} from the base, outside {extent + reach}");
@@ -395,7 +415,7 @@ public sealed class StationPlacementTests : IDisposable
             if (!orbit.Data.Parent.IsSet() || zone.Orbits[root].Data.Parent.IsSet() || !zone.Planets.Values.Any(b => !(b is AsteroidBeltData) && b.Orbit.Key.Equals(root))) continue;
             if (zone.Planets.Values.Any(b => SameRing(zone.Orbits[b.Orbit.Key], orbit))) continue;
             fired++;
-            var extent = BaseExtent(zone, root);
+            var extent = ExtentOfBodies(zone, root);
             Assert.True(Math.Abs(orbit.Data.Distance - extent) <= 1e-4f * extent, $"seed {built.Seed}: the entrance station orbits its root at {orbit.Data.Distance}, not at its extent {extent}");
         }
         _output.WriteLine($"entrance zones where the fallback seated a station at a body root: {fired}");
