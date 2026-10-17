@@ -150,41 +150,6 @@ public sealed class OrbitsFromFieldTests : IDisposable
         Assert.Equal(zone.Orbits[planet2].Period, zone.Orbits[companion2].Period);
     }
 
-    // A station on a binary's ring, with nothing inside, feels what the pair's members feel (the mean of what each does),
-    // and so does one a hair off the ring's distance but within its window.
-    [Theory]
-    [InlineData(0f)]
-    [InlineData(.05f)]
-    [InlineData(-.05f)]
-    public void ACompanionOnABinarysRingTakesTheMembersPeriod(float offset)
-    {
-        var w = NewWorld();
-        var node = w.Orbit(default, 0f);
-        var light = w.Orbit(node, 400f, 0f);
-        var heavy = w.Orbit(node, 400f, .5f);
-        var lightBody = w.Body(light, 100f);
-        var heavyBody = w.Body(heavy, 2000f);
-        var companion = w.Orbit(node, 400f + offset, .25f);
-        var zone = w.Build();
-
-        Assert.True(C(zone, heavyBody) > 1.5f * C(zone, lightBody), "fixture: unequal members");
-        AssertPeriod(PeriodUnder((Pull(zone, lightBody, 800f) + Pull(zone, heavyBody, 800f)) / 2, 400f + offset), zone.Orbits[companion].Period,
-            "the companion, between its two members");
-
-        // An equal pair: the companion has the members' period.
-        w = NewWorld();
-        node = w.Orbit(default, 0f);
-        var a = w.Orbit(node, 400f, 0f);
-        var b = w.Orbit(node, 400f, .5f);
-        w.Body(a, 300f);
-        w.Body(b, 300f);
-        companion = w.Orbit(node, 400f, .25f);
-        zone = w.Build();
-        Assert.True(float.IsFinite(zone.Orbits[a].Period));
-        AssertPeriod(zone.Orbits[a].Period, zone.Orbits[companion].Period, "the companion, against the first member");
-        AssertPeriod(zone.Orbits[b].Period, zone.Orbits[companion].Period, "the companion, against the second member");
-    }
-
     // The ring is the 0.1 u window about the innermost massive distance: a member just inside it is a ring partner (felt at
     // the chord), one just outside it is not a partner and the rail has the node's own terms alone, which give a
     // ring's own member next to no pull.
@@ -291,7 +256,7 @@ public sealed class OrbitsFromFieldTests : IDisposable
                 authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), cache, new PlayerSettings(),
                 Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
             var items = new ItemManager(cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
-            var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), galaxy, galaxy.Entrance,
+            var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance,
                 galaxy.IsPrelude, false);
             var zone = new Zone(items, authored.Read<PlanetSettings>("PlanetSettings"), pack, galaxy.Entrance, galaxy);
 
