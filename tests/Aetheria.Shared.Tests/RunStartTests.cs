@@ -46,19 +46,6 @@ public sealed partial class RunStartTests : IDisposable
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(_root, "run.cc")), AetheriaStores.RunTypes);
 
-        // These scenarios measure what the gear does, not the luck of a maker's assembly: every maker assembles well and
-        // with the spread that makes two lots of one design differ (the scenarios compare a heated drive with its twin),
-        // so the ceiling (min(part, assembly)) rarely bites and no scenario stands on one maker's dice.
-        var makers = _cache.GetAll<Faction>().ToArray();
-        foreach (var faction in makers)
-        {
-            faction.AssemblyMean = .75f;
-            faction.AssemblyDeviation = .15f;
-        }
-        _cache.Commit(batch =>
-        {
-            foreach (var faction in makers) batch.Upsert(typeof(Faction), faction, _cache.RefOf(faction).Key);
-        });
 
         var authored = AuthoredSettings.Load(repo);
         _zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");

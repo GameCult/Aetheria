@@ -334,14 +334,15 @@ public sealed class ConsumableSupplyTests : IDisposable
                 .Concat(Enumerable.Range(0, 4).Select(_ => rig.Items.Random.NextFloat())).ToArray();
         }
 
-        // What the plain catalog leaves in both generators' Random, measured on the tree before consumables existed
-        // (origin/master d4a27def, the same fixture and seeds), plus the one product draw each of the three generated
-        // ships makes for its tractor beam (loot-2): with that draw taken out the tree leaves the d4a27def values
-        // 0.85624266, 0.037778974, 0.7931649, 0.3596493, 0.17511952, 0.6642336, 0.31897342, 0.5977364. The gated and
-        // plain catalogs agreeing is not enough: a step that drew unconditionally would draw in both. This pins the value itself.
+        // What the plain catalog leaves in both generators' Random: the d4a27def measurement (before consumables existed, the
+        // same fixture and seeds) plus the one product draw each of the three generated ships makes for its tractor beam
+        // (loot-2), re-measured when a lot's assembly became a Gaussian draw from its maker (assembly-from-maker), which
+        // consumes the item stream differently from the tier roll it replaced; the generator's own stream (the first four
+        // values) is unchanged. The gated and plain catalogs agreeing is not enough: a step that drew unconditionally would
+        // draw in both. This pins the value itself.
         var beforeConsumables = new[]
         {
-            0.3596493f, 0.03616327f, 0.8790466f, 0.16682059f, 0.5977364f, 0.08633745f, 0.2869571f, 0.6890472f
+            0.3596493f, 0.03616327f, 0.8790466f, 0.16682059f, 0.55950844f, 0.87309176f, 0.7170387f, 0.8490041f
         };
         var plainAfter = AfterGeneration(plain);
         Assert.Equal(beforeConsumables, plainAfter);
