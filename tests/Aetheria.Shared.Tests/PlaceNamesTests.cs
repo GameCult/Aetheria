@@ -90,7 +90,7 @@ public sealed class PlaceNamesTests : IDisposable
                 var owned = Owned(galaxy, faction);
                 var listed = Math.Min(owned.Length, faction.Places.Length);
                 Assert.Equal(faction.Places.Take(listed).Select(p => p.Name), owned.Take(listed).Select(z => z.Name));
-                Assert.All(owned.Skip(listed), zone => Assert.Matches(Designation, zone.Name));
+                Assert.All(owned.Skip(listed).Select(z => z.Name), name => Assert.Matches(Designation, name));
                 checkedFactions++;
             }
         Assert.True(checkedFactions >= 20, $"only {checkedFactions} factions were checked");
@@ -104,7 +104,8 @@ public sealed class PlaceNamesTests : IDisposable
         foreach (var galaxy in Galaxies(true, 10).Concat(Galaxies(false, 10)))
             foreach (var zone in galaxy.Zones.Where(z => curated.ContainsKey(z.Name)))
             {
-                Assert.Same(curated[zone.Name], zone.Owner);
+                Assert.True(ReferenceEquals(curated[zone.Name], zone.Owner),
+                    $"zone '{zone.Name}' is owned by '{zone.Owner?.ShortName}' but curated by '{curated[zone.Name].ShortName}'");
                 zones++;
             }
         Assert.True(zones >= 50, $"only {zones} curated zones were checked");
@@ -126,8 +127,8 @@ public sealed class PlaceNamesTests : IDisposable
 
         var owned = Owned(galaxy, faction);
         Assert.Equal(faction.Places.Select(p => p.Name), owned.Take(2).Select(z => z.Name));
-        Assert.Same(owned[0], galaxy.HomeZones[faction]);
-        Assert.All(owned.Skip(2), zone => Assert.Matches(Designation, zone.Name));
+        Assert.True(ReferenceEquals(owned[0], galaxy.HomeZones[faction]), $"the nearest zone '{owned[0].Name}' is not {faction.ShortName}'s home '{galaxy.HomeZones[faction].Name}'");
+        Assert.All(owned.Skip(2).Select(z => z.Name), name => Assert.Matches(Designation, name));
     }
 
     // The table refuses a repeated name, but a list that did not come through it (a package's factions) can still hold
@@ -145,8 +146,10 @@ public sealed class PlaceNamesTests : IDisposable
         var taken = first.Places[0].Name;
         var shouting = taken.ToUpperInvariant();
         Assert.NotEqual(taken, shouting);
+        // Two consecutive names are taken, so the later faction must skip a run, not a single name.
+        var takenToo = first.Places[1].Name;
         var own = later.Places[0].Name;
-        later.Places = new[] { new FactionPlace { Name = shouting }, new FactionPlace { Name = own } };
+        later.Places = new[] { new FactionPlace { Name = shouting }, new FactionPlace { Name = takenToo.ToUpperInvariant() }, new FactionPlace { Name = own } };
 
         var random = new Random(7);
         galaxy.NamePlaces(ref random);
@@ -155,6 +158,50 @@ public sealed class PlaceNamesTests : IDisposable
         Assert.Equal(own, Owned(galaxy, later)[0].Name);
         var names = galaxy.Zones.Select(z => z.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    // The rule is one function (FactionPlace.IsValidName); an entry that fails it counts as absent, so the next valid name
+    // is the capital and nothing invalid ever titles a zone.
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData(" Padded")]
+    [InlineData("eac-6")]
+    [InlineData("EAC-6")]
+    [InlineData(null)]
+    public void AnInvalidEntryCountsAsAbsent(string bad)
+    {
+        var cache = RestoredHullsTests.OpenCatalog();
+        _own.Add(cache);
+        var galaxy = Enumerable.Range(1, 20).Select(seed => { try { return Build(cache, true, (uint)seed); } catch (Exception) { return null; } })
+            .First(g => g != null && Placed(g).Any(f => Owned(g, f).Length >= 3));
+        var faction = Placed(galaxy).First(f => Owned(galaxy, f).Length >= 3);
+        faction.Places = new[] { new FactionPlace { Name = bad }, new FactionPlace { Name = "Real" }, null, new FactionPlace { Name = "Second" } };
+
+        var random = new Random(7);
+        galaxy.NamePlaces(ref random);
+
+        Assert.Equal(new[] { "Real", "Second" }, Owned(galaxy, faction).Take(2).Select(z => z.Name));
+        Assert.Matches(Designation, Owned(galaxy, faction)[2].Name);
+    }
+
+    // A faction with no home does not stop the ones after it from naming their zones.
+    [Fact]
+    public void AFactionWithoutAHomeDoesNotEndTheNaming()
+    {
+        var cache = RestoredHullsTests.OpenCatalog();
+        _own.Add(cache);
+        var galaxy = Enumerable.Range(1, 20).Select(seed => { try { return Build(cache, true, (uint)seed); } catch (Exception) { return null; } })
+            .First(g => g != null && Placed(g).Count(f => g.HomeZones[f].Owner == f) >= 2);
+        var homeless = galaxy.Factions.First(galaxy.HomeZones.ContainsKey);
+        var later = galaxy.Factions.Where(f => f != homeless && galaxy.HomeZones.ContainsKey(f) && f.Places.Length != 0 && galaxy.HomeZones[f].Owner == f)
+            .First(f => Array.IndexOf(galaxy.Factions, f) > Array.IndexOf(galaxy.Factions, homeless));
+        galaxy.HomeZones.Remove(homeless);
+
+        var random = new Random(7);
+        galaxy.NamePlaces(ref random);
+
+        Assert.Equal(later.Places[0].Name, galaxy.HomeZones[later].Name);
     }
 
     [Fact]
@@ -188,7 +235,7 @@ public sealed class PlaceNamesTests : IDisposable
 
         var held = galaxy.Zones.Where(z => z.Owner == terris).ToArray();
         Assert.NotEmpty(held);
-        Assert.All(held, zone => Assert.Matches(Designation, zone.Name));
+        Assert.All(held.Select(z => z.Name), name => Assert.Matches(Designation, name));
     }
 
     [Fact]
@@ -197,7 +244,9 @@ public sealed class PlaceNamesTests : IDisposable
         var factions = Shared.GetAll<Faction>().ToArray();
         foreach (var row in PlaceNamesCommand.Table)
         {
-            var faction = Assert.Single(factions, f => Shared.RefOf(f).Key.Value == row.RecordKey);
+            var matching = factions.Where(f => Shared.RefOf(f).Key.Value == row.RecordKey).ToArray();
+            Assert.True(matching.Length == 1, $"{matching.Length} catalog factions carry the key of the {row.ShortName} row");
+            var faction = matching[0];
             Assert.Equal(row.ShortName, faction.ShortName);
             Assert.Equal(row.Names, faction.Places.Select(p => p.Name));
         }
@@ -270,8 +319,28 @@ public sealed class PlaceNamesTests : IDisposable
         Assert.Equal(changed, File.ReadAllBytes(CatalogOf(root)));
     }
 
+    [Fact]
+    public void ApplyRestoresAnEditedListOfTheSameLength()
+    {
+        var root = ScratchWithoutLists();
+        Assert.Equal(0, PlaceNamesCommand.Run(new[] { "apply" }, root));
+        var row = PlaceNamesCommand.Table.First();
+        var edited = AetherDb.Open(catalogWritable: true, root: root);
+        var faction = edited.Cache.GetAll<Faction>().Single(f => edited.Cache.RefOf(f).Key.Value == row.RecordKey);
+        faction.Places = row.Names.Reverse().Select(n => new FactionPlace { Name = n }).ToArray();
+        edited.Cache.Commit(batch => batch.Upsert(typeof(Faction), faction, edited.Cache.RefOf(faction).Key));
+        edited.Cache.Dispose();
+
+        Assert.Equal(0, PlaceNamesCommand.Run(new[] { "apply" }, root));
+
+        var db = AetherDb.Open(root: root);
+        try { Assert.Equal(row.Names, db.Cache.GetAll<Faction>().Single(f => db.Cache.RefOf(f).Key.Value == row.RecordKey).Places.Select(p => p.Name)); }
+        finally { db.Cache.Dispose(); }
+    }
+
     [Theory]
     [InlineData("EAC-12")]
+    [InlineData("eac-12")]
     [InlineData(" Padded")]
     [InlineData("")]
     [InlineData("shunya")]
