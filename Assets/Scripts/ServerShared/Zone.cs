@@ -279,13 +279,14 @@ public class Zone
     // turret all join through here. A piloted entity gets the zone's Minion; an unpiloted one gets no agent at all.
     // Only a ship can be piloted. The death watch is installed here, for every join, whichever caller admits it.
     // An entity that is already a member is refused: it would hold a second watch and a second agent.
-    public void Admit(Entity entity, bool piloted)
+    // A piloted entity starts on the zone's drawn patrol circuit unless the caller states its task (a scenario's approach).
+    public void Admit(Entity entity, bool piloted, AgentTask task = null)
     {
         if (_entities.Contains(entity)) throw new InvalidOperationException("entity: already a member of this zone");
         _entities.Add(entity);
         _deathWatches.Add(entity, entity.Death.Subscribe(_ => { DropLoot(entity); Remove(entity); entity.Deactivate(); }));
         entity.Activate();
-        if (piloted) Agents.Add(CreateAgent((Ship) entity));
+        if (piloted) Agents.Add(CreateAgent((Ship) entity, task));
     }
 
     // The one removal from this zone (death, dock, jump): membership and its death watch leave together. False, and
@@ -300,18 +301,21 @@ public class Zone
         return true;
     }
 
-    private Agent CreateAgent(Ship ship)
+    private Agent CreateAgent(Ship ship, AgentTask stated)
     {
         var key = ship.Faction ?? Unaffiliated;
         if (!_flights.TryGetValue(key, out var flight))
             _flights[key] = flight = new Flight(ship.Faction?.Doctrine, _itemManager.GameplaySettings);
         var id = NextAgentId();
         var agent = new Minion(ship, flight.Combatant) { Id = id };
-        var task = new PatrolOrbitsTask();
-        var dice = SimulationDice.For(CombatSeed, SimulationDice.PatrolStream, id);
-        task.Circuit = Orbits.OrderBy(_ => dice.NextFloat()).Take(4).Select(x => x.Key).ToArray();
-        flight.Join(agent, task);
+        flight.Join(agent, stated ?? PatrolCircuit(id));
         return agent;
+    }
+
+    private PatrolOrbitsTask PatrolCircuit(uint id)
+    {
+        var dice = SimulationDice.For(CombatSeed, SimulationDice.PatrolStream, id);
+        return new PatrolOrbitsTask { Circuit = Orbits.OrderBy(_ => dice.NextFloat()).Take(4).Select(x => x.Key).ToArray() };
     }
 
     public ZonePack PackZone()

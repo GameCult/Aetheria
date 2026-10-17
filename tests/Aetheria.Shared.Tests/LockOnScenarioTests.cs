@@ -33,8 +33,25 @@ public sealed partial class RunStartTests
         var settled = hostile.PassiveInfo(player.Position.xz, player.Visibility);
         Assert.True(settled <= threshold, $"the hostile would settle at {settled} on the player, above the detection threshold {threshold}: staged inside its sight");
 
+        var (lockedAt, bearingError, stagedDrift, strengths) = StepToLock(arena, player, hostile, toPlayer);
+        Assert.True(lockedAt >= 0, "the hostile never locked the player within 600 ticks of .1 s");
+        Assert.True(bearingError <= StampedBearingLimit, $"the warning points at the hostile where it was when stamped, {bearingError} deg off (the hostile is {stagedDrift} deg off its staged line at the lock)");
+        Assert.True(strengths.First() < strengths.Last(), $"the lock tightens: Strength went {strengths.First()} to {strengths.Last()}");
+    }
+
+    // Float error in the stamped pose and the normalizations, not a lag budget: the warning is exact for the tick it was stamped in.
+    const float StampedBearingLimit = .05f;
+
+    // The paint is stamped from the poses at the end of one tick and published at the start of the next (an entity's inbox
+    // publishes a tick late, so the order of the entities does not matter), so the warning first read is measured against
+    // the poses of the tick before: where the hostile was when the paint was stamped, not where it is now. Steps up to 600
+    // ticks of .1 s, and 40 past the lock. lockedAt is -1 when it never locks.
+    private static (int lockedAt, float bearingError, float stagedDrift, List<float> strengths) StepToLock(Zone arena, Ship player, Entity hostile, CultMath.float2 toPlayer)
+    {
+        var hostileThen = hostile.Position.xz;
+        var playerThen = player.Position.xz;
         var lockedAt = -1;
-        var bearingDot = 0f;
+        var bearingError = 0f;
         var stagedDrift = 0f;
         var strengths = new List<float>();
         for (var tick = 0; tick < 600 && (lockedAt < 0 || tick < lockedAt + 40); tick++)
@@ -45,16 +62,40 @@ public sealed partial class RunStartTests
                 if (lockedAt < 0)
                 {
                     lockedAt = tick;
-                    // The warning points at the hostile where it is at the lock; the hostile has left the staged line by then.
-                    var live = normalize(hostile.Position.xz - player.Position.xz);
-                    bearingDot = dot(normalize(paint.Bearing), live);
-                    stagedDrift = degrees(acos(clamp(dot(live, -toPlayer), -1f, 1f)));
+                    var stamped = normalize(hostileThen - playerThen);
+                    bearingError = degrees(acos(clamp(dot(normalize(paint.Bearing), stamped), -1f, 1f)));
+                    stagedDrift = degrees(acos(clamp(dot(stamped, -toPlayer), -1f, 1f)));
                 }
                 strengths.Add(paint.Strength);
             }
+            hostileThen = hostile.Position.xz;
+            playerThen = player.Position.xz;
         }
-        Assert.True(lockedAt >= 0, "the hostile never locked the player within 600 ticks of .1 s");
-        Assert.True(bearingDot >= cos(radians(.5f)), $"the warning points at the hostile where it is (the hostile is {stagedDrift} deg off its staged line at the lock)");
-        Assert.True(strengths.First() < strengths.Last(), $"the lock tightens: Strength went {strengths.First()} to {strengths.Last()}");
+        return (lockedAt, bearingError, stagedDrift, strengths);
+    }
+
+    // The staged inputs, each moved 1%: the lock and the warning's bearing still hold, so the scenario does not rest on the
+    // exact numbers it was written with. Kills: a pass geometry that only the staged numbers reach.
+    [Fact]
+    public void LockOnHoldsUnderOnePercentOfEachStagedInput()
+    {
+        var at = LockOn.HostileAt;
+        var variants = new (string what, LockOn scenario)[]
+        {
+            ("staged", new LockOn()),
+            ("x +1%", new LockOn(float2(at.x * 1.01f, at.y), .6f)), ("x -1%", new LockOn(float2(at.x * .99f, at.y), .6f)),
+            ("y +1%", new LockOn(float2(at.x, at.y * 1.01f), .6f)), ("y -1%", new LockOn(float2(at.x, at.y * .99f), .6f)),
+            ("quality +1%", new LockOn(at, .6f * 1.01f)), ("quality -1%", new LockOn(at, .6f * .99f))
+        };
+        foreach (var (what, scenario) in variants)
+        {
+            var (_, arena, staged, failures) = Launch(scenario, Inputs(() => GalaxySeed));
+            Assert.True(failures.Count == 0, $"{what}: {string.Join("; ", failures)}");
+            var hostile = Assert.Single(staged.Entities);
+            arena.Update(.1f);
+            var (lockedAt, bearingError, _, _) = StepToLock(arena, staged.Player, hostile, normalize(staged.Player.Position.xz - hostile.Position.xz));
+            Assert.True(lockedAt >= 0, $"{what}: the hostile never locked the player within 600 ticks");
+            Assert.True(bearingError <= StampedBearingLimit, $"{what}: the warning is {bearingError} deg off the pose it was stamped from");
+        }
     }
 }

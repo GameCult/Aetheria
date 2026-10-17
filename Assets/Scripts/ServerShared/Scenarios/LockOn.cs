@@ -12,26 +12,33 @@ public sealed class LockOn : Scenario
 
     // The hostile starts about 4000 m off, ahead and to port of the player, facing the player. At that range its passive
     // sensors hold no track of the player (the test asks the sim's own PassiveInfo against the detection threshold). The
-    // hostile closes, sees the player some fourteen seconds in and locks. Its flanking approach and the zone's pull carry it
-    // off the staged line (about 5 degrees by the lock on the merged tree), and the warning must point at where the hostile
-    // is at the lock, which the test checks against the live bearing. At Duel's 900 m (and at 600 m) it sees and locks
-    // within a second.
+    // hostile is ordered to close on the player, finds it and locks. The zone's pull carries it off the staged line, so the
+    // warning must point at where the hostile was when the paint was stamped, which the test checks against the poses of
+    // that tick. At Duel's 900 m (and at 600 m) it sees and locks within a second.
     public static readonly CultMath.float2 HostileAt = float2(-2000, 3450);
 
-    // The fit's lots are minted at this quality, and the hostile's patrol order is stated, so the lock follows from the
-    // staged situation and not from item draws or the pilot's drawn circuit (ruling scenario-stages-hostile-task).
-    // .8 and not Crossing's .6: the lock comes at the hostile's closest pass, where the warning's one-tick lag reads as bearing error
-    // (the test allows .5 degrees); at .6 the lock came at 880 m with .57, at .7 .48, at .8 .45 (942 m); at .2 to .5 and 1 no lock in 600 ticks.
-    const float StagedQuality = .8f;
-    // The orbit it patrols: the fourth of the arena's, which carries the hostile across the player's lock envelope (lock
-    // at about 35 s, closest 880 m; the other twelve, patrolled alone, do not lock it in 600 ticks).
-    const int PatrolOrbit = 3;
+    // The fit's lots are minted at this quality, the one Crossing and the other RunStart scenarios stage (the brief states no
+    // other), and the hostile's order is to close on the player, so the lock follows from the staged situation and not
+    // from item draws or the pilot's drawn circuit (ruling scenario-stages-hostile-task).
+    const float StagedQuality = .6f;
+
+    private readonly CultMath.float2 _hostileAt;
+    private readonly float _quality;
+
+    public LockOn() : this(HostileAt, StagedQuality) { }
+
+    // The staged inputs, open to a test that moves each a little and asks that the scenario still hold.
+    internal LockOn(CultMath.float2 hostileAt, float quality)
+    {
+        _hostileAt = hostileAt;
+        _quality = quality;
+    }
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {
-        var fighter = stage.Fit("Longinus", StagedQuality,
+        var fighter = stage.Fit("Longinus", _quality,
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
             ("Large Drive", int2(3, 0), Reversed),
@@ -49,8 +56,8 @@ public sealed class LockOn : Scenario
             ("Panopticon Prime", int2(1, 6), Clockwise), // Fire Control Array
             ("Store-All Plus", int2(2, 8), None)); // Cargo Bay
 
-        stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
-        var hostile = stage.Place(fighter, HostileAt, facing: normalize(-HostileAt), stance: ScenarioStance.Hostile, piloted: true);
-        stage.Patrol(hostile, PatrolOrbit);
+        var player = stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
+        var hostile = stage.Place(fighter, _hostileAt, facing: normalize(-_hostileAt), stance: ScenarioStance.Hostile, piloted: true);
+        stage.Approach(hostile, player);
     }
 }

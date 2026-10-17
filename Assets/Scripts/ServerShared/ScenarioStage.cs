@@ -49,7 +49,7 @@ public sealed class ScenarioStage
         public Entity Entity;
         public ScenarioStance Stance;
         public bool Piloted;
-        public CultRecordKey[] Circuit;
+        public AgentTask Task;
     }
 
     // A hull fitted slot by slot: each slot a design or a product, the hull cell it goes in, and its rotation. A name is
@@ -136,15 +136,16 @@ public sealed class ScenarioStage
         return entity;
     }
 
-    // The patrol order a piloted entity starts on: the one orbit at this index of the arena's orbits, which a galaxy seed
-    // fixes. A check that rests on where a pilot goes states it here, so the pilot's circuit is not a draw. An entity that
-    // is not placed and piloted, or an index past the orbits, is a failure.
-    public void Patrol(Entity entity, int orbit)
+    // The task a piloted entity starts on: it closes on the target and holds there (the flight's follow task, standoff
+    // nothing), in place of the patrol circuit the zone would draw for it. A check that rests on where a pilot goes states
+    // it here, so the pilot's course is the scenario's and not a draw. An entity that is not placed and piloted, or a
+    // target that is not placed, is a failure.
+    public void Approach(Entity entity, Entity target)
     {
         var placement = _placed.FirstOrDefault(p => ReferenceEquals(p.Entity, entity));
-        if (placement == null || !placement.Piloted) { _failures.Add($"patrol: {entity?.Name ?? "no entity"} is not a placed, piloted ship"); return; }
-        if (orbit < 0 || orbit >= Arena.Orbits.Count) { _failures.Add($"patrol: the arena has no orbit {orbit} (it has {Arena.Orbits.Count})"); return; }
-        placement.Circuit = new[] { Arena.Orbits.Keys.ElementAt(orbit) };
+        if (placement == null || !placement.Piloted) { _failures.Add($"approach: {entity?.Name ?? "no entity"} is not a placed, piloted ship"); return; }
+        if (target == null) { _failures.Add("approach: no target to close on"); return; }
+        placement.Task = new FollowTask { Anchor = target, Standoff = 0f };
     }
 
     // Items in the entity's first cargo bay, one per name. A name is an equippable or consumable design (open: the stage

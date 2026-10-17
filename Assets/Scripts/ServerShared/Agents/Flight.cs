@@ -25,7 +25,7 @@ public class Flight
     private class Member
     {
         public Agent Agent;
-        public PatrolOrbitsTask Patrol;
+        public AgentTask Baseline;
     }
 
     private readonly FactionDoctrine _doctrine;
@@ -49,10 +49,11 @@ public class Flight
 
     public Phase PhaseOf(Entity track) => _tracks.TryGetValue(track, out var t) ? t.Phase : Phase.None;
 
-    public void Join(Agent agent, PatrolOrbitsTask circuit)
+    // The task a member holds when the flight has nothing to follow: its patrol circuit, or the task a scenario stated.
+    public void Join(Agent agent, AgentTask baseline)
     {
-        _members.Add(new Member { Agent = agent, Patrol = circuit });
-        agent.Task = circuit;
+        _members.Add(new Member { Agent = agent, Baseline = baseline });
+        agent.Task = baseline;
     }
 
     public void Leave(Agent agent) => _members.RemoveAll(m => m.Agent == agent);
@@ -167,8 +168,8 @@ public class Flight
             if (!(member.Agent.Task is FollowTask current) || current.Anchor != anchor)
                 member.Agent.Task = new FollowTask { Anchor = anchor, Standoff = Standoff(ship) };
         }
-        else if (member.Agent.Task != member.Patrol)
-            member.Agent.Task = member.Patrol;
+        else if (member.Agent.Task != member.Baseline)
+            member.Agent.Task = member.Baseline;
     }
 
     private static void Aim(Ship ship, Entity target)
