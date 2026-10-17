@@ -528,6 +528,9 @@ public sealed class ConsumableAiTests : IDisposable
         var s = Build(carryVent: true);
         var agent = s.Zone.Agents.Single();
         s.Agent.VisibleEnemies.Clear();
+        s.Zone.Update(.05f);
+        s.Zone.Update(.05f);
+        Assert.True(s.Agent.Target.Value.IsNone);
         agent.Task = new FollowTask { Anchor = s.Prey, Standoff = 100 };
         for (var i = 0; i < 6 && !(s.State is FollowState); i++) agent.Update(.05f);
         Assert.True(s.State is FollowState, $"the agent is in {s.State?.GetType().Name}");
