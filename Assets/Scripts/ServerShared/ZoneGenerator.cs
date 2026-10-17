@@ -647,7 +647,6 @@ public static class ZoneGenerator
 			}
 		}
 
-		var settled = new HashSet<GeneratorPlanet>(); // ring members, settled by their node so the ring is judged on their final masses
 		var chordCap = new Dictionary<GeneratorPlanet, float>(); // a ring member's children stay within .2 of the nearest partner's chord
 		void Settle(GeneratorPlanet node)
 		{
@@ -660,11 +659,12 @@ public static class ZoneGenerator
 			if (WellMass(node) > 0)
 			{
 				PlaceChildren(node.Children.ToList(), () => RocheMargin * Roche(WellMass(node)), upper, node);
+				foreach (var child in node.Children.ToList()) Settle(child);
 				return;
 			}
 
 			var ring = node.Children.Where(c => c.Ring && WellMass(c) > 0).ToList();
-			if (ring.Count == 0) return;
+			if (ring.Count == 0) { foreach (var child in node.Children.ToList()) Settle(child); return; }
 			var heavy = ring.OrderByDescending(c => c.Mass).First();
 			var ringDistance = Math.Min(.5f * cap, share * reach / (GravityField.Beta * GravityField.Beta * (1 + GravityField.RingReach)));
 			PlaceChildren(node.Children.Where(c => !ring.Contains(c)).ToList(),
@@ -674,7 +674,6 @@ public static class ZoneGenerator
 				member.Distance = ringDistance;
 				chordCap[member] = .2f * 2 * ringDistance * sin(PI / ring.Count);
 				Settle(member);
-				settled.Add(member);
 			}
 			// A member's mass is final only once it has settled (its own overflowing children fold into it).
 			if (ringDistance < RocheMargin * Roche(ring.Max(c => c.Mass)))
@@ -683,17 +682,12 @@ public static class ZoneGenerator
 				node.Empty = false;
 				node.Mass = 0;
 				foreach (var child in node.Children.ToList()) Fold(child, node);
+				return;
 			}
+			foreach (var child in node.Children.Where(c => !ring.Contains(c)).ToList()) Settle(child);
 		}
 
-		var queue = new Queue<GeneratorPlanet>();
-		queue.Enqueue(root);
-		while (queue.Count > 0)
-		{
-			var node = queue.Dequeue();
-			if (!settled.Contains(node)) Settle(node);
-			foreach (var child in node.Children) queue.Enqueue(child);
-		}
+		Settle(root);
 	}
 }
 
