@@ -25,7 +25,7 @@ public class Agent
     public AgentTask Task { get; set; }
     // Zone-scoped, from 1: the ordinal of this pilot's own dice, set by Zone.CreateAgent as it admits the pilot (0 for
     // an agent built outside a zone's admission).
-    public uint Id { get; init; }
+    public uint Id { get; set; }
     public Ship Ship { get; }
     public ItemManager ItemManager { get; }
     public GameplaySettings Settings { get; }
