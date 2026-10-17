@@ -355,14 +355,14 @@ public sealed class StationPlacementTests : IDisposable
 
 
     // A side of a station grows outward until its next turret would sit within the base body's extent plus that turret's reach of
-    // the base (story-turret-tail-clearance). With a single wide turret hull on offer and forty story turrets every station
+    // the base (story-turret-tail-clearance). With a single wide turret hull on offer and sixteen story turrets a station
     // reaches the base: a side that placed fewer than its half stopped, and its would-be next turret, spelled from the zone, is
     // inside that distance. Ambient stations carry at most two turrets, so only a station with three or more is a story one.
     [Fact]
     public void ATurretTailStopsAtItsBaseBody()
     {
-        const int turrets = 40;
-        int stations = 0, sides = 0, stops = 0, nearBase = 0;
+        const int turrets = 16;
+        int stations = 0, ambiguous = 0, sides = 0, stops = 0, nearBase = 0;
         foreach (var built in GeneratedZones(WithOnlyAWiderTurretHull, turrets, 6))
         {
             var zone = built.Zone;
@@ -374,11 +374,13 @@ public sealed class StationPlacementTests : IDisposable
                 var mine = orbitals.Where(e => TypeOf(built.Items, e) == HullType.Turret && SameRing(zone.Orbits[e.OrbitData], orbit)).ToList();
                 var source = zone.Orbits.Where(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit)).Select(o => o.Key).ToList();
                 if (mine.Count < 3 || source.Count != 1) continue;
-                stations++;
                 var extent = BaseExtent(zone, source[0]);
                 var reach = Contacts.Radius(mine[0]);
                 var circumference = 2 * PI * orbit.Data.Distance;
                 var arcs = mine.Select(t => { var turn = Turns(zone.Orbits[t.OrbitData].Data.Phase - orbit.Data.Phase); return (turn > .5f ? turn - 1 : turn) * circumference; }).ToList();
+                // Half the ring away a turret's side is ambiguous (its signed arc wraps), so such a station is not read.
+                if (arcs.Any(a => Math.Abs(a) > .45f * circumference)) { ambiguous++; continue; }
+                stations++;
                 foreach (var sign in new[] { -1f, 1f })
                 {
                     var side = arcs.Where(a => a * sign > 0).OrderBy(a => a * sign).ToList();
@@ -386,15 +388,15 @@ public sealed class StationPlacementTests : IDisposable
                     var wouldBe = (side.Count == 0 ? 0f : side[side.Count - 1]) + sign * ((side.Count == 0 ? Contacts.Radius(station) : reach) + 2 * reach);
                     var phase = orbit.Data.Phase + wouldBe / circumference;
                     var chord = 2 * orbit.Data.Distance * Math.Abs((float) Math.Sin(PI * (phase - zone.Orbits[source[0]].Data.Phase)));
-                    _output.WriteLine($"DIAG seed {built.Seed} total {mine.Count} sign {sign} side {side.Count} chord {chord} extent {extent} reach {reach} circ {circumference} D {orbit.Data.Distance} stationR {Contacts.Radius(station)}");
                     if (side.Count >= turrets / 2) continue;
                     stops++;
+                    _output.WriteLine($"DIAG seed {built.Seed} side {side.Count} of {turrets / 2} stopped: next turret {chord / (extent + reach):F3} of the stop distance");
                     Assert.True(chord < (extent + reach) * (1 + 1e-3f), $"seed {built.Seed}: a side stopped at {side.Count} turrets with its next turret still {chord} from the base, outside {extent + reach}");
                     if (chord >= .8f * (extent + reach)) nearBase++;
                 }
             }
         }
-        _output.WriteLine($"story stations {stations}, sides {sides}, sides that stopped {stops}, of them with the next turret within a fifth of the stop distance {nearBase}");
+        _output.WriteLine($"story stations {stations} (not read, ambiguous: {ambiguous}), sides {sides}, sides that stopped {stops}, of them with the next turret at 0.8 to 1 of the stop distance {nearBase}");
         Assert.True(stops > 0 && nearBase > 0, $"{stops} stops, {nearBase} in the 0.8 band: the seeds do not exercise the rule");
     }
 
