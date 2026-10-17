@@ -544,7 +544,6 @@ public static class Program
 
         var tutorial = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
         var background = authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings");
-        var names = authored.Read<NameGeneratorSettings>("NameGeneratorSettings");
         var zones = authored.Read<ZoneGenerationSettings>("ZoneSettings");
         var gameplay = authored.Read<GameplaySettings>("GameplaySettings");
 
@@ -554,7 +553,6 @@ public static class Program
             $"{tutorial.ZoneCount} zones, link density {tutorial.LinkDensity}");
         Console.WriteLine($"background: frequency {background.NoiseFrequency}, amplitude {background.NoiseAmplitude}, " +
             $"cloud exponent {background.CloudExponent}, density at centre {background.CloudDensity(new float2(.5f)):0.000}");
-        Console.WriteLine($"names: order {names.NameGeneratorOrder}, length {names.NameGeneratorMinLength}-{names.NameGeneratorMaxLength}");
         Console.WriteLine($"zones: sun mass {zones.SunMass}, planet mass {zones.PlanetMass}, satellite passes {zones.SatellitePasses}, " +
             $"belt probability {zones.BeltProbability}");
         Console.WriteLine($"  zone radius curve {zones.ZoneRadius?.Minimum}-{zones.ZoneRadius?.Maximum} exponent {zones.ZoneRadius?.Exponent}");
@@ -696,23 +694,22 @@ public static class Program
         return false;
     }
 
-    // Each faction's generation-critical links. Galaxy.GenerateNames dereferences the geoname file without a
-    // guard, so an unset link there stops galaxy generation outright.
+    // Each faction's generation-critical links and the size of its curated place list. An empty list is not broken:
+    // Galaxy.NamePlaces falls back to catalogue designations for a faction without one.
     private static int Factions()
     {
         var db = AetherDb.Open();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
-        Console.WriteLine($"{"faction",-26} {"short",-13} {"geonames",-22} {"boss hull",-14} {"influence",-9} {"doctrine",-10} products");
+        Console.WriteLine($"{"faction",-26} {"short",-13} {"places",-22} {"boss hull",-14} {"influence",-9} {"doctrine",-10} products");
         var broken = 0;
         foreach (var faction in db.Cache.GetAll<Faction>().OrderBy(f => f.Name))
         {
             var key = db.Cache.RefOf(faction).Key;
-            var geonames = faction.GeonameFile.IsSet() ? "set" : "UNSET";
             var boss = !faction.BossHull.IsSet()
                 ? "none"
                 : db.Cache.Get(faction.BossHull)?.Name ?? "DANGLING";
-            if (geonames == "UNSET" || boss == "DANGLING") broken++;
-            Console.WriteLine($"{faction.Name,-26} {faction.ShortName,-13} {geonames,-22} {boss,-14} {faction.InfluenceDistance,-9} {(faction.Doctrine == null ? "none" : faction.Doctrine.EngageOn.ToString()),-10} " +
+            if (boss == "DANGLING") broken++;
+            Console.WriteLine($"{faction.Name,-26} {faction.ShortName,-13} {faction.Places.Length,-22} {boss,-14} {faction.InfluenceDistance,-9} {(faction.Doctrine == null ? "none" : faction.Doctrine.EngageOn.ToString()),-10} " +
                 products.Count(p => p.Manufacturer.Key.Equals(key)));
         }
         Console.WriteLine($"\n{broken} factions carry a link that would break generation");
@@ -2305,9 +2302,6 @@ public static class Program
 
         string CodePoints(string text) => string.Join(" ", text.EnumerateRunes().Select(r => $"U+{r.Value:X4}"));
 
-        var nameFile = db.Cache.GetAll<NameFile>().FirstOrDefault(n => n.Name == "pleiades");
-        if (nameFile == null) throw new InvalidOperationException("No name file named \"pleiades\".");
-
         var others = db.Cache.GetAll<Faction>().ToArray();
         var pirates = new Faction
         {
@@ -2316,7 +2310,6 @@ public static class Program
             Description = "A loose coalition of crews and hidden docks moving people and goods outside official control. No command, no common law: possession has a maintenance schedule.",
             PrimaryColor = new float3(.42f, .40f, .37f),
             SecondaryColor = new float3(1f, .45f, .05f),
-            GeonameFile = db.Cache.RefOf(nameFile),
             InfluenceDistance = 3,
         };
         foreach (var other in AllegianceGaps(db, pirates, others)) pirates.Allegiance[db.Cache.RefOf(other)] = 1f;
@@ -2340,7 +2333,7 @@ public static class Program
                 Roles: (design.Roles ?? new List<ItemRole>()).Select(role => new ProductRole { Role = role.Name, Mean = PirateProfile.Mean, StandardDeviation = PirateProfile.Dev }).ToList());
         }).ToArray();
 
-        Console.WriteLine($"New faction \"{pirates.Name}\": influence {pirates.InfluenceDistance}, names \"{nameFile.Name}\", allegiance 1.0 to {pirates.Allegiance.Count} factions.");
+        Console.WriteLine($"New faction \"{pirates.Name}\": influence {pirates.InfluenceDistance}, allegiance 1.0 to {pirates.Allegiance.Count} factions.");
         Console.WriteLine($"  colours: primary ({pirates.PrimaryColor.x:0.00}, {pirates.PrimaryColor.y:0.00}, {pirates.PrimaryColor.z:0.00}) primer grey, secondary ({pirates.SecondaryColor.x:0.00}, {pirates.SecondaryColor.y:0.00}, {pirates.SecondaryColor.z:0.00}) hazard orange");
         Console.WriteLine($"  {pirates.Description}");
         Console.WriteLine($"\nNew products ({products.Length}):");

@@ -88,8 +88,6 @@ public static class PlaceNamesCommand
 
         var rows = table.ToDictionary(r => r.RecordKey, StringComparer.Ordinal);
         var changed = table.Where(r => !keyOf[r.RecordKey].Places.Select(p => p.Name).SequenceEqual(r.Names)).ToArray();
-        var nameFiles = db.Cache.GetAll<NameFile>().ToArray();
-        var geoned = factions.Where(f => f.GeonameFile.IsSet()).ToArray();
 
         foreach (var faction in factions.OrderBy(f => f.Name, StringComparer.Ordinal))
         {
@@ -100,10 +98,7 @@ public static class PlaceNamesCommand
             }
             Console.WriteLine($"{faction.Name}: {row.Names.Length} places, capital {row.Names[0]}, {(changed.Contains(row) ? "changed" : "unchanged")}");
         }
-        if (nameFiles.Length != 0 || geoned.Length != 0)
-            Console.WriteLine($"Retired Markov data: {nameFiles.Length} name files, {geoned.Length} geoname links.");
-
-        if (changed.Length == 0 && nameFiles.Length == 0 && geoned.Length == 0)
+        if (changed.Length == 0)
         {
             Console.WriteLine("nothing to do");
             return 0;
@@ -116,15 +111,12 @@ public static class PlaceNamesCommand
 
         if (!db.Cache.Commit(batch =>
         {
-            // Commit 1 only: the Markov data goes while its type still exists; commit 3 deletes the type and this leg.
-            foreach (var faction in factions.Where(f => geoned.Contains(f) || changed.Any(r => r.RecordKey == db.Cache.RefOf(f).Key.Value)))
+            foreach (var row in changed)
             {
-                if (rows.TryGetValue(db.Cache.RefOf(faction).Key.Value, out var row))
-                    faction.Places = row.Names.Select(n => new FactionPlace { Name = n }).ToArray();
-                faction.GeonameFile = default;
+                var faction = keyOf[row.RecordKey];
+                faction.Places = row.Names.Select(n => new FactionPlace { Name = n }).ToArray();
                 batch.Upsert(typeof(Faction), faction, db.Cache.RefOf(faction).Key);
             }
-            foreach (var file in nameFiles) batch.Remove(db.Cache.RefOf(file).Key);
         }))
             throw new InvalidOperationException("The catalog changed while place names were being authored; nothing was written. Run it again.");
         Console.WriteLine($"\nAuthored {changed.Length} place lists in Aetheria.cc");

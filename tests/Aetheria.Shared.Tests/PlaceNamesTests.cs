@@ -31,9 +31,9 @@ public sealed class PlaceNamesTests : IDisposable
 
     private static Galaxy Build(CultCache cache, bool prelude, uint seed) => prelude
         ? new Galaxy(Authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"), Authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-            Authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed)
+            cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed)
         : new Galaxy(Authored.Read<SectorGenerationSettings>("SectorGenerationSettings"), Authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"),
-            Authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), cache, _ => { }, null, seed);
+            cache, _ => { }, null, seed);
 
     // A prelude galaxy sometimes refuses to generate for a seed (RestoredHullsTests calls it Galaxy's own seed-dependent
     // flakiness); those seeds are skipped, and a test that depends on how many built says so.

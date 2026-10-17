@@ -15,7 +15,6 @@ public sealed class GalaxyStage
     private readonly SectorBackgroundSettings _sectorBackground;
     private readonly TutorialGenerationSettings _prelude;
     private readonly SectorBackgroundSettings _preludeBackground;
-    private readonly NameGeneratorSettings _names;
     private readonly CultCache _cache;
     private readonly PlayerSettings _playerSettings;
     private readonly DirectoryInfo _narrativeDirectory;
@@ -28,7 +27,6 @@ public sealed class GalaxyStage
         SectorBackgroundSettings sectorBackground,
         TutorialGenerationSettings prelude,
         SectorBackgroundSettings preludeBackground,
-        NameGeneratorSettings names,
         CultCache cache,
         PlayerSettings playerSettings,
         DirectoryInfo narrativeDirectory,
@@ -40,7 +38,6 @@ public sealed class GalaxyStage
         _sectorBackground = sectorBackground;
         _prelude = prelude;
         _preludeBackground = preludeBackground;
-        _names = names;
         _cache = cache;
         _playerSettings = playerSettings;
         _narrativeDirectory = narrativeDirectory;
@@ -64,7 +61,7 @@ public sealed class GalaxyStage
         var background = Copy(_sectorBackground);
         var random = new Random(Seed);
         background.NoisePosition = random.NextFloat() * 1000;
-        return new Galaxy(_sector, background, _names, _cache, _log, _progress, Seed);
+        return new Galaxy(_sector, background, _cache, _log, _progress, Seed);
     }
 
     // A prelude galaxy: the tutorial settings and their fixed factions, centred in dense cloud.
@@ -81,7 +78,7 @@ public sealed class GalaxyStage
             background.NoisePosition = random.NextFloat() * 1000;
             _progress?.Invoke($"Finding Galaxy Position: iteration {iteration++}");
         } while (background.CloudDensity(float2(.5f)) < .5f);
-        return new Galaxy(cast, background, _names, _cache, _playerSettings, _narrativeDirectory, _log, _progress, Seed);
+        return new Galaxy(cast, background, _cache, _playerSettings, _narrativeDirectory, _log, _progress, Seed);
     }
 
     private static SectorBackgroundSettings Copy(SectorBackgroundSettings settings) =>

@@ -51,7 +51,7 @@ public sealed partial class RunStartTests : IDisposable
         _planetSettings = authored.Read<PlanetSettings>("PlanetSettings");
         var tutorial = _tutorialSettings = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
         _galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-            authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), _cache, new PlayerSettings(),
+            _cache, new PlayerSettings(),
             Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, GalaxySeed);
         _items = new ItemManager(_cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
         _protagonist = _galaxy.ResolveFaction(tutorial.ProtagonistFaction);
@@ -122,7 +122,7 @@ public sealed partial class RunStartTests : IDisposable
         var authored = AuthoredSettings.Load(FindRepoRoot());
         return new Galaxy(authored.Read<SectorGenerationSettings>("SectorGenerationSettings"),
             authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"),
-            authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), _cache, _ => { }, null, GalaxySeed);
+            _cache, _ => { }, null, GalaxySeed);
     }
 
     // Every item a station carries, equipped or stocked, with the product it was made as.

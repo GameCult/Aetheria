@@ -37,8 +37,7 @@ public class Faction
     [InspectableColor, JsonProperty("secondaryColor"), Key(8)]
     public float3 SecondaryColor;
 
-    [Inspectable, JsonProperty("nameFile"), Key(9)]
-    public CultRecordRef<NameFile> GeonameFile;
+    // Key 9 was the faction's name-file link, retired by ruling faction-curated-place-names; never reuse it.
 
     [Inspectable, JsonProperty("bossHull"), Key(10)]
     public CultRecordRef<HullData> BossHull;
@@ -78,9 +77,3 @@ public class FactionPlace
     public string Name;
 }
 
-[CultDocument("aetheria.namefile", "1"), Inspectable, MessagePackObject]
-public class NameFile
-{
-    [CultName, Key(1)] public string Name;
-    [Key(2)] public string[] Names;
-}

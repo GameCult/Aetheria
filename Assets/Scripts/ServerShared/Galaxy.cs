@@ -20,7 +20,6 @@ public class Galaxy
     public HashSet<GalaxyZone> DiscoveredZones = new HashSet<GalaxyZone>();
     
     public SectorBackgroundSettings Background { get; }
-    public NameGeneratorSettings NameGeneratorSettings { get; }
     public Faction[] Factions { get; }
     public GalaxyZone[] Zones { get; }
     public GalaxyZone Entrance { get; }
@@ -95,7 +94,6 @@ public class Galaxy
     public Galaxy(
         SectorGenerationSettings settings, 
         SectorBackgroundSettings background, 
-        NameGeneratorSettings nameGeneratorSettings, 
         CultCache cache,
         Action<string> log,
         Action<string> progressCallback = null,
@@ -161,7 +159,6 @@ public class Galaxy
     public Galaxy(
         TutorialGenerationSettings settings,
         SectorBackgroundSettings background,
-        NameGeneratorSettings nameGeneratorSettings,
         CultCache cache,
         PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,

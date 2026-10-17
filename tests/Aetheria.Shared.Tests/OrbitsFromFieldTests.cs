@@ -253,7 +253,7 @@ public sealed class OrbitsFromFieldTests : IDisposable
             var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
             var tutorial = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
             var galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-                authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), cache, new PlayerSettings(),
+                cache, new PlayerSettings(),
                 Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
             var items = new ItemManager(cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
             var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance,

@@ -814,7 +814,7 @@ public sealed partial class MiningCut3Tests : IDisposable
             try
             {
                 galaxy = new Galaxy(RestoredHullsTests.TutorialGalaxySettings(), RestoredHullsTests.TutorialBackgroundSettings(),
-                    RestoredHullsTests.TutorialNameSettings(), cache, new PlayerSettings(), new DirectoryInfo(dir), _ => { }, null, seed);
+                    cache, new PlayerSettings(), new DirectoryInfo(dir), _ => { }, null, seed);
             }
             catch (Exception) { continue; } // Galaxy's own seed-dependent flakiness (RestoredHullsTests)
             var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });

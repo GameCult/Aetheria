@@ -177,7 +177,6 @@ public class MainMenu : MonoBehaviour
             Settings.SectorBackgroundSettings,
             Settings.TutorialGenerationSettings,
             Settings.TutorialBackgroundSettings,
-            Settings.NameGeneratorSettings,
             ActionGameManager.CultCache,
             ActionGameManager.PlayerSettings,
             ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),

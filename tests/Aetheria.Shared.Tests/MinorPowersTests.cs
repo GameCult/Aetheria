@@ -57,7 +57,7 @@ public sealed class MinorPowersTests : IDisposable
         foreach (var shortName in Minor)
         {
             var faction = Assert.Single(factions, f => f.ShortName == shortName);
-            Assert.NotNull(cache.Get(faction.GeonameFile));
+            Assert.NotEmpty(faction.Places);
             Assert.True(faction.InfluenceDistance > 0, shortName);
             var named = faction.Allegiance.Keys.Select(k => k.Key).ToArray();
             var expected = factions.Where(f => f != faction && f.ShortName != "Pirates").Select(f => cache.RefOf(f).Key).ToArray();

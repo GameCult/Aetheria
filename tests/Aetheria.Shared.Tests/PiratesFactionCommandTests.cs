@@ -82,7 +82,6 @@ public sealed class PiratesFactionCommandTests : IDisposable
         var db = AetherDb.Open(root: _root);
         try
         {
-            Assert.Equal("pleiades", db.Cache.Get(faction.GeonameFile).Name);
             var expected = new (string Design, string Name, string Description)[]
             {
                 ("Autocannon", "🫳🔫", "Serial number filed off. Still shoots."),
@@ -167,19 +166,6 @@ public sealed class PiratesFactionCommandTests : IDisposable
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         autocannon.Name = "Autocannon (renamed)";
         db.Cache.Commit(batch => batch.Upsert(typeof(WeaponItemData), autocannon, db.Cache.RefOf(autocannon).Key));
-        db.Cache.Dispose();
-
-        Assert.Throws<InvalidOperationException>(() => Program.PiratesFaction(apply: true, root: _root));
-        Assert.Empty(Read().Pirates);
-    }
-
-    [Fact]
-    public void A_missing_name_file_refuses_and_lands_nothing()
-    {
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
-        var pleiades = db.Cache.GetAll<NameFile>().Single(file => file.Name == "pleiades");
-        Assert.True(db.Cache.Remove(db.Cache.RefOf(pleiades).Key));
-        db.Cache.FlushAsync().Wait();
         db.Cache.Dispose();
 
         Assert.Throws<InvalidOperationException>(() => Program.PiratesFaction(apply: true, root: _root));
