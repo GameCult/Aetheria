@@ -1174,15 +1174,6 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    // A chunk's pose is planar (Zone.ChunkPose), read at the drawn time so the reticle sits on the drawn rock; the renderer
-    // draws it at the asteroid layer's height.
-    private float3 ChunkWorldPosition(ChunkId chunk)
-    {
-        var zone = CurrentEntity.Zone;
-        var pose = zone.ChunkPose(chunk.Field, chunk.Index, DrawAhead.Time(zone, Clock.Lead));
-        return float3(pose.x, Settings.PlanetSettings.AsteroidVerticalOffset, pose.y);
-    }
-
     // The one way a run ends, won or lost: the run is cleared and the main menu returns.
     private void EndRun()
     {
@@ -1465,7 +1456,7 @@ public class ActionGameManager : MonoBehaviour
         ViewDot.Target = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint.position;
         var target = CurrentEntity.Target.Value;
         if (target.Chunk is ChunkId chunk)
-            TargetIndicator.Target = ChunkWorldPosition(chunk).ToUnity();
+            TargetIndicator.Target = DrawAhead.Chunk(CurrentEntity.Zone, Settings.GameplaySettings, chunk, lead).ToUnity();
         else if (target.Entity != null)
             TargetIndicator.Target = DrawAhead.Position(target.Entity, lead).ToUnity();
         var distance = length(ViewDot.Target.ToCultMath() - ownDrawn);

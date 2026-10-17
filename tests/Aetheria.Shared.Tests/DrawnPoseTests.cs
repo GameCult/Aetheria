@@ -29,6 +29,7 @@ public sealed class DrawnPoseTests : IDisposable
     private const float StationDistance = 3f, StationPhase = .4f;
     private const float ShipLayerHeight = 2.5f;
     private const float OrbitalLayerHeight = 7.5f;
+    private const float FloaterLayerHeight = -1.25f;
     // The sun's rail is parentless and off-centre, the shape ZoneGenerator gives a cluster root (FixedPosition = cluster centre).
     private static readonly float2 SunCentre = new float2(700f, -300f);
 
@@ -88,7 +89,7 @@ public sealed class DrawnPoseTests : IDisposable
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp(),
-            ShipLayerHeight = ShipLayerHeight, OrbitalLayerHeight = OrbitalLayerHeight
+            ShipLayerHeight = ShipLayerHeight, OrbitalLayerHeight = OrbitalLayerHeight, FloaterLayerHeight = FloaterLayerHeight
         }, _ => { });
 
         CultRecordKey Orbit(CultRecordKey parent, float distance, float phase, float2 fixedPosition = default)
@@ -345,6 +346,32 @@ public sealed class DrawnPoseTests : IDisposable
             Assert.Equal(w.Zone.ChunkPose(w.Belt, i), atStep[i]);
             Assert.True(length(drawn[i].xy - atStep[i].xy) > .01f, $"chunk {i} has moved over the lead");
         }
+    }
+
+    // The reticle (DrawAhead.Chunk) and the renderer's per-rock instance (DrawAhead.ChunkHeight on EvaluateBelt's drawn pose)
+    // are one height: the field at the rock's planar position at the drawn time, plus the floater layer. Ruling asteroids-on-floater-layer.
+    [Fact]
+    public void AChunkIsDrawnOnTheFloaterLayerOverTheField()
+    {
+        var w = Build();
+        Step(w, 1f / 60f, 301);
+        const float lead = .01f;
+        var time = w.Zone.ExactTime + lead;
+        var drawn = new float4[w.Asteroids.Length];
+        w.Zone.EvaluateBelt(w.Belt, drawn, time);
+        var settings = w.Items.GameplaySettings;
+
+        var deep = 0;
+        for (var i = 0; i < w.Asteroids.Length; i++)
+        {
+            var reticle = DrawAhead.Chunk(w.Zone, settings, new ChunkId(w.Belt, i), lead);
+            var field = FieldAt(w, drawn[i].xy, time);
+            AssertNear(drawn[i].xy, reticle.xz, 1e-3f, $"chunk {i} reticle xz");
+            Assert.Equal(field + FloaterLayerHeight, reticle.y, 3);
+            Assert.Equal(reticle.y, DrawAhead.ChunkHeight(w.Zone, settings, drawn[i], lead), 4);
+            if (abs(field) > 1f) deep++;
+        }
+        Assert.True(deep > 0, "some rock sits where the field is more than a unit from zero, so a dropped field fails");
     }
 
     // The term the shader takes sits on its node's rail at the drawn time: the lowering copies DrawAhead.Orbit of the term's

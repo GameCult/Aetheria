@@ -29,6 +29,16 @@ public static class DrawAhead
     // The drawn height of a floater (loot, mines): the field at the drawn time plus the floater layer.
     public static float FloaterHeight(Zone zone, GameplaySettings settings, float2 planar, float lead) => Height(zone, planar, lead) + settings.FloaterLayerHeight;
 
+    // A belt rock's drawn position (ruling asteroids-on-floater-layer): its planar pose at the drawn time, on the floater layer over the field.
+    // Open question asteroid-clearance: the rock centre sits at the layer. ChunkHeight is the one line that changes if its top should (pose.w is the radius).
+    public static float ChunkHeight(Zone zone, GameplaySettings settings, float4 pose, float lead) => FloaterHeight(zone, settings, pose.xy, lead);
+
+    public static float3 Chunk(Zone zone, GameplaySettings settings, ChunkId chunk, float lead)
+    {
+        var pose = zone.ChunkPose(chunk.Field, chunk.Index, Time(zone, lead));
+        return float3(pose.x, ChunkHeight(zone, settings, pose, lead), pose.y);
+    }
+
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
     // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.
     // A child is drawn where its parent is drawn, as the step copies the parent's pose onto it.

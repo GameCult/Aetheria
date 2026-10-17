@@ -533,7 +533,6 @@ public class ZoneRenderer : MonoBehaviour
         //     SlimeRenderer.SpawnPositions[i] = _suns[i].Body.transform.position.Flatland();
         // }
         
-        Shader.SetGlobalFloat("_AsteroidVerticalOffset", ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset);
 
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
         bool isVisible(Bounds bounds) => GeometryUtility.TestPlanesAABB(planes, bounds);
@@ -559,7 +558,7 @@ public class ZoneRenderer : MonoBehaviour
                     {
                         var tx = t + i * count;
                         var transform = transforms[tx];
-                        matrices[i][t] = Matrix4x4.TRS(new Vector3(transform.x,0,transform.y),
+                        matrices[i][t] = Matrix4x4.TRS(new Vector3(transform.x,DrawAhead.ChunkHeight(Zone,ItemManager.GameplaySettings,transform,lead),transform.y),
                             Quaternion.Euler(
                                 cos(transform.z + (float)i / meshes.Length) * 100,
                                 sin(transform.z + (float)i / meshes.Length) * 100,
