@@ -750,7 +750,11 @@ public sealed class RestoredHullsTests
 
             // Confirms this fixture still exercises the widened path (a regression here would mean the fixture no
             // longer probes what this test claims to probe).
-            Assert.True(IsRosetteMember(cache, pack, stationOrbit), "the entrance station no longer sits on a rosette-only orbit -- this fixture no longer tests the widened candidate path.");
+            // The zone has no body alone on its ring, so the station orbits the root node beyond its ring group.
+            var rootOrbit = cache.Get(stationOrbit.Parent);
+            Assert.False(rootOrbit.Parent.IsSet(), "the entrance station no longer orbits a root node -- this fixture no longer tests the no-candidate path.");
+            var ring = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet() && o.Parent.Key.Equals(stationOrbit.Parent.Key)).Select(o => o.Distance).DefaultIfEmpty(0f).Min();
+            Assert.True(stationOrbit.Distance >= (1 + GravityField.RingReach) * GravityField.Beta * ring * .999f, $"the entrance station at {stationOrbit.Distance} sits inside its node's ring group of radius {ring}.");
 
             var turrets = pack.Entities.OfType<OrbitalEntityPack>()
                 .Where(e => (cache.Get(e.Hull.Data) as HullData)?.HullType != HullType.Station).ToArray();

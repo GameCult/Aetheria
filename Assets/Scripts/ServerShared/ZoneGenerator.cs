@@ -258,14 +258,14 @@ public static class ZoneGenerator
         {
 	        // The entrance gets a station whatever its bodies: it orbits a root node beyond its ring group (or, for a body, its
 	        // whole family), never at a ring member's distance, and sits there, not at a Lagrange point.
-	        var rootNode = planets.FirstOrDefault(p => p.Parent == null && p.Children.Count > 0);
+	        var roots = planets.Where(p => p.Parent == null).ToList();
+	        var rootNode = roots.FirstOrDefault(p => p.Children.Count > 0) ?? (roots.Count > 1 ? roots.OrderByDescending(p => p.Mass).First() : null);
 	        if (rootNode == null)
 		        throw new InvalidOperationException(
 			        "The tutorial entrance zone must always get a station, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
-	        var rootKey = cache.RefOf(orbitMap[rootNode]).Key;
 	        var distance = rootNode.Empty
 		        ? (1 + GravityField.RingReach) * GravityField.Beta * rootNode.Children.Where(Massive).Min(c => c.Distance)
-		        : wells.Support(rootKey);
+		        : Extent(rootNode);
 	        var direct = new OrbitData { Parent = cache.RefOf(orbitMap[rootNode]), Distance = distance, Phase = random.NextFloat() };
 	        pack.Orbits.Add(cache.Upsert(direct));
 	        sources = new[] { (orbit: direct, extent: float.NegativeInfinity, direct: true) };
@@ -655,10 +655,8 @@ public static class ZoneGenerator
 			var ring = node.Children.Where(c => c.Ring && WellMass(c) > 0).ToList();
 			if (ring.Count == 0) return;
 			var heavy = ring.OrderByDescending(c => c.Mass).First();
-			var soleRoot = isRoot && float.IsInfinity(reach);
-			var ringDistance = soleRoot ? .5f * cap
-				: Math.Min(.5f * cap, share * reach / (GravityField.Beta * GravityField.Beta * (1 + GravityField.RingReach)));
-			if (!soleRoot && ringDistance < RocheMargin * Roche(heavy.Mass))
+			var ringDistance = Math.Min(.5f * cap, share * reach / (GravityField.Beta * GravityField.Beta * (1 + GravityField.RingReach)));
+			if (ringDistance < RocheMargin * Roche(heavy.Mass))
 			{
 				// The pair cannot keep its heavy member outside its Roche margin inside its node's reach: the node is one body.
 				node.Empty = false;

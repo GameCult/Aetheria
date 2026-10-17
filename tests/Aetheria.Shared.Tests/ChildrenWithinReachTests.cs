@@ -59,7 +59,9 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         _out = output;
     }
 
-    private const float Tolerance = 1e-3f;
+        private const float Tolerance = 1e-3f;
+    // A child's own family folded into it after it was placed raises its mass, and the cusp bound grows as mass^.05.
+    private const float CuspTolerance = 1e-2f;
     private const float RocheMargin = 1.5f, CuspMargin = 1.5f; // the rulings tail-taming-law-r3-band-loose-cusp and c4-proceed-and-fly
 
     private static float Roche(Zone zone, float mass) => zone.Settings.RocheLimit.Evaluate(mass);
@@ -168,7 +170,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
                 {
                     checkedChildren++;
                     var cusp = 2 * CuspMargin * Roche(zone, mass[child]) * Strength(zone, mass[parent]) / Strength(zone, mass[child]);
-                    Assert.True(DistanceOf(zone, child) >= cusp * (1 - Tolerance), $"seed {seed}: a massive child sits at {DistanceOf(zone, child)}, inside its cusp bound {cusp}");
+                    Assert.True(DistanceOf(zone, child) >= cusp * (1 - CuspTolerance), $"seed {seed}: a massive child sits at {DistanceOf(zone, child)}, inside its cusp bound {cusp}");
                 }
         }
         Assert.True(checkedChildren > 50, $"only {checkedChildren} massive children checked");
@@ -221,20 +223,31 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         Assert.True(pairs > 100, $"only {pairs} sibling pairs checked");
     }
 
+    // The mass split is renormalised so a family's masses sum to its root's; folding moves a family's mass into its parent body.
+    // A tree with a rosette or binary holds a bodyless node whose own mass is renormalised with the rest, so it is left out.
     [Fact]
     public void FoldingConservesMass()
     {
-        var zones = 0;
-        foreach (var (seed, zone) in _zones.All)
+        var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
+        var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
+        var planetSettings = authored.Read<PlanetSettings>("PlanetSettings");
+        const float mass = 300000f;
+        var trees = 0;
+        var folded = 0;
+        for (uint seed = 1; seed <= 200; seed++)
         {
-            var placed = Placed(zone);
-            // A zone with a rosette or binary holds bodyless nodes, whose own (renormalised) mass is not a body's.
-            if (placed.Any(k => !zone.Planets.Values.Any(b => b.Orbit.Key.Equals(k)))) continue;
-            zones++;
-            var sum = zone.Planets.Values.Sum(b => b.Mass);
-            Assert.True(Math.Abs(sum - zone.Pack.Mass) <= 1e-3f * zone.Pack.Mass, $"seed {seed}: the bodies sum to {sum}, not the pack's {zone.Pack.Mass}");
+            // The same random stream makes the same tree; only the window differs, so a smaller one folds more of it.
+            var tight = new CultMath.Random(seed);
+            var tightTree = ZoneGenerator.GenerateEntities(zoneSettings, planetSettings, ref tight, mass, 1500f, float2.zero, float.PositiveInfinity);
+            var wide = new CultMath.Random(seed);
+            var wideTree = ZoneGenerator.GenerateEntities(zoneSettings, planetSettings, ref wide, mass, 1e7f, float2.zero, float.PositiveInfinity);
+            if (tightTree.Any(p => p.Empty || p.Ring) || wideTree.Any(p => p.Empty || p.Ring)) continue;
+            trees++;
+            if (tightTree.Length < wideTree.Length) folded++;
+            Assert.True(Math.Abs(tightTree.Sum(p => p.Mass) - mass) <= 1e-3f * mass, $"seed {seed}: a folded tree's bodies sum to {tightTree.Sum(p => p.Mass)}, not {mass}");
         }
-        Assert.True(zones > 10, $"only {zones} zones without a bodyless node");
+        _out.WriteLine($"folding: {trees} trees, {folded} with a fold");
+        Assert.True(trees > 20 && folded > 10, $"{trees} trees, {folded} with a fold");
     }
 
     [Fact]

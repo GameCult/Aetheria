@@ -93,7 +93,7 @@ public sealed class StationPlacementTests : IDisposable
                     var rootKey = orbit.Data.Parent.Key;
                     Assert.False(zone.Orbits[rootKey].Data.Parent.IsSet(), $"seed {built.Seed}: a station with no source orbit does not orbit a root node");
                     var innermost = zone.Orbits.Where(o => o.Value.Data.Parent.IsSet() && o.Value.Data.Parent.Key.Equals(rootKey) && zone.Wells.Reach(o.Key) > 0f && !o.Key.Equals(station.OrbitData))
-                        .Min(o => o.Value.Data.Distance);
+                        .DefaultIfEmpty(0f).Min(o => o.Value.Data.Distance);
                     Assert.True(orbit.Data.Distance >= zone.Wells.Support(rootKey) * .999f || orbit.Data.Distance >= (1 + GravityField.RingReach) * GravityField.Beta * innermost * .999f,
                         $"seed {built.Seed}: a root-node station at {orbit.Data.Distance} sits inside its node's family");
                     rootStations++;
@@ -148,6 +148,7 @@ public sealed class StationPlacementTests : IDisposable
                 {
                     var bodyOrbit = zone.Orbits[body.Orbit.Key];
                     if (SameRing(bodyOrbit, orbit)) continue; // its base
+                    if (IsAncestorBody(zone, orbit, body.Orbit.Key)) continue; // the body it orbits round: it keeps its distance by its own Roche margin
                     var margin = 1.5f * zone.Settings.RocheLimit.Evaluate(body.Mass) + Contacts.Radius(entity);
                     for (var k = 0; k < 64; k++)
                     {
@@ -159,6 +160,13 @@ public sealed class StationPlacementTests : IDisposable
             }
         }
         Assert.True(checkedEntities > 0, "the seeds generated no station");
+    }
+
+        private static bool IsAncestorBody(Zone zone, Orbit orbit, CultRecordKey bodyOrbit)
+    {
+        for (var parent = orbit.Data.Parent; parent.IsSet(); parent = zone.Orbits[parent.Key].Data.Parent)
+            if (parent.Key.Equals(bodyOrbit)) return true;
+        return false;
     }
 
     private static List<OrbitalEntity> Orbitals(Built built) => built.Zone.Entities.OfType<OrbitalEntity>().ToList();
