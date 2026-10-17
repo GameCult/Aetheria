@@ -60,6 +60,7 @@ public class Shape
         }
 
         Cells = newCells;
+        _dirty = true;
     }
 
     private static int mod(int x, int m) {
@@ -85,11 +86,7 @@ public class Shape
     {
         get
         {
-            if (_dirty)
-            {
-                _cachedShapeCoordinates = EnumerateShapeCoordinates().ToArray();
-                _dirty = false;
-            }
+            Refresh();
             return _cachedShapeCoordinates;
         }
     }
@@ -108,7 +105,14 @@ public class Shape
     private int2[] _cachedAllShapeCoordinates;
     
     [IgnoreMember]
-    public int2[] AllCoordinates => _cachedAllShapeCoordinates ?? (_cachedAllShapeCoordinates = EnumerateAllShapeCoordinates().ToArray());
+    public int2[] AllCoordinates
+    {
+        get
+        {
+            Refresh();
+            return _cachedAllShapeCoordinates;
+        }
+    }
 
     private IEnumerable<int2> EnumerateAllShapeCoordinates()
     {
@@ -121,11 +125,27 @@ public class Shape
         }
     }
 
-    private float2? _centerOfMass;
+    private float2 _centerOfMass;
 
     [IgnoreMember]
-    public float2 CenterOfMass => _centerOfMass ?? (_centerOfMass = Coordinates
-        .Aggregate(float2.zero, (total, coord) => total + coord) / Coordinates.Length).Value;
+    public float2 CenterOfMass
+    {
+        get
+        {
+            Refresh();
+            return _centerOfMass;
+        }
+    }
+
+    // One dirty flag: Coordinates, AllCoordinates and CenterOfMass are caches of Cells and recompute together.
+    private void Refresh()
+    {
+        if (!_dirty) return;
+        _cachedShapeCoordinates = EnumerateShapeCoordinates().ToArray();
+        _cachedAllShapeCoordinates = EnumerateAllShapeCoordinates().ToArray();
+        _centerOfMass = _cachedShapeCoordinates.Aggregate(float2.zero, (total, coord) => total + coord) / _cachedShapeCoordinates.Length;
+        _dirty = false;
+    }
 
     public bool this[int2 pos] {
         get { return pos.x >= 0 && pos.y >= 0 && pos.x < Width && pos.y < Height && Cells[pos.x, pos.y]; }
@@ -256,7 +276,7 @@ public class Shape
         {
             if (x >= 0 && x < Width && y >= 0 && y < Height)
             {
-                Cells[steep ? y : x, steep ? x : y] = true;
+                this[int2(steep ? y : x, steep ? x : y)] = true;
             }
             error += derr;
             if (error >= 0.5f)
