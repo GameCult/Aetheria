@@ -231,6 +231,8 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
         var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
         var planetSettings = authored.Read<PlanetSettings>("PlanetSettings");
+        zoneSettings.RosetteProbability = 0; // a rosette or binary holds a bodyless node
+        zoneSettings.BinaryCreationProbability = 0;
         const float mass = 300000f;
         var trees = 0;
         var folded = 0;
@@ -241,7 +243,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
             var tightTree = ZoneGenerator.GenerateEntities(zoneSettings, planetSettings, ref tight, mass, 1500f, float2.zero, float.PositiveInfinity);
             var wide = new CultMath.Random(seed);
             var wideTree = ZoneGenerator.GenerateEntities(zoneSettings, planetSettings, ref wide, mass, 1e7f, float2.zero, float.PositiveInfinity);
-            if (tightTree.Any(p => p.Empty || p.Ring) || wideTree.Any(p => p.Empty || p.Ring)) continue;
+            
             trees++;
             if (tightTree.Length < wideTree.Length) folded++;
             Assert.True(Math.Abs(tightTree.Sum(p => p.Mass) - mass) <= 1e-3f * mass, $"seed {seed}: a folded tree's bodies sum to {tightTree.Sum(p => p.Mass)}, not {mass}");

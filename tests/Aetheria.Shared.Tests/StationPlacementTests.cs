@@ -154,7 +154,7 @@ public sealed class StationPlacementTests : IDisposable
                     {
                         var t = k / 64.0 * longest;
                         Assert.True(length(zone.OrbitPositionAt(entity.OrbitData, t) - zone.OrbitPositionAt(body.Orbit.Key, t)) >= margin * .999f,
-                            $"seed {built.Seed}: an entity passes within {margin} of an unrelated body at instant {k}");
+                            $"seed {built.Seed}: a {TypeOf(built.Items, entity)} on a ring of {orbit.Data.Distance} passes within {margin} of an unrelated body (mass {body.Mass}, ring {bodyOrbit.Data.Distance}, same parent {bodyOrbit.Data.Parent.Key.Equals(orbit.Data.Parent.Key)}) at instant {k}");
                     }
                 }
             }

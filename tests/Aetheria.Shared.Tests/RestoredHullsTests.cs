@@ -500,11 +500,8 @@ public sealed class RestoredHullsTests
 
             var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
-            var roots = pack.Planets.Select(p => cache.Get(p).Orbit)
-                .Select(cache.Get)
-                .Select(o => o.Parent.IsSet() ? o.Parent.Key.Value : "(root)")
-                .Distinct().Count();
-            Assert.True(roots > 1, $"this fixture no longer produces a multi-root entrance (only {roots} distinct parent); it no longer tests the fragmented-topology case.");
+            var roots = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Count(o => !o.Parent.IsSet());
+            Assert.True(roots > 1, $"this fixture no longer produces a multi-root entrance (only {roots} root); it no longer tests the fragmented-topology case.");
 
             var stations = pack.Entities.OfType<OrbitalEntityPack>()
                 .Where(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station).ToArray();

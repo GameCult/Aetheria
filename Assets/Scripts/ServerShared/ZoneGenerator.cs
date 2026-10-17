@@ -603,7 +603,8 @@ public static class ZoneGenerator
 			upper *= 1 - 1e-6f;
 			float AtLeast(GeneratorPlanet child, float edge)
 			{
-				var m = WellMass(child);
+				// A bodyless node stands in for one body of its family's mass, which it becomes if its ring cannot stand
+				var m = child.Empty ? Family(child) : WellMass(child);
 				var mInto = WellMass(into);
 				return m <= 0 || mInto <= 0 ? edge : Math.Max(edge, 2 * CuspMargin * Roche(m) * Strength(mInto) / Strength(m));
 			}
@@ -656,6 +657,9 @@ public static class ZoneGenerator
 			if (ring.Count == 0) return;
 			var heavy = ring.OrderByDescending(c => c.Mass).First();
 			var ringDistance = Math.Min(.5f * cap, share * reach / (GravityField.Beta * GravityField.Beta * (1 + GravityField.RingReach)));
+			PlaceChildren(node.Children.Where(c => !ring.Contains(c)).ToList(),
+				() => (1 + GravityField.RingReach) * ringDistance * GravityField.Beta, upper, heavy);
+			// The heavy member's mass is final only now (the outer children fold into it).
 			if (ringDistance < RocheMargin * Roche(heavy.Mass))
 			{
 				// The pair cannot keep its heavy member outside its Roche margin inside its node's reach: the node is one body.
@@ -669,8 +673,6 @@ public static class ZoneGenerator
 				member.Distance = ringDistance;
 				chordCap[member] = .2f * 2 * ringDistance * sin(PI / ring.Count);
 			}
-			PlaceChildren(node.Children.Where(c => !ring.Contains(c)).ToList(),
-				() => (1 + GravityField.RingReach) * ringDistance * GravityField.Beta, upper, heavy);
 		}
 
 		var queue = new Queue<GeneratorPlanet>();
