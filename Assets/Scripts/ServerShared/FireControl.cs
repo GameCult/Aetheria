@@ -1123,6 +1123,8 @@ public static class FireControl
     // centre lane (see the fuse-point comment on the Contact/Delayed branch below).
     private static void Apply(Zone zone, PendingShot shot)
     {
+        // A committed shot at a ship is an act on its side (ruling ew-hostility-from-belief-ruled): the target provokes the shooter, hit or miss.
+        if (shot.Target != null && shot.Source != null && shot.Target != shot.Source) shot.Target.Provoke(shot.Source);
         // A Burst outcome detonates at the point Commit decided (its BurstPoint): a fused round with no target,
         // which has nothing to hit or miss, and a proximity round, which detonates whether its roll hit or not.
         // Detonate is still the one blast path.

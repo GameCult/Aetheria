@@ -823,6 +823,25 @@ public sealed class FlightTests : IDisposable
         Assert.Same(track, member.Target.Value.Entity);
     }
 
+    // Trespass is the member's belief: a forbidden track it lists as an enemy without ever receiving its telemetry
+    // (no track entry) is left alone; once it tracks it, the telemetry carries the registry and the doctrine engages.
+    [Fact]
+    public void TrespassReadsBelief()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Trespass));
+        var trespasser = Track(120);
+        Forbid(trespasser);
+        member.VisibleEnemies.Add(trespasser);
+
+        Tick(.1f);
+        Assert.True(member.Target.Value.IsNone);
+
+        member.EntityInfoGathered[trespasser] = 1;
+        Tick(.1f);
+
+        Assert.Same(trespasser, member.Target.Value.Entity);
+    }
+
     // A track with no presence value is permitted: a Trespass doctrine leaves it alone.
     [Fact]
     public void TrespassLeavesATrackWithNoPresenceValueAlone()

@@ -15,7 +15,7 @@ public enum EngageOn
     Identified,
     // Only a hostile that a member holds a hostile IFF override on (a grudge).
     Provoked,
-    // A hostile whose presence the zone's owner does not permit (Entity.PresencePermitted, the security of the zone it is in), whichever flight sees it.
+    // A hostile a member believes the zone's owner does not permit (Entity.BelievesTrespassing).
     Trespass,
     // Never, not even for a grudge.
     Never

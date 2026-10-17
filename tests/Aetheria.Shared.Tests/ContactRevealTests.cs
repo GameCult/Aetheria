@@ -9,6 +9,7 @@ using GameCult.Caching.MessagePack;
 using MessagePack;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using UniRx;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
@@ -1739,13 +1740,9 @@ public sealed partial class ContactRevealTests : IDisposable
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var dock = Add(float3(200, 0, 0));
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        // The observer's faction owns the zone and the subject's presence is not permitted, so the stance derived for an
-        // undecided subject is hostile: a neutral decision (false) that is dropped would read hostile, and is seen to be kept.
-        _zone.GalaxyZone.Owner = o.Faction;
-        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
-        Assert.True(o.IsHostileTo(e), "fixture: an undecided subject derives hostile");
+        // The decision is the observer's own override, read back as itself (no telemetry decides here: the subject is never tracked).
         o.SetIff(e, hostile);
-        Assert.Equal(hostile, o.IsHostileTo(e)); // fixture: the decision is stored
+        Assert.Equal(hostile, o.IffOverride(e)); // fixture: the decision is stored
         var gun = Guns(e)[0];
         Fire(e, gun);
         ShowOnly(e, 1f, gun);
@@ -1754,10 +1751,85 @@ public sealed partial class ContactRevealTests : IDisposable
         _zone.Remove(e);
         for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
         Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the docked subject");
-        Assert.Equal(hostile, o.IsHostileTo(e));
+        Assert.Equal(hostile, o.IffOverride(e));
         e.Parent = null;
         _zone.Admit(e, piloted: false);
+        Assert.Equal(hostile, o.IffOverride(e));
         Assert.Equal(hostile, o.IsHostileTo(e));
+    }
+
+    // The zone owner does not permit `e` here. Set directly: Update re-derives the security level from the ship's location.
+    private static void Forbid(Entity e) => e.PresencePermitted = UniRx.Observable.Return(false).ToReadOnlyReactiveProperty();
+
+    // Ruling ew-telemetry-with-the-track: a contact held by a bearing only has no allegiance; it gets one at its first track.
+    [Fact]
+    public void ABearingOnlyContactHasNoAllegiance()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        _zone.GalaxyZone.Owner = o.Faction;
+        Forbid(e);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        Tick(.1f);
+        Assert.True(o.RevealedSubjects.Contains(e) && !o.ContactOf(e).Tracked, "fixture: held by a bearing only");
+
+        Assert.False(o.IsHostileTo(e));
+        Assert.False(o.TryGetTelemetry(e, out _));
+        Assert.DoesNotContain(e, o.RememberedHostiles);
+
+        o.EntityInfoGathered[e] = 1f;
+
+        Assert.True(o.TryGetTelemetry(e, out var claimed) && claimed == e.Faction);
+        Assert.True(o.IsHostileTo(e));
+        Assert.Equal(1, o.VisibleEnemies.Count(x => x == e));
+    }
+
+    // The belief outlives the track only as long as a reveal younger than BearingMemory.
+    [Fact]
+    public void TelemetryEndsWhenTheBearingIsForgotten()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        _zone.GalaxyZone.Owner = o.Faction;
+        Forbid(e);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        o.EntityInfoGathered[e] = 1f;
+        Assert.True(o.IsHostileTo(e), "fixture: tracked, believed hostile");
+
+        o.EntityInfoGathered[e] = 0f; // the track is lost; the reveal is young
+        Tick(.01f);
+        Assert.False(o.ContactOf(e).Tracked, "fixture");
+        Assert.True(o.IsHostileTo(e), "a young reveal keeps the belief");
+        Assert.Contains(e, o.RememberedHostiles);
+
+        for (var i = 0; i < 25; i++) Tick(.1f); // 2.5 s: past BearingMemory (2 s); the live quiet subject's reveal stays in the book, old
+        Assert.False(o.ContactOf(e).Detected, "fixture: the bearing is forgotten");
+        Assert.False(o.TryGetTelemetry(e, out _));
+        Assert.False(o.IsHostileTo(e));
+    }
+
+    [Fact]
+    public void TelemetryGoesWithADepartedSubjectsBook()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        _zone.GalaxyZone.Owner = o.Faction;
+        Forbid(e);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        o.EntityInfoGathered[e] = 1f;
+        Assert.True(o.TryGetTelemetry(e, out _), "fixture");
+
+        _zone.Remove(e);
+        for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
+
+        Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the departed subject");
+        Assert.False(o.TryGetTelemetry(e, out _));
     }
 
     private static int PaintInbox(Entity e) => ((System.Collections.ICollection) typeof(Entity).GetField("_paintInbox", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(e)).Count;
@@ -1781,5 +1853,123 @@ public sealed partial class ContactRevealTests : IDisposable
         _zone.Admit(o, piloted: false);
         Tick(.02f);
         Assert.Equal(0, o.IncomingPaints.Count);
+    }
+
+    // Trespass through Zone.Update: the owner's Critical station and the ship's location derive its security level each tick.
+    private void OwnedGalaxy(Faction owner)
+    {
+        var g = (System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Galaxy))) as Galaxy;
+        typeof(Galaxy).GetField("<FactionRelationships>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)
+            .SetValue(g, new Dictionary<Faction, FactionRelationship> { [owner] = FactionRelationship.Neutral });
+        typeof(Zone).GetField("<Galaxy>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(_zone, g);
+        _zone.GalaxyZone.Owner = owner;
+        var hullRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<HullData>("Rack"));
+        var station = new OrbitalEntity(_items, _zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = _nextLot++ }, default, new EntitySettings())
+            { Faction = owner, SecurityLevel = SecurityLevel.Critical, SecurityRadius = 1000 };
+        _zone.Admit(station, piloted: false);
+        station.Position = float3(0, 0, -50);
+    }
+
+    // A ship (the player's, with no faction, when `player`) of the zone's neighbourhood: an Eye and a Gun.
+    private Ship Visitor(float3 position, bool player)
+    {
+        var visitor = Add(position, new[] { "Eye", "Gun" });
+        if (player) { visitor.Faction = null; visitor.IsPlayerShip = true; }
+        return visitor;
+    }
+
+    private static bool GunSafed(Ship shooter, Entity at)
+    {
+        shooter.SetTarget(at);
+        return !Guns(shooter)[0].Behaviors.OfType<Weapon>().Single().StanceAllowsFire;
+    }
+
+    // The trespasser's own permission decides its belief about the owner's patrol, so she holds the patrol hostile at once
+    // (map S2 reciprocity) and her guns are not safed against it. The owner's patrol holds her hostile as well.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ATrespasserHoldsTheOwnersPatrolHostile(bool player)
+    {
+        var patrol = Add(float3(0, 0, 0), new[] { "Eye", "Gun" });
+        var intruder = Visitor(float3(0, 0, 60), player);
+        OwnedGalaxy(patrol.Faction);
+        Tick(.05f);
+        Assert.False(intruder.PresencePermitted.Value);
+        Assert.True(patrol.PresencePermitted.Value);
+
+        patrol.EntityInfoGathered[intruder] = 1f;
+        intruder.EntityInfoGathered[patrol] = 1f;
+        Tick(.05f);
+
+        Assert.Null(intruder.IffOverride(patrol));
+        Assert.True(intruder.IsHostileTo(patrol));
+        Assert.Contains(patrol, intruder.VisibleEnemies);
+        Assert.False(GunSafed(intruder, patrol));
+        Assert.True(patrol.IsHostileTo(intruder));
+        Assert.Contains(intruder, patrol.VisibleEnemies);
+    }
+
+    // A permitted neutral that tracks the owner's patrol holds it as no enemy: the observer's own standing decides.
+    [Fact]
+    public void APermittedNeutralDoesNotHoldTheOwnersPatrolHostile()
+    {
+        var patrol = Add(float3(0, 0, 0), new[] { "Eye", "Gun" });
+        var neutral = Visitor(float3(0, 0, 2000), player: false);
+        OwnedGalaxy(patrol.Faction);
+        Tick(.05f);
+        Assert.True(neutral.PresencePermitted.Value);
+
+        neutral.EntityInfoGathered[patrol] = 1f;
+        Tick(.05f);
+
+        Assert.True(neutral.VisibleEntities.Contains(patrol));
+        Assert.False(neutral.IsHostileTo(patrol));
+        Assert.DoesNotContain(patrol, neutral.VisibleEnemies);
+    }
+
+    // The operator's path: tracked in open space, then flies into the Critical area. Only the per-tick refresh sees it.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AShipTrackedInOpenSpaceTurnsHostileOnceItTrespasses(bool player)
+    {
+        var patrol = Add(float3(0, 0, 0), new[] { "Eye", "Gun" });
+        var intruder = Visitor(float3(0, 0, 2000), player);
+        OwnedGalaxy(patrol.Faction);
+        Tick(.05f);
+        patrol.EntityInfoGathered[intruder] = 1f;
+        Tick(.05f);
+        Assert.True(patrol.VisibleEntities.Contains(intruder));
+        Assert.False(patrol.IsHostileTo(intruder));
+        Assert.DoesNotContain(intruder, patrol.VisibleEnemies);
+
+        for (var i = 0; i < 5; i++) { intruder.Position = float3(0, 0, 60); patrol.EntityInfoGathered[intruder] = 1f; Tick(.05f); }
+
+        Assert.False(intruder.PresencePermitted.Value);
+        Assert.True(patrol.IsHostileTo(intruder));
+        Assert.Equal(1, patrol.VisibleEnemies.Count(x => x == intruder));
+        Assert.DoesNotContain(intruder, patrol.VisibleFriendlies);
+    }
+
+    // Only the owner's ships treat a trespasser as hostile: a third party that tracks her holds her no enemy.
+    [Fact]
+    public void OnlyTheOwnersShipsTreatATrespasserAsHostile()
+    {
+        var patrol = Add(float3(0, 0, 0), new[] { "Eye" });
+        var bystander = Add(float3(0, 0, 100), new[] { "Eye" });
+        var intruder = Visitor(float3(0, 0, 60), player: true);
+        OwnedGalaxy(patrol.Faction);
+        Tick(.05f);
+        Assert.False(intruder.PresencePermitted.Value);
+
+        patrol.EntityInfoGathered[intruder] = 1f;
+        bystander.EntityInfoGathered[intruder] = 1f;
+        Tick(.05f);
+
+        Assert.True(patrol.IsHostileTo(intruder));
+        Assert.True(bystander.VisibleEntities.Contains(intruder));
+        Assert.False(bystander.IsHostileTo(intruder));
+        Assert.DoesNotContain(intruder, bystander.VisibleEnemies);
     }
 }
