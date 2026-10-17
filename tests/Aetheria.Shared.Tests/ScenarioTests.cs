@@ -308,7 +308,7 @@ public sealed partial class RunStartTests
             stage.Place(stage.Fit("Longinus", slots), float2(-300, 0));
         }));
         IEnumerable<Lot> Lots(Entity entity) =>
-            EntitySerializer.Items(EntitySerializer.Pack(entity)).OfType<CraftedItemInstance>().Select(_items.GetLot);
+            EntitySerializer.Items(EntitySerializer.Pack(entity)).OfType<CraftedItemInstance>().Select(_items.GetLot).Prepend(_items.GetLot(entity.Hull));
         var stated = Lots(staged.Entities[0]).ToArray();
         var drawn = Lots(staged.Entities[1]).ToArray();
         Assert.True(stated.Length > slots.Length);

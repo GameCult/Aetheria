@@ -110,6 +110,33 @@ public sealed class AssemblyFromMakerTests : IDisposable
         Assert.Equal(.01f, _items.Lots[_items.CreateLot(product, -1f)].Roles.Single().Quality, 3);
     }
 
+    // A drawn assembly stays a quality: a maker authored past either end mints lots at .01 or 1.
+    [Fact]
+    public void DrawnAssemblyIsClamped()
+    {
+        Assert.All(Mint(Product("Over", new Faction { Name = "Over Maker", Assembly = A(1.5f, 0) }, .5f), 20), q => Assert.Equal(1f, q, 3));
+        Assert.All(Mint(Product("Under", new Faction { Name = "Under Maker", Assembly = A(-.5f, 0) }, .5f), 20), q => Assert.Equal(.01f, q, 3));
+    }
+
+    // A staged fit's slot is built by Loadouts.Resolve: a product at the stated quality, a design no maker sells at the stated
+    // quality instead of UnbrandedQuality, and both at their own draws without one.
+    [Fact]
+    public void ResolveMintsAtTheStatedQuality()
+    {
+        var failures = new List<string>();
+        Lot Built(CultRecordRef<FactionProductData> product, float? quality) =>
+            _items.GetLot(Loadouts.Resolve(_items, _lens, product, _ => null, "lens", failures, quality)());
+        var unbranded = Built(default, .6f);
+        Assert.Equal(.6f, unbranded.Quality, 3);
+        Assert.Equal(Loadouts.UnbrandedQuality, Built(default, null).Quality, 3);
+
+        var made = Product("Made", new Faction { Name = "Made Maker", Assembly = A(.3f, .2f) }, .5f, .2f);
+        var branded = Built(_cache.RefOf(made), .6f);
+        Assert.Equal(.6f, branded.Quality, 3);
+        Assert.Equal(.6f, branded.Roles.Single().Quality, 3);
+        Assert.Empty(failures);
+    }
+
     // The ceiling at the mint: a part drawn at .9 in an assembly of .4 reads .4; a part at .2 in the same assembly reads .2.
     [Fact]
     public void RoleCappedByAssembly()
