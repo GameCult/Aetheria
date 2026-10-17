@@ -283,6 +283,7 @@ public sealed class GearLineCommandTests : ProductLinesCommandTests
         using (var cache = Open())
         {
             var radiator = cache.GetAll<GearData>().Single(g => g.Name == "Radiator");
+            radiator.Behaviors.Clear(); // the store refuses a behavior that names a role the design lacks
             radiator.Roles.Clear();
             cache.Upsert(radiator);
             cache.FlushAsync().Wait();

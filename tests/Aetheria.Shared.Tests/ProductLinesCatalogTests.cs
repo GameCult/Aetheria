@@ -58,7 +58,7 @@ public sealed class ProductLinesCatalogTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         var products = cache.GetAll<FactionProductData>().ToArray();
-        var gear = cache.GetAll<GearData>().Where(d => d is not WeaponItemData && d.Roles.Count > 0).ToArray();
+        var gear = cache.GetAll<GearData>().Where(d => d is not WeaponItemData && (d.Roles?.Count ?? 0) > 0).ToArray();
         Assert.All(OneMakerGear, name => Assert.Contains(gear, d => d.Name == name));
         var sold = 0;
         foreach (var design in gear.Where(d => !OneMakerGear.Contains(d.Name)))
