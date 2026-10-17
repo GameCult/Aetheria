@@ -151,6 +151,39 @@ public sealed class AssemblyFromMakerTests : IDisposable
         Assert.Equal(.9f, over.Roles.Single().Quality, 3);
     }
 
+    // The ceiling is the assembly itself at every height and to the last digit: a poor assembler (below any floor) still caps a
+    // good part at its own quality, a part just above the assembly reads the assembly and not its own, and a part at or below it
+    // keeps its own.
+    [Fact]
+    public void RoleCeilingHasNoFloorAndNoToleranceBand()
+    {
+        float Role(float assembly, float part) =>
+            _items.Lots[_items.CreateLot(Product($"A{assembly}P{part}", new Faction { Name = $"Maker {assembly}/{part}", Assembly = A(assembly, 0) }, part))].QualityForRole("lens");
+        Assert.Equal(.1f, Role(.1f, .9f), 3);
+        Assert.Equal(.02f, Role(.02f, .5f), 3);
+        Assert.Equal(.4f, Role(.4f, .41f), 3);
+        Assert.Equal(.4f, Role(.4f, .43f), 3);
+        Assert.Equal(.4f, Role(.4f, .4f), 3);
+        Assert.Equal(.39f, Role(.4f, .39f), 3);
+    }
+
+    // The line's own final test replaces the maker's whole distribution, spread included: a maker of no spread and a product
+    // of a wide one mint a wide spread, and the reverse mints none.
+    [Fact]
+    public void ProductAssemblyOverridesMakersSpreadToo()
+    {
+        var steady = new Faction { Name = "Steady", Assembly = A(.5f, 0) };
+        var wild = Product("Wild", steady, .5f);
+        wild.Assembly = A(.5f, .2f);
+        var wildLots = Mint(wild, 400);
+        Assert.InRange(Math.Sqrt(wildLots.Select(q => Math.Pow(q - wildLots.Average(), 2)).Average()), .15, .25);
+
+        var loose = new Faction { Name = "Loose", Assembly = A(.5f, .2f) };
+        var tight = Product("Tight", loose, .5f);
+        tight.Assembly = A(.5f, 0);
+        Assert.All(Mint(tight, 50), q => Assert.Equal(.5f, q, 3));
+    }
+
     // The fallbacks still read the assembly: an unnamed role, an unrolled role, and a lot with no roles.
     [Fact]
     public void FallbacksReadTheAssembly()
