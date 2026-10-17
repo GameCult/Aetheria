@@ -9,7 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using GameCult.Caching;
 
-// product-lines <line> [apply] (aetheria-release, cut product-lines-weapons; rulings catalog-grows-generic-designs-branded-products,
+// product-lines <line> [apply] (aetheria-release, cuts product-lines-weapons and gear-lines; lines: weapons, gear; rulings catalog-grows-generic-designs-branded-products,
 // maker-design-tiers-allowed, miss-terris-belongs-to-emily-r3, pirates-record-content): authors the branded products of one
 // product line into GameData/Aetheria.cc. A line is a table of (design, product, maker, text); each row becomes one
 // FactionProductData with one ProductRole per role of its design, at the maker's profile in Program.MakerProfiles, so the table
@@ -44,8 +44,49 @@ public static class ProductLinesCommand
         new("Mine Launcher", "Tripwire", "Zhestokost", "Closes the road behind the column."),
     };
 
+    // The Aya Collective, Megiddo and Orbital Forge (cut minor-power-factions): ordinary makers, applied after minor-power-factions.
+    private static readonly Row[] MinorPowers =
+    {
+        new("Point Defense Gun", "Common Guard", "Aya", "Standard mount, removable feed box, a barrel you can swap at the bench. Drawings included."),
+        new("Point Defense Laser", "Porch Light", "Aya", "Keeps the dark off the doorstep. The manual is longer than the warranty, on purpose."),
+        new("Flak Gun", "Canopy", "Aya", "Shade for the whole convoy. Every part replaceable by the people it covers."),
+        new("Point Defense Gun", "Watchman", "Megiddo", "Holds the line it is given. Every round accounted for."),
+        new("Point Defense Laser", "Vigil", "Megiddo", "It does not sleep while the boundary stands."),
+        new("Flak Gun", "Perimeter", "Megiddo", "Nothing crosses that we have not seen."),
+        new("Light Machine Gun", "Pattern 12", "Forge", "Drawings ship with the gun. Build the next one yourself."),
+        new("Autocannon", "Pattern 30", "Forge", "Standard bore, standard feed, standard anywhere a Belt yard can cut steel."),
+        new("Slug Rifle", "Pattern 6", "Forge", "Licensed or not, it fits the same mount."),
+        new("Point Defense Gun", "Pattern 2", "Forge", "Close-in defence to an open standard. No license check, ever."),
+    };
+
+    private static readonly Row[] Gear =
+    {
+        new("Adaptive Radiator", "Puffin", "Finch", "Fluffs up in the cold, slicks down in the heat. Mostly on cue."),
+        new("Radiator", "Shade Sail", "Lightsail", "Keeps the hold cool on the long run, wherever the run goes."),
+        new("Long Radiator", "Smokestack", "Zhestokost", "The heat goes up the stack. The column keeps marching."),
+        new("Heat Pump", "ChillOut+-", "NiteLife", "Cool down between sets."),
+        new("Cryogenic Heat Pump", "CryoVoid", "Adrasteia", "One half of the Santulanum Duality Thermal Dispersion System. The other half is sold separately."),
+        new("Compact Reactor", "Hestia", "AU", "A small fire that keeps the whole house warm."),
+        new("Compact Reactor", "Night Shift", "Lightsail", "Steady power for the hauls nobody else wants."),
+        new("Heavy Reactor", "HR-9 Bulwark", "R&D", "Rated for continuous output under all certified conditions.*"),
+        new("High-Yield Reactor", "PowerHour 2.0", "NiteLife", "Maximum output, for as long as it lasts."),
+        new("Ring Reactor", "Milk Run", "Lightsail", "Regular, reliable, and on schedule every time."),
+        new("High-Thrust Drive", "Battering Ram", "Zhestokost", "Straight ahead, through whatever is there. The brakes do, in fact, work."),
+        new("Burn Drive", "Headliner", "Lucent", "Top of the bill and the brightest exhaust in the zone."),
+        new("Rugged Drive", "Rough Road", "Lightsail", "Gets the freight through, whatever the road is made of."),
+        new("Racing Drive", "Prokope", "Finch", "67% fatal and 100% fun."),
+        new("Sensor Array", "Ranger", "AU", "Practically haunted by all the ghosts it picks up."),
+        new("Capacitor", "Powder Keg", "Zhestokost", "A broadside's worth of charge, all of it at once."),
+        new("Cargo Bay", "Pithos", "AU", "Holds everything. Do not open in transit."),
+        new("Cargo Bay", "SafeStuff", "R&D", "Safe for valuables. Excludes pets, children, cupcakes and friendship."),
+        new("Small Cargo Bay", "Amphora", "AU", "A jar for the long road."),
+        new("Medium Drive", "Stagecoach", "AU", "Steady miles, every day of the week."),
+        new("Large Drive", "Juggernaut", "Zhestokost", "Moves the column. Stopping it is someone else's problem."),
+        new("Industrial Thermostatic Heater", "WarmUp+-", "NiteLife", "Room temperature, whatever the room."),
+    };
+
     // Every line the command knows, by the word that follows "product-lines".
-    private static readonly Dictionary<string, Row[]> Lines = new() { ["weapons"] = Weapons };
+    private static readonly Dictionary<string, Row[]> Lines = new() { ["weapons"] = Weapons, ["minor-powers"] = MinorPowers, ["gear"] = Gear };
 
     // A line's rows, for the catalog tests that check the shipped records against the table the command authors from.
     internal static IReadOnlyList<Row> Table(string line) => Lines[line];
@@ -80,7 +121,8 @@ public static class ProductLinesCommand
             var maker = factions.Where(f => f.ShortName == row.Maker).ToArray();
             if (maker.Length != 1) throw new InvalidOperationException($"Expected exactly one faction with short name \"{row.Maker}\", found {maker.Length}.");
             if (!Program.MakerProfiles.ContainsKey(row.Maker)) throw new InvalidOperationException($"No maker profile for \"{row.Maker}\".");
-            if (design[0].Roles.Count == 0) throw new InvalidOperationException($"The design \"{row.Design}\" has no roles.");
+            // A cargo bay carries no roles (ruling catalog-breadth-roles-and-components); its product carries none either.
+            if (design[0] is not CargoBayData && (design[0].Roles?.Count ?? 0) == 0) throw new InvalidOperationException($"The design \"{row.Design}\" has no roles.");
 
             var designKey = db.Cache.RefOf(design[0]).Key;
             var makerKey = db.Cache.RefOf(maker[0]).Key;
@@ -103,7 +145,7 @@ public static class ProductLinesCommand
         foreach (var (row, design, _, present) in resolved)
         {
             var (mean, dev) = Program.MakerProfiles[row.Maker];
-            Console.WriteLine($"  {(present ? "present" : "new    ")} {row.Design} -> \"{row.Name}\" by {row.Maker}, mean {mean:0.##} dev {dev:0.##} on [{string.Join(", ", design.Roles.Select(r => r.Name))}]: {row.Description}");
+            Console.WriteLine($"  {(present ? "present" : "new    ")} {row.Design} -> \"{row.Name}\" by {row.Maker}, mean {mean:0.##} dev {dev:0.##} on [{string.Join(", ", (design.Roles ?? new()).Select(r => r.Name))}]: {row.Description}");
         }
 
         if (!apply)
@@ -128,7 +170,7 @@ public static class ProductLinesCommand
                     Description = row.Description,
                     Design = db.Cache.RefOf(design),
                     Manufacturer = db.Cache.RefOf(maker),
-                    Roles = design.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
+                    Roles = (design.Roles ?? new()).Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
                 }, KeyOf(row));
             }
         }))

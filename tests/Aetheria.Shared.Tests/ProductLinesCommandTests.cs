@@ -6,28 +6,32 @@ using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using Xunit;
 
-// AetherDb's product-lines command (cut product-lines-weapons), run on a scratch copy of the shipped catalog with the weapon
-// line's twenty products removed from it. Apply must write what the shipped catalog holds, only its own records, finish a
-// catalog that holds part of the line, refuse a name that is another product's, and accept a maker that already sells the design.
-public sealed class ProductLinesCommandTests : IDisposable
+// AetherDb's product-lines command (cuts product-lines-weapons and gear-lines), run per line on a scratch copy of the shipped
+// catalog with that line's products removed from it. Apply must write what the shipped catalog holds, only its own records,
+// land on an older-schema catalog, and accept a maker that already sells the design. The weapon line adds the tests that
+// need weapon rows by name; the gear line adds the cargo-bay exemption from the no-roles refusal.
+public abstract class ProductLinesCommandTests : IDisposable
 {
-    private static readonly string[] Names = ProductLinesCommand.Table("weapons").Select(r => r.Name).ToArray();
-    private static readonly string[] Line = { "weapons" };
-    private static readonly string[] LineApply = { "weapons", "apply" };
+    protected readonly string[] Names;
+    protected readonly string[] Line;
+    protected readonly string[] LineApply;
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "product-lines-command-" + Guid.NewGuid().ToString("N"));
-    private string CatalogPath => Path.Combine(_root, "GameData", "Aetheria.cc");
+    protected readonly string _root = Path.Combine(Path.GetTempPath(), "product-lines-command-" + Guid.NewGuid().ToString("N"));
+    protected string CatalogPath => Path.Combine(_root, "GameData", "Aetheria.cc");
 
     // The rows as the shipped catalog holds them, taken before they are removed from the scratch copy.
-    private readonly string[] _shipped;
+    protected readonly string[] _shipped;
     private readonly string[] _shippedKeys;
 
     private static string Describe(CultCache cache, FactionProductData product) =>
         $"{cache.Get(product.Design).Name} | {product.Name} | {cache.Get(product.Manufacturer).ShortName} | {product.Description} | " +
         string.Join(",", product.Roles.OrderBy(r => r.Role, StringComparer.Ordinal).Select(r => $"{r.Role}:{r.Mean}:{r.StandardDeviation}"));
 
-    public ProductLinesCommandTests()
+    protected ProductLinesCommandTests(string line)
     {
+        Names = ProductLinesCommand.Table(line).Select(r => r.Name).ToArray();
+        Line = new[] { line };
+        LineApply = new[] { line, "apply" };
         Directory.CreateDirectory(Path.Combine(_root, "GameData"));
         Directory.CreateDirectory(Path.Combine(_root, "Assets", "Resources"));
         var shipped = AetherDb.FindRoot();
@@ -44,14 +48,14 @@ public sealed class ProductLinesCommandTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, true);
 
-    private CultCache Open()
+    protected CultCache Open()
     {
         var cache = new CultCache(TestCatalog.Registry());
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
         return cache;
     }
 
-    private string[] Line20()
+    protected string[] Line20()
     {
         using var cache = Open();
         return cache.GetAll<FactionProductData>().Where(p => Names.Contains(p.Name)).Select(p => Describe(cache, p)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
@@ -127,38 +131,6 @@ public sealed class ProductLinesCommandTests : IDisposable
         }
     }
 
-    [Fact]
-    public void Apply_finishes_a_catalog_that_holds_part_of_the_line()
-    {
-        Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));
-        using (var cache = Open())
-        {
-            foreach (var product in cache.GetAll<FactionProductData>().Where(p => p.Name == "Merlin" || p.Name == "Tripwire").ToArray())
-                Assert.True(cache.Remove(cache.RefOf(product).Key));
-            cache.FlushAsync().Wait();
-        }
-        Assert.Equal(Names.Length - 2, Line20().Length);
-
-        Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));
-        Assert.Equal(_shipped, Line20());
-    }
-
-    [Fact]
-    public void Apply_refuses_a_row_name_that_is_another_products_and_writes_nothing()
-    {
-        using (var cache = Open())
-        {
-            var other = cache.GetAll<WeaponItemData>().First(w => w.Name == "Light Machine Gun");
-            var maker = cache.GetAll<Faction>().First(f => f.ShortName == "Zhestokost");
-            cache.Upsert(new FactionProductData { Name = "Sparrow", Design = new CultRecordRef<CraftedItemData>(cache.RefOf(other).Key), Manufacturer = cache.RefOf(maker) });
-            cache.FlushAsync().Wait();
-        }
-        var conflicted = File.ReadAllBytes(CatalogPath);
-
-        Assert.Throws<InvalidOperationException>(() => ProductLinesCommand.Run(LineApply, _root));
-        Assert.Equal(conflicted, File.ReadAllBytes(CatalogPath));
-    }
-
     // Ruling maker-design-tiers-allowed: a maker that already sells a design may sell another product of it.
     [Fact]
     public void Apply_accepts_a_maker_that_already_sells_the_design()
@@ -215,6 +187,46 @@ public sealed class ProductLinesCommandTests : IDisposable
         Assert.Equal(landed, File.ReadAllBytes(CatalogPath));
     }
 
+}
+
+// One collection: the lines open the same catalog records through shared state and must not run side by side.
+[Collection("ProductLinesCommand")]
+public sealed class WeaponLineCommandTests : ProductLinesCommandTests
+{
+    public WeaponLineCommandTests() : base("weapons") { }
+
+    [Fact]
+    public void Apply_finishes_a_catalog_that_holds_part_of_the_line()
+    {
+        Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));
+        using (var cache = Open())
+        {
+            foreach (var product in cache.GetAll<FactionProductData>().Where(p => p.Name == "Merlin" || p.Name == "Tripwire").ToArray())
+                Assert.True(cache.Remove(cache.RefOf(product).Key));
+            cache.FlushAsync().Wait();
+        }
+        Assert.Equal(Names.Length - 2, Line20().Length);
+
+        Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));
+        Assert.Equal(_shipped, Line20());
+    }
+
+    [Fact]
+    public void Apply_refuses_a_row_name_that_is_another_products_and_writes_nothing()
+    {
+        using (var cache = Open())
+        {
+            var other = cache.GetAll<WeaponItemData>().First(w => w.Name == "Light Machine Gun");
+            var maker = cache.GetAll<Faction>().First(f => f.ShortName == "Zhestokost");
+            cache.Upsert(new FactionProductData { Name = "Sparrow", Design = new CultRecordRef<CraftedItemData>(cache.RefOf(other).Key), Manufacturer = cache.RefOf(maker) });
+            cache.FlushAsync().Wait();
+        }
+        var conflicted = File.ReadAllBytes(CatalogPath);
+
+        Assert.Throws<InvalidOperationException>(() => ProductLinesCommand.Run(LineApply, _root));
+        Assert.Equal(conflicted, File.ReadAllBytes(CatalogPath));
+    }
+
     private void AddProduct(string name, string design, string maker)
     {
         using var cache = Open();
@@ -258,5 +270,42 @@ public sealed class ProductLinesCommandTests : IDisposable
     {
         Assert.Equal(0, Program.Main(new[] { "product-lines", "weapons" }));
         Assert.Equal(1, Program.Main(new[] { "product-lines", "nonesuch" }));
+    }
+}
+
+[Collection("ProductLinesCommand")]
+public sealed class GearLineCommandTests : ProductLinesCommandTests
+{
+    public GearLineCommandTests() : base("gear") { }
+
+    // Cargo bays carry no roles (ruling catalog-breadth-roles-and-components): their product lands with none. Any other design
+    // with no roles is still refused, with nothing written.
+    [Fact]
+    public void Apply_accepts_a_roleless_cargo_bay_and_refuses_a_roleless_gear_design()
+    {
+        using (var cache = Open())
+        {
+            var radiator = cache.GetAll<GearData>().Single(g => g.Name == "Radiator");
+            radiator.Behaviors.Clear(); // the store refuses a behavior that names a role the design lacks
+            radiator.Roles.Clear();
+            cache.Upsert(radiator);
+            cache.FlushAsync().Wait();
+        }
+        var conflicted = File.ReadAllBytes(CatalogPath);
+        Assert.Throws<InvalidOperationException>(() => ProductLinesCommand.Run(LineApply, _root));
+        Assert.Equal(conflicted, File.ReadAllBytes(CatalogPath));
+
+        using (var cache = Open())
+        {
+            var radiator = cache.GetAll<GearData>().Single(g => g.Name == "Radiator");
+            radiator.Roles.Add(new ItemRole { Name = "Cooling" });
+            cache.Upsert(radiator);
+            cache.FlushAsync().Wait();
+        }
+        Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));
+        using var after = Open();
+        var pithos = Assert.Single(after.GetAll<FactionProductData>(), p => p.Name == "Pithos");
+        Assert.IsType<CargoBayData>(after.Get(pithos.Design));
+        Assert.Empty(pithos.Roles);
     }
 }

@@ -45,12 +45,42 @@ public sealed class ProductLinesCatalogTests
         Assert.Empty(shared);
     }
 
+    // Ruling gear-without-presence: a sold ship gear design with roles has two makers. The six reactor designs named here are
+    // station gear or Faction Play's NiteLife-only quirk, and keep their one maker.
+    private static readonly string[] OneMakerGear =
+    {
+        "Muon Fusion Reactor", "Muon Fusion Station Reactor", "Station Reactor", "Heavy Station Reactor",
+        "High-Yield Station Reactor", "Ring Station Reactor",
+    };
+
     [Fact]
-    public void WeaponLineRowsAreShipped()
+    public void EveryRoleBearingGearDesignWithAProductHasTwoMakers()
     {
         using var cache = RestoredHullsTests.OpenCatalog();
-        var table = ProductLinesCommand.Table("weapons");
-        Assert.Equal(20, table.Count);
+        var products = cache.GetAll<FactionProductData>().ToArray();
+        var gear = cache.GetAll<GearData>().Where(d => d is not WeaponItemData && (d.Roles?.Count ?? 0) > 0).ToArray();
+        Assert.All(OneMakerGear, name => Assert.Contains(gear, d => d.Name == name));
+        var sold = 0;
+        foreach (var design in gear.Where(d => !OneMakerGear.Contains(d.Name)))
+        {
+            var key = cache.RefOf(design).Key;
+            var makers = products.Where(p => p.Design.Key.Equals(key)).Select(p => p.Manufacturer.Key).Distinct().Count();
+            if (makers == 0) continue;
+            sold++;
+            Assert.True(makers >= 2, $"the gear design \"{design.Name}\" is sold by {makers} maker");
+        }
+        Assert.True(sold >= 20, "the gear designs with products should be many");
+    }
+
+    [Theory]
+    [InlineData("weapons", 20)]
+    [InlineData("gear", 22)]
+    [InlineData("minor-powers", 10)]
+    public void LineRowsAreShipped(string line, int count)
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var table = ProductLinesCommand.Table(line);
+        Assert.Equal(count, table.Count);
         foreach (var row in table)
         {
             var product = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Name == row.Name);
@@ -60,7 +90,7 @@ public sealed class ProductLinesCatalogTests
             Assert.Equal(row.Description, product.Description);
             var (mean, dev) = Program.MakerProfiles[row.Maker];
             Assert.Equal(
-                design.Roles.Select(r => r.Name).OrderBy(n => n, StringComparer.Ordinal),
+                (design.Roles ?? new()).Select(r => r.Name).OrderBy(n => n, StringComparer.Ordinal),
                 product.Roles.Select(r => r.Role).OrderBy(n => n, StringComparer.Ordinal));
             foreach (var role in product.Roles)
             {

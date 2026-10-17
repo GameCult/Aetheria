@@ -132,8 +132,7 @@ public sealed class InspectableSchematicShapeDrawer : ICultInspectorDrawer
                     using (new EditorGUILayout.HorizontalScope())
                         for (var x = 0; x < shape.Width; x++)
                         {
-                            var hardpoint = hull?.Hardpoints.FirstOrDefault(hp => hp.Shape.Coordinates
-                                .Any(v => v.x + hp.Position.x == x && v.y + hp.Position.y == y));
+                            var hardpoint = hull?.Hardpoints.FirstOrDefault(hp => HullFootprint.Cells(hp).Contains(int2(x, y)));
                             var previous = GUI.backgroundColor;
                             if (hardpoint != null) GUI.backgroundColor = hardpoint.TintColor.ToColor();
                             shape[int2(x, y)] = GUILayout.Toggle(shape[int2(x, y)], GUIContent.none, GUILayout.Width(16));
@@ -143,5 +142,49 @@ public sealed class InspectableSchematicShapeDrawer : ICultInspectorDrawer
             GUILayout.FlexibleSpace();
         }
         return shape;
+    }
+}
+
+// A hardpoint's schematic footprint over its hull's cells: the hull's occupied cells shaded, this hardpoint's cells lit
+// in its tint, other hardpoints' cells tinted and disabled. A click edits Position and Shape together through
+// HullFootprint.Toggle, which owns the rule so a Thing host reads the same one. The footprint is authored for gameplay,
+// never derived from the model. Read-only on inspector.Record; only the HardpointData it is given changes.
+[CultInspectorDrawer(typeof(HardpointData))]
+public sealed class HardpointFootprintDrawer : ICultInspectorDrawer
+{
+    public object Draw(CultInspector inspector, string label, Type type, object value, MemberInfo member)
+    {
+        var hardpoint = value as HardpointData;
+        if (type != typeof(HardpointData) || hardpoint == null) return inspector.DrawDefault(label, type, value, member);
+        var hull = inspector.Record as HullData;
+        var own = hull?.Hardpoints.FirstOrDefault(hp => hp.Type == hardpoint.Type && hp.Position.Equals(hardpoint.Position)
+            && HullFootprint.Cells(hp).SequenceEqual(HullFootprint.Cells(hardpoint)));
+        var drawn = (HardpointData) inspector.DrawDefault(label, type, value, member);
+        if (hull?.Shape == null) return drawn;
+
+        var others = hull.Hardpoints.Where(hp => hp != own).ToArray();
+        EditorGUILayout.LabelField("Footprint");
+        for (var y = hull.Shape.Height - 1; y >= 0; y--)
+            using (new EditorGUILayout.HorizontalScope())
+                for (var x = 0; x < hull.Shape.Width; x++)
+                {
+                    var cell = int2(x, y);
+                    var other = others.FirstOrDefault(hp => HullFootprint.Cells(hp).Contains(cell));
+                    var on = HullFootprint.Cells(drawn).Contains(cell);
+                    var previous = GUI.backgroundColor;
+                    GUI.backgroundColor = on ? drawn.TintColor.ToColor() : other != null ? other.TintColor.ToColor()
+                        : hull.Shape[cell] ? Color.gray : previous;
+                    EditorGUI.BeginChangeCheck();
+                    using (new EditorGUI.DisabledScope(other != null && !on))
+                        GUILayout.Toggle(on || other != null, GUIContent.none, GUILayout.Width(16));
+                    if (EditorGUI.EndChangeCheck() && HullFootprint.Toggle(drawn.Shape, drawn.Position, cell, out var shape, out var position))
+                    {
+                        drawn.Shape = shape;
+                        drawn.Position = position;
+                        GUI.changed = true;
+                    }
+                    GUI.backgroundColor = previous;
+                }
+        return drawn;
     }
 }
