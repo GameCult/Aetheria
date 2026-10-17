@@ -93,7 +93,7 @@ public sealed class StationPlacementTests : IDisposable
                     var rootKey = orbit.Data.Parent.Key;
                     Assert.False(zone.Orbits[rootKey].Data.Parent.IsSet(), $"seed {built.Seed}: a station with no source orbit does not orbit a root node");
                     var innermost = zone.Orbits.Where(o => o.Value.Data.Parent.IsSet() && o.Value.Data.Parent.Key.Equals(rootKey) && zone.Wells.Reach(o.Key) > 0f && !o.Key.Equals(station.OrbitData))
-                        .DefaultIfEmpty(0f).Min(o => o.Value.Data.Distance);
+                        .Select(o => o.Value.Data.Distance).DefaultIfEmpty(0f).Min();
                     Assert.True(orbit.Data.Distance >= zone.Wells.Support(rootKey) * .999f || orbit.Data.Distance >= (1 + GravityField.RingReach) * GravityField.Beta * innermost * .999f,
                         $"seed {built.Seed}: a root-node station at {orbit.Data.Distance} sits inside its node's family");
                     rootStations++;
