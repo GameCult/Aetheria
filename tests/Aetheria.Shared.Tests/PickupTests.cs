@@ -79,7 +79,8 @@ public sealed class PickupTests : IDisposable
             LootDropProbability = 0, LootDropVelocity = 25, FloatingItemLifetime = lifetime,
             ShipLayerHeight = 3f, FloaterLayerHeight = -1.5f
         };
-        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        var id = Guid.NewGuid().ToString("N");
+        var cache = AetheriaStores.Open(Path.Combine(_root, id + ".cc"), Path.Combine(_root, id + "-run.cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(5, 5), Durability = 1000000, Mass = 1000 });

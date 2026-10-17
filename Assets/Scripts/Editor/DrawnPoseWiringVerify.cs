@@ -110,7 +110,7 @@ namespace Aetheria.EditorTools
 
             var oneCell = new Shape(1, 1);
             oneCell[new CultMath.int2(0, 0)] = true;
-            var cache = AetheriaStores.Open(Path.Combine(_work, "wiring.cc"), catalogWritable: true);
+            var cache = AetheriaStores.Open(Path.Combine(_work, "wiring.cc"), Path.Combine(_work, "wiring-run.cc"), catalogWritable: true);
             cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.Upsert(new SimpleCommodityData { Name = "Wiring Ore", Shape = oneCell, MaxStack = 100 });
             cache.FlushAsync().Wait();
