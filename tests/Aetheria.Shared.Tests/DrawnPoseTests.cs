@@ -406,7 +406,7 @@ public sealed class DrawnPoseTests : IDisposable
     private record Candidate(string Name, float Radius);
 
     private static DrawAhead.BeltDraw<Candidate> List(float[] sizes, params Candidate[] candidates) =>
-        new(sizes, candidates, c => c.Radius);
+        new(sizes, candidates, c => c.Radius, candidates.Length, "belt");
 
     private static float4[] Poses(params float[] radii) => radii.Select(r => float4(0, 0, 0, r)).ToArray();
 
@@ -425,7 +425,7 @@ public sealed class DrawnPoseTests : IDisposable
         var w = Build();
         var belt = w.Zone.AsteroidBelts[w.Belt];
         var sizes = Enumerable.Range(0, w.Asteroids.Length).Select(i => belt.UndamagedSize(i, w.Zone.Settings)).ToArray();
-        var list = DrawAhead.DrawListOf(belt, w.Zone.Settings, new[] { new Candidate("b", 3f), new Candidate("s", 1f), new Candidate("m", 2f) }, c => c.Radius);
+        var list = DrawAhead.DrawListOf(belt, w.Zone.Settings, new[] { new Candidate("b", 3f), new Candidate("s", 1f), new Candidate("m", 2f) }, c => c.Radius, 3, w.Belt);
         var meshOf = MeshOf(list, sizes.Length);
         Assert.Equal(sizes.Length, list.ByMesh.Sum(r => r.Length));
         Assert.Equal(new[] { "s", "m", "b" }, list.Meshes.Select(c => c.Name).ToArray());
@@ -490,6 +490,46 @@ public sealed class DrawnPoseTests : IDisposable
         Assert.Contains("InstancedMesh.Radius", Assert.Throws<ArgumentException>(() => DrawAhead.RockScale(1f, radius)).Message);
     }
 
+    // Finding equal-radius-tie-unpinned: meshes of equal radius rank by candidate index, the first listed first.
+    [Fact]
+    public void EqualRadiusMeshesRankByCandidateIndex()
+    {
+        string[] Names(params Candidate[] candidates) => List(new[] { 1f, 2f, 3f }, candidates).Meshes.Select(c => c.Name).ToArray();
+        Assert.Equal(new[] { "x", "y", "z" }, Names(new Candidate("x", 2f), new Candidate("y", 2f), new Candidate("z", 2f)));
+        Assert.Equal(new[] { "small", "x", "y" }, Names(new Candidate("x", 3f), new Candidate("y", 3f), new Candidate("small", 1f)));
+        Assert.Equal(new[] { "y", "x" }, Names(new Candidate("y", 2f), new Candidate("x", 2f)));
+    }
+
+    // Finding empty-candidates-divide-by-zero: no candidates, or a kept count below one, is a refusal naming the field.
+    [Fact]
+    public void NoCandidatesOrNoKeptCountIsRefusedByFieldName()
+    {
+        Assert.Contains("AsteroidMeshes", Assert.Throws<ArgumentException>(() => new DrawAhead.BeltDraw<Candidate>(new[] { 1f }, new Candidate[0], c => c.Radius, 5, "belt")).Message);
+        foreach (var keep in new[] { 0, -1 })
+            Assert.Contains("AsteroidMeshCount", Assert.Throws<ArgumentException>(() => new DrawAhead.BeltDraw<Candidate>(new[] { 1f }, new[] { new Candidate("a", 1f) }, c => c.Radius, keep, "belt")).Message);
+    }
+
+    // Finding renderer-random-mesh-prune: which meshes a belt keeps is a function of the belt's key, the candidates and the kept count alone.
+    [Fact]
+    public void TheKeptMeshesAreAFunctionOfTheBeltKey()
+    {
+        var candidates = Enumerable.Range(0, 8).Select(i => new Candidate("c" + i, 1f + i)).ToArray();
+        string[] Kept(string key, int keep) =>
+            new DrawAhead.BeltDraw<Candidate>(new[] { 1f, 2f, 3f }, candidates, c => c.Radius, keep, key).Meshes.Select(c => c.Name).ToArray();
+        var keys = Enumerable.Range(0, 40).Select(i => "belt-" + i).ToArray();
+        foreach (var key in keys)
+        {
+            var kept = Kept(key, 3);
+            Assert.Equal(3, kept.Distinct().Count());
+            Assert.Equal(kept, Kept(key, 3));
+        }
+        Assert.True(keys.Select(k => string.Join(",", Kept(k, 3).OrderBy(n => n))).Distinct().Count() >= 8, "belts keep different meshes");
+        foreach (var candidate in candidates)
+            Assert.Contains(keys, k => Kept(k, 3).Contains(candidate.Name));
+        Assert.Equal(candidates.Select(c => c.Name).ToArray(), Kept("belt-0", 8));
+        Assert.Equal(candidates.Select(c => c.Name).ToArray(), Kept("belt-0", 20));
+    }
+
     // A mined rock keeps its mesh and only shrinks: the assignment reads the unworn size.
     [Fact]
     public void AMinedRockKeepsItsMesh()
@@ -497,7 +537,7 @@ public sealed class DrawnPoseTests : IDisposable
         var w = Build();
         var belt = w.Zone.AsteroidBelts[w.Belt];
         var candidates = new[] { new Candidate("a", 1f), new Candidate("b", 2f), new Candidate("c", 3f) };
-        int[] Meshes() => MeshOf(DrawAhead.DrawListOf(belt, w.Zone.Settings, candidates, c => c.Radius), w.Asteroids.Length);
+        int[] Meshes() => MeshOf(DrawAhead.DrawListOf(belt, w.Zone.Settings, candidates, c => c.Radius, candidates.Length, w.Belt), w.Asteroids.Length);
         var before = Meshes();
         var chunk = new ChunkId(w.Belt, 5);
         var hitpoints = w.Zone.Settings.AsteroidHitpoints.Evaluate(w.Asteroids[5].Size);
@@ -523,7 +563,7 @@ public sealed class DrawnPoseTests : IDisposable
         Assert.Matches(@"var byMesh = draw\.Draw\(transforms\);\s*for \(int m = 0;", renderer);
         Assert.Contains("transforms[rock.Rock]", renderer);
         Assert.Contains("Vector3.one * rock.Scale", renderer);
-        Assert.Contains("draw.Meshes[m].Mesh, 0, draw.Meshes[m].Material, matrices[m]", renderer);
+        Assert.Contains("DrawInstanced(draw.Meshes[m].Mesh, draw.Meshes[m].Material, matrices[m])", renderer);
         Assert.Contains("matrices[m][k] =", renderer);
         Assert.Contains("byMesh[m][k]", renderer);
         Assert.DoesNotContain("RockScale(", renderer);

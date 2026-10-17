@@ -79,6 +79,8 @@ public class ZoneRenderer : MonoBehaviour
     // Cut 1 (docs/mining-cut.md): the renderer's own buffer, filled from Zone.EvaluateBelt each frame. No pose
     // is stored on AsteroidBelt any more.
     private Dictionary<CultRecordKey, float4[]> _beltTransforms = new Dictionary<CultRecordKey, float4[]>();
+    // The one place a belt's rocks reach the GPU; the end-to-end verify swaps it to read what is drawn.
+    public System.Action<Mesh, Material, Matrix4x4[]> DrawInstanced = (mesh, material, matrices) => Graphics.DrawMeshInstanced(mesh, 0, material, matrices);
     private float _viewDistance;
     private GameObject _gravityField;
     private ComputeBuffer _gravityWells;
@@ -445,11 +447,8 @@ public class ZoneRenderer : MonoBehaviour
     {
         if (planetData is AsteroidBeltData beltData)
         {
-            var meshes = AsteroidMeshes.ToList();
-            while (meshes.Count > Settings.AsteroidMeshCount)
-                meshes.RemoveAt(Random.Range(0, meshes.Count));
             _beltTransforms[key] = new float4[beltData.Asteroids.Length];
-            var draw = DrawAhead.DrawListOf(Zone.AsteroidBelts[key], Zone.Settings, meshes, m => m.Radius);
+            var draw = DrawAhead.DrawListOf(Zone.AsteroidBelts[key], Zone.Settings, AsteroidMeshes, m => m.Radius, Settings.AsteroidMeshCount, key);
             _beltDraw[key] = draw;
             _beltMatrices[key] = draw.ByMesh.Select(rocks => new Matrix4x4[rocks.Length]).ToArray();
 
@@ -512,27 +511,12 @@ public class ZoneRenderer : MonoBehaviour
         Map.Draw(Zone, ActionGameManager.Clock.Lead);
     }
 
-    void Update()
+    // The instanced draw of every belt, at the drawn time: Update's belt step, public so the end-to-end verify can run it on a loaded zone.
+    public void DrawBelts(float lead)
     {
-        var lead = ActionGameManager.Clock.Lead;
-        GravityLowering.Lower(Zone, lead, ref _gravityWells);
-        foreach (var loot in _floatingItems.Values)
-        {
-            loot.ViewOrigin = DrawAhead.Position(PerspectiveEntity, lead);
-            loot.ViewDirection = PerspectiveEntity.Aim;
-        }
-        
-        // if (SlimeRenderer.SpawnPositions.Length != _suns.Length)
-        //     SlimeRenderer.SpawnPositions = new Vector2[_suns.Length];
-        // for (var i = 0; i < _suns.Length; i++)
-        // {
-        //     SlimeRenderer.SpawnPositions[i] = _suns[i].Body.transform.position.Flatland();
-        // }
-        
-
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
         bool isVisible(Bounds bounds) => GeometryUtility.TestPlanesAABB(planes, bounds);
-        
+
         foreach (var (key, belt) in Zone.AsteroidBelts)
         {
             // Cut 1 (docs/mining-cut.md): belts have no stored pose any more. The renderer fills its own buffer
@@ -558,10 +542,31 @@ public class ZoneRenderer : MonoBehaviour
                             Quaternion.Euler(cos(transform.z) * 100, sin(transform.z) * 100, (float)rock.Rock / transforms.Length * 360),
                             Vector3.one * rock.Scale);
                     }
-                    Graphics.DrawMeshInstanced(draw.Meshes[m].Mesh, 0, draw.Meshes[m].Material, matrices[m]);
+                    DrawInstanced(draw.Meshes[m].Mesh, draw.Meshes[m].Material, matrices[m]);
                 }
             }
         }
+    }
+
+    void Update()
+    {
+        var lead = ActionGameManager.Clock.Lead;
+        GravityLowering.Lower(Zone, lead, ref _gravityWells);
+        foreach (var loot in _floatingItems.Values)
+        {
+            loot.ViewOrigin = DrawAhead.Position(PerspectiveEntity, lead);
+            loot.ViewDirection = PerspectiveEntity.Aim;
+        }
+        
+        // if (SlimeRenderer.SpawnPositions.Length != _suns.Length)
+        //     SlimeRenderer.SpawnPositions = new Vector2[_suns.Length];
+        // for (var i = 0; i < _suns.Length; i++)
+        // {
+        //     SlimeRenderer.SpawnPositions[i] = _suns[i].Body.transform.position.Flatland();
+        // }
+        
+
+        DrawBelts(lead);
 
         foreach (var planet in Planets)
         {
