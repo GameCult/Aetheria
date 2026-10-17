@@ -9,6 +9,7 @@ using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using MessagePack;
 using Xunit;
+using Random = CultMath.Random;
 
 // Faction.ManufacturerOnly records ruling minor-power-brands' "no galaxy presence": both generating Galaxy constructors
 // refuse to place such a faction (the main draw filters it, the prelude cast rejects it), so it holds no territory and its
