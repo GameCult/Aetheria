@@ -33,6 +33,18 @@ public sealed class AssemblyFromMakerCommandTests : IDisposable
             Name = "B", Design = design, Manufacturer = maker,
             Roles = { new ProductRole { Role = "x", Mean = .9f, StandardDeviation = .4f } }
         });
+        // Figures that need two decimals: (.2 + .27 + .31) / 3 = .26 and (.11 + .17 + .2) / 3 = .16.
+        var fine = cache.Upsert(new Faction { Name = "Fine" });
+        cache.Upsert(new FactionProductData
+        {
+            Name = "C", Design = design, Manufacturer = fine,
+            Roles =
+            {
+                new ProductRole { Role = "x", Mean = .2f, StandardDeviation = .11f },
+                new ProductRole { Role = "y", Mean = .27f, StandardDeviation = .17f },
+                new ProductRole { Role = "z", Mean = .31f, StandardDeviation = .2f }
+            }
+        });
         cache.FlushAsync().Wait();
     }
 
@@ -59,6 +71,9 @@ public sealed class AssemblyFromMakerCommandTests : IDisposable
             var maker = cache.GetAll<Faction>().Single(f => f.Name == "Maker");
             Assert.Equal(.5f, maker.AssemblyMean, 3);
             Assert.Equal(.2f, maker.AssemblyDeviation, 3);
+            var fine = cache.GetAll<Faction>().Single(f => f.Name == "Fine");
+            Assert.Equal(.26f, fine.AssemblyMean, 3);
+            Assert.Equal(.16f, fine.AssemblyDeviation, 3);
             // A faction that manufactures nothing is written the field defaults.
             var bystander = cache.GetAll<Faction>().Single(f => f.Name == "Bystander");
             Assert.Equal(.5f, bystander.AssemblyMean, 3);
