@@ -64,7 +64,9 @@ public sealed class PickupTests : IDisposable
         };
     }
 
-    private Lab Build(PickupData beam, float lifetime = 30f)
+    // With `wells`, the zone has a sun (a parentless rail off the ship's side, strength 400) and a planet on a moving rail round
+    // it (strength 25), the field a floater layer is read against; without, the zone is flat and nothing pulls on anything.
+    private Lab Build(PickupData beam, float lifetime = 30f, bool wells = false)
     {
         var settings = new GameplaySettings
         {
@@ -77,7 +79,8 @@ public sealed class PickupTests : IDisposable
             LootDropProbability = 0, LootDropVelocity = 25, FloatingItemLifetime = lifetime,
             ShipLayerHeight = 3f, FloaterLayerHeight = -1.5f
         };
-        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        var id = Guid.NewGuid().ToString("N");
+        var cache = AetheriaStores.Open(Path.Combine(_root, id + ".cc"), Path.Combine(_root, id + "-run.cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(5, 5), Durability = 1000000, Mass = 1000 });
@@ -104,7 +107,26 @@ public sealed class PickupTests : IDisposable
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 9000; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
         var items = new ItemManager(cache, ledger, settings, _ => { });
-        var zone = new Zone(items, new PlanetSettings(), new ZonePack { Radius = 0 }, new GalaxyZone { Name = "Pickup", Owner = null }, null);
+        var pack = new ZonePack { Radius = 0 };
+        var curves = new PlanetSettings();
+        if (wells)
+        {
+            curves = new PlanetSettings
+            {
+                BodyRadius = new ExponentialCurve(),
+                WellStrength = new ExponentialCurve { Multiplier = 1f, Exponent = 1f },
+                RocheLimit = new ExponentialCurve { Constant = 2f }
+            };
+            var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = float2(-50, 0) }).Key;
+            var planetOrbit = cache.Upsert(new OrbitData { Parent = new CultRecordRef<OrbitData>(sunOrbit), Distance = 90f, Phase = .9f }).Key;
+            pack.Radius = 5000f;
+            pack.Mass = 10000f;
+            pack.Orbits.Add(new CultRecordRef<OrbitData>(sunOrbit));
+            pack.Orbits.Add(new CultRecordRef<OrbitData>(planetOrbit));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Sun", Orbit = new CultRecordRef<OrbitData>(sunOrbit), Mass = 400f }).Key));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Planet", Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 25f }).Key));
+        }
+        var zone = new Zone(items, curves, pack, new GalaxyZone { Name = "Pickup", Owner = null }, null);
         return new Lab { Items = items, Zone = zone };
     }
 
@@ -251,15 +273,28 @@ public sealed class PickupTests : IDisposable
     public void AGrabPointRidesTheFloaterLayerNotTheShips()
     {
         using var bag = new CompositeDisposable();
-        var lab = Build(Beam());
+        var lab = Build(Beam(), wells: true);
         var ship = Spawn(lab, float3(0, 0, 0));
         var item = Drift(lab, 40, 0);
-        var events = Watch(ship, bag);
+
+        // The fixture has a field to ride: it differs between the ship's point and the item's, and between the start and
+        // the end of the run, so a grab point read at the ship's xz or at the wrong time cannot agree with it.
+        var atShip = lab.Zone.GetHeight(float2(0, 0), lab.Zone.ExactTime);
+        var atItem = lab.Zone.GetHeight(float2(40, 0), lab.Zone.ExactTime);
+        Assert.True(abs(atItem - atShip) > 1f, $"the field is flat under the grab: ship {atShip}, item {atItem}");
+        var start = lab.Zone.ExactTime;
+
+        // Each event is checked at the zone time it was published, where the sim read the field.
+        var seen = new List<(GrabEvent Event, double Time)>();
+        ship.Capabilities.Grab.Subscribe(e => seen.Add((e, lab.Zone.ExactTime))).AddTo(bag);
         ship.TractorCommand = 1;
         for (var tick = 1; tick <= 150; tick++) lab.Zone.Update(1 / 60f);
-        Assert.NotEmpty(events);
-        Assert.All(events, e => Assert.Equal(lab.Zone.GetHeight(e.TargetPosition.xz, lab.Zone.ExactTime) - 1.5f, e.TargetPosition.y, 3));
+        Assert.NotEmpty(seen);
+        Assert.True(abs(lab.Zone.GetHeight(float2(40, 0), lab.Zone.ExactTime) - lab.Zone.GetHeight(float2(40, 0), start)) > .01f, "the wells did not move");
+        Assert.All(seen, s => Assert.Equal(lab.Zone.GetHeight(s.Event.TargetPosition.xz, s.Time) - 1.5f, s.Event.TargetPosition.y, 3));
+        Assert.All(seen, s => Assert.True(abs(s.Event.TargetPosition.y - (-1.5f)) > 1f, "the grab point sits on the bare layer, the field dropped"));
     }
+
 
     [Fact]
     public void GrabEventsNameTheFloatingItem()

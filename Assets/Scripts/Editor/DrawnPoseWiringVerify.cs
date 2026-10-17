@@ -10,8 +10,8 @@ using float2 = CultMath.float2;
 using float3 = CultMath.float3;
 
 // Batch proof that the presenters read the drawn pose through the clock: DrawnPoseTests pins the pose maths headlessly,
-// and this is what pins that each presenter passes ActionGameManager.Clock.Lead into it. A zone is loaded into a fresh
-// ZoneRenderer with the pickup and mine prefabs ARPG.unity's ZoneRenderer names; a loose Projectile is launched on the
+// and this is what pins that each presenter passes ActionGameManager.Clock.Lead into it. A zone with a sun and a planet on a moving rail
+// is built and the pickup and mine prefabs ARPG.unity's ZoneRenderer names are bound to it as the renderer binds them; a loose Projectile is launched on the
 // zone. The zone is stepped once, then the clock is set to leads 0, 0.008 and 0.015 s with no step, and each presenter's
 // own Update places its transform. A body is drawn at its last step plus its step velocity times the lead, spelled here
 // from the body's fields, so a presenter that reads lead 0 (or half the lead) sits on the step and fails.
@@ -110,38 +110,47 @@ namespace Aetheria.EditorTools
 
             var oneCell = new Shape(1, 1);
             oneCell[new CultMath.int2(0, 0)] = true;
-            var cache = AetheriaStores.Open(Path.Combine(_work, "wiring.cc"), catalogWritable: true);
+            var cache = AetheriaStores.Open(Path.Combine(_work, "wiring.cc"), Path.Combine(_work, "wiring-run.cc"), catalogWritable: true);
             cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.Upsert(new SimpleCommodityData { Name = "Wiring Ore", Shape = oneCell, MaxStack = 100 });
             cache.FlushAsync().Wait();
             var ledger = new ProvenanceLedger();
             var items = new ItemManager(cache, ledger, settings, _ => { });
-            var zone = new Zone(items, new PlanetSettings(), new ZonePack(), null, null);
+
+            // A sun and a planet on a moving rail round it, both near the bodies below: the field under a floater changes with the
+            // drawn time, so a presenter that samples it at the step's time, drops it, or reads lead 0 for the height draws a different y.
+            var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = new float2(-55, -.5f) }).Key;
+            var planetOrbit = cache.Upsert(new OrbitData { Parent = new CultRecordRef<OrbitData>(sunOrbit), Distance = 40f, Phase = 0f }).Key;
+            var pack = new ZonePack { Radius = 5000f, Mass = 10000f };
+            pack.Orbits.Add(new CultRecordRef<OrbitData>(sunOrbit));
+            pack.Orbits.Add(new CultRecordRef<OrbitData>(planetOrbit));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Wiring Sun", Orbit = new CultRecordRef<OrbitData>(sunOrbit), Mass = 400f }).Key));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Wiring Planet", Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 400f }).Key));
+            var curves = new PlanetSettings
+            {
+                BodyRadius = new ExponentialCurve(),
+                WellStrength = new ExponentialCurve { Multiplier = 1f, Exponent = 1f },
+                RocheLimit = new ExponentialCurve { Constant = 10f }
+            };
+            var zone = new Zone(items, curves, pack, null, null);
 
             var rootObject = new GameObject("Wiring Zone Root");
-            var rendererObject = new GameObject("Wiring Zone Renderer");
-            rendererObject.SetActive(false); // inactive: ZoneRenderer.Update needs a GPU and is not part of this check
-            var renderer = rendererObject.AddComponent<ZoneRenderer>();
-            renderer.ZoneRoot = rootObject.transform;
-            renderer.SimpleCommodityPickup = pickupPrefab;
-            renderer.MinePrefab = minePrefab;
-            renderer.ItemManager = items;
-            renderer.SectorBrushes = new GameObject("Wiring Brushes").transform;
-            renderer.AmbientLight = AmbientEdgeVerify.NewAmbientLight();
-            renderer.SlimeGravityCamera = new GameObject("Wiring Gravity Camera").AddComponent<Camera>();
-            var slimeObject = new GameObject("Wiring Slime");
-            slimeObject.SetActive(false);
-            renderer.SlimeRenderer = slimeObject.AddComponent<Slime>();
-            renderer.LoadZone(zone);
 
             var ore = new SimpleCommodity { Data = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<SimpleCommodityData>("Wiring Ore")), Quantity = 7 };
-            var floating = zone.Release(ore, new float2(3, 4), new float2(10, 0));
+            var floating = zone.Release(ore, new float2(-17, 4), new float2(10, 0));
             var mine = new Mine
             {
                 Body = new KinematicBody { Position = new float2(-20, 8), Velocity = new float2(0, 14) },
                 ArmingDelay = 1e6f, FuseDelay = 1f, Lifetime = 1e6f, BlastRadius = 1f
             };
             zone.Lay(mine);
+
+            // Bound the way ZoneRenderer.LoadFloatingItem and LoadMine bind them: the prefab ARPG.unity names, Bind(zone, body, settings).
+            // (A ZoneRenderer would load this zone's sun and planet too, and that needs the planet prefab, the map and a GPU.)
+            var pickup = UnityEngine.Object.Instantiate(pickupPrefab, rootObject.transform);
+            pickup.Bind(zone, floating, settings);
+            var mineInstance = UnityEngine.Object.Instantiate(minePrefab, rootObject.transform);
+            mineInstance.Bind(zone, mine, settings);
 
             // A round on its frozen line, no target and no outcome known: drawn at FireOrigin + direction * speed * (T - FireTime).
             var shot = new PendingShot
@@ -155,12 +164,16 @@ namespace Aetheria.EditorTools
 
             zone.Update(.5f);
 
-            var pickup = rootObject.GetComponentsInChildren<ItemPickup>(true).Single(p => p.Item == ore);
-            var mineInstance = UnityEngine.Object.FindObjectsByType<MineInstance>(FindObjectsInactive.Include, FindObjectsSortMode.None).Single();
 
             var pickupVelocity = floating.Body.TotalVelocity;
             var mineVelocity = mine.Body.TotalVelocity;
             Require(Mathf.Abs(pickupVelocity.x) > 1f && Mathf.Abs(mineVelocity.y) > 1f, "The fixture's bodies stopped: a lead would not move them.");
+
+            // The field under each floater really is a function of the drawn time here, by more than the tolerance at the largest lead.
+            const float LargestLead = .015f;
+            foreach (var at in new[] { floating.Body.Position + pickupVelocity * LargestLead, mine.Body.Position + mineVelocity * LargestLead })
+                Require(Mathf.Abs(DrawAhead.Height(zone, at, LargestLead) - zone.GetHeight(at, zone.ExactTime)) > 5 * Tolerance,
+                    $"The fixture's field is flat under a floater: height {DrawAhead.Height(zone, at, LargestLead)} at the drawn time, {zone.GetHeight(at, zone.ExactTime)} at the step, planet at {zone.OrbitPositionAt(planetOrbit, zone.ExactTime)}, floater at {at}.");
 
             Vector2 baseline = default;
             foreach (var leadSeconds in new[] { 0f, .008f, .015f })
@@ -175,6 +188,9 @@ namespace Aetheria.EditorTools
                 var want = floating.Body.Position + pickupVelocity * lead;
                 Require(Mathf.Abs(seen.x - want.x) < Tolerance && Mathf.Abs(seen.z - want.y) < Tolerance,
                     $"ItemPickup at lead {lead}: drawn x/z {seen.x},{seen.z}, the step plus velocity times lead {want.x},{want.y}.");
+
+                Require(Mathf.Abs(seen.y - DrawAhead.FloaterHeight(zone, settings, new float2(want.x, want.y), lead)) < Tolerance,
+                    $"ItemPickup y {seen.y} is not on the floater layer.");
 
                 seen = mineInstance.transform.position;
                 want = mine.Body.Position + mineVelocity * lead;
