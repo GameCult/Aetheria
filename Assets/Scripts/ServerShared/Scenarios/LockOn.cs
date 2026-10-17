@@ -12,9 +12,9 @@ public sealed class LockOn : Scenario
 
     // The hostile starts about 4000 m off, ahead and to port of the player, facing the player. At that range its passive
     // sensors hold no track of the player (the test asks the sim's own PassiveInfo against the detection threshold). The
-    // hostile closes, sees the player some fourteen seconds in and locks. The zone's pull bends the hostile's run and moves the
-    // player, and the warning must still point at where the hostile was staged to within 5 degrees at the lock: this side keeps
-    // the bend under one degree (on the far side it is more than seven). At Duel's 900 m (and at 600 m) it sees and locks
+    // hostile closes, sees the player some fourteen seconds in and locks. Its flanking approach and the zone's pull carry it
+    // off the staged line (about 5 degrees by the lock on the merged tree), and the warning must point at where the hostile
+    // is at the lock, which the test checks against the live bearing. At Duel's 900 m (and at 600 m) it sees and locks
     // within a second.
     public static readonly CultMath.float2 HostileAt = float2(-2000, 3450);
 
