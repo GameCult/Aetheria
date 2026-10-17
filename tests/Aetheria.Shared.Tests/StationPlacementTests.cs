@@ -388,6 +388,11 @@ public sealed class StationPlacementTests : IDisposable
                 {
                     var side = arcs.Where(a => a * sign > 0).OrderBy(a => a * sign).ToList();
                     sides++;
+                    foreach (var placed in side)
+                    {
+                        var at = 2 * orbit.Data.Distance * Math.Abs((float) Math.Sin(PI * (orbit.Data.Phase + placed / circumference - zone.Orbits[source[0]].Data.Phase)));
+                        Assert.True(at >= (extent + reach) * .999f, $"seed {built.Seed}: a turret sits {at} from its base, inside {extent + reach}");
+                    }
                     var wouldBe = (side.Count == 0 ? 0f : side[side.Count - 1]) + sign * ((side.Count == 0 ? Contacts.Radius(station) : reach) + 2 * reach);
                     var phase = orbit.Data.Phase + wouldBe / circumference;
                     var chord = 2 * orbit.Data.Distance * Math.Abs((float) Math.Sin(PI * (phase - zone.Orbits[source[0]].Data.Phase)));
