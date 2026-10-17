@@ -290,21 +290,11 @@ public sealed class PickupTests : IDisposable
         ship.TractorCommand = 1;
         for (var tick = 1; tick <= 150; tick++) lab.Zone.Update(1 / 60f);
         Assert.NotEmpty(seen);
-        Assert.True(abs(lab.Zone.GetHeight(float2(40, 0), lab.Zone.ExactTime) - lab.Zone.GetHeight(float2(40, 0), start)) > .01f, $"the wells did not move: {lab.Zone.GetHeight(float2(40, 0), lab.Zone.ExactTime)} vs {lab.Zone.GetHeight(float2(40, 0), start)}");
+        Assert.True(abs(lab.Zone.GetHeight(float2(40, 0), lab.Zone.ExactTime) - lab.Zone.GetHeight(float2(40, 0), start)) > .01f, "the wells did not move");
         Assert.All(seen, s => Assert.Equal(lab.Zone.GetHeight(s.Event.TargetPosition.xz, s.Time) - 1.5f, s.Event.TargetPosition.y, 3));
         Assert.All(seen, s => Assert.True(abs(s.Event.TargetPosition.y - (-1.5f)) > 1f, "the grab point sits on the bare layer, the field dropped"));
     }
 
-
-    [Fact]
-    public void ZProbe()
-    {
-        var lab = Build(Beam(), wells: true);
-        var t0 = lab.Zone.ExactTime;
-        var o = new System.Text.StringBuilder();
-        for (var i = 0; i < 3; i++) { foreach (var p in new[] { float2(0,0), float2(40,0) }) o.Append($"[t+{lab.Zone.ExactTime - t0:0.0} {p.x}: {lab.Zone.GetHeight(p, lab.Zone.ExactTime)}] "); for (var k = 0; k < 60; k++) lab.Zone.Update(1/60f); }
-        Assert.Fail(o.ToString());
-    }
 
     [Fact]
     public void GrabEventsNameTheFloatingItem()
