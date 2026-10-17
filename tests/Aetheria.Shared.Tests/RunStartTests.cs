@@ -46,12 +46,13 @@ public sealed partial class RunStartTests : IDisposable
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(_root, "run.cc")), AetheriaStores.RunTypes);
 
-        // These scenarios measure what the gear does at its authored part qualities, not the luck of a maker's assembly: a
-        // perfect assembly lifts the ceiling (min(part, assembly)) off every role, so the parts stand as authored.
+        // These scenarios measure what the gear does, not the luck of a maker's assembly: every maker assembles well and
+        // with the spread that makes two lots of one design differ (the scenarios compare a heated drive with its twin),
+        // so the ceiling (min(part, assembly)) rarely bites and no scenario stands on one maker's dice.
         foreach (var faction in _cache.GetAll<Faction>())
         {
-            faction.AssemblyMean = 1f;
-            faction.AssemblyDeviation = 0f;
+            faction.AssemblyMean = .75f;
+            faction.AssemblyDeviation = .15f;
         }
 
         var authored = AuthoredSettings.Load(repo);
