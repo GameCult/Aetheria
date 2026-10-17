@@ -16,6 +16,7 @@ public sealed class StationPlacementTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-stationplacement-" + Guid.NewGuid().ToString("N"));
     private readonly List<CultCache> _caches = new List<CultCache>();
+    private int _generation;
 
     public StationPlacementTests() => Directory.CreateDirectory(_root);
 
@@ -34,7 +35,7 @@ public sealed class StationPlacementTests : IDisposable
     {
         for (uint seed = 1; seed <= seeds; seed++)
         {
-            var dir = Path.Combine(_root, $"galaxy{seed}");
+            var dir = Path.Combine(_root, $"galaxy{seed}-{_generation++}");
             Directory.CreateDirectory(dir);
             var catalog = Path.Combine(dir, "Aetheria.cc");
             File.Copy(TestCatalog.Repo, catalog);
