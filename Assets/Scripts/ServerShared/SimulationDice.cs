@@ -10,6 +10,10 @@ public static class SimulationDice
 {
     public const uint LootStream = 1;
     public const uint MineStream = 2;
+    // A pilot's own decisions, ordinal Agent.Id: its preferred engagement range and its patrol circuit. AI behaviour
+    // never rides ItemManager.Random, so minting items cannot change how a pilot fights.
+    public const uint CombatSampleStream = 3;
+    public const uint PatrolStream = 4;
 
     // 9.1 (docs/fire-control-cut.md): fmix32, MurmurHash3's 32-bit finalizer -- xor-shift, multiply,
     // xor-shift, multiply, xor-shift. Diffuses a structured seed (a zone seed XORed with a small,

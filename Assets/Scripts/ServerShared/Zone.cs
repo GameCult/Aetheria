@@ -133,6 +133,10 @@ public class Zone
     // The death ordinal of the loot dice: the nth death in this zone rolls on SimulationDice.For(CombatSeed, LootStream, n).
     private uint _deaths;
 
+    // The zone-scoped agent ordinal, from 1, never reused: the key of a pilot's own dice.
+    private uint _lastAgentId;
+    public uint NextAgentId() => ++_lastAgentId;
+
     // One death subscription per member entity: Admit creates it together with the membership, Remove disposes it
     // together with the membership, and nothing else touches either.
     private readonly Dictionary<Entity, IDisposable> _deathWatches = new Dictionary<Entity, IDisposable>();
@@ -301,9 +305,11 @@ public class Zone
         var key = ship.Faction ?? Unaffiliated;
         if (!_flights.TryGetValue(key, out var flight))
             _flights[key] = flight = new Flight(ship.Faction?.Doctrine, _itemManager.GameplaySettings);
-        var agent = new Minion(ship, flight.Combatant);
+        var id = NextAgentId();
+        var agent = new Minion(ship, flight.Combatant) { Id = id };
         var task = new PatrolOrbitsTask();
-        task.Circuit = Orbits.OrderBy(_ => _itemManager.Random.NextFloat()).Take(4).Select(x => x.Key).ToArray();
+        var dice = SimulationDice.For(CombatSeed, SimulationDice.PatrolStream, id);
+        task.Circuit = Orbits.OrderBy(_ => dice.NextFloat()).Take(4).Select(x => x.Key).ToArray();
         flight.Join(agent, task);
         return agent;
     }

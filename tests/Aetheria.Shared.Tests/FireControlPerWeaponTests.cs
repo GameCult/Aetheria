@@ -780,6 +780,27 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(Optimum(1f) - Optimum(0f) > 100f);
     }
 
+    // The range-sample offset is the pilot's own draw (zone seed, its id), never the item stream's: the same pilot
+    // samples the same optimum however many items were minted before it spawned, and two pilots sample their own.
+    // Kills: the offset drawn from ItemManager.Random; the agent id dropped from the draw.
+    [Fact]
+    public void AnAgentsSampleOffsetIsItsOwnAndNotTheItemStreams()
+    {
+        var r = Build(range: 400f, decoy: true);
+        float Optimum(uint id, int itemsMintedFirst)
+        {
+            for (var i = 0; i < itemsMintedFirst; i++) r.Shooter.ItemManager.Random.NextFloat();
+            var combat = new CombatState(new Minion(r.Shooter, new RoleDoctrine { RangeExponent = 1f, MinHitProbability = .2f }) { Id = id });
+            combat.Update(0f);
+            return combat.OptimumRange;
+        }
+
+        Assert.Equal(Optimum(3, 0), Optimum(3, 0));
+        Assert.Equal(Optimum(3, 0), Optimum(3, 17));
+        Assert.True(Enumerable.Range(1, 8).Select(i => Optimum((uint) i, 0)).Distinct().Count() > 1,
+            "pilots with different ids sample different offsets");
+    }
+
     // A round refused on a Range that fell between the trigger and the round is still free: the burst is paid
     // (SingleAmmoBurst) at its first round that is not refused, judged with the Range that round flies with.
     // The trigger saw a stale Range of 100; the round's Range is 29.5, under the arming distance. The refusal
