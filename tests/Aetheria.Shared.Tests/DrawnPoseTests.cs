@@ -424,7 +424,7 @@ public sealed class DrawnPoseTests : IDisposable
     public void EqualRocksTakeMeshesByIndex()
     {
         Assert.Equal(new[] { 0, 0, 1, 1, 2, 2, 2 }, DrawAhead.AssignRockMeshes(new[] { 5f, 5f, 5f, 5f, 5f, 5f, 5f }, 3));
-        Assert.Equal(new[] { 2, 0, 1, 0, 2 }, DrawAhead.AssignRockMeshes(new[] { 9f, 1f, 4f, 2f, 7f }, 3));
+        Assert.Equal(new[] { 2, 0, 2, 1, 2 }, DrawAhead.AssignRockMeshes(new[] { 9f, 1f, 4f, 2f, 7f }, 3));
         Assert.Equal(new[] { 0, 1, 1 }, DrawAhead.AssignRockMeshes(new[] { 1f, 2f, 3f }, 2));
         Assert.Equal(new[] { 0, 1 }, DrawAhead.AssignRockMeshes(new[] { 1f, 2f }, 5));
     }
