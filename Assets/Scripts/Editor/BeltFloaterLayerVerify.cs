@@ -137,7 +137,7 @@ namespace Aetheria.EditorTools
             var beltOrbitA = Orbit(planetOrbit, 150f, .1f);
             var beltOrbitB = Orbit(planetOrbit, 300f, .6f);
             var beltA = cache.Upsert(new AsteroidBeltData { Orbit = new CultRecordRef<OrbitData>(beltOrbitA), Asteroids = Rocks(24, i => (i * 7 % 24) / 23f, 40f) }).Key;
-            var beltB = cache.Upsert(new AsteroidBeltData { Orbit = new CultRecordRef<OrbitData>(beltOrbitB), Asteroids = Rocks(30, i => (i * 11 % 30) / 29f, 60f) }).Key;
+            var beltB = cache.Upsert(new AsteroidBeltData { Orbit = new CultRecordRef<OrbitData>(beltOrbitB), Asteroids = Rocks(24, i => (i * 5 % 24) / 23f, 60f) }).Key;
             var pack = new ZonePack { Radius = 5000f, Mass = 10000f };
             foreach (var orbit in new[] { sunOrbit, planetOrbit, beltOrbitA, beltOrbitB }) pack.Orbits.Add(new CultRecordRef<OrbitData>(orbit));
             pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Belt Sun", Orbit = new CultRecordRef<OrbitData>(sunOrbit), Mass = 400f }).Key));
