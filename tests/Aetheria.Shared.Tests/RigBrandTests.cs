@@ -9,7 +9,7 @@ public sealed partial class RunStartTests
     private string ProductOf(EquippableItem item) => _items.Brand(item).Product.Name;
 
     private IEnumerable<string> FittedBrands(Entity entity, string design) =>
-        entity.Equipment.Where(item => _items.GetData(item.EquippableItem).Name == design).Select(item => ProductOf(item.EquippableItem));
+        entity.Equipment.Concat(entity.CargoBays).Where(item => _items.GetData(item.EquippableItem).Name == design).Select(item => ProductOf(item.EquippableItem));
 
     // Every product a scenario's fits name. A rig whose fits name a design where a brand stood would draw its brand from
     // the stage's seed; so each scenario is staged under eight seeds, and the design of every pinned product must come out
