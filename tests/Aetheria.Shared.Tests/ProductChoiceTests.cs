@@ -245,8 +245,8 @@ public sealed class ProductChoiceTests : IDisposable
     public void ANearerMakerIsFavored()
     {
         var rig = Build("lamp-z", "lamp-a");
-        Assert.InRange(MakerDraws(rig, rig.OutEven, 0, "lamp-a", 300), 165, 235);
-        Assert.InRange(MakerDraws(rig, rig.OutEven, 1, "lamp-a", 300), 65, 135);
+        Assert.InRange(MakerDraws(rig, rig.OutEven, 0, "lamp-a", 300), 180, 220);
+        Assert.InRange(MakerDraws(rig, rig.OutEven, 1, "lamp-a", 300), 80, 120);
     }
 
     // A weight that read the allegiance alone would give 1 : .25 here, an 80% draw; the zone and allegiance together
