@@ -130,6 +130,33 @@ public sealed class PlaceNamesTests : IDisposable
         Assert.All(owned.Skip(2), zone => Assert.Matches(Designation, zone.Name));
     }
 
+    // The table refuses a repeated name, but a list that did not come through it (a package's factions) can still hold
+    // one: the later faction skips a name the earlier one already used, whatever its case.
+    [Fact]
+    public void AnotherFactionsNameIsNotReusedWhateverItsCase()
+    {
+        var cache = RestoredHullsTests.OpenCatalog();
+        _own.Add(cache);
+        var galaxy = Enumerable.Range(1, 20).Select(seed => { try { return Build(cache, true, (uint)seed); } catch (Exception) { return null; } })
+            .First(g => g != null && Placed(g).Count(f => Owned(g, f).Length >= 2) >= 2);
+        var pair = Placed(galaxy).Where(f => Owned(galaxy, f).Length >= 2).Take(2).ToArray();
+        var (first, later) = (pair[0], pair[1]);
+        Assert.True(Array.IndexOf(galaxy.Factions, first) < Array.IndexOf(galaxy.Factions, later));
+        var taken = first.Places[0].Name;
+        var shouting = taken.ToUpperInvariant();
+        Assert.NotEqual(taken, shouting);
+        var own = later.Places[0].Name;
+        later.Places = new[] { new FactionPlace { Name = shouting }, new FactionPlace { Name = own } };
+
+        var random = new Random(7);
+        galaxy.NamePlaces(ref random);
+
+        Assert.Equal(taken, Owned(galaxy, first)[0].Name);
+        Assert.Equal(own, Owned(galaxy, later)[0].Name);
+        var names = galaxy.Zones.Select(z => z.Name).ToArray();
+        Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
     [Fact]
     public void NoTwoZonesShareAName()
     {
