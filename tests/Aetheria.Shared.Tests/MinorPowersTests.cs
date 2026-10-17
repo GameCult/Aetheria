@@ -85,6 +85,13 @@ public sealed class MinorPowersTests : IDisposable
         {
             var factions = db.Cache.GetAll<Faction>().ToArray();
             foreach (var shortName in Minor) Assert.Single(factions, f => f.ShortName == shortName);
+            foreach (var shortName in Minor)
+            {
+                var own = factions.Single(f => f.ShortName == shortName);
+                var expected = factions.Where(f => f != own && f.ShortName != "Pirates").Select(f => db.Cache.RefOf(f).Key).ToArray();
+                Assert.Equal(expected.Length, own.Allegiance.Count);
+                Assert.All(expected, key => Assert.Contains(own.Allegiance.Keys, k => k.Key.Equals(key)));
+            }
             var forge = db.Cache.RefOf(factions.Single(f => f.ShortName == "Forge"));
             Assert.Equal(.5f, factions.Single(f => f.ShortName == "AU").Allegiance[forge]);
             // The Pirates' allegiance is pirates-faction's; Miss Terri's is her own.
