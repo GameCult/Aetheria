@@ -402,6 +402,22 @@ public sealed class DrawnPoseTests : IDisposable
         }
     }
 
+    // A mesh candidate as the renderer holds it: a name and a measured radius, in the renderer's own order.
+    private record Candidate(string Name, float Radius);
+
+    private static DrawAhead.BeltDraw<Candidate> List(float[] sizes, params Candidate[] candidates) =>
+        new(sizes, candidates, c => c.Radius);
+
+    private static float4[] Poses(params float[] radii) => radii.Select(r => float4(0, 0, 0, r)).ToArray();
+
+    private static int[] MeshOf(DrawAhead.BeltDraw<Candidate> list, int rocks)
+    {
+        var meshOf = new int[rocks];
+        for (var m = 0; m < list.ByMesh.Length; m++)
+            foreach (var d in list.ByMesh[m]) meshOf[d.Rock] = m;
+        return meshOf;
+    }
+
     // Biggest rock, biggest mesh; smallest, smallest; sizes from the belt's own authored asteroids.
     [Fact]
     public void RocksRankedBySizeTakeMeshesRankedByRadius()
@@ -409,41 +425,56 @@ public sealed class DrawnPoseTests : IDisposable
         var w = Build();
         var belt = w.Zone.AsteroidBelts[w.Belt];
         var sizes = Enumerable.Range(0, w.Asteroids.Length).Select(i => belt.UndamagedSize(i, w.Zone.Settings)).ToArray();
-        var meshOf = DrawAhead.AssignRockMeshes(belt, w.Zone.Settings, new[] { 1f, 2f, 3f }).Mesh;
-        var biggest = Array.IndexOf(sizes, sizes.Max());
-        var smallest = Array.IndexOf(sizes, sizes.Min());
-        Assert.Equal(2, meshOf[biggest]);
-        Assert.Equal(0, meshOf[smallest]);
+        var list = DrawAhead.DrawListOf(belt, w.Zone.Settings, new[] { new Candidate("b", 3f), new Candidate("s", 1f), new Candidate("m", 2f) }, c => c.Radius);
+        var meshOf = MeshOf(list, sizes.Length);
+        Assert.Equal(sizes.Length, list.ByMesh.Sum(r => r.Length));
+        Assert.Equal(new[] { "s", "m", "b" }, list.Meshes.Select(c => c.Name).ToArray());
+        Assert.Equal(2, meshOf[Array.IndexOf(sizes, sizes.Max())]);
+        Assert.Equal(0, meshOf[Array.IndexOf(sizes, sizes.Min())]);
         for (var a = 0; a < sizes.Length; a++)
             for (var b = 0; b < sizes.Length; b++)
                 if (sizes[a] < sizes[b]) Assert.True(meshOf[a] <= meshOf[b], $"rock {a} (size {sizes[a]}) is smaller than rock {b} ({sizes[b]}) and takes a bigger mesh");
-        Assert.Equal(new[] { 0, 1, 2 }, meshOf.Distinct().OrderBy(m => m).ToArray());
+    }
+
+    // The renderer's draw list: more rocks than meshes, unequal radii, unsorted candidates and unsorted sizes, so a scale taken by rock index, a
+    // kept list left unsorted, a reversed kept order and a slot or mesh assigned by rock index all fail. Sizes by rank: 1 (rock 1), 2 (3), 4 (2), 5 (5), 7 (4), 9 (0).
+    [Fact]
+    public void TheDrawListGivesEachRockItsMeshAndItsScale()
+    {
+        var list = List(new[] { 9f, 1f, 4f, 2f, 7f, 5f }, new Candidate("big", 2.4f), new Candidate("small", 1.0f), new Candidate("mid", 1.5f));
+        var byMesh = list.Draw(Poses(10f, 11f, 12f, 13f, 14f, 15f));
+        Assert.Equal(new[] { "small", "mid", "big" }, list.Meshes.Select(c => c.Name).ToArray());
+        Assert.Equal(new[] { 1, 3 }, byMesh[0].Select(d => d.Rock).ToArray());
+        Assert.Equal(new[] { 2, 5 }, byMesh[1].Select(d => d.Rock).ToArray());
+        Assert.Equal(new[] { 0, 4 }, byMesh[2].Select(d => d.Rock).ToArray());
+        Assert.Equal(new[] { 11f / 1.0f, 13f / 1.0f }, byMesh[0].Select(d => d.Scale).ToArray());
+        Assert.Equal(new[] { 12f / 1.5f, 15f / 1.5f }, byMesh[1].Select(d => d.Scale).ToArray());
+        Assert.Equal(new[] { 10f / 2.4f, 14f / 2.4f }, byMesh[2].Select(d => d.Scale).ToArray());
+    }
+
+    // Worn rocks are drawn at their current radius on the mesh the unworn size gave them; the list reads the poses each call.
+    [Fact]
+    public void TheDrawListScalesByTheCurrentRadiusOnTheSameMesh()
+    {
+        var list = List(new[] { 3f, 1f, 2f }, new Candidate("a", 2f), new Candidate("b", 4f));
+        var first = list.Draw(Poses(8f, 8f, 8f)).Select(r => r.Select(d => d.Rock).ToArray()).ToArray();
+        var worn = list.Draw(Poses(2f, 8f, 8f));
+        Assert.Equal(first, worn.Select(r => r.Select(d => d.Rock).ToArray()).ToArray());
+        var rock0 = worn.SelectMany((r, m) => r.Select(d => (d.Rock, m, d.Scale))).Single(d => d.Rock == 0);
+        Assert.Equal((1, 2f / 4f), (rock0.m, rock0.Scale));
     }
 
     [Fact]
     public void EqualRocksTakeMeshesByIndex()
     {
-        int[] Meshes(float[] sizes, params float[] radii) => new DrawAhead.RockMeshing(sizes, radii).Mesh;
+        int[] Meshes(float[] sizes, params float[] radii) =>
+            MeshOf(List(sizes, radii.Select((r, i) => new Candidate("c" + i, r)).ToArray()), sizes.Length);
         Assert.Equal(new[] { 0, 0, 1, 1, 2, 2, 2 }, Meshes(new[] { 5f, 5f, 5f, 5f, 5f, 5f, 5f }, 1f, 2f, 3f));
         Assert.Equal(new[] { 2, 0, 2, 1, 2 }, Meshes(new[] { 9f, 1f, 4f, 2f, 7f }, 1f, 2f, 3f));
         Assert.Equal(new[] { 0, 1, 1 }, Meshes(new[] { 1f, 2f, 3f }, 1f, 2f));
         Assert.Equal(new[] { 0, 0, 1, 1 }, Meshes(new[] { 1f, 2f, 3f, 4f }, 1f, 2f));
         Assert.Equal(new[] { 0, 1 }, Meshes(new[] { 1f, 2f }, 1f, 2f, 3f, 4f, 5f));
         Assert.Equal(new[] { 0, 0, 1, 1, 2, 2, 2 }, Meshes(new[] { 5f, 5f, 5f, 5f, 5f, 5f, 5f }, 4f, 4f, 4f));
-    }
-
-    // The renderer hands the kept meshes in the order it holds them: the ranking is DrawAhead's. The smallest rock takes the smallest radius wherever
-    // it stands in the list, and the scale it is drawn at is its gameplay radius over that mesh's radius (mutants: no ranking, descending, radius 1,
-    // the first mesh's radius, the wrong mesh count).
-    [Fact]
-    public void MeshesAreRankedByRadiusWhateverOrderTheyAreGiven()
-    {
-        var radii = new[] { 2.4f, 1.0f, 1.5f };
-        var meshing = new DrawAhead.RockMeshing(new[] { 9f, 1f, 4f, 2f, 7f, 5f }, radii);
-        Assert.Equal(new[] { 0, 1, 2, 1, 0, 2 }, meshing.Mesh);
-        Assert.Equal(3f / 2.4f, meshing.Scale(0, 3f), 5);
-        Assert.Equal(3f / 1.0f, meshing.Scale(1, 3f), 5);
-        Assert.Equal(1.2f / 1.5f, meshing.Scale(2, 1.2f), 5);
     }
 
     // A mesh with no measured radius is refused at load, naming the field and the mesh, never an infinite scale.
@@ -453,7 +484,7 @@ public sealed class DrawnPoseTests : IDisposable
     [InlineData(float.NaN)]
     public void AMeshWithoutARadiusIsRefusedByName(float radius)
     {
-        var refused = Assert.Throws<ArgumentException>(() => new DrawAhead.RockMeshing(new[] { 1f, 2f }, new[] { 1.5f, radius }));
+        var refused = Assert.Throws<ArgumentException>(() => List(new[] { 1f, 2f }, new Candidate("ok", 1.5f), new Candidate("bad", radius)));
         Assert.Contains("InstancedMesh.Radius", refused.Message);
         Assert.Contains("#1", refused.Message);
         Assert.Contains("InstancedMesh.Radius", Assert.Throws<ArgumentException>(() => DrawAhead.RockScale(1f, radius)).Message);
@@ -465,13 +496,15 @@ public sealed class DrawnPoseTests : IDisposable
     {
         var w = Build();
         var belt = w.Zone.AsteroidBelts[w.Belt];
-        var before = DrawAhead.AssignRockMeshes(belt, w.Zone.Settings, new[] { 1f, 2f, 3f }).Mesh;
+        var candidates = new[] { new Candidate("a", 1f), new Candidate("b", 2f), new Candidate("c", 3f) };
+        int[] Meshes() => MeshOf(DrawAhead.DrawListOf(belt, w.Zone.Settings, candidates, c => c.Radius), w.Asteroids.Length);
+        var before = Meshes();
         var chunk = new ChunkId(w.Belt, 5);
         var hitpoints = w.Zone.Settings.AsteroidHitpoints.Evaluate(w.Asteroids[5].Size);
         var unworn = w.Zone.ChunkRadius(chunk);
         Assert.False(w.Zone.Wear(chunk, hitpoints * .9f));
         Assert.True(w.Zone.ChunkRadius(chunk) < unworn * .5f, "the rock has shrunk to less than half its size");
-        Assert.Equal(before, DrawAhead.AssignRockMeshes(belt, w.Zone.Settings, new[] { 1f, 2f, 3f }).Mesh);
+        Assert.Equal(before, Meshes());
     }
 
     // Where the renderer decides a rock's height and scale it calls DrawAhead, and the reticle calls the same function: no inline copy of the rock
@@ -485,11 +518,15 @@ public sealed class DrawnPoseTests : IDisposable
         var manager = Source("Assets/Scripts/Gameplay/ActionGameManager.cs");
         var drawAhead = Source("Assets/Scripts/ServerShared/DrawAhead.cs");
         Assert.Contains("DrawAhead.ChunkAt(", renderer);
-        // What the renderer still does itself: hand DrawAhead the kept meshes' own radii and draw each rock on the mesh and scale it returns.
-        Assert.Contains("DrawAhead.AssignRockMeshes(Zone.AsteroidBelts[key], Zone.Settings, meshes.Select(m => m.Radius).ToArray())", renderer);
-        Assert.Contains("meshing.Scale(tx, transform.w)", renderer);
+        // The renderer holds no mesh choice, sort or index arithmetic: it iterates DrawAhead's list.
+        Assert.Contains("DrawAhead.DrawListOf(", renderer);
+        Assert.Contains("draw.Draw(transforms)", renderer);
         Assert.DoesNotContain("RockScale(", renderer);
         Assert.DoesNotContain(".Sort(", renderer);
+        Assert.DoesNotContain("OrderBy", renderer);
+        Assert.DoesNotContain("meshOf", renderer);
+        Assert.DoesNotContain("slotOf", renderer);
+        Assert.DoesNotContain("perMesh", renderer);
         Assert.DoesNotContain("FloaterHeight(", renderer);
         Assert.DoesNotContain("Vector3.one * transform.w", renderer);
         Assert.Contains("DrawAhead.Chunk(", manager);

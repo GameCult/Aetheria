@@ -56,8 +56,8 @@ namespace Aetheria.EditorTools
                 var (_, meshes, measured) = Load(scene);
                 var failures = meshes.Select((m, i) => (m, i)).Where(p => !(measured[p.i] > 0f) || Mathf.Abs(p.m.Radius - measured[p.i]) > Tolerance).ToArray();
                 if (failures.Length > 0)
-                    throw new InvalidOperationException("InstancedMesh.Radius differs from the measured one (run RockMeshRadius.Fill): " + string.Join(", ",
-                        failures.Select(f => $"{f.m.Mesh.name} stored {f.m.Radius} measured {measured[f.i]}")));
+                    throw new InvalidOperationException("InstancedMesh.Radius differs from the measured one, or is unset, on mesh (run RockMeshRadius.Fill): " + string.Join(", ",
+                        failures.Select(f => f.m.Mesh.name)));
                 return Summary("ok", measured);
             }
             finally

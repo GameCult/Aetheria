@@ -45,35 +45,53 @@ public static class DrawAhead
     public static float RockScale(float gameplayRadius, float meshRadius) =>
         meshRadius > 0f ? gameplayRadius / meshRadius : throw new System.ArgumentException("InstancedMesh.Radius is not set (zero, negative or not a number): run RockMeshRadius.Fill.");
 
-    // Which mesh each rock of a belt takes, and at what scale (ruling rock-meshes-by-size). meshRadii are the kept meshes' measured radii in
-    // the renderer's own order; the meshes are ranked by radius here, not by the caller. Rocks ranked by unworn size split into one run per mesh,
-    // smallest rocks on the smallest mesh and the last run taking the remainder; equal sizes and equal radii rank by index, so the answer is stable.
-    // Unworn, so a mined rock keeps its mesh and only shrinks. The renderer builds its instance matrices from Mesh and Scale and decides neither.
-    public sealed class RockMeshing
+    // One rock's entry in a belt's draw list: the rock (its index in the belt) and the scale that draws it at its gameplay radius on the mesh it is listed under.
+    public readonly struct RockDraw
     {
-        private readonly float[] _meshRadii;
-
-        // Per rock: the index into meshRadii (as given) of the mesh it takes.
-        public int[] Mesh { get; }
-
-        public RockMeshing(IReadOnlyList<float> unwornSizes, IReadOnlyList<float> meshRadii)
-        {
-            _meshRadii = meshRadii.ToArray();
-            for (var m = 0; m < _meshRadii.Length; m++)
-                if (!(_meshRadii[m] > 0f)) throw new System.ArgumentException($"InstancedMesh.Radius of mesh #{m} is not set (zero, negative or not a number): run RockMeshRadius.Fill.");
-            var meshByRank = Enumerable.Range(0, _meshRadii.Length).OrderBy(m => _meshRadii[m]).ThenBy(m => m).ToArray();
-            var rockByRank = Enumerable.Range(0, unwornSizes.Count).OrderBy(i => unwornSizes[i]).ThenBy(i => i).ToArray();
-            var run = System.Math.Max(1, unwornSizes.Count / _meshRadii.Length);
-            Mesh = new int[unwornSizes.Count];
-            for (var rank = 0; rank < rockByRank.Length; rank++) Mesh[rockByRank[rank]] = meshByRank[System.Math.Min(rank / run, meshByRank.Length - 1)];
-        }
-
-        // The scale that draws the rock at its current gameplay radius on the mesh it was given.
-        public float Scale(int rock, float gameplayRadius) => RockScale(gameplayRadius, _meshRadii[Mesh[rock]]);
+        public readonly int Rock;
+        public readonly float Scale;
+        public RockDraw(int rock, float scale) { Rock = rock; Scale = scale; }
     }
 
-    public static RockMeshing AssignRockMeshes(AsteroidBelt belt, PlanetSettings settings, IReadOnlyList<float> meshRadii) =>
-        new(Enumerable.Range(0, belt.Data.Asteroids.Length).Select(i => belt.UndamagedSize(i, settings)).ToArray(), meshRadii);
+    // The whole per-rock draw list of a belt (ruling rock-meshes-by-size); the renderer decides nothing and indexes nothing. Meshes are the kept
+    // candidates ranked ascending by radius, and ByMesh[m] lists the rocks drawn on Meshes[m], so a renderer batching by mesh iterates the two together.
+    // Rocks ranked by unworn size split into one run per mesh, smallest rocks on the smallest mesh and the last run taking the remainder; equal sizes and
+    // equal radii rank by index, and a mesh lists its rocks by index. Unworn, so a mined rock keeps its mesh and only shrinks.
+    // A list starts with every Scale NaN; Draw fills each entry's Scale from the poses (pose.w is the rock's gameplay radius) and returns the same arrays every call.
+    public sealed class BeltDraw<T>
+    {
+        private readonly float[] _radii;
+        private readonly int[][] _rocks;
+
+        public T[] Meshes { get; }
+        public RockDraw[][] ByMesh { get; }
+
+        public BeltDraw(IReadOnlyList<float> unwornSizes, IReadOnlyList<T> candidates, System.Func<T, float> radius)
+        {
+            var radii = candidates.Select(radius).ToArray();
+            for (var m = 0; m < radii.Length; m++)
+                if (!(radii[m] > 0f)) throw new System.ArgumentException($"InstancedMesh.Radius of mesh #{m} is not set (zero, negative or not a number): run RockMeshRadius.Fill.");
+            var meshByRank = Enumerable.Range(0, radii.Length).OrderBy(m => radii[m]).ThenBy(m => m).ToArray();
+            _radii = meshByRank.Select(m => radii[m]).ToArray();
+            Meshes = meshByRank.Select(m => candidates[m]).ToArray();
+            var rockByRank = Enumerable.Range(0, unwornSizes.Count).OrderBy(i => unwornSizes[i]).ThenBy(i => i).ToArray();
+            var run = System.Math.Max(1, unwornSizes.Count / radii.Length);
+            _rocks = Enumerable.Range(0, radii.Length).Select(m => rockByRank
+                    .Where((_, rank) => System.Math.Min(rank / run, radii.Length - 1) == m).OrderBy(i => i).ToArray()).ToArray();
+            ByMesh = _rocks.Select(r => r.Select(rock => new RockDraw(rock, float.NaN)).ToArray()).ToArray();
+        }
+
+        public RockDraw[][] Draw(IReadOnlyList<float4> poses)
+        {
+            for (var m = 0; m < _rocks.Length; m++)
+                for (var k = 0; k < _rocks[m].Length; k++)
+                    ByMesh[m][k] = new RockDraw(_rocks[m][k], RockScale(poses[_rocks[m][k]].w, _radii[m]));
+            return ByMesh;
+        }
+    }
+
+    public static BeltDraw<T> DrawListOf<T>(AsteroidBelt belt, PlanetSettings settings, IReadOnlyList<T> meshes, System.Func<T, float> radius) =>
+        new(Enumerable.Range(0, belt.Data.Asteroids.Length).Select(i => belt.UndamagedSize(i, settings)).ToArray(), meshes, radius);
 
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
     // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.
