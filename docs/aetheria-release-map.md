@@ -10391,3 +10391,43 @@ no Unity probe was run.
 
 - Contact icons gated on perception (yaw-when-tracked): waits on
   `contact-icon-heading` and the visibility chain.
+
+## Maker-only faction r3 at aa12cbac (imagination-ag4-maker-only-r2, 2026-10-17)
+
+Spec `aetheria-release:cut_spec:cut-maker-only-faction.r3`, superseding r2 (mapped at 6b6e7c7c to
+wait on faction-play-1, merged at d7f30ed1). Branch `eureka/aetheria-release-maker-only-faction-r3`.
+
+MO3-R1. `git merge-tree aa12cbac 5dce222b` now conflicts in Corporations.cs: Doctrine's Key(17)
+block sits in the hunk where 5dce222b adds Key(19). Re-land fresh; 5dce222b is reference only.
+
+MO3-R2. Faction keys at base: 1-15 and 17. 16 stays reserved for Relations and 18 for Livery
+(livery-key-collision), so ManufacturerOnly takes 19.
+
+MO3-R3. Placement sites at base: the main draw (Galaxy.cs:109-112), the prelude cast, where every
+slot goes through ResolveCast (145-147, 182-200), and the saved-game constructor (:57), which only
+replays a persisted list. HoldsTerritory sits at the first two. The third decides nothing.
+
+MO3-R4. LoadoutGenerator at base already composes with maker-only makers. IsAvailable reads only
+allegiance (251-253). ManufacturerPreference weighs a maker with no HomeZone as one jump beyond the
+farthest zone (276-286), and ChooseProduct's weighted draw (design-only-weighted-draw) reads that
+weight. r3 pins the composition with a test and changes no code there.
+
+### Rationale
+
+- **s1's Unproven claim** (mutation score not rerun; M5 index-skip survived both Hands' tests and
+  Soul's probe) is answered by a theory that flags each shipped faction index in turn and asserts
+  set equality at MegaCount = count. Hands runs M3-M8 in one mutation-table job and records them.
+- **Filter before the draw** keeps shipped seeds stable: with nothing flagged, Where passes every
+  element in order, so OrderBy calls NextFloat exactly as before. This is from a source read and is
+  pinned by a snapshot test, not by a probe.
+- **Pirates top-up preserves the record key** (ghostlight-verse faction-identity-is-record-key).
+  Identity stays one ordinal PiratesName in AetherDb, as r2 decided.
+- Today's quality rulings (assembly ceiling, price follows effective quality, named components after
+  demo) do not touch territory or allegiance. r3 does not rest on them and does not cite them.
+- No catalog blob change, so no apply command and no replay position. The minor-power-makers merge
+  re-runs `pirates-faction apply` after its own apply.
+
+### Admitted (receipt mind-commit-d4de8182...)
+
+- cut_spec cut-maker-only-faction.r3 (base aa12cbac, re-land, depends_on none) and resolution
+  cut_spec.cut-maker-only-faction.r2.n1 superseding r2. context-pack: 7 anchors SAME. No question.
