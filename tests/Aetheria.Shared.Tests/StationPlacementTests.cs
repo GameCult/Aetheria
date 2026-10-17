@@ -74,6 +74,7 @@ public sealed class StationPlacementTests : IDisposable
     public void AStationSitsAtItsPlanetsL4OrL5()
     {
         var checkedStations = 0;
+        var rootStations = 0;
         var ahead = 0;
         var behind = 0;
         foreach (var built in GeneratedZones())
@@ -85,7 +86,21 @@ public sealed class StationPlacementTests : IDisposable
             {
                 var orbit = zone.Orbits[station.OrbitData];
                 var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit)).ToList();
+                if (sources.Count == 0)
+                {
+                    // The tutorial entrance's one exception: a station on its own orbit round a root node, beyond the node's ring
+                    // group (or, for a body, its whole family), at no Lagrange point.
+                    var rootKey = orbit.Data.Parent.Key;
+                    Assert.False(zone.Orbits[rootKey].Data.Parent.IsSet(), $"seed {built.Seed}: a station with no source orbit does not orbit a root node");
+                    var innermost = zone.Orbits.Where(o => o.Value.Data.Parent.IsSet() && o.Value.Data.Parent.Key.Equals(rootKey) && zone.Wells.Reach(o.Key) > 0f && o.Key != station.OrbitData)
+                        .Min(o => o.Value.Data.Distance);
+                    Assert.True(orbit.Data.Distance >= zone.Wells.Support(rootKey) * .999f || orbit.Data.Distance >= (1 + GravityField.RingReach) * GravityField.Beta * innermost * .999f,
+                        $"seed {built.Seed}: a root-node station at {orbit.Data.Distance} sits inside its node's family");
+                    rootStations++;
+                    continue;
+                }
                 Assert.True(sources.Count == 1, $"seed {built.Seed}: a station shares its ring with {sources.Count} unridden orbits, not one");
+                Assert.Contains(zone.Planets.Values, b => b.Orbit.Key.Equals(sources[0].Key) && !(b is AsteroidBeltData));
                 var planet = sources[0].Value;
 
                 var offset = Turns(orbit.Data.Phase - planet.Data.Phase);
@@ -103,7 +118,47 @@ public sealed class StationPlacementTests : IDisposable
             }
         }
         Assert.True(checkedStations > 0, "the seeds generated no station");
+        Assert.True(rootStations == 0 || rootStations < checkedStations, "every station is a root-node fallback");
         Assert.True(ahead > 0 && behind > 0, $"the seeds put stations on one side only (ahead {ahead}, behind {behind})");
+    }
+
+        // How far a body keeps others out: its family's support, or 1.5 Roche limits (tail-taming-law-r3-band-loose-cusp) if more.
+    private static float BaseExtent(Zone zone, CultRecordKey orbit)
+    {
+        var body = zone.Planets.Values.FirstOrDefault(b => b.Orbit.Key.Equals(orbit) && !(b is AsteroidBeltData));
+        return Math.Max(zone.Wells.Support(orbit), body == null ? 0f : 1.5f * zone.Settings.RocheLimit.Evaluate(body.Mass));
+    }
+
+    // Over 64 instants of the longest period in the zone, no station or turret centre is within 1.5 Roche limits plus its
+    // reach of any body other than its base (station-orbit-choice-residuals item 1).
+    [Fact]
+    public void NoStationOrTurretSitsOnAnUnrelatedBody()
+    {
+        var checkedEntities = 0;
+        foreach (var built in GeneratedZones())
+        {
+            var zone = built.Zone;
+            var longest = zone.Orbits.Values.Select(o => o.Period).Where(float.IsFinite).DefaultIfEmpty(1f).Max();
+            var bodies = zone.Planets.Values.Where(b => !(b is AsteroidBeltData)).ToList();
+            foreach (var entity in Orbitals(built).Where(e => TypeOf(built.Items, e) is HullType.Station or HullType.Turret))
+            {
+                var orbit = zone.Orbits[entity.OrbitData];
+                checkedEntities++;
+                foreach (var body in bodies)
+                {
+                    var bodyOrbit = zone.Orbits[body.Orbit.Key];
+                    if (SameRing(bodyOrbit, orbit)) continue; // its base
+                    var margin = 1.5f * zone.Settings.RocheLimit.Evaluate(body.Mass) + Contacts.Radius(entity);
+                    for (var k = 0; k < 64; k++)
+                    {
+                        var t = k / 64.0 * longest;
+                        Assert.True(length(zone.OrbitPositionAt(entity.OrbitData, t) - zone.OrbitPositionAt(body.Orbit.Key, t)) >= margin * .999f,
+                            $"seed {built.Seed}: an entity passes within {margin} of an unrelated body at instant {k}");
+                    }
+                }
+            }
+        }
+        Assert.True(checkedEntities > 0, "the seeds generated no station");
     }
 
     private static List<OrbitalEntity> Orbitals(Built built) => built.Zone.Entities.OfType<OrbitalEntity>().ToList();
@@ -155,6 +210,17 @@ public sealed class StationPlacementTests : IDisposable
                     innerArc = expected;
                     innerReach = Contacts.Radius(turret);
                 }
+            }
+
+            // No turret reaches its base body: the planet whose Lagrange orbit the station rides (the ring's one unridden orbit).
+            var ridden = built.Zone.Entities.OfType<OrbitalEntity>().Select(e => e.OrbitData).ToHashSet();
+            var source = built.Zone.Orbits.Where(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit)).Select(o => o.Key).ToList();
+            if (source.Count == 1)
+            {
+                var extent = BaseExtent(built.Zone, source[0]);
+                foreach (var turret in mine)
+                    Assert.True(length(turret.Position.xz - built.Zone.Orbits[source[0]].Position) >= (extent + Contacts.Radius(turret)) * .999f,
+                        $"seed {built.Seed}: a turret sits within the base body's extent {extent} and its reach of the base");
             }
 
             var bodies = new List<OrbitalEntity> { station };
