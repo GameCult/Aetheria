@@ -58,8 +58,7 @@ public static class AssemblyFromMakerCommand
 
         if (!apply)
         {
-            output.WriteLine($"
-Dry run. Pass \"apply\" to write {changed.Count} factions.");
+            output.WriteLine($"\nDry run. Pass \"apply\" to write {changed.Count} factions.");
             return 0;
         }
 
@@ -68,8 +67,7 @@ Dry run. Pass \"apply\" to write {changed.Count} factions.");
         {
             foreach (var faction in changed) batch.Upsert(typeof(Faction), faction, cache.RefOf(faction).Key);
         });
-        output.WriteLine($"
-Wrote {changed.Count} factions in Aetheria.cc");
+        output.WriteLine($"\nWrote {changed.Count} factions in Aetheria.cc");
         return 0;
     }
 }
