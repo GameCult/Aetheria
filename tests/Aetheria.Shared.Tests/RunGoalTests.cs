@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using UniRx;
 using Xunit;
 
