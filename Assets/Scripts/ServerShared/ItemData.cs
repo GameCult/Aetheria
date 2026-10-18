@@ -556,7 +556,8 @@ public class HullData : EquippableItemData
     public CultRecordRef<ShipAuthoring> Visual;
 
     // Only bosses fly this hull. Which factions it is a boss for comes from its products' makers
-    // (LoadoutGenerator.BossHullsOf), so the flag names no faction and reads no model.
+    // (LoadoutGenerator.BossHullsOf), so the flag names no faction and reads no model. A boss's gear is its faction's
+    // fixed Loadout on this hull's product (Loadouts.BossOf), never generated.
     [Inspectable, JsonProperty("boss"), Key(33)]
     public bool Boss;
 

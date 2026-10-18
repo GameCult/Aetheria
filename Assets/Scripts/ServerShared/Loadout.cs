@@ -6,11 +6,11 @@ using GameCult.Caching;
 using MessagePack;
 using CultMath;
 
-// A ship preset (a variant): the hull's design, and per hull cell a design and its rotation. A slot names a design and
-// may name a product of it; a design-only slot is open on purpose, and whoever materializes the preset chooses its
-// product from the galaxy it is built in (ruling loadout-product-optional-context-chooses), which keeps a preset
-// portable across galaxies. A preset that needs a brand names it. Authored catalog data: written in CultCache Studio or by the editor capture
-// command, read at runtime.
+// A Loadout: a hull together with item designs or products equipped to specific cells (ruling boss-gear-is-a-loadout).
+// A slot names a design, and names a product only where the loadout demands one; a design-only slot's product is chosen
+// by whoever materializes it from the galaxy it is built in (ruling loadout-product-optional-context-chooses), which
+// keeps a loadout portable across galaxies. Authored catalog data: written in CultCache Studio or by the AetherDb and
+// editor capture commands, read at runtime.
 [CultDocument("aetheria.loadout", "1"), MessagePackObject]
 public class Loadout
 {
@@ -29,6 +29,8 @@ public class LoadoutSlot
     [Key(2)] public CultRecordRef<EquippableItemData> Design;
     [Key(3)] public CultRecordRef<FactionProductData> Product; // unset: design-only, chosen at materialization
 }
+
+public enum BossRefusal { None, NoBossHull, NoLoadout }
 
 // The owner of loadouts: capture from a live ship, the only writer, and the only builder of an entity from a loadout.
 public static class Loadouts
@@ -66,30 +68,60 @@ public static class Loadouts
     private static CultRecordRef<FactionProductData> ProductRef(ItemManager itemManager, CraftedItemInstance unit) =>
         itemManager.Brand(unit).Product is { } product ? itemManager.ItemData.RefOf(product) : default;
 
-    // A preset's key derives from its name, so capturing the same name again addresses the same record.
+    // A loadout's key derives from its name, so capturing the same name again addresses the same record.
     public static CultRecordKey KeyOf(string name) => new CultRecordKey("loadout:" + name);
 
-    // The only writer of presets. It opens its own short-lived cache over the catalog file, writable, and disposes it
+    // The one owner of what a faction's boss flies: the Loadout whose HullProduct is the product of the faction's first boss
+    // hull (LoadoutGenerator.BossHullsOf, dearest first), first by Name ordinal. Keyed on the boss hull's product through
+    // Loadout.HullProduct, never generated; reads no Prefab, Visual or Random. Null with the refusal when there is no boss
+    // hull or no Loadout for it.
+    public static Loadout BossOf(CultCache items, Faction faction, out BossRefusal refusal)
+    {
+        var hulls = LoadoutGenerator.BossHullsOf(items, faction);
+        if (hulls.Length == 0)
+        {
+            refusal = BossRefusal.NoBossHull;
+            return null;
+        }
+
+        var key = items.RefOf(hulls[0].product).Key;
+        var loadout = items.GetAll<Loadout>()
+            .Where(candidate => candidate.HullProduct.IsSet() && candidate.HullProduct.Key.Equals(key))
+            .OrderBy(candidate => candidate.Name, StringComparer.Ordinal)
+            .FirstOrDefault();
+        refusal = loadout == null ? BossRefusal.NoLoadout : BossRefusal.None;
+        return loadout;
+    }
+
+    // Names the field that is missing; echoes no input value and no record key.
+    public static string Describe(BossRefusal refusal) => refusal switch
+    {
+        BossRefusal.NoBossHull => "makes no ship hull with HullData.Boss set",
+        BossRefusal.NoLoadout => "no Loadout's HullProduct names its boss hull's product",
+        _ => ""
+    };
+
+    // The only writer of Loadout records. It opens its own short-lived cache over the catalog file, writable, and disposes it
     // after the one commit. No other cache is touched, so no catalog instance play holds (or has mutated) can reach the
-    // file; a cache that already has the catalog open sees the preset only once it reloads.
-    // Throws and writes nothing when the loadout names a mod design (hull or slot), when the file is missing (capture never creates a catalog), when a preset of this name
+    // file; a cache that already has the catalog open sees the loadout only once it reloads.
+    // Throws and writes nothing when the loadout names a mod design (hull or slot), when the file is missing (capture never creates a catalog), when a loadout of this name
     // exists under another key, or when one exists under KeyOf(Name) and replace is not set. The commit is conditional
-    // on the record at KeyOf(Name), so a preset changed on disk since this open is not clobbered: returns false then.
+    // on the record at KeyOf(Name), so a loadout changed on disk since this open is not clobbered: returns false then.
     public static bool Commit(string catalogPath, Loadout loadout, bool replace)
     {
         var modDesigns = new[] { loadout.Hull.Key }.Concat(loadout.Slots.Select(slot => slot.Design.Key)).Where(ShipModCatalog.IsModKey).Select(key => key.Value).Distinct().ToArray();
         if (modDesigns.Length > 0)
-            throw new InvalidOperationException($"Preset '{loadout.Name}' names mod designs ({string.Join(", ", modDesigns)}); the shipped catalog never references a mod, so a mod ship cannot be captured as a preset.");
+            throw new InvalidOperationException($"Loadout '{loadout.Name}' names mod designs ({string.Join(", ", modDesigns)}); the shipped catalog never references a mod, so a mod ship cannot be captured as a loadout.");
         if (!File.Exists(catalogPath))
-            throw new InvalidOperationException($"Catalog {catalogPath} does not exist; a preset capture never creates one.");
+            throw new InvalidOperationException($"Catalog {catalogPath} does not exist; a loadout commit never creates one.");
         using var cache = AetheriaStores.Open(catalogPath, catalogWritable: true);
         var key = KeyOf(loadout.Name);
         var namesake = cache.GetAll<Loadout>().FirstOrDefault(other => other.Name == loadout.Name && !cache.RefOf(other).Key.Equals(key));
         if (namesake != null)
-            throw new InvalidOperationException($"Preset '{loadout.Name}' already exists under key {cache.RefOf(namesake).Key}; rename or remove it first.");
+            throw new InvalidOperationException($"Loadout '{loadout.Name}' already exists under key {cache.RefOf(namesake).Key}; rename or remove it first.");
         var existing = cache.Get<Loadout>(key);
         if (existing != null && !replace)
-            throw new InvalidOperationException($"Preset '{loadout.Name}' already exists; replace it explicitly.");
+            throw new InvalidOperationException($"Loadout '{loadout.Name}' already exists; replace it explicitly.");
         return cache.Commit(batch =>
         {
             batch.Expect(key, existing);
@@ -104,7 +136,8 @@ public static class Loadouts
     // WeaponGroupCount weapon groups, and every group index names a weapon slot. Every failure is listed; on any failure
     // nothing is returned and the zone and cache are unchanged, but a failed fit has already drawn from
     // itemManager.Random. How each design is built is Resolve's rule. A design-only slot is chosen by choose; a game
-    // spawner is to pass LoadoutGenerator.ChooseProduct, with no fallback to any manufacturer; RunStart does. The hull's type
+    // spawner is to pass LoadoutGenerator.ChooseProduct, with no fallback to any manufacturer; RunStart does, and so does the
+    // boss in ZoneGenerator, which is built here too from its faction's Loadout (Loadouts.BossOf). The hull's type
     // picks the entity: a ship hull builds a Ship, a turret hull an OrbitalEntity with no orbit, which stays where it is
     // put; a station hull is refused. The entity always gets exactly WeaponGroupCount groups; a loadout with fewer is
     // padded with empty groups. A failed materialization leaves any minted lots in the live ledger; they are not roots,
@@ -119,7 +152,7 @@ public static class Loadouts
         var hullBuild = Resolve(itemManager, loadout.Hull, loadout.HullProduct, choose, "hull", failures, quality);
         var hullData = cache.Get(loadout.Hull);
         if (hullData is { HullType: HullType.Station })
-            failures.Add($"hull: {hullData.Name} is a station hull; a preset builds a ship or a turret");
+            failures.Add($"hull: {hullData.Name} is a station hull; a loadout builds a ship or a turret");
         var slotBuilds = loadout.Slots.Select(slot => Resolve(itemManager, slot.Design, slot.Product, choose, Cell(slot), failures, quality)).ToArray();
         var groups = loadout.WeaponGroups ?? new int[0][];
         var groupCount = itemManager.GameplaySettings.WeaponGroupCount;

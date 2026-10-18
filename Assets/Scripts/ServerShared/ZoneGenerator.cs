@@ -397,17 +397,28 @@ public static class ZoneGenerator
         }
 
         // A boss zone gets its faction's boss whether or not the zone is ambient: the boss is the run's goal, not
-        // wandering traffic. RunGoal reads the mark; nothing else decides whether a boss lives.
+        // wandering traffic. A boss flies its faction's fixed Loadout, never generated gear (ruling boss-gear-is-a-loadout);
+        // ChooseProduct only picks the brand of a design-only slot. RunGoal reads the mark; nothing else decides whether a
+        // boss lives.
         foreach (var bossFaction in galaxy.BossZones.Where(entry => entry.Value == galaxyZone).Select(entry => entry.Key))
         {
-	        var boss = GetLoadoutGenerator(bossFaction).GenerateBossLoadout();
-	        if (boss == null)
+	        var loadout = Loadouts.BossOf(itemManager.ItemData, bossFaction, out var refusal);
+	        if (loadout == null)
 	        {
-		        itemManager.Log($"No boss could be generated for {bossFaction.Name}; its boss zone has no boss to kill!");
+		        itemManager.Log($"{bossFaction.Name} has no boss: it {Loadouts.Describe(refusal)}.");
 		        continue;
 	        }
-	        boss.Boss = true;
-	        pack.Entities.Add(boss);
+	        var failures = new List<string>();
+	        var boss = Loadouts.Materialize(itemManager, null, loadout, GetLoadoutGenerator(bossFaction).ChooseProduct, failures);
+	        if (boss == null)
+	        {
+		        itemManager.Log($"{bossFaction.Name}'s boss Loadout {loadout.Name} cannot be built: {string.Join("; ", failures)}");
+		        continue;
+	        }
+	        boss.Faction = bossFaction;
+	        var bossPack = EntitySerializer.Pack(boss);
+	        bossPack.Boss = true;
+	        pack.Entities.Add(bossPack);
 	        pack.BossSpawned = true;
         }
 
