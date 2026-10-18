@@ -636,7 +636,7 @@ public sealed partial class RunStartTests
     {
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
         var bytes = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePack.MessagePackSerializer.Serialize(pack, options)));
-        var gear = pack.Entities.Select(entity => $"{HullName(items, entity)}|{(entity.Faction.IsSet() ? entity.Faction.Key.ToString() : "-")}|{string.Join(";", Cells(items, entity))}");
+        var gear = pack.Entities.Select(entity => $"{HullName(items, entity)}|{(entity.Faction.IsSet() ? entity.Faction.Key.ToString() : "-")}|{(EntitySerializer.Unpack(items, null, entity) is Ship ? string.Join(";", Cells(items, entity)) : "-")}");
         return $"pack {bytes} NextLot={items.Lots.NextLot} lots={items.Lots.Lots.Count}\n{string.Join("\n", gear)}\nnext item draw {items.Random.NextFloat():R}";
     }
 
