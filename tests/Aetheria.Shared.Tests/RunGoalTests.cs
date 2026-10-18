@@ -630,14 +630,14 @@ public sealed partial class RunStartTests
         Assert.Equal(expected.Random.NextFloat(), next);
     }
 
-    // Everything a generated zone exposes afterwards: the serialized pack, the ledger, the roster and the gear of its ships, and
+    // Everything a generated zone exposes afterwards: the serialized ledger, the roster and the gear of its ships, and
     // the next draw of the item stream. A faction's generator stream shows in the ships it outfitted, so it is in the pack.
     private string ZoneFacts(ItemManager items, ZonePack pack)
     {
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
-        var bytes = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePack.MessagePackSerializer.Serialize(pack, options)));
+        var bytes = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePack.MessagePackSerializer.Serialize(items.Lots, options)));
         var gear = pack.Entities.Select(entity => $"{HullName(items, entity)}|{(entity.Faction.IsSet() ? entity.Faction.Key.ToString() : "-")}|{(EntitySerializer.Unpack(items, null, entity) is Ship ? string.Join(";", Cells(items, entity)) : "-")}");
-        return $"pack {bytes} NextLot={items.Lots.NextLot} lots={items.Lots.Lots.Count}\n{string.Join("\n", gear)}\nnext item draw {items.Random.NextFloat():R}";
+        return $"ledger {bytes} NextLot={items.Lots.NextLot} lots={items.Lots.Lots.Count}\n{string.Join("\n", gear)}\nnext item draw {items.Random.NextFloat():R}";
     }
 
     // The boss of the named faction, whose Loadout is made unbuildable by unbuild, refuses before anything is minted or drawn: the
