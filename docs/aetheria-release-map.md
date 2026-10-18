@@ -11337,7 +11337,7 @@ PIDs are in `S\out\pids.log`, the first 3404 and the last 20348. It then writes 
 | "Agent-built" status | Presence of `hull.scad`. No field. | Ends when the file is deleted. | Derived. "Which hulls are agent-built" is a directory listing. |
 | Zone meshes and anchor objects in Blender | Marked `aetheria.hull_source`, with ids `aetheria.id`. | Replaced on every Build. Never hand-edited. | Build From Hull Source. Build refuses a collection holding meshes it did not make. |
 | `ship.glb` and ShipAuthoring anchors | `ShipAuthoring.ModelAsset`, with anchor ids equal to mount ids. | Rewritten by every Package, whether from an agent hull or operator art. The ids are stable across the swap, so loadouts and saves survive it. | Package Ship, the only writer. |
-| HullData layout (schematic) | `mod-hull:<id>`. | Authored through Save Layout. Linked to the model by mount name only. | The schematic author: agents for agent hulls, the operator for hers. Never Build. AH-B3 is the open conflict. |
+| HullData layout (schematic) | `mod-hull:<id>`. | Authored through Save Layout. Linked to the model by mount name only. | The schematic author: agents for agent hulls, the operator for hers. Never Build. AH-B3 is closed by cut `package-agent-hull-guards` (section PG). |
 | Hero asset | A package with no `hull.scad` that is named as its faction's hero. | Set by an operator ruling (`agent-hull-hero-assets`). | The operator. |
 
 ### Questions admitted
@@ -11369,3 +11369,90 @@ Neither blocks the first cut.
 - The model read was one agent judging its own sheets.
 - Lucent and AU languages are not drafted.
 - The hero comparison is weak until the heroes exist.
+
+## Package on agent hulls (PG)
+
+Imagination pass `imag-ag7-hull-guards`, session `self-2026-10-19-ag7`, 2026-10-19, pinned to Aetheria `origin/master`
+5acbaa1b (worktree `C:\aeth-wt\ag7-hull-guards-imag`). It maps cut `package-agent-hull-guards` (spec
+`aetheria-release:cut_spec:cut-package-agent-hull-guards.r1`) for follow-ups `package-agent-hull-guards` and
+`hull-copy-refusals` and finding `cut-agent-hull-source.s2.hull-names-its-own-faction`. It rests on rulings
+`remove-package-schematic-derivation`, `hull-faction-is-product-maker`, `schematic-and-model-are-separate-spaces` and
+`package-carries-product`.
+
+### Body facts (source reads and one probe at 5acbaa1b)
+
+- **PG-B1. The derivation has three writers.** `_derived_position` (`__init__.py:253`) maps a model point to a cell
+  through `hull_grid.cell_at` and `mounted_position`. Add Weapon (`_add_mount`, :302) and Mirror Mount (:359) call it.
+  Package calls `_plan_mounts` (:409), which plans every weapon row's Position, and then `_apply_mounts` (:432), which
+  writes those Positions, sets each mount object's yaw from its row's Rotation, and saves the layout. So Package writes
+  each space from the other: the schematic from the model, and the model's yaw from the schematic. Package would turn
+  a hull source's turned mount (smoke step 1.10, yaw 90) back to its row's facing.
+- **PG-B2. After the delete, `cell_at`, `mounted_position`, `mounted_cell` and `_centre_offset` have no caller** outside
+  `tests/test_hull_grid.py` (grep of `tools/blender`). `cell_centre`, `mirror_position`, `mirror_footprint`,
+  `mirror_rotation` and `facing_yaw` keep callers (Rasterise, the grid drawing, `_frame_ship`, Mirror Mount, Add
+  Weapon).
+- **PG-B3. A product names its maker by an opaque Faction record key.** `FactionProductData.Manufacturer` is
+  `CultRecordRef<Faction>` at `[Key(4)]` (`Assets/Scripts/ServerShared/FactionProduct.cs:26`), and
+  `CultRecordRefFormatter` writes it as the key string. Probe `probe_factions.py` (cultcache-py from
+  `F:\Projects\CultLib\packages\cultcache-py\src`, read of `GameData/Aetheria.cc`) listed 16 `aetheria.faction`
+  records. Among them are Zhestokost `16bad4f9-7fb5-41c5-8da0-dc76709eb7d3`, Pirates
+  `1d8a168def994a76a1ce7cb18f59c038` and Rossum & Douglas `adfb9b08-aabc-45c6-9586-915698a9c4b0`. Product makers are
+  these keys: Juggernaut's, for example, is Zhestokost's. The language files are named by slug (`zhestokost`, `pirate`,
+  `rnd`), and nothing maps a slug to a Faction key today.
+- **PG-B4. New Ship makes no product.** `AetherDb ship-authoring create` writes only a HullData and a ShipAuthoring
+  (`tools/AetherDb/ShipAuthoringCommands.cs:56`). `ship-authoring product <ship.cc> <maker> --name <name>` (:94)
+  writes a product, resolving the maker by Faction `Name` or `ShortName` (:136). The agent-hull smoke packages ships
+  that have no product (Soul s2 noted it).
+- **PG-B5. The duplicate-id refusal names nothing.** `ship_cc.replace_visual` raises "An anchor ID is used twice"
+  (`ship_cc.py:171`), and it does so after Package has framed the ship and written `ship.glb`. Build never looks at
+  ids, because `_own_meshes` skips every object that carries `aetheria.role`. The add-on already has a way to point at
+  offenders without echoing input: `_refuse_selecting` (`__init__.py:1139`), which `_refuse_loose_meshes` uses.
+- **PG-B6. The tests split by host.** `tools/blender/tests/test_*.py` import `ship_cc`, `hull_grid` and `hull_source`
+  by path with no bpy (`CULTLIB_PACKAGES=<CultLib>/packages python -m unittest discover -s tools/blender/tests`), so
+  they run on Yggdrasil in a python image with msgpack. The `smoke_*.py` files need Blender 5.2's bpy and run
+  headless (`blender --background --factory-startup --python-use-system-env --python ...`). They run on Starfire, one
+  process at a time, as Soul ran them for agent-hull-source. `ShipSchemaPinTests` is C# and pins the slot constants of
+  `ship_cc.py` by regex.
+
+### Rationale
+
+- **The language file names its maker.** The ruling needs a comparison between the brief's faction (a language slug)
+  and the product's maker (a Faction key). Matching names (`Pirates` against `pirate`, `Rossum & Douglas` against `rnd`)
+  would be a fuzzy rule. A table in `hull_source.py` would be a second owner of a fact the language file already
+  stands for. So each `factions/<faction>.scad` gains its Faction record key as an eighth element of its `lang` echo.
+  The file that owns the language then also says whose language it is, and the existing "includes its language
+  unchanged" check covers that element too.
+- **Build records the maker it judged by, and Package compares that record.** Re-reading `hull.scad` at Package would
+  compare the brief as it is now, which may differ from the brief Build judged: an author could edit the brief after
+  Build and then Package. Build already records what it made (`aetheria.hull_built`), so it also records
+  `aetheria.hull_maker`, the maker key of the language it judged against. Package then refuses unless the package
+  holds at least one product and every product's Manufacturer is that key. The check runs whenever the package still
+  ships Build's zones. When her art takes over (the same predicate `_retire_hull_source` uses), the brief no longer
+  governs and no check runs. An operator could edit the record by hand, since it is a custom property; that is the same
+  trust as the fingerprint record, and a hull source cannot reach it.
+- **This cut fixes the finding.** After it, the faction a shipped hull was judged by is its product's maker. Drafting
+  under another faction stays possible, as the ruling allows. A separate cut would only repeat the Package edit.
+- **Mirror Mount mirrors each space within itself.** The twin row's Position is `mirror_position` of the row's own
+  Position and footprint on the layout's width. The twin object stands at the reflection of the mount's model point
+  across Ship Root's X = 0. Mirror Mount refuses when either twin would coincide with its source: the same Position,
+  or a model point within 1 mm of X = 0. `CENTRELINE` (half a schematic cell, measured in model metres) was a
+  cross-space constant, so it goes.
+- **Add Weapon's yaw stays a creation default.** One Rotation choice sets both the new row and the new empty's facing,
+  once. Nothing re-derives either afterwards. The ruling took only the Position derivation out of Add Weapon, so the
+  yaw stays.
+- **Copies are refused by id, in Build and Package alike.** One helper refuses while two role-bearing objects share an
+  `aetheria.id`. It selects them and names a count, never an object. That covers the collider, emitter, radiator and
+  mount copies Soul built (s2 probes A2 and A5 to A7). The duplicate check in `ship_cc` stays, as the file writer's
+  invariant.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| A language's maker: the eighth element of `lang` in `factions/<faction>.scad` | The Faction record key in `GameData/Aetheria.cc`. | Written when the language is drafted. Changes only if the language is reassigned to another faction. | The language file, operator-approved like the rest of it. |
+| `aetheria.hull_maker` on a ship collection | The maker key of the language Build judged against. | Set by every Build. Deleted with `aetheria.hull_built` when Package retires `hull.scad`. | Build From Hull Source writes it; Package reads it. |
+| HullData layout Position | As before. | Authored in the layout panel only. Add Weapon creates a row at the default Position. | The schematic author. Package and the mount helpers no longer write it (this cut closes AH-B3). |
+
+### Admitted
+
+- `aetheria-release:cut_spec:cut-package-agent-hull-guards.r1`.
