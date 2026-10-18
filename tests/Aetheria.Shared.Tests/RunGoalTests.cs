@@ -629,4 +629,22 @@ public sealed partial class RunStartTests
         Assert.Empty(failures);
         Assert.Equal(expected.Random.NextFloat(), next);
     }
+
+    [Fact]
+    public void An_unbuildable_boss_loadout_draws_nothing()
+    {
+        var galaxy = DemoGalaxy(1);
+        var loadout = GiveAntagonistABoss(galaxy);
+        loadout.Slots[0].Position = new int2(999, 999);
+        StoreLoadout(loadout);
+        var items = LoggingItems(new List<string>());
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        var next = items.Random.NextFloat();
+        galaxy.BossZones.Clear();
+        var bareItems = LoggingItems(new List<string>());
+        var bare = BossZonePack(galaxy, bareItems, galaxy.Exit);
+        Assert.Equal(Roster(bareItems, bare), Roster(items, pack));
+        Assert.Equal(bareItems.Random.NextFloat(), next);
+    }
 }

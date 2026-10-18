@@ -433,9 +433,11 @@ public static class ZoneGenerator
 		        continue;
 	        }
 	        var failures = new List<string>();
+	        var streamBefore = itemManager.Random;
 	        var entity = Loadouts.Materialize(itemManager, null, loadout, GetLoadoutGenerator(bossFaction).ChooseProduct, failures);
 	        if (entity == null)
 	        {
+		        itemManager.Random = streamBefore; // a failed fit has drawn lots; an unbuildable boss draws nothing, as a refused one does
 		        itemManager.Log($"{bossFaction.Name}'s boss Loadout {loadout.Name} cannot be built: {string.Join("; ", failures)}");
 		        continue;
 	        }
