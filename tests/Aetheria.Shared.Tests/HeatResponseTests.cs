@@ -250,7 +250,7 @@ public sealed class HeatResponseTests : IDisposable
     }
 
     // Wear's quality term reads the lot's effective quality: a .9 lot whose one part is .1 wears as a roleless .1 lot, and not
-    // as a roleless .9 lot.
+    // as a roleless .9 lot, which wears less (better quality wears less).
     [Fact]
     public void HeldOutsidePlateauWearReadsEffectiveQuality()
     {
@@ -267,6 +267,7 @@ public sealed class HeatResponseTests : IDisposable
         var sleeper = WearAt10(Gear(.9f, .1f));
         Assert.Equal(WearAt10(Gear(.1f)), sleeper, 5);
         Assert.NotEqual(WearAt10(Gear(.9f)), sleeper, 5);
+        Assert.True(WearAt10(Gear(.9f)) < sleeper);
     }
 
     [Fact]

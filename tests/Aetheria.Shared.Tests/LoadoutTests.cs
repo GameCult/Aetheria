@@ -527,9 +527,12 @@ public sealed class LoadoutTests : IDisposable
             Quality = .6f,
             Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .3f } }
         });
+        // Just under the Rare threshold, inside GetTier's .001 tolerance.
+        var nearRareLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .4995f, Roles = new List<RoleFill>() });
         var instance = (EquippableItem) items.CreateInstance(commonLot);
         var rareInstance = (EquippableItem) items.CreateInstance(rareLot);
         var cappedInstance = (EquippableItem) items.CreateInstance(cappedLot);
+        var nearRareInstance = (EquippableItem) items.CreateInstance(nearRareLot);
 
         var withRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1, Role = "lens" } } };
         var noRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1 } } };
@@ -538,6 +541,10 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(.2f, items.GetTier(instance).tier.Quality, 3);
         Assert.Equal(.5f, items.GetTier(rareInstance).tier.Quality, 3);
         Assert.Equal(.2f, items.GetTier(cappedInstance).tier.Quality, 3);
+        Assert.Equal(.5f, items.GetTier(nearRareInstance).tier.Quality, 3);
+        // Upgrades count the steps of .05 above the tier: the capped lot's effective .3 is two above Common's .2.
+        Assert.Equal(2, items.GetTier(cappedInstance).upgrades);
+        Assert.Equal(0, items.GetTier(instance).upgrades);
 
         // Minting a second instance from an existing lot must not re-roll the lot's quality.
         var secondInstance = (EquippableItem) items.CreateInstance(commonLot);
