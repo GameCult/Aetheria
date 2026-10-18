@@ -23,6 +23,7 @@ TESTED_CULTCACHE_PY = "0.3.0"
 SCHEMA = "aetheria.ship_authoring"
 HULL_SCHEMA = "aetheria.hulldata"
 PRODUCT_SCHEMA = "aetheria.factionproductdata"
+PRODUCT_MANUFACTURER_SLOT = 4  # FactionProductData.Manufacturer
 
 # MessagePack slots of the C# types, which own them (ShipAuthoring, ItemData.Shape, HullData.Hardpoints,
 # HardpointData). RETIRED_HULL_SLOT is the ShipAuthoring key that held the embedded hull before S1; no member owns it now. ShipSchemaPinTests in tests/Aetheria.Shared.Tests fails when any number or name below
@@ -133,6 +134,22 @@ def read(path: str, cultlib_packages: str) -> ShipFile:
     if len(ship.body) < SCHEMATIC_LINES_SLOT + 1:
         raise ValueError(f"The ship file has an incompatible {SCHEMA} payload")
     return ShipFile(store, ship, hull, msgpack)
+
+
+def product_makers(path: str, cultlib_packages: str) -> list[str]:
+    """The Manufacturer (Faction record key) of every product record in the file, in file order. C# owns products and
+    this only reads them: a product whose Manufacturer is missing or not a non-empty string is refused, naming nothing."""
+    cultcache, msgpack = _libraries(cultlib_packages)
+    makers = []
+    for envelope in cultcache.SingleFileMessagePackBackingStore(path).pull_all():
+        if envelope.type != PRODUCT_SCHEMA:
+            continue
+        body = msgpack.unpackb(envelope.payload, raw=False)
+        maker = body[PRODUCT_MANUFACTURER_SLOT] if isinstance(body, list) and len(body) > PRODUCT_MANUFACTURER_SLOT else None
+        if not isinstance(maker, str) or not maker:
+            raise ValueError(f"A {PRODUCT_SCHEMA} record names no manufacturer")
+        makers.append(maker)
+    return makers
 
 
 def _stamped(record: Record, msgpack: Any):

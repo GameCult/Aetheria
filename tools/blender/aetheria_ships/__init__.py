@@ -25,7 +25,7 @@ from mathutils import Matrix, Vector
 from . import hull_grid, hull_source
 from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
                       encode_hardpoint, layout_revision, read, read_layout, replace_layout, replace_lines,
-                      replace_visual, valid_ship_id)
+                      product_makers, replace_visual, valid_ship_id)
 
 MODEL_ASSET = "ship.glb"
 SOURCE = "Source"  # child collection: the Tripo mesh, input to Rasterise, never exported
@@ -1491,6 +1491,7 @@ def _frame_ship(context, collection, root, path, saved_shape):
     _recentre(root, hull_grid.cell_centre((float(origin[0]), float(origin[1])), centre[0], centre[1]))
 
 
+HULL_MAKER = "aetheria.hull_maker"  # on the collection: the Faction key of the language Build judged the hull against
 HULL_BUILT = "aetheria.hull_built"  # on the collection: {object name: fingerprint} of what Build From Hull Source made
 HULL_COLLIDER = ("hull-collider", "collider", "Hull Collider")
 
@@ -1619,25 +1620,48 @@ def _build_hull_source(context, collection):
         name, hull.zones[hull.body_zone], _hull_material(ship_id, "collider", (0.5, 0.5, 0.5)))))
     collider["aetheria.role"], collider["aetheria.id"] = role, anchor_id
     collection[HULL_BUILT] = {obj.name: _fingerprint(obj) for obj in made}
+    collection[HULL_MAKER] = hull.languages[hull.brief.faction].maker
     return hull
 
 
-def _retire_hull_source(collection):
-    """Deletes the package's hull.scad when the body is the operator's: the collection holds render meshes that Build did
-    not make as they stand, and no zone mesh of Build's is left. The anchors and collider she kept are hers from then on.
-    A hull never built, or built and packaged as it stands, keeps its source. Returns whether the file was deleted."""
-    source = _hull_source_file(collection)
+def _art_takes_over(collection):
+    """Whether the body is the operator's: a hull.scad and a Ship Root exist, the collection holds render meshes that
+    Build did not make as they stand, and no zone mesh of Build's is left."""
     root = _ship_root(collection)
-    if source is None or root is None:
+    if _hull_source_file(collection) is None or root is None:
         return False
     untouched, _ = _hull_built(collection)
     zones = [obj for obj in untouched if obj.type == "MESH" and "aetheria.role" not in obj]
-    if zones or not [obj for obj in _own_meshes(collection) if obj not in untouched]:
+    return not zones and bool([obj for obj in _own_meshes(collection) if obj not in untouched])
+
+
+def _retire_hull_source(collection):
+    """Deletes the package's hull.scad when the body is the operator's (_art_takes_over). The anchors and collider she
+    kept are hers from then on. A hull never built, or built and packaged as it stands, keeps its source. Returns whether
+    the file was deleted."""
+    if not _art_takes_over(collection):
         return False
-    source.unlink()
-    if HULL_BUILT in collection:
-        del collection[HULL_BUILT]
+    _hull_source_file(collection).unlink()
+    for record in (HULL_BUILT, HULL_MAKER):
+        if record in collection:
+            del collection[record]
     return True
+
+
+def _refuse_wrong_maker(collection, path, cultlib):
+    """Refuses, before Package writes anything, an agent-built hull (hull.scad still in the package and not taken over by
+    her art) unless the package holds a product and every product is by the maker of the language Build judged the hull
+    against (ruling hull-faction-is-product-maker). The product owns the maker; Build's record is only what it judged."""
+    if _hull_source_file(collection) is None or _art_takes_over(collection):
+        return
+    maker = collection.get(HULL_MAKER)
+    if maker is None:
+        raise ValueError("Build From Hull Source first: Package needs the maker it judged the hull against")
+    makers = product_makers(path, cultlib)
+    if not makers:
+        raise ValueError("The package has no product: add one for the hull's maker before packaging")
+    if any(product != maker for product in makers):
+        raise ValueError("A product in the package is not by the maker of the hull's faction language")
 
 
 class AETHERIA_OT_build_hull_source(bpy.types.Operator):
@@ -1675,6 +1699,7 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             _refuse_loose_meshes(context, collection)
             _refuse_shared_ids(context, collection)
             cultlib = _brokkr_cultlib(context)
+            _refuse_wrong_maker(collection, path, cultlib)
             ship_id = collection["aetheria.id"]
             state = scene.aetheria_layout
             saved_shape, saved_rows, _ = read_layout(path, cultlib)

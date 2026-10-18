@@ -26,5 +26,7 @@ RD_ZONES = [["primary", [0.72, 0.74, 0.76]],     // the wedge
             ["recess", [0.10, 0.12, 0.18]]];     // windows, engine bank
 RD_GLOW = [1.0, 0.75, 0.3];
 RD_RADIATOR = [0.40, 0.47, 0.56];
-RD_LANG = ["rnd", RD_ZONES, "primary", RD_GLOW, RD_RADIATOR, [[0.12, 0.35], [0.55, 1.1]], ["bilateral", 0.97]];
+// maker: the Rossum & Douglas Faction record key in GameData/Aetheria.cc
+RD_LANG = ["rnd", RD_ZONES, "primary", RD_GLOW, RD_RADIATOR, [[0.12, 0.35], [0.55, 1.1]], ["bilateral", 0.97],
+           "adfb9b08-aabc-45c6-9586-915698a9c4b0"];
 if (part == "lang") echo(lang = RD_LANG);

@@ -36,11 +36,14 @@ def echo(name, value):
     return f"ECHO: {name} = {json.dumps(value)}\n"
 
 
+MAKER = "faction-record-key"
+
+
 def language(faction="zhestokost", zones=("primary", "secondary"), body="primary", proportion=((0.25, 0.6), (0.35, 0.75)),
-             symmetry=("bilateral", 0.97)):
+             symmetry=("bilateral", 0.97), maker=MAKER):
     palette = [[z, [0.1 * (i + 1), 0.2, 0.3]] for i, z in enumerate(zones)]
     return echo("lang", [faction, palette, body, [1, 0.6, 0.2], [0.5, 0.5, 0.5], [list(p) for p in proportion] if proportion
-                         else [], list(symmetry)])
+                         else [], list(symmetry), maker])
 
 
 def brief(faction="zhestokost", donor="", length=(8, 14), triangles=(10, 100)):
@@ -325,7 +328,7 @@ class LanguageOwnershipTests(unittest.TestCase):
     def test_a_hull_that_redefines_its_palette_fails_and_is_still_coloured_from_the_file(self):
         fixture = Fixture()
         fixture.hull_lang = echo("lang", ["zhestokost", [["primary", [1, 0, 1]], ["secondary", [1, 0, 1]]], "primary",
-                                          [1, 0.6, 0.2], [0.5, 0.5, 0.5], [[0.25, 0.6], [0.35, 0.75]], ["bilateral", 0.97]])
+                                          [1, 0.6, 0.2], [0.5, 0.5, 0.5], [[0.25, 0.6], [0.35, 0.75]], ["bilateral", 0.97], MAKER])
         self.assertEqual(fixture.failed(), [self.OWN])
         built = fixture.build()
         self.assertEqual(built.colours["primary"], built.languages["zhestokost"].colour("primary"))
@@ -344,6 +347,13 @@ class LanguageOwnershipTests(unittest.TestCase):
         self.assertEqual(fixture.failed(), [self.OWN])
         fixture.parts["secondary"] = (box(2, 6, -1, 1, 2, 3), "")  # lopsided: the file's bilateral rule refuses it
         self.assertIn("the top view obeys the language's bilateral rule", fixture.failed())
+
+    def test_a_hull_cannot_restate_its_languages_maker(self):
+        """The language file owns its maker (the Faction record key Package compares with the product's): an included
+        language echoed with another maker fails the includes-unchanged check, and the hull is read as the file's."""
+        fixture = self.redefined(maker="another-faction-record-key")
+        self.assertEqual(fixture.failed(), [self.OWN])
+        self.assertEqual(fixture.build().languages["zhestokost"].maker, MAKER)
 
     def test_a_second_echo_of_the_language_after_the_first_fails(self):
         fixture = Fixture()
@@ -521,11 +531,20 @@ class RefusalTests(unittest.TestCase):
             fixture = Fixture()
             fixture.parts["anchors"] = ("", echo("anchor", anchor))
             refused(fixture)
-        for raw in ([7, [["primary", [1, 1, 1]]], "primary", [1, 1, 1], [1, 1, 1], [], ["bilateral", 1]],
-                    ["zhestokost", [[7, [1, 1, 1]]], "primary", [1, 1, 1], [1, 1, 1], [], ["bilateral", 1]],
-                    ["zhestokost", [["primary", [1, 1, 1]]], 7, [1, 1, 1], [1, 1, 1], [], ["bilateral", 1]]):
+        for raw in ([7, [["primary", [1, 1, 1]]], "primary", [1, 1, 1], [1, 1, 1], [], ["bilateral", 1], MAKER],
+                    ["zhestokost", [[7, [1, 1, 1]]], "primary", [1, 1, 1], [1, 1, 1], [], ["bilateral", 1], MAKER],
+                    ["zhestokost", [["primary", [1, 1, 1]]], 7, [1, 1, 1], [1, 1, 1], [], ["bilateral", 1], MAKER]):
             with self.assertRaises(hs.HullSourceError):
                 hs.read_languages(echo("lang", raw))
+
+    def test_the_maker_is_the_eighth_element_of_a_language_echo(self):
+        self.assertEqual(hs.read_languages(language(maker="K1"))[0].maker, "K1")
+        raw = ["zhestokost", [["primary", [1, 1, 1]]], "primary", [1, 1, 1], [1, 1, 1], [], ["bilateral", 1]]
+        for bad in (raw, raw + [""], raw + [7], raw + ["K1", "extra"]):  # seven elements, empty maker, not text, nine
+            with self.assertRaises(hs.HullSourceError) as caught:
+                hs.read_languages(echo("lang", bad))
+            self.assertNotIn("K1", str(caught.exception))
+        self.assertEqual(hs.read_languages(echo("lang", raw + ["K1"]))[0].maker, "K1")
 
     def test_a_malformed_anchor_is_refused_without_echoing_it(self):
         fixture = Fixture()

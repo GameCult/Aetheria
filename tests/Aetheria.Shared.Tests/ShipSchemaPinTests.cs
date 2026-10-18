@@ -22,6 +22,7 @@ public sealed class ShipSchemaPinTests
     [InlineData("SCHEMATIC_LINES_SLOT", typeof(ShipAuthoring), nameof(ShipAuthoring.SchematicLines))]
     [InlineData("HULL_SHAPE_SLOT", typeof(HullData), nameof(HullData.Shape))]
     [InlineData("HULL_HARDPOINTS_SLOT", typeof(HullData), nameof(HullData.Hardpoints))]
+    [InlineData("PRODUCT_MANUFACTURER_SLOT", typeof(FactionProductData), nameof(FactionProductData.Manufacturer))]
     public void PythonSlotConstantsAreTheKeysOfTheMembersTheyNameInTheirComments(string constant, Type owner, string member)
     {
         Assert.Equal(KeyOf(owner, member), Integer(constant));

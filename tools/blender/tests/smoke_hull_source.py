@@ -25,7 +25,13 @@ the hull.scad into the package and runs the panel's operators:
   Build after Package still works.
   The author replaces the zone meshes with her art and keeps Build's anchors and collider: Package deletes hull.scad in
   that one act and says so, and Build then refuses.
-  A hull that was never built keeps its hull.scad through the same deletion rule.
+  A hull that was never built keeps its hull.scad through the same deletion rule, and Package refuses it (no maker was
+  judged).
+  Package refuses an agent-built hull before it writes anything (ship.glb is not made) when the package holds no product,
+  or a product by another maker than the language Build judged it against (hull-names-its-own-faction); with a product by
+  that maker it accepts. Her art needs no product.
+  Build and Package refuse copies that share an aetheria.id, selecting the original and the copies, and delete nothing.
+  Package moves no row and turns no mount: every layout row is as authored after it, and a hand-turned mount keeps its yaw.
 """
 
 import json
@@ -51,16 +57,19 @@ FIXTURES = REPO / "tools" / "blender" / "tests" / "fixtures" / "hulls"
 THRUSTER, RADIATOR, BALLISTIC = "3", "6", "10"
 
 # fixture folder, ship id, stand-in box (x, y) metres and its length in cells, the layout rows (mount id, kind, cell),
-# the body zone the collider copies, and the palette each zone must carry
+# the body zone the collider copies, the palette each zone must carry, the Faction name of the maker whose language the
+# hull speaks (AetherDb resolves it to the product's Manufacturer), and a Faction that is not its maker
 HULLS = (
     ("zh-ammo-tender", "smoke.hull.tender", (10.0, 23.4), 12,
      (("Gun.D", BALLISTIC, (2, 3)), ("Th.L", THRUSTER, (0, 0)), ("Th.R", THRUSTER, (1, 0)),
       ("Ra.L", RADIATOR, (2, 0)), ("Ra.R", RADIATOR, (3, 0))),
-     "primary", {"primary": (0.42, 0.43, 0.45), "secondary": (0.20, 0.20, 0.22), "accent": (0.55, 0.22, 0.14), "recess": (0.08, 0.08, 0.09)}),
+     "primary", {"primary": (0.42, 0.43, 0.45), "secondary": (0.20, 0.20, 0.22), "accent": (0.55, 0.22, 0.14), "recess": (0.08, 0.08, 0.09)},
+     "Zhestokost", "Pirates"),
     ("pi-fighter", "smoke.hull.fighter", (8.0, 15.0), 8,
      (("Gun.P", BALLISTIC, (3, 3)), ("Th.Main", THRUSTER, (0, 0)), ("Th.L", THRUSTER, (1, 0))),
      "rnd.primary", {"rnd.primary": (0.72, 0.74, 0.76), "primer": (0.48, 0.27, 0.22), "weld": (0.70, 0.68, 0.62),
-      "accent": (0.10, 0.62, 0.60), "rnd.accent": (0.90, 0.89, 0.84)}),
+      "accent": (0.10, 0.62, 0.60), "rnd.accent": (0.90, 0.89, 0.84)},
+     "Pirates", "Zhestokost"),
 )
 
 
@@ -104,7 +113,8 @@ def generated(collection):
 
 
 def layout_rows(scene):
-    return [(hp.mount_id, hp.kind, hp.armor, hp.firing_arc, hp.footprint) for hp in scene.aetheria_layout.hardpoints]
+    return [(hp.mount_id, hp.kind, (hp.x, hp.y), hp.rotation, hp.armor, hp.firing_arc, hp.footprint)
+            for hp in scene.aetheria_layout.hardpoints]
 
 
 def glb_nodes(path):
@@ -166,7 +176,7 @@ def check_built(collection, root, body, palette, anchors_by_role):
     return objects
 
 
-def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palette):
+def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palette, maker, other):
     collection, box, package = make_ship(scene, fixture, ship_id, extent, length, rows)
     state = scene.aetheria_layout
     root = bpy.data.objects[next(o.name for o in collection.all_objects if o.get("aetheria.ship_root"))]
@@ -245,11 +255,39 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     source.write_text(original, encoding="utf-8")
     print(f"PASS {number}.4 Build refuses a hull that breaks its brief")
 
+    # Package refuses an agent-built hull whose package has no product, or one by another maker, before it writes
+    # anything; the maker of the language Build judged it against is accepted.
+    ship_cc = str(package / "ship.cc")
+    require(collection.get("aetheria.hull_maker") and not (package / "ship.glb").exists(), "Build recorded no maker, or Package ran")
+    for label, expected, prepare in (("no product", "The package has no product", lambda: None),
+                                     ("a product by another maker", "not by the maker of the hull's faction language",
+                                      lambda: require(aetherdb(ship_cc, "product", ship_cc, other, "--name", "x") == 0,
+                                                      "AetherDb could not write the other maker's product"))):
+        prepare()
+        select(box)
+        rows_now = layout_rows(scene)
+        result, message = run(bpy.ops.aetheria.package_ship)
+        report = scene.aetheria_package_report
+        require(result == {"CANCELLED"} and expected in report, f"Package took a hull with {label}: {report!r} {message!r}")
+        require(not (package / "ship.glb").exists(), f"Package wrote ship.glb for a hull with {label}")
+        require(layout_rows(scene) == rows_now, f"A refused Package changed a row ({label})")
+        for echoed in (ship_id, str(GAME), maker, other, collection["aetheria.hull_maker"]):
+            require(echoed not in report, f"The refusal echoes an input ({echoed})")
+    require(aetherdb(ship_cc, "product", ship_cc, other, "--remove") == 0
+            and aetherdb(ship_cc, "product", ship_cc, maker, "--name", "x") == 0, "AetherDb could not swap the product")
+
     # Package: the validator accepts the built ship and the GLB holds a node per anchor.
+    mount = bpy.data.objects[roles["weapon-mount"][0]]
+    straight = mount.rotation_euler.z
+    mount.rotation_euler.z = straight + 0.3  # hand-turned: Package turns no mount
+    turned, rows_authored = mount.rotation_euler.z, layout_rows(scene)
     select(box)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
     require(result == {"FINISHED"} and "validator accepted" in report, f"Package refused the built ship: {report!r} {message!r}")
+    require(layout_rows(scene) == rows_authored, "Package changed a layout row")
+    require(abs(mount.rotation_euler.z - turned) < 1e-6, "Package turned a mount")
+    mount.rotation_euler.z = straight
     require(source.is_file(), "Package deleted a hull source whose hull is still built from it")
     nodes = {n.get("name"): n for n in glb_nodes(package / "ship.glb")}
     for role, ids in roles.items():
@@ -257,9 +295,8 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
             require(anchor_id in nodes, f"The GLB has no node for {anchor_id}")
     for zone in palette:
         require(zone in nodes, f"The GLB has no mesh node for zone {zone}")
-    moved = [r for r in (hp for hp in state.hardpoints) if r.mount_id in roles["weapon-mount"]]
-    print(f"INFO {number}.5 weapon rows after Package (fork package-derives-schematic-from-model): "
-          f"{[(hp.mount_id, (hp.x, hp.y)) for hp in moved]} (authored at {[r[2] for r in rows if r[1] == BALLISTIC]})")
+    saved = [(r[0], tuple(r[2])) for r in layout_rows(scene)]
+    require(saved == [(mount_id, cell) for mount_id, _, cell in rows], f"A row is not as authored after Package: {saved}")
     print(f"PASS {number}.5 Package accepts the built ship and keeps hull.scad")
 
     # What Package did to the built objects is not an edit: Build still replaces them.
@@ -350,12 +387,14 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     collection.objects.link(art)
     art.parent = root
     require(any(o.get("aetheria.role") for o in generated(collection).values()), "The scene kept no anchor of Build's")
+    require(aetherdb(ship_cc, "product", ship_cc, maker, "--remove") == 0, "AetherDb could not remove the product")  # her art needs none
     select(box)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
     require(result == {"FINISHED"} and "deleted hull.scad" in report, f"Package did not retire the hull source: {report!r} {message!r}")
     require(not source.exists(), "hull.scad is still there after the author's art was packaged")
-    require("aetheria.hull_built" not in collection, "The record of Build's objects outlived hull.scad")
+    require("aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection,
+            "The record of Build's objects or its maker outlived hull.scad")
     require(all(echoed not in report for echoed in (ship_id, str(GAME))), "The report echoes an input")
     select(box)
     result, message = run(bpy.ops.aetheria.build_hull_source)
@@ -447,6 +486,11 @@ def clear(collection):
         bpy.data.objects.remove(obj)
 
 
+def aetherdb(ship_path, *args):
+    """Runs one AetherDb ship-authoring command through the add-on's own runner; returns its exit code."""
+    return sys.modules["aetheria_ships"]._aetherdb(bpy.context, *args, ship_cc=ship_path)[0]
+
+
 def never_built(scene):
     """A hull.scad whose hull was never built has no art in the collection: the deletion rule keeps it."""
     ship_id = "smoke.hull.unbuilt"
@@ -454,7 +498,12 @@ def never_built(scene):
     api = sys.modules["aetheria_ships"]
     require(api._retire_hull_source(collection) is False and (package / "hull.scad").is_file(),
             "A hull that was never built lost its hull.scad")
-    print("PASS 3 a hull that was never built keeps its hull.scad")
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    report = scene.aetheria_package_report
+    require(result == {"CANCELLED"} and "Build From Hull Source first" in report and not (package / "ship.glb").exists(),
+            f"Package took a hull that was never built: {report!r}")
+    print("PASS 3 a hull that was never built keeps its hull.scad, and Package refuses it")
 
 
 def main():
@@ -487,9 +536,9 @@ def main():
         require(not (MODS / ship_id).exists(), f"{MODS / ship_id} exists; remove it first")
     scene = bpy.context.scene
     previous = None
-    for number, (fixture, ship_id, extent, length, rows, body, palette) in enumerate(HULLS, start=1):
+    for number, (fixture, ship_id, extent, length, rows, body, palette, maker, other) in enumerate(HULLS, start=1):
         clear(previous)
-        previous = one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palette)
+        previous = one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palette, maker, other)
     clear(previous)
     never_built(scene)
 

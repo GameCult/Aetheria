@@ -39,5 +39,6 @@ PI_ZONES = [["primer", [0.48, 0.27, 0.22]],      // primer-red salvage plates
 PI_GLOW = [0.55, 0.85, 1.0];
 PI_RADIATOR = [0.70, 0.68, 0.62];
 // No body zone and no proportions: the donor's. The additions must make the top view visibly lopsided.
-PI_LANG = ["pirate", PI_ZONES, "", PI_GLOW, PI_RADIATOR, [], ["asymmetric", 0.9]];
+// maker: the Pirates Faction record key in GameData/Aetheria.cc
+PI_LANG = ["pirate", PI_ZONES, "", PI_GLOW, PI_RADIATOR, [], ["asymmetric", 0.9], "1d8a168def994a76a1ce7cb18f59c038"];
 if (part == "lang") echo(lang = PI_LANG);

@@ -55,6 +55,8 @@ ZH_ZONES = [["primary", [0.42, 0.43, 0.45]],     // iron grey: the stepped mass
             ["recess", [0.08, 0.08, 0.09]]];     // recessed machinery
 ZH_GLOW = [1.0, 0.62, 0.25];
 ZH_RADIATOR = [0.50, 0.51, 0.52];
-// [faction, zones, body zone, glow, radiator, [height/width range, width/length range], symmetry rule]
-ZH_LANG = ["zhestokost", ZH_ZONES, "primary", ZH_GLOW, ZH_RADIATOR, [[0.25, 0.6], [0.35, 0.75]], ["bilateral", 0.97]];
+// [faction, zones, body zone, glow, radiator, [height/width range, width/length range], symmetry rule, maker]
+// maker: the Zhestokost Faction record key in GameData/Aetheria.cc, the Manufacturer of a product whose hull speaks this language
+ZH_LANG = ["zhestokost", ZH_ZONES, "primary", ZH_GLOW, ZH_RADIATOR, [[0.25, 0.6], [0.35, 0.75]], ["bilateral", 0.97],
+           "16bad4f9-7fb5-41c5-8da0-dc76709eb7d3"];
 if (part == "lang") echo(lang = ZH_LANG);

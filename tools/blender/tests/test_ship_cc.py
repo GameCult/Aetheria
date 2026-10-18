@@ -101,8 +101,10 @@ class ShipFileCase(unittest.TestCase):
         """Two products as C# stores them, one per maker; Python reads them as envelopes and never encodes one."""
         entry = catalog("product-schema-1", ship_cc.PRODUCT_SCHEMA)
         store = cultcache_py.SingleFileMessagePackBackingStore(self.path)
-        store.push(envelope("mod-product:mod.skiff:faction:acme", ship_cc.PRODUCT_SCHEMA, entry, [None, "Acme Skiff", "Reliable."]))
-        store.push(envelope("mod-product:mod.skiff:faction:rival", ship_cc.PRODUCT_SCHEMA, entry, [None, "Rival Skiff", None, "tail"]))
+        store.push(envelope("mod-product:mod.skiff:faction:acme", ship_cc.PRODUCT_SCHEMA, entry,
+                            [None, "Acme Skiff", "Reliable.", None, "acme-faction-key"]))
+        store.push(envelope("mod-product:mod.skiff:faction:rival", ship_cc.PRODUCT_SCHEMA, entry,
+                            [None, "Rival Skiff", None, "tail", "rival-faction-key"]))
 
     def products(self):
         return {(e.type, e.key): e for e in cultcache_py.SingleFileMessagePackBackingStore(self.path).pull_all()
@@ -212,6 +214,38 @@ class ReadTests(ShipFileCase):
                 self.write(ship_body(), payload)
                 with self.assertRaisesRegex(ValueError, "incompatible"):
                     ship_cc.read(self.path, PACKAGES)
+
+
+class ProductMakerTests(ShipFileCase):
+    """Manufacturer is slot 4 of a product, the Faction record key; Python reads it and never writes a product."""
+
+    def push_product(self, key, body):
+        entry = catalog("product-schema-1", ship_cc.PRODUCT_SCHEMA)
+        cultcache_py.SingleFileMessagePackBackingStore(self.path).push(envelope(key, ship_cc.PRODUCT_SCHEMA, entry, body))
+
+    def test_each_products_manufacturer_is_read_in_file_order(self):
+        self.add_products()
+        self.assertEqual(["acme-faction-key", "rival-faction-key"], ship_cc.product_makers(self.path, PACKAGES))
+
+    def test_a_file_with_no_product_has_no_maker(self):
+        self.assertEqual([], ship_cc.product_makers(self.path, PACKAGES))
+
+    def test_the_manufacturer_is_read_from_its_slot_not_from_a_neighbour(self):
+        self.push_product("mod-product:mod.skiff:faction:acme", [None, "name-slot", "description-slot", "design-slot",
+                                                                  "maker-slot", "roles-slot"])
+        self.assertEqual(["maker-slot"], ship_cc.product_makers(self.path, PACKAGES))
+
+    def test_a_product_with_no_manufacturer_is_refused_naming_no_input(self):
+        canary = "canary-product-name"
+        for body in ([None, canary, "Reliable."], [None, canary, None, None, None], [None, canary, None, None, ""],
+                     [None, canary, None, None, 7]):
+            with self.subTest(body=body):
+                self.setUp()
+                self.push_product("mod-product:mod.skiff:faction:" + canary, body)
+                with self.assertRaises(ValueError) as caught:
+                    ship_cc.product_makers(self.path, PACKAGES)
+                self.assertNotIn(canary, str(caught.exception))
+                self.assertNotIn(self.path, str(caught.exception))
 
 
 class ProductCarryThroughTests(ShipFileCase):

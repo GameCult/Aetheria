@@ -6,7 +6,8 @@ factions/: the checks read it from there, by the faction the brief names, and th
 with it (a hull that redefines or shadows an included language fails a check):
 
     brief    ECHO brief = [faction, donor, role, [length_min, length_max], [tris_min, tris_max], reads]
-    lang     ECHO lang  = [faction, [[zone, [r, g, b]], ...], body zone, glow, radiator, proportion, symmetry]
+    lang     ECHO lang  = [faction, [[zone, [r, g, b]], ...], body zone, glow, radiator, proportion, symmetry, maker]
+             (maker: the faction's Faction record key in GameData/Aetheria.cc, the eighth element)
              (every included language file echoes its own, and so does factions/<faction>.scad run alone; a Pirate
              language has no body zone and no proportion)
     anchors  ECHO anchor = [id, role, [x, y, z], yaw, parent]      one line per anchor, yaw 0 nose, 90 port
@@ -66,6 +67,7 @@ class Language:
     radiator: tuple
     proportion: Optional[tuple]  # ((h/w min, max), (w/l min, max)); None for a language that takes its donor's
     symmetry: tuple  # ("bilateral", minimum mirror overlap) or ("asymmetric", maximum mirror overlap)
+    maker: str  # the Faction record key a product of this language's hulls names as its Manufacturer
 
     def zone_names(self):
         return [name for name, _ in self.zones]
@@ -204,7 +206,7 @@ def read_languages(text):
     """Every language echoed in text, in echo order."""
     languages = []
     for raw in parse_echoes(text, "lang"):
-        if not isinstance(raw, list) or len(raw) != 7 or not isinstance(raw[1], list):
+        if not isinstance(raw, list) or len(raw) != 8 or not isinstance(raw[1], list):
             raise HullSourceError("A faction language has the wrong shape")
         zones = tuple((_text(z[0]), _vector(z[1], 3)) for z in raw[1] if isinstance(z, list) and len(z) == 2)
         if len(zones) != len(raw[1]):
@@ -213,8 +215,11 @@ def read_languages(text):
         symmetry = _vector(raw[6], 2, numbers=False)
         if symmetry[0] not in ("bilateral", "asymmetric") or not _number(symmetry[1]):
             raise HullSourceError("A faction language names a symmetry rule it does not have")
+        maker = _text(raw[7])
+        if not maker:
+            raise HullSourceError("A faction language names no maker")
         language = Language(_text(raw[0]), zones, _text(raw[2]), _vector(raw[3], 3), _vector(raw[4], 3), proportion,
-                            symmetry)
+                            symmetry, maker)
         if language.body and language.body not in language.zone_names():
             raise HullSourceError("A faction language's body zone is not one of its zones")
         languages.append(language)
