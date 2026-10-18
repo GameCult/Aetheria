@@ -183,6 +183,84 @@ public sealed class ProductBinTests : IDisposable
         Assert.Equal("Premiere", product.Name);
     }
 
+    // The line a bin draws from is the one Bin.Line names, not another line of the design: three lines of one design, by three
+    // makers, with the bin on the middle one by name, so a bin that reads the first or the last line of the design is far off.
+    [Fact]
+    public void ABinMintsFromExactlyTheLineItNames()
+    {
+        Line("A line", lensMean: .3f, makerMean: .2f);
+        var middle = Line("M line", lensMean: .6f, makerMean: .5f);
+        Line("Z line", lensMean: .9f, makerMean: .9f);
+        var lots = Mint(Bin(middle, "Middle Premiere", 0), 400);
+        Assert.All(lots, lot =>
+        {
+            Assert.True(lot.Roles.Single().Quality >= .6f - 1e-5f, "a fill came from a line below the named one");
+            Assert.True(lot.Quality >= .5f - 1e-5f, "an assembly came from a maker below the named line's");
+        });
+        Assert.InRange(Fills(lots).Average(), .64f, .72f);
+        Assert.InRange(lots.Average(lot => lot.Quality), .55f, .62f);
+    }
+
+    private const string Canary = "canary-7f3a91";
+
+    private enum Damage { None, LineRemoved, LineIsBin }
+
+    // A catalog on disk holding one line and a bin of it, damaged as asked, for AetheriaStores.Open to read.
+    private string DamagedCatalog(float floor, Damage damage)
+    {
+        var path = Path.Combine(_root, Guid.NewGuid().ToString("N"), "Aetheria.cc");
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        using var seed = AetheriaStores.Open(path, catalogWritable: true);
+        seed.Upsert(new VerseGrammar { Revision = 1 });
+        var maker = seed.Upsert(new Faction { Name = Canary + " Maker" });
+        var gear = seed.Upsert(new GearData { Name = "Lensed", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10, Roles = { new ItemRole { Name = "lens" } } });
+        var design = new CultRecordRef<CraftedItemData>(gear.Key);
+        var line = seed.Upsert(new FactionProductData { Name = Canary + " Line", Design = design, Manufacturer = maker, Roles = { new ProductRole { Role = "lens" } } });
+        var bin = seed.Upsert(new FactionProductData { Name = Canary, Design = design, Manufacturer = maker, Bin = new ProductBin { Line = line, Floor = floor } });
+        if (damage == Damage.LineIsBin)
+            seed.Upsert(new FactionProductData { Name = Canary + " Nested", Design = design, Manufacturer = maker, Bin = new ProductBin { Line = bin, Floor = 0 } });
+        if (damage == Damage.LineRemoved) seed.Remove(line.Key);
+        seed.FlushAsync().Wait();
+        return path;
+    }
+
+    // The runtime does not trust authoring for a bin: a NaN floor would weigh NaN and null every draw of its design.
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    public void ACatalogWhoseBinFloorIsNotFiniteIsRefusedWhereItIsRead(float floor)
+    {
+        var refusal = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(DamagedCatalog(floor, Damage.None)));
+        Assert.Contains("Floor", refusal.Message);
+        Assert.DoesNotContain(Canary, refusal.Message);
+        Assert.DoesNotContain(floor.ToString(), refusal.Message);
+    }
+
+    [Fact]
+    public void ACatalogWhoseBinNamesNoLineIsRefusedWhereItIsRead()
+    {
+        var refusal = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(DamagedCatalog(.67f, Damage.LineRemoved)));
+        Assert.Contains("Line", refusal.Message);
+        Assert.DoesNotContain(Canary, refusal.Message);
+    }
+
+    [Fact]
+    public void ACatalogWhoseBinNamesAnotherBinIsRefusedWhereItIsRead()
+    {
+        var refusal = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(DamagedCatalog(.67f, Damage.LineIsBin)));
+        Assert.Contains("Line", refusal.Message);
+        Assert.DoesNotContain(Canary, refusal.Message);
+    }
+
+    // The refusals are of damage, not of bins: a sound bin on a sound line reads.
+    [Fact]
+    public void ACatalogWithASoundBinIsRead()
+    {
+        using var cache = AetheriaStores.Open(DamagedCatalog(.67f, Damage.None));
+        Assert.Equal(.67f, cache.GetAll<FactionProductData>().Single(product => product.Name == Canary).Bin.Floor);
+    }
+
     // A bin whose line the catalog does not hold mints as a product with no roles of its own, and says so.
     [Fact]
     public void ABinOfALineTheCatalogLacksMintsAtDefaultsAndLogs()

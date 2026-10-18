@@ -41,12 +41,31 @@ public static class AetheriaStores
             foreach (var data in cache.GetAll<EquippableItemData>()) CultRecordRefs.Validate(data);
             foreach (var data in cache.GetAll<ConsumableItemData>()) CultRecordRefs.Validate(data);
             VerseGrammarValidation.ValidateAll(cache.GetAll<VerseVerb>());
+            ValidateBins(cache);
             return cache;
         }
         catch
         {
             cache.Dispose();
             throw;
+        }
+    }
+
+    // The mint and the weighting trust a bin: they never check its Floor or its Line. So the catalog read refuses one whose Floor is
+    // not a finite number (it would weigh NaN and poison every draw of its design), whose Line names no product the catalog holds, or
+    // whose Line is itself a bin (a bin is of a line, never of a bin). The refusals name the field and echo no value.
+    private static void ValidateBins(CultCache cache)
+    {
+        foreach (var product in cache.GetAll<FactionProductData>())
+        {
+            if (product.Bin == null) continue;
+            if (!float.IsFinite(product.Bin.Floor))
+                throw new InvalidOperationException("A product bin's Floor is not a finite number.");
+            var line = cache.Get(product.Bin.Line);
+            if (line == null)
+                throw new InvalidOperationException("A product bin's Line names no product this catalog holds.");
+            if (line.Bin != null)
+                throw new InvalidOperationException("A product bin's Line names another bin; a bin is of a line.");
         }
     }
 }
