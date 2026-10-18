@@ -421,22 +421,33 @@ public static class ZoneGenerator
         }
 
         // A boss zone gets its faction's boss whether or not the zone is ambient: the boss is the run's goal, not
-        // wandering traffic. RunGoal reads the mark; nothing else decides whether a boss lives.
+        // wandering traffic. The boss is its faction's boss Loadout, built whole by Loadouts.Materialize and never drawn
+        // (ruling boss-gear-is-a-loadout); ChooseProduct only brands a design-only slot. RunGoal reads the mark; nothing
+        // else decides whether a boss lives.
         foreach (var bossFaction in galaxy.BossZones.Where(entry => entry.Value == galaxyZone).Select(entry => entry.Key))
         {
-	        var boss = GetLoadoutGenerator(bossFaction).GenerateBossLoadout();
-	        if (boss == null)
+	        var loadout = Loadouts.BossOf(itemManager.ItemData, bossFaction, out var refusal);
+	        if (loadout == null)
 	        {
-		        itemManager.Log($"No boss could be generated for {bossFaction.Name}; its boss zone has no boss to kill!");
+		        itemManager.Log($"{bossFaction.Name} has no boss: it {Loadouts.Describe(refusal)}. Its boss zone has no boss to kill.");
 		        continue;
 	        }
+	        var failures = new List<string>();
+	        var entity = Loadouts.Materialize(itemManager, null, loadout, GetLoadoutGenerator(bossFaction).ChooseProduct, failures);
+	        if (entity == null)
+	        {
+		        itemManager.Log($"{bossFaction.Name}'s boss Loadout {loadout.Name} cannot be built: {string.Join("; ", failures)}");
+		        continue;
+	        }
+	        entity.Faction = bossFaction;
+	        var boss = EntitySerializer.Pack(entity);
 	        boss.Boss = true;
 	        pack.Entities.Add(boss);
 	        pack.BossSpawned = true;
         }
 
         if (galaxyZone == galaxy.Exit && !pack.BossSpawned)
-	        itemManager.Log("Galaxy.Exit has no boss: Galaxy.BossZones does not map a boss faction to the exit zone, or its boss could not be generated (ZoneGenerator exit-without-boss). The exit gate stays sealed.");
+	        itemManager.Log("Galaxy.Exit has no boss: Galaxy.BossZones does not map a boss faction to the exit zone, or its boss Loadout is unset, missing or cannot be built (ZoneGenerator exit-without-boss). The exit gate stays sealed.");
 
         if (!ambient) return pack;
 

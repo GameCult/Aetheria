@@ -183,6 +183,8 @@ public class LoadoutGenerator
             count);
     }
 
+    // An item is on offer only through a product, so a design no product makes is never drawn, stocked or chosen; it reaches a ship
+    // only through a Loadout (ruling off-market-is-general).
     // The products this faction can be offered for a design kind (only gear needs a home), and whether manufacturer preference applies (it does
     // not once a required item has fallen back to any manufacturer). The one availability rule for every selection.
     private ((FactionProductData product, T design)[] available, bool preferManufacturers) AvailableProducts<T>(Predicate<T> filter, bool required) where T : CraftedItemData
