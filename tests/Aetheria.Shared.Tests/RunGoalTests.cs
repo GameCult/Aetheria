@@ -75,9 +75,9 @@ public sealed partial class RunStartTests
     // A boss's fixed Loadout (ruling boss-gear-is-a-loadout), by the production capture: a generated fit of the hull MakeBoss
     // copied, captured as a Loadout (Loadouts.Capture), cut down to its weapons so it is smaller than any generated fit (the
     // tractor pickup and the rest are not in it), moved onto the boss hull and the maker's product of it, and stored at
-    // Loadouts.KeyOf(name), the key Loadouts.Commit writes. openIf leaves the first slot whose design satisfies it design-only.
+    // Loadouts.KeyOf(name), the key Loadouts.Commit writes. openRank leaves the slot whose design ranks highest (above 0) design-only.
     // The shipped catalog has no Boss hull, so this and MakeBoss are fixtures.
-    private Loadout MakeBossLoadout(HullData boss, Faction maker, string name, Func<EquippableItemData, bool> openIf = null)
+    private Loadout MakeBossLoadout(HullData boss, Faction maker, string name, Func<EquippableItemData, int> openRank = null)
     {
         var like = SoldShipHulls().OrderBy(hull => hull.Name, StringComparer.Ordinal).First();
         var random = new CultMath.Random(11);
@@ -91,7 +91,12 @@ public sealed partial class RunStartTests
         var renumbered = armed.Select((entry, number) => (entry.index, number)).ToDictionary(entry => entry.index, entry => entry.number);
         fit.WeaponGroups = fit.WeaponGroups.Select(group => group.Where(renumbered.ContainsKey).Select(index => renumbered[index]).ToArray()).ToArray();
         fit.Slots = armed.Select(entry => entry.slot).ToList();
-        if (openIf != null) fit.Slots.First(slot => openIf(_cache.Get(slot.Design))).Product = default;
+        if (openRank != null)
+        {
+            var open = fit.Slots.OrderByDescending(slot => openRank(_cache.Get(slot.Design))).First();
+            Assert.True(openRank(_cache.Get(open.Design)) > 0, "no weapon of the fit can be left design-only for this maker");
+            open.Product = default;
+        }
         fit.Hull = _cache.RefOf(boss);
         fit.HullProduct = _cache.RefOf(_cache.GetAll<FactionProductData>().Single(product => _cache.Get(product.Design) == boss && _cache.Get(product.Manufacturer) == maker));
         StoreLoadout(fit);
@@ -169,6 +174,31 @@ public sealed partial class RunStartTests
         Assert.DoesNotContain(log, line => line.Contains("makes no boss hull"));
     }
 
+    // Equal-priced Boss hulls go by hull name, and a hull sold under two products by product name, whatever order the products
+    // were authored or are named in: the first Boss hull is the same hull for every reader.
+    [Fact]
+    public void Equal_priced_boss_hulls_go_by_hull_name_then_product_name()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var y = MakeBoss("Tie Y", 100, antagonist);
+        var z = MakeBoss("Tie Z", 100, antagonist);
+        void Rename(HullData hull, string name)
+        {
+            var product = _cache.GetAll<FactionProductData>().Single(p => _cache.Get(p.Design) == hull);
+            product.Name = name;
+            Assert.True(_cache.Commit(batch => batch.Upsert(typeof(FactionProductData), product, _cache.RefOf(product).Key)));
+        }
+        Rename(y, "zz product of Y");
+        Rename(z, "aa product of Z");
+        var yProduct = _cache.GetAll<FactionProductData>().Single(p => p.Name == "zz product of Y");
+        _cache.Upsert(new FactionProductData { Name = "a second product of Y", Design = yProduct.Design, Manufacturer = yProduct.Manufacturer });
+
+        var made = LoadoutGenerator.BossHullsOf(_cache, antagonist);
+        Assert.Equal(new[] { "Tie Y", "Tie Y", "Tie Z" }, made.Select(entry => entry.hull.Name));
+        Assert.Equal(new[] { "a second product of Y", "zz product of Y", "aa product of Z" }, made.Select(entry => entry.product.Name));
+    }
+
     // Ruling boss-gear-is-a-loadout: the boss carries its Loadout's cells and nothing else. The generated fit of the same hull
     // carries more (a tractor pickup, consumables); none of it is on the boss. No generator draw decides it: another seed gives
     // the same cells. A design-only slot takes its brand from the context's ChooseProduct (ruling
@@ -180,7 +210,13 @@ public sealed partial class RunStartTests
         var antagonist = Zhestokost(galaxy);
         var hull = MakeBoss("Boss A", 100, antagonist);
         var loadout = MakeBossLoadout(hull, antagonist, "Boss A loadout",
-            openIf: design => GeneratorFor(galaxy, LoggingItems(new List<string>()), antagonist, 1).ChooseProduct(design) != null);
+            openRank: design =>
+            {
+                // A design the antagonist's outfitter can get, best one that also has a product it cannot: its pick is then a constrained choice.
+                var outfitter = GeneratorFor(galaxy, _items, antagonist, 1);
+                var made = _cache.GetAll<FactionProductData>().Where(product => product.Design.Key.Equals(_cache.RefOf(design).Key)).ToArray();
+                return made.Any(outfitter.IsAvailable) ? (made.Any(product => !outfitter.IsAvailable(product)) ? 2 : 1) : 0;
+            });
         Assert.True(loadout.Slots.Count > 1);
         var open = Assert.Single(loadout.Slots, slot => !slot.Product.IsSet());
 
