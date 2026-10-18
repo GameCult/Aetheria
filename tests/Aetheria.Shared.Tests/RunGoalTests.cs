@@ -65,7 +65,7 @@ public sealed partial class RunStartTests
         {
             var product = Copy(likeProduct);
             product.Name = $"{name} by {maker.Name}";
-            product.Design = bossRef;
+            product.Design = new CultRecordRef<CraftedItemData>(bossRef.Key);
             product.Manufacturer = _cache.RefOf(maker);
             _cache.Upsert(product);
         }
@@ -94,7 +94,7 @@ public sealed partial class RunStartTests
 
         // The faction also makes the dearest ordinary hull, and three Boss hulls: B and A tie on price, C is cheaper. The boss
         // is the dearest Boss hull, ties by name: not the dearest hull it makes, not the first product, not the cheapest.
-        _cache.Upsert(new FactionProductData { Name = "Decoy", Design = _cache.RefOf(priciest), Manufacturer = _cache.RefOf(antagonist) });
+        _cache.Upsert(new FactionProductData { Name = "Decoy", Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(priciest).Key), Manufacturer = _cache.RefOf(antagonist) });
         MakeBoss("Boss B", cheapest + 10, antagonist);
         MakeBoss("Boss C", cheapest, antagonist);
         MakeBoss("Boss A", cheapest + 10, antagonist);
