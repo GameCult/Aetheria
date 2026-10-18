@@ -20,12 +20,6 @@ def cell_centre(grid_origin, x, y):
     return (grid_origin[0] - CELL_SIZE * x, grid_origin[1] - CELL_SIZE * y)
 
 
-def cell_at(grid_origin, point):
-    """The cell whose centre is nearest to point; a point midway between two centres belongs to the lower cell."""
-    return (math.ceil((grid_origin[0] - point[0]) / CELL_SIZE - 0.5),
-            math.ceil((grid_origin[1] - point[1]) / CELL_SIZE - 0.5))
-
-
 def _cells_across(extent, cell_size):
     return max(1, math.ceil((extent - _TOLERANCE) / cell_size))
 
@@ -113,23 +107,6 @@ _FACING_YAW = {
     ROTATION_REVERSED: math.pi,
     ROTATION_CLOCKWISE: -math.pi / 2,
 }
-
-
-def _centre_offset(n):
-    """The footprint cell, counted from its origin, that stands for an n-cell extent's centre: the lower of the two
-    middle cells when n is even."""
-    return (n - 1) // 2
-
-
-def mounted_position(cell, footprint_w, footprint_h):
-    """The hardpoint Position (its footprint's origin cell) whose w x h footprint is centred on cell: ShipAuthoringStore
-    places footprint cell (cx, cy) at Position + (cx, cy), and the footprint's centre is ((w - 1) // 2, (h - 1) // 2)."""
-    return (cell[0] - _centre_offset(footprint_w), cell[1] - _centre_offset(footprint_h))
-
-
-def mounted_cell(position, footprint_w, footprint_h):
-    """The cell a mount's object stands in for a hardpoint at position: the inverse of mounted_position."""
-    return (position[0] + _centre_offset(footprint_w), position[1] + _centre_offset(footprint_h))
 
 
 def mirror_position(position, footprint_w, grid_w):

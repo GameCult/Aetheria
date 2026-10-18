@@ -32,30 +32,12 @@ def occupied(cells, height):
 class CellMappingTests(unittest.TestCase):
     ORIGIN = (3.0, -5.0)
 
-    def test_every_cell_of_a_5x3_grid_maps_back_to_itself(self):
-        for x in range(5):
-            for y in range(3):
-                centre = hull_grid.cell_centre(self.ORIGIN, x, y)
-                self.assertEqual(hull_grid.cell_at(self.ORIGIN, centre), (x, y))
-
     def test_cell_1_0_is_two_metres_toward_minus_x_and_0_1_toward_minus_y(self):
         origin = hull_grid.cell_centre(self.ORIGIN, 0, 0)
         self.assertEqual(origin, self.ORIGIN)
         self.assertEqual(hull_grid.cell_centre(self.ORIGIN, 1, 0), (1.0, -5.0))
         self.assertEqual(hull_grid.cell_centre(self.ORIGIN, 0, 1), (3.0, -7.0))
         self.assertEqual(hull_grid.cell_centre(self.ORIGIN, 4, 2), (-5.0, -9.0))
-
-    def test_cell_at_takes_the_nearest_centre_and_the_lower_cell_on_a_tie(self):
-        near = lambda dx, dy: hull_grid.cell_at(self.ORIGIN, (self.ORIGIN[0] - 2 + dx, self.ORIGIN[1] - 4 + dy))
-        self.assertEqual(near(0.9, -0.9), (1, 2))
-        self.assertEqual(near(-0.9, 0.9), (1, 2))
-        self.assertEqual(near(1.1, 0), (0, 2))
-        self.assertEqual(near(-1.1, 0), (2, 2))
-        self.assertEqual(near(0, 1.1), (1, 1))
-        self.assertEqual(near(0, -1.1), (1, 3))
-        self.assertEqual(near(1.0, 1.0), (0, 1))
-        self.assertEqual(near(-1.0, -1.0), (1, 2))
-
 
 class InsideTests(unittest.TestCase):
     TRIANGLE = ((0, 0), (1, 0), (0, 1))
@@ -136,7 +118,6 @@ class RasteriseTests(unittest.TestCase):
         for x in range(width):
             for y in range(height):
                 cx, cy = hull_grid.cell_centre(origin, x, y)
-                self.assertEqual(hull_grid.cell_at(origin, (cx, cy)), (x, y))
                 inside = any(hull_grid._inside(tri, cx, cy) for tri in rect(-2, -2, 2, 0) + rect(0, 0, 2, 2))
                 self.assertEqual(inside, cells[x * height + y])
 
@@ -202,11 +183,6 @@ class MountArithmeticTests(unittest.TestCase):
                                     "#.....": ".....#", "##.#.../......": "...#.##/......"}.items():
             self.assertEqual(hull_grid.mirror_footprint(footprint), expected, footprint)
 
-    def test_mounted_position_offsets_the_cell_by_the_footprint_centre(self):
-        for (w, h), expected in {(1, 1): (5, 4), (3, 1): (4, 4), (3, 3): (4, 3), (2, 1): (5, 4), (2, 2): (5, 4),
-                                 (4, 2): (4, 4)}.items():
-            self.assertEqual(hull_grid.mounted_position((5, 4), w, h), expected, (w, h))
-
     def test_mirror_position_reflects_the_footprints_cells_on_odd_and_even_grids(self):
         for grid_w in range(1, 10):
             for w in range(1, grid_w + 1):
@@ -221,16 +197,6 @@ class MountArithmeticTests(unittest.TestCase):
         twin = hull_grid.mirror_position((a, 0), 4, grid_w)
         filled = {twin[0] + i for i, c in enumerate(hull_grid.mirror_footprint(footprint)) if c == "#"}
         self.assertEqual(filled, {grid_w - 1 - c for c in (1, 3, 4)})
-
-    def test_an_object_in_the_mounted_cell_derives_the_position_back_for_every_width(self):
-        origin = (5.0, 9.0)
-        for w in range(1, 7):
-            for h in range(1, 4):
-                for position in ((0, 0), (3, 5), (6, 2)):
-                    cell = hull_grid.mounted_cell(position, w, h)
-                    centre = hull_grid.cell_centre(origin, *cell)
-                    self.assertEqual(hull_grid.mounted_position(hull_grid.cell_at(origin, centre), w, h), position,
-                                     (w, h, position))
 
 
 if __name__ == "__main__":

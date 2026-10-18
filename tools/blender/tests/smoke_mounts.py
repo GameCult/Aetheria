@@ -1,5 +1,5 @@
 """Headless Blender smoke for the add-on's weapon mounts, the gunboat path: Add Weapon, Add Muzzle, Mirror Mount, Remove
-Mount, and what Package derives from them.
+Mount, and that Package moves nothing of them.
 
     blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_mounts.py
 
@@ -7,18 +7,20 @@ Environment as smoke_package.py's header says: CULTLIB_PACKAGES and SMOKE_GAME_F
 ModTools, no dotnet), and msgpack importable. The ship is created under <game folder>/GameData/Mods/smoke.mounts, which
 this smoke removes when it ends.
 
-The ship is smoke_frame's sphere, centred on the origin, through New Ship (6 x 10 cells, cell x = 0 at +X). Pass 1 adds a
-Ballistic gun on the starboard flank as Clockwise: its row's Rotation is 3, its Position is the cell under the mount, and
-its muzzle sits 0.5 m toward -X of it. Mirror Mount makes a CounterClockwise row at the mirrored cell with its muzzle
-toward +X, and refuses a mount on the centreline. Pass 2 packages: the Clockwise muzzle node in the GLB turns glTF +Z to
-glTF -X, and the mirrored one to +X. Pass 3 moves a weapon two cells by script and sets another's Rotation to Reversed in
-the panel state: Package moves the first row's Position by two cells, leaves the internal Reactor row alone, yaws the
-second mount to 180 degrees and the first back to its Rotation's yaw, and the validator accepts the ship. Pass 4 removes a
-mount with two muzzles: its row, the mount and both muzzles go, and the other rows stay.
+The schematic and the model are separate spaces (ruling schematic-and-model-are-separate-spaces): a row's Position is
+authored in the layout, a mount's pose in the model, and the two are linked by name alone. The ship is smoke_frame's
+sphere, centred on the origin, through New Ship (6 x 10 cells, cell x = 0 at +X). Pass 1 adds a Ballistic gun on the
+starboard flank as Clockwise: its row is made at HardpointData's default Position (the model point maps to no cell), the
+smoke sets the Position as the panel would, and its muzzle sits 0.5 m toward -X of it. Mirror Mount makes a
+CounterClockwise row at the footprint's reflection in the layout and the object's reflection in the model, with its
+muzzle toward +X, and refuses a mount on the model's centreline and one whose footprint is its own reflection. Pass 2
+packages: the Clockwise muzzle node in the GLB turns glTF +Z to glTF -X, and the mirrored one to +X. Pass 3 moves a
+weapon in the model, hand-sets its yaw and changes another's Rotation: Package leaves every row's Position, in the buffer
+and in the .cc, and every mount's yaw as authored. Pass 4 removes a mount with two muzzles: its row, the mount and both
+muzzles go, and the other rows stay.
 """
 
 import json
-import math
 import os
 import shutil
 import struct
@@ -118,6 +120,17 @@ def set_footprint(scene, mount_id, footprint):
     next(hp for hp in scene.aetheria_layout.hardpoints if hp.mount_id == mount_id).footprint = footprint
 
 
+def set_position(scene, mount_id, position):
+    """The panel's edit: a row's Position is authored in the layout."""
+    hp = next(h for h in scene.aetheria_layout.hardpoints if h.mount_id == mount_id)
+    hp.x, hp.y = position
+
+
+def root_local(root, obj):
+    """obj's origin in Ship Root's frame."""
+    return tuple(root.matrix_world.inverted() @ Vector(world(obj)))
+
+
 def world(obj):
     bpy.context.view_layer.update()
     return tuple(obj.matrix_world.translation)
@@ -167,58 +180,58 @@ def remove_mount(mount_id):
     require(run(bpy.ops.aetheria.remove_ship_mount)[0] == {"FINISHED"}, "Remove Mount was refused")
 
 
-def mirror_matrix(scene, root, origin, sphere):
-    """Mirror Mount against the reflection of the footprint's cells, for every footprint width 1 to 4 at every cell of
-    the grid: a footprint on cells [a, a + w) of a W-wide grid has its twin on [W - a - w, W - a), whatever the grid's
-    parity, and a mount within a cell of the centre line has no twin. The expected cells are computed here from the
-    footprint, never read back from the twin."""
+def mirror_matrix(scene, root, sphere):
+    """Mirror Mount, each space within itself, for every footprint width 1 to 4 at every authored Position of the grid:
+    a footprint on cells [a, a + w) of a W-wide grid has its twin row on [W - a - w, W - a), whatever the grid's parity,
+    and the twin object is the model reflection of the source (-x, y, z), wherever the author put the row. A footprint
+    that is its own reflection has no twin. The expected cells are computed here from the footprint, never read back
+    from the twin."""
     state = scene.aetheria_layout
-    grid_w, grid_h = state.width, state.height
+    grid_w = state.width
     y_cell = 1
-    y = origin[1] - 2.0 * y_cell
+    model_point = (1.5, -1.0, 0.2)  # off the centreline; it names no cell
     mirrored = refused_count = 0
     baseline = rows(scene)
     for w in (1, 2, 3, 4):
-        for c in range(grid_w):  # the cell the mount's object stands in; a footprint is centred on it
-            a = c - (w - 1) // 2
-            if a < 0 or a + w > grid_w:
-                continue
-            x = origin[0] - 2.0 * c
-            mount_id = new_gun(scene, root, (x, y, 0.0))
+        for a in range(grid_w - w + 1):
+            mount_id = new_gun(scene, root, model_point)
             set_footprint(scene, mount_id, "#" * w)
+            set_position(scene, mount_id, (a, y_cell))
             select(bpy.data.objects[mount_id])
             before = rows(scene)
-            if abs(x) < 1.0:
-                refused(bpy.ops.aetheria.mirror_ship_mount, "no mirror image", "Mirror Mount near the centre line")
+            expected = (grid_w - a - w, y_cell)
+            if expected == (a, y_cell):
+                refused(bpy.ops.aetheria.mirror_ship_mount, "no mirror image", "Mirror Mount of a footprint that is its own reflection")
                 require(rows(scene) == before, "A refused Mirror Mount changed a row")
                 refused_count += 1
             else:
-                require(run(bpy.ops.aetheria.mirror_ship_mount)[0] == {"FINISHED"}, f"Mirror Mount was refused (width {w}, cell {c})")
+                require(run(bpy.ops.aetheria.mirror_ship_mount)[0] == {"FINISHED"}, f"Mirror Mount was refused (width {w}, cell {a})")
                 (twin_id,) = {r[0] for r in rows(scene)} - {r[0] for r in before}
                 twin = row(scene, twin_id)
-                expected = (grid_w - a - w, y_cell)
                 require(twin[2] == expected, f"A {w}-wide footprint at cell {a} of {grid_w} mirrored to {twin[2]}, not {expected}")
                 require(twin[4] == "#" * w, "The mirrored footprint is not the reflection of the footprint")
+                reflected = (-model_point[0], model_point[1], model_point[2])
+                require(approx(root_local(root, bpy.data.objects[twin_id]), reflected),
+                        f"The twin object is not the model reflection: {root_local(root, bpy.data.objects[twin_id])}")
                 mirrored += 1
                 remove_mount(twin_id)
             remove_mount(mount_id)
-    require(mirrored >= 6 and (grid_w % 2 == 0 or refused_count >= 1), f"The matrix ran too little ({mirrored}, {refused_count})")
+    require(mirrored >= 6 and refused_count >= 1, f"The matrix ran too little ({mirrored}, {refused_count})")
     require(rows(scene) == baseline, "The matrix left rows behind")
 
-    # A mount exactly on a cell boundary: its twin is the reflection of the cell it was placed in, not a second rounding.
-    k = grid_w // 2
-    mount_id = new_gun(scene, root, (origin[0] - 2.0 * k - 1.0, y, 0.0))
-    source = row(scene, mount_id)
+    # The twin carries the author's armour and arc, rotation mirrored, and the muzzle's reflection.
+    mount_id = new_gun(scene, root, model_point)
+    set_position(scene, mount_id, (0, y_cell))
     hp = next(h for h in state.hardpoints if h.mount_id == mount_id)
     hp.armor, hp.firing_arc = 3.0, 45.0  # the author's numbers
     muzzle = bpy.data.objects[f"{mount_id}.muzzle.1"]
     muzzle.location.x = 0.3
     select(bpy.data.objects[mount_id])
     before_ids = {r[0] for r in rows(scene)}
-    require(run(bpy.ops.aetheria.mirror_ship_mount)[0] == {"FINISHED"}, "Mirror Mount of a boundary mount was refused")
+    require(run(bpy.ops.aetheria.mirror_ship_mount)[0] == {"FINISHED"}, "Mirror Mount of a muzzled mount was refused")
     (twin_id,) = {r[0] for r in rows(scene)} - before_ids
     twin = row(scene, twin_id)
-    require(twin[2] == (grid_w - 1 - source[2][0], y_cell), f"The boundary mount's twin is at {twin[2]}")
+    require(twin[2] == (grid_w - 1, y_cell), f"The twin is at {twin[2]}")
     require(twin[3] == COUNTER_CLOCKWISE and twin[5:] == (3.0, 45.0), f"The twin's rotation or armour and arc are wrong: {twin}")
     gun_at, twin_at = world(bpy.data.objects[mount_id]), world(bpy.data.objects[twin_id])
     source_offset = tuple(m - g for m, g in zip(world(muzzle), gun_at))
@@ -228,22 +241,20 @@ def mirror_matrix(scene, root, origin, sphere):
     remove_mount(twin_id)
     remove_mount(mount_id)
 
-    # The centre line is a cell wide: half a metre off it has no twin.
-    mount_id = new_gun(scene, root, (0.5, y, 0.0))
-    select(bpy.data.objects[mount_id])
-    before = rows(scene)
-    refused(bpy.ops.aetheria.mirror_ship_mount, "no mirror image", "Mirror Mount of a mount half a metre off the centre line")
-    require(rows(scene) == before, "A refused Mirror Mount changed a row")
-    remove_mount(mount_id)
-
-    # A mount whose cell is one past the grid's last is refused, on either axis, and changes nothing.
-    for edge in ((origin[0] - 2.0 * grid_w, y), (origin[0], origin[1] - 2.0 * grid_h)):
-        before, objects = rows(scene), len(bpy.data.objects)
-        scene.cursor.location = root.matrix_world @ Vector((edge[0], edge[1], 0.0))
-        select(sphere)
-        refused(lambda: bpy.ops.aetheria.add_ship_weapon(kind=BALLISTIC, rotation=str(CLOCKWISE)),
-                "outside the grid", "Add Weapon past the grid's edge")
-        require(rows(scene) == before and len(bpy.data.objects) == objects, "A refused Add Weapon changed something")
+    # The model's centreline has no mirror image, whatever the row says; a millimetre is on it, two are not.
+    for x, ok in ((0.0, False), (5e-4, False), (2e-3, True)):
+        mount_id = new_gun(scene, root, (x, model_point[1], 0.0))
+        set_position(scene, mount_id, (0, y_cell))
+        select(bpy.data.objects[mount_id])
+        before = rows(scene)
+        if ok:
+            require(run(bpy.ops.aetheria.mirror_ship_mount)[0] == {"FINISHED"}, "Mirror Mount just off the centreline was refused")
+            (twin_id,) = {r[0] for r in rows(scene)} - {r[0] for r in before}
+            remove_mount(twin_id)
+        else:
+            refused(bpy.ops.aetheria.mirror_ship_mount, "no mirror image", f"Mirror Mount of a mount {x} m off the centreline")
+            require(rows(scene) == before, "A refused Mirror Mount changed a row")
+        remove_mount(mount_id)
 
 
 def main():
@@ -301,7 +312,9 @@ def main():
     gun = bpy.data.objects["weapon.1"]
     require(gun.get("aetheria.role") == "weapon-mount" and gun.parent == root, "The mount is not a tagged child of Ship Root")
     gun_row = row(scene, "weapon.1")
-    require(gun_row == ("weapon.1", 10, (4, 5), CLOCKWISE, "#", 0.0, 0.0), f"The gun's row is wrong: {gun_row}")
+    require(gun_row == ("weapon.1", 10, (0, 0), CLOCKWISE, "#", 0.0, 0.0),
+            f"The gun's row is not the default Position (the model point maps to no cell): {gun_row}")
+    set_position(scene, "weapon.1", (4, 5))  # authored in the layout, as the panel would
     muzzles = [o for o in bpy.data.objects if o.get("aetheria.role") == "weapon-muzzle"]
     require([m.get("aetheria.id") for m in muzzles] == ["weapon.1.muzzle.1"] and muzzles[0].parent == gun
             and muzzles[0].get("aetheria.order") == 1, "Add Weapon did not make its one ordered muzzle")
@@ -321,14 +334,14 @@ def main():
     require(approx(twin_at, (3.0, -1.0, 0.0)), f"The mirrored mount is not across the centreline: {twin_at}")
     require(approx(tuple(m - t for m, t in zip(world(twin_muzzle), twin_at)), (0.5, 0.0, 0.0)),
             "The mirrored muzzle does not point toward +X")
-    scene.cursor.location = (0.2, 0.0, 0.0)
+    scene.cursor.location = (0.0, 0.0, 0.0)
     select(sphere)
     require(run(lambda: bpy.ops.aetheria.add_ship_weapon(kind=BALLISTIC, rotation="0"))[0] == {"FINISHED"},
             "Add Weapon on the centreline was refused")
     centre = bpy.data.objects["weapon.3"]
     select(centre)
     before = rows(scene)
-    refused(bpy.ops.aetheria.mirror_ship_mount, "no mirror image", "Mirror Mount of a centreline mount")
+    refused(bpy.ops.aetheria.mirror_ship_mount, "no mirror image", "Mirror Mount of a mount on the model's centreline")
     require(rows(scene) == before and bpy.data.objects.get("weapon.4") is None, "A refused Mirror Mount changed something")
     print("PASS 1 add weapon and mirror ok")
 
@@ -346,12 +359,13 @@ def main():
     require(rows(scene) == others, "Remove Mount changed a row besides its own")
     print("PASS 4 remove mount ok")
 
-    mirror_matrix(scene, root, (origin[0], origin[1]), sphere)
+    mirror_matrix(scene, root, sphere)
     print("PASS 5 mirror matrix ok")
 
     # A mirrored pair of two-cell footprints stays where Mirror Mount put it through Package and the validator.
     pair = new_gun(scene, root, (-1.0, 1.0, 0.0))
     set_footprint(scene, pair, "##")
+    set_position(scene, pair, (3, 4))
     select(bpy.data.objects[pair])
     require(run(bpy.ops.aetheria.mirror_ship_mount)[0] == {"FINISHED"}, "Mirror Mount of the pair was refused")
     pair_rows = [r for r in rows(scene) if r[0] not in ("weapon.1", "weapon.2") and r[0].startswith("weapon.")]
@@ -372,47 +386,32 @@ def main():
     require([r for r in rows(scene) if r in pair_rows] == pair_rows, "Package moved a mirrored pair")
     print("PASS 2 package and glb ok")
 
-    # Pass 3: a moved mount and a changed Rotation; Package derives Position and yaw from them.
+    # Pass 3: Package moves nothing. A mount moved in the model, a hand-set yaw and a changed Rotation stay as authored.
     gun, twin = bpy.data.objects["weapon.1"], bpy.data.objects["weapon.2"]
-    gun.location.y += 4.0  # two cells aft
-    gun.rotation_euler.z = 0.3  # a hand-set facing: Package overwrites it from the row
+    gun.location.y += 4.0  # two cells' worth aft in the model; the row is the author's
+    gun.rotation_euler.z = 0.3  # a hand-set facing
+    twin_yaw = twin.rotation_euler.z
     for hp in scene.aetheria_layout.hardpoints:
         if hp.mount_id == "weapon.2":
             hp.rotation = str(REVERSED)
     select(sphere)
     require(run(bpy.ops.aetheria.save_ship_layout)[0] == {"FINISHED"}, "Save before the second Package was refused")
-    require(row(scene, "weapon.1")[2] == (4, 5), "The buffer's Position moved before Package")
+    authored = rows(scene)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
     require(result == {"FINISHED"}, f"Package refused the moved ship: {report}")
-    require(row(scene, "weapon.1")[2] == (4, 3), f"Package did not move the row two cells: {row(scene, 'weapon.1')[2]}")
-    require(row(scene, "weapon.2")[2] == (1, 5), "Package moved a mount that did not move")
-    require(row(scene, "reactor.a") == reactor_before, "Package changed an internal row")
-    require(abs(twin.rotation_euler.z - math.pi) < 1e-6 or abs(twin.rotation_euler.z + math.pi) < 1e-6,
-            f"The Reversed mount's yaw is not 180 degrees: {twin.rotation_euler.z}")
-    require(abs(gun.rotation_euler.z + math.pi / 2) < 1e-6, f"Package kept a hand-set yaw: {gun.rotation_euler.z}")
+    require(rows(scene) == authored, "Package changed a row in the buffer")
+    require(row(scene, "weapon.1")[2] == (4, 5) and row(scene, "weapon.2")[2] == (1, 5), "Package moved a weapon's Position")
+    require(row(scene, "weapon.2")[3] == REVERSED and row(scene, "reactor.a") == reactor_before, "Package changed a Rotation or an internal row")
+    require(abs(gun.rotation_euler.z - 0.3) < 1e-6, f"Package turned a hand-set yaw: {gun.rotation_euler.z}")
+    require(abs(twin.rotation_euler.z - twin_yaw) < 1e-6, f"Package turned a mount to its row's Rotation: {twin.rotation_euler.z}")
     saved = aetheria_ships.ship_cc.read_layout(path, PACKAGES)[1]
     by_mount = {fields["Transform"]: fields for fields in map(aetheria_ships.ship_cc.decode_hardpoint, saved)}
-    require(tuple(by_mount["weapon.1"]["Position"]) == (4, 3) and by_mount["weapon.2"]["Rotation"] == REVERSED
-            and tuple(by_mount["reactor.a"]["Position"]) == (2, 2), "The .cc does not hold what Package derived")
-    # A framed ship whose layout buffer is not loaded cannot be derived from: Package refuses and changes nothing.
-    state = scene.aetheria_layout
-    ship_id, glb_before = state.ship_id, glb.read_bytes()
-    state.ship_id = ""
-    result, message = run(bpy.ops.aetheria.package_ship)
-    require(result == {"CANCELLED"} and "Load Layout first" in scene.aetheria_package_report
-            and all(name not in scene.aetheria_package_report for name in NAMES_NOT_ECHOED),
-            f"Package took an unloaded layout: {scene.aetheria_package_report}")
-    require(glb.read_bytes() == glb_before, "A refused Package wrote the GLB")
-    state.ship_id = ship_id
+    require(tuple(by_mount["weapon.1"]["Position"]) == (4, 5) and tuple(by_mount["weapon.2"]["Position"]) == (1, 5)
+            and by_mount["weapon.2"]["Rotation"] == REVERSED and tuple(by_mount["reactor.a"]["Position"]) == (2, 2),
+            "The .cc does not hold what the author left")
     require([r for r in rows(scene) if r in pair_rows] == pair_rows, "The second Package moved a mirrored pair")
-    twin.parent = None  # a mount that is not under Ship Root cannot be derived from
-    row_before = rows(scene)
-    result, message = run(bpy.ops.aetheria.package_ship)
-    require(result == {"CANCELLED"} and "must be parented" in scene.aetheria_package_report and rows(scene) == row_before,
-            f"Package took a mount outside Ship Root: {scene.aetheria_package_report}")
-    twin.parent = root
-    print("PASS 3 package derives ok")
+    print("PASS 3 package moves nothing ok")
 
     # Passes 6 to 8: the same mirror matrix on ships whose grids are odd, wide and even, and wide and odd (10 or more
     # cells across, where real hulls live). Each pass clears the previous ship's objects, which hold the names the matrix
@@ -444,8 +443,7 @@ def matrix_pass(scene, previous, ship_id, length, y_scale, wide, parity):
     require(result == {"FINISHED"}, f"Save ({ship_id}) was refused: {message}")
     width = scene.aetheria_layout.width
     require(width % 2 == parity and (width >= 10 or not wide), f"The {ship_id} grid is {width} wide")
-    origin = ship["aetheria.grid_origin"]
-    mirror_matrix(scene, sys.modules["aetheria_ships"]._ship_root(ship), (origin[0], origin[1]), sphere)
+    mirror_matrix(scene, sys.modules["aetheria_ships"]._ship_root(ship), sphere)
     return ship
 
 
