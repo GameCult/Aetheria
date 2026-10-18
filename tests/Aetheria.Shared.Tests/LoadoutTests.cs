@@ -490,7 +490,8 @@ public sealed class LoadoutTests : IDisposable
     }
 
     // A Lamp lot with Quality .2 and one role fill (lens .15, under the assembly): a stat reading that role gets .15, one
-    // reading none gets the effective quality .15, and GetTier reads .2.
+    // reading none gets the effective quality .15, and GetTier reads .2. A lot of
+    // assembly .6 with a lens of .3 is Common, not Rare: the tier follows its effective quality.
     [Fact]
     public void StatsReadTheLot()
     {
@@ -519,8 +520,16 @@ public sealed class LoadoutTests : IDisposable
             Quality = .6f,
             Roles = new List<RoleFill>()
         });
+        var cappedLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp),
+            Origin = new Attributed(),
+            Quality = .6f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .3f } }
+        });
         var instance = (EquippableItem) items.CreateInstance(commonLot);
         var rareInstance = (EquippableItem) items.CreateInstance(rareLot);
+        var cappedInstance = (EquippableItem) items.CreateInstance(cappedLot);
 
         var withRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1, Role = "lens" } } };
         var noRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1 } } };
@@ -528,6 +537,7 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(.15f, items.Evaluate(noRole, instance), 3);
         Assert.Equal(.2f, items.GetTier(instance).tier.Quality, 3);
         Assert.Equal(.5f, items.GetTier(rareInstance).tier.Quality, 3);
+        Assert.Equal(.2f, items.GetTier(cappedInstance).tier.Quality, 3);
 
         // Minting a second instance from an existing lot must not re-roll the lot's quality.
         var secondInstance = (EquippableItem) items.CreateInstance(commonLot);
@@ -553,9 +563,10 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(.25f, items.Evaluate(squared, instance), 3);
     }
 
-    // F4: GetPrice reads the lot's quality through GameplaySettings.QualityPriceModifier.
+    // F4: GetPrice reads the lot's effective quality through GameplaySettings.QualityPriceModifier: a lot of assembly .8 whose
+    // one part is .2 prices exactly as a roleless .2 lot (price-follows-effective-quality).
     [Fact]
-    public void GetPriceReadsLotQuality()
+    public void GetPriceReadsEffectiveQuality()
     {
         using var cache = Open();
         var settings = RunSaveTests.TestSettings();
@@ -564,16 +575,24 @@ public sealed class LoadoutTests : IDisposable
         var lamp = cache.GetByName<GearData>("Lamp");
         var lowLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .2f, Roles = new List<RoleFill>() });
         var highLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .8f, Roles = new List<RoleFill>() });
+        var sleeperLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .8f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .2f } }
+        });
         var low = (EquippableItem) items.CreateInstance(lowLot);
         var high = (EquippableItem) items.CreateInstance(highLot);
+        var sleeper = (EquippableItem) items.CreateInstance(sleeperLot);
         Assert.True(items.GetPrice(high) > items.GetPrice(low));
+        Assert.Equal(items.GetPrice(low), items.GetPrice(sleeper));
+        Assert.True(items.GetPrice(sleeper) < items.GetPrice(high));
     }
 
-    // F4: the durability exponent path in ItemManager.Evaluate reads the lot's quality (GameplaySettings.
+    // F4: the durability exponent path in ItemManager.Evaluate reads the lot's effective quality (GameplaySettings.
     // DurabilityQuality{Min,Max,Exponent}), independently of the quality-for-role term (absent here -- the
-    // stat declares only a Durability term).
+    // stat declares only a Durability term): a .9 lot whose one part is .1 evaluates as a roleless .1 lot.
     [Fact]
-    public void EvaluateDurabilityExponentReadsLotQuality()
+    public void EvaluateDurabilityExponentReadsEffectiveQuality()
     {
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         var durable = cache.Upsert(new GearData { Name = "Durable", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10, Durability = 100 });
@@ -582,19 +601,29 @@ public sealed class LoadoutTests : IDisposable
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var lowLot = items.Lots.Add(new Lot { Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .1f, Roles = new List<RoleFill>() });
         var highLot = items.Lots.Add(new Lot { Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .9f, Roles = new List<RoleFill>() });
+        var sleeperLot = items.Lots.Add(new Lot
+        {
+            Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .9f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .1f } }
+        });
         var low = (EquippableItem) items.CreateInstance(lowLot);
         var high = (EquippableItem) items.CreateInstance(highLot);
+        var sleeper = (EquippableItem) items.CreateInstance(sleeperLot);
         low.Durability = items.GetData(low).Durability / 2;
         high.Durability = items.GetData(high).Durability / 2;
+        sleeper.Durability = items.GetData(sleeper).Durability / 2;
 
         var stat = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Durability, Exponent = 1 } } };
         Assert.NotEqual(items.Evaluate(stat, low), items.Evaluate(stat, high));
+        Assert.Equal(items.Evaluate(stat, low), items.Evaluate(stat, sleeper), 3);
+        Assert.NotEqual(items.Evaluate(stat, high), items.Evaluate(stat, sleeper), 3);
     }
 
-    // F4: EquippedItem's thermal exponent (Entity.cs's EquippedItem constructor) reads the lot's quality
-    // (GameplaySettings.ThermalQuality{Min,Max,Exponent}), through a real equip on a live entity.
+    // F4: EquippedItem's thermal and durability exponents (Entity.cs's EquippedItem constructor) read the lot's effective
+    // quality (GameplaySettings.{Thermal,Durability}Quality{Min,Max,Exponent}), through a real equip on a live entity: a .9
+    // lot whose one part is .1 equips as a roleless .1 lot.
     [Fact]
-    public void EquippedItemThermalExponentReadsLotQuality()
+    public void EquippedItemExponentsReadEffectiveQuality()
     {
         using var cache = Open();
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
@@ -604,18 +633,31 @@ public sealed class LoadoutTests : IDisposable
 
         // TestSettings has one tier, so materializing through a Loadout always rolls the same quality; mint the
         // gear's lot directly at a chosen quality and equip it onto a bare ship instead.
-        Ship BuildWithGearQuality(float quality)
+        Ship BuildWithGear(Func<int> mintGear)
         {
             var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
             var ship = new Ship(items, null, hullItem, new EntitySettings());
-            var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(lampData, maker, quality));
+            var gearItem = (EquippableItem) items.CreateInstance(mintGear());
             Assert.True(ship.TryEquip(gearItem, HardpointCell));
             return ship;
         }
+        Ship BuildWithGearQuality(float quality) => BuildWithGear(() => items.CreateLot(lampData, maker, quality));
+        // The gear is a lot added directly: assembly .9, one part at .1.
+        Ship BuildWithSleeperGear() => BuildWithGear(() => items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lampData), Origin = new Attributed(), Quality = .9f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .1f } }
+        }));
 
         var lowEquipped = BuildWithGearQuality(.1f).Equipment.Single(e => e.Data is GearData);
         var highEquipped = BuildWithGearQuality(.9f).Equipment.Single(e => e.Data is GearData);
+        var sleeperEquipped = BuildWithSleeperGear().Equipment.Single(e => e.Data is GearData);
         Assert.NotEqual(lowEquipped.ThermalExponent, highEquipped.ThermalExponent);
+        Assert.NotEqual(lowEquipped.DurabilityExponent, highEquipped.DurabilityExponent);
+        Assert.Equal(lowEquipped.ThermalExponent, sleeperEquipped.ThermalExponent, 5);
+        Assert.Equal(lowEquipped.DurabilityExponent, sleeperEquipped.DurabilityExponent, 5);
+        Assert.NotEqual(highEquipped.ThermalExponent, sleeperEquipped.ThermalExponent, 5);
+        Assert.NotEqual(highEquipped.DurabilityExponent, sleeperEquipped.DurabilityExponent, 5);
     }
 
     // Cut 0 (docs/stats-and-power-cut.md): the collapsed evaluation path (PerformanceStat.Evaluate(IStatContext))

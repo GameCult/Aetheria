@@ -82,7 +82,7 @@ public class ItemManager
         return result;
     }
 
-    // The unequipped case: quality and durability read live off the item and its lot; heat and modifiers do not
+    // The unequipped case: quality (the lot's effective quality) and durability read live off the item and its lot; heat and modifiers do not
     // exist without an entity, so they resolve as the identity for their term rather than a bespoke formula.
     private sealed class UnequippedStatContext : IStatContext
     {
@@ -99,7 +99,7 @@ public class ItemManager
             _durabilityExponent = lerp(
                 items.GameplaySettings.DurabilityQualityMin,
                 items.GameplaySettings.DurabilityQualityMax,
-                pow(Lot.Quality, items.GameplaySettings.DurabilityQualityExponent));
+                pow(Lot.EffectiveQuality(), items.GameplaySettings.DurabilityQualityExponent));
         }
 
         public float HeatFactor(float exponent) => 1f;
@@ -111,10 +111,11 @@ public class ItemManager
         public float ConstantModifier(PerformanceStat stat) => 0f;
     }
 
+    // Price follows effective quality (price-follows-effective-quality), so a sleeper's over-specced parts do not show in it.
     public int GetPrice(CraftedItemInstance item)
     {
         var data = GetData(item);
-        return (int) (GameplaySettings.QualityPriceModifier.Evaluate(GetLot(item).Quality) * data.Price);
+        return (int) (GameplaySettings.QualityPriceModifier.Evaluate(GetLot(item).EffectiveQuality()) * data.Price);
     }
 
     // Builds one of a manufacturer's branded products (quality-is-assembly-over-supply-chain): the unit's own quality is its
@@ -222,9 +223,10 @@ public class ItemManager
     public string Title(ItemInstance item) =>
         (item is CraftedItemInstance crafted ? Brand(crafted).Product?.Name : null) ?? GetData(item).Name;
 
+    // The tier name and colour follow price, so they hide the same sleepers.
     public (RarityTier tier, int upgrades) GetTier(CraftedItemInstance item)
     {
-        var quality = GetLot(item).Quality;
+        var quality = GetLot(item).EffectiveQuality();
         var tier = GameplaySettings.Tiers[0];
         foreach (var t in GameplaySettings.Tiers)
             if (quality + .001f > t.Quality)

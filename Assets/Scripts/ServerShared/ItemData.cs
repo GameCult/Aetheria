@@ -688,7 +688,7 @@ public class StatTerm
 {
     [JsonProperty("source"), Key(0)] public StatSource Source;
     [JsonProperty("exponent"), Key(1)] public float Exponent;
-    // The design role whose part quality this term reads; unset reads the item's own workmanship quality.
+    // The design role whose part quality this term reads; unset reads the item's effective quality (Lot.EffectiveQuality).
     // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
     [Inspectable, JsonProperty("role"), Key(2)] public string Role;
 }
