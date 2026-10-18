@@ -238,6 +238,31 @@ public sealed class LootTests : IDisposable
         Assert.True(Differ(first, DropsAt("Other dice", 7)));
     }
 
+    // Pinned at eb27ced1, before run-seed: a zone with no galaxy, and a zone of a save written before run-seed (seed 0),
+    // roll on the zone's name alone and drop exactly what they dropped.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AZoneWithoutARunSeedKeepsItsDrops(bool restoredFromAnOldSave)
+    {
+        var drops = restoredFromAnOldSave ? DropsAt("Dice", 0) : Released(KillInNewLab("Dice"), 0);
+        Assert.Equal(new[] { "Spare", "Orex7", "Spare" }, drops.Select(d => d.Item));
+        Assert.All(drops, d => Assert.Equal(new float2(31, -17), d.Position));
+        var velocities = new[] { float2(-17.977364f, 17.372805f), float2(-5.908107f, 24.291857f), float2(-24.228783f, -6.1616626f) };
+        for (var i = 0; i < velocities.Length; i++)
+        {
+            Assert.Equal(velocities[i].x, drops[i].Velocity.x, 3);
+            Assert.Equal(velocities[i].y, drops[i].Velocity.y, 3);
+        }
+    }
+
+    private Lab KillInNewLab(string zoneName)
+    {
+        var lab = Build(zoneName);
+        Kill(Spawn(lab, float3(31, 0, -17)));
+        return lab;
+    }
+
     [Fact]
     public void GearDropsByProbabilityCargoAlways()
     {

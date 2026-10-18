@@ -690,17 +690,29 @@ public sealed class MineTests : IDisposable
     [Fact]
     public void ANewGameScattersMinesDifferently()
     {
-        float2 LaunchAt(uint runSeed)
-        {
-            var lab = Build(spread: 40f, velocity: 5f, layerFaction: A, runSeed: runSeed);
-            var atLay = default(KinematicBody);
-            using var sub = lab.Zone.Mines.ObserveAdd().Subscribe(e => atLay = e.Value.Body);
-            lab.Layer.Direction = normalize(float2(1, 2));
-            LayOne(lab);
-            return atLay.Velocity;
-        }
-
         Assert.NotEqual(LaunchAt(1), LaunchAt(2));
+    }
+
+    private float2 LaunchAt(uint? runSeed)
+    {
+        var lab = Build(spread: 40f, velocity: 5f, layerFaction: A, runSeed: runSeed);
+        var atLay = default(KinematicBody);
+        using var sub = lab.Zone.Mines.ObserveAdd().Subscribe(e => atLay = e.Value.Body);
+        lab.Layer.Direction = normalize(float2(1, 2));
+        LayOne(lab);
+        return atLay.Velocity;
+    }
+
+    // Pinned at eb27ced1, before run-seed: a zone with no galaxy, and a zone of a save written before run-seed (seed 0),
+    // scatter their mines on the zone's name alone.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AZoneWithoutARunSeedKeepsItsMineScatter(bool restoredFromAnOldSave)
+    {
+        var velocity = LaunchAt(restoredFromAnOldSave ? 0u : (uint?) null);
+        Assert.Equal(3.2546253f, velocity.x, 3);
+        Assert.Equal(3.795711f, velocity.y, 3);
     }
 
     [Fact]
