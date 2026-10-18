@@ -252,8 +252,21 @@ public class LoadoutGenerator
         Galaxy == null || Faction == null ||
         ItemManager.ItemData.Get(product.Manufacturer) == Faction || Faction.Allegiance.ContainsKey(product.Manufacturer);
 
-    // How much this outfitter favors a product: its maker's preference. The one weight of generation and of ChooseProduct.
-    public float ProductWeight(FactionProductData product) => ManufacturerPreference(product.Manufacturer);
+    // How much this outfitter favors a product: its maker's preference times the product's share of it. The one weight of
+    // generation and of ChooseProduct. A bin takes the share of its maker's stock that would pass its floor and its line takes
+    // the rest (ruling bin-share-by-floor), so binning never changes a maker's presence for the design.
+    public float ProductWeight(FactionProductData product) => ManufacturerPreference(product.Manufacturer) * Share(product);
+
+    // 1 - Phi(floor): the fraction of a normal draw that lies at least floor deviations above its mean.
+    private static float PassFraction(float floor) => .5f * (1 - erf(floor / sqrt(2f)));
+
+    private float Share(FactionProductData product)
+    {
+        if (product.Bin != null) return PassFraction(product.Bin.Floor);
+        var key = ItemManager.ItemData.RefOf(product).Key;
+        var binned = ItemManager.ItemData.GetAll<FactionProductData>().Where(other => other.Bin != null && other.Bin.Line.Key.Equals(key)).Sum(bin => PassFraction(bin.Bin.Floor));
+        return max(0f, 1 - binned);
+    }
 
     // The product a design named without one is built as (ruling loadout-product-optional-context-chooses): among the
     // products of the design this outfitter can get, one draw from the run's seeded Random weighted by ProductWeight;
