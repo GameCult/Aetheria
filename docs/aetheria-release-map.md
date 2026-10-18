@@ -11271,6 +11271,8 @@ written for nobody.
 
 ## Stand-in hulls (SI)
 
+**Superseded 2026-10-18 by ruling `hull-art-communicates-form`:** the placeholder-look goal and the schematic-generated body below are set aside; agent-built hulls are low-poly models that communicate each ship's form and faction, beside hero assets. The probe's package path, anchors and replace-by-real-art lifecycle are evidence for the re-map; its visual grammar and cut sequence are not live.
+
 Imagination pass `imagination-ag6-hull-art`, session `self-2026-10-18-ag6`, 2026-10-18. Pinned to Aetheria
 `origin/master` 6d10331c (worktree `C:\aeth-wt\ag6-hull-art`). Serves ruling
 `hull-programmer-art-reads-as-stand-in`, which supersedes `hull-programmer-art-stopgap`.
