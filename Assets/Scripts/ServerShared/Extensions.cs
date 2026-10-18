@@ -180,6 +180,21 @@ public static class Extensions
         return mean + deviation * sqrt(-2 * log(u1)) * cos(2 * PI * u2);
     }
 
+    // NextGaussian truncated below mean + floorDeviations * deviation: draws until one clears that cutoff, at most 64 times,
+    // then returns the cutoff itself. Exact for any reachable floor and bounded and deterministic per seed for an unreachable
+    // one. A binned product's fills and assembly (ProductBin). Callers clamp, as with NextGaussian.
+    public static float NextGaussianAbove(this ref Random random, float mean, float deviation, float floorDeviations)
+    {
+        var cutoff = mean + floorDeviations * deviation;
+        for (var tries = 0; tries < 64; tries++)
+        {
+            var draw = random.NextGaussian(mean, deviation);
+            if (draw >= cutoff) return draw;
+        }
+
+        return cutoff;
+    }
+
     public static float NextUnbounded(this ref Random random) => 1 / (1 - random.NextFloat()) - 1;
     public static float NextUnbounded(this ref Random random, float bias, float power, float ceiling) => 1 / (1 - pow(min(random.NextFloat(), ceiling), 1 - pow(clamp(bias,0,.99f), 1 / power))) - 1;
 
