@@ -128,15 +128,19 @@ public static class Loadouts
     public const float UnbrandedQuality = .95f;
 
     // All-or-nothing: returns an entity only when every design resolved and fitted, the loadout has at most
-    // WeaponGroupCount weapon groups, and every group index names a weapon slot. Every failure is listed; on any failure
-    // nothing is returned and the zone and cache are unchanged, but a failed fit has already drawn from
-    // itemManager.Random. How each design is built is Resolve's rule. A design-only slot is chosen by choose; a game
+    // WeaponGroupCount weapon groups, and every group index names a weapon slot. Every failure of a stage is listed; on any
+    // failure nothing is returned and the zone and cache are unchanged. The stages run in the order that puts refusal
+    // first: what the catalog alone decides (designs, pinned products, hull kind, weapon groups), then whether the cells
+    // fit, tried on a throwaway item manager with its own ledger and stream, and only then the choice of a design-only
+    // slot's product (choose may draw) and the minting of lots. So a loadout that cannot be built mints no lot in the live
+    // ledger and draws nothing from itemManager.Random or from choose. The one exception is a design-only slot with no
+    // available product, which only choose can tell: it is found after an earlier slot's choice, and it too mints nothing.
+    // How each design is built is Resolve's rule. A design-only slot is chosen by choose; a game
     // spawner is to pass LoadoutGenerator.ChooseProduct, with no fallback to any manufacturer; RunStart does, and so does the
     // boss in ZoneGenerator, which is built here too from its faction's Loadout (Loadouts.BossOf). The hull's type
     // picks the entity: a ship hull builds a Ship, a turret hull an OrbitalEntity with no orbit, which stays where it is
     // put; a station hull is refused. The entity always gets exactly WeaponGroupCount groups; a loadout with fewer is
-    // padded with empty groups. A failed materialization leaves any minted lots in the live ledger; they are not roots,
-    // so the next commit drops them. A stated quality mints every lot of the fit at it, drawing nothing (a scenario states
+    // padded with empty groups. A stated quality mints every lot of the fit at it, drawing nothing (a scenario states
     // one for a fit its checks rest on).
     public static Entity Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
         Func<CraftedItemData, FactionProductData> choose, List<string> failures, float? quality = null)
@@ -144,11 +148,11 @@ public static class Loadouts
         var cache = itemManager.ItemData;
         var reported = failures.Count;
 
-        var hullBuild = Resolve(itemManager, loadout.Hull, loadout.HullProduct, choose, "hull", failures, quality);
+        var hullSettled = Settle(itemManager, loadout.Hull, loadout.HullProduct, "hull", failures);
         var hullData = cache.Get(loadout.Hull);
         if (hullData is { HullType: HullType.Station })
             failures.Add($"hull: {hullData.Name} is a station hull; a loadout builds a ship or a turret");
-        var slotBuilds = loadout.Slots.Select(slot => Resolve(itemManager, slot.Design, slot.Product, choose, Cell(slot), failures, quality)).ToArray();
+        var slotsSettled = loadout.Slots.Select(slot => Settle(itemManager, slot.Design, slot.Product, Cell(slot), failures)).ToArray();
         var groups = loadout.WeaponGroups ?? new int[0][];
         var groupCount = itemManager.GameplaySettings.WeaponGroupCount;
         if (groups.Length > groupCount) failures.Add($"weapon groups: {groups.Length} groups, at most {groupCount}");
@@ -160,12 +164,43 @@ public static class Loadouts
         }
         if (failures.Count > reported) return null;
 
+        // The cells fit or they do not whatever brand a design-only slot takes: the shape is the design's. Tried on its own
+        // item manager, so nothing is minted into the live ledger and nothing is drawn.
+        var scratch = new ItemManager(cache, new ProvenanceLedger(), itemManager.GameplaySettings, _ => { });
+        Assemble(scratch, null, hullData, loadout, Unbranded(scratch, hullSettled), slotsSettled.Select(settled => Unbranded(scratch, settled)).ToArray(), failures, out _);
+        if (failures.Count > reported) return null;
+
+        var hullBuild = Build(itemManager, hullSettled, choose, quality, failures);
+        var slotBuilds = slotsSettled.Select(settled => Build(itemManager, settled, choose, quality, failures)).ToArray();
+        if (failures.Count > reported) return null;
+
+        var entity = Assemble(itemManager, liveZone, hullData, loadout, hullBuild, slotBuilds, failures, out var equipped);
+        if (entity == null) return null;
+
+        var built = new (List<Weapon> weapons, List<EquippedItem> items)[groupCount];
+        for (var g = 0; g < groupCount; g++)
+        {
+            var items = g < groups.Length ? groups[g].Select(i => equipped[i]).ToList() : new List<EquippedItem>();
+            built[g] = (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
+        }
+        entity.WeaponGroups = built;
+        return entity;
+    }
+
+    // The hull, then each slot's gear, made by the given builders and equipped to the loadout's cells: the one placement of
+    // a loadout, run once on the throwaway manager to decide the fit and once on the live one to build. Null with every
+    // misfit listed when any cell does not take its gear.
+    private static Entity Assemble(ItemManager itemManager, Zone liveZone, HullData hullData, Loadout loadout,
+        Func<CraftedItemInstance> hullBuild, Func<CraftedItemInstance>[] slotBuilds, List<string> failures, out EquippedItem[] equipped)
+    {
+        var reported = failures.Count;
+        var cache = itemManager.ItemData;
         var hull = (EquippableItem) hullBuild();
         var settings = itemManager.GameplaySettings.DefaultEntitySettings;
         Entity entity = hullData.HullType == HullType.Turret
             ? new OrbitalEntity(itemManager, liveZone, hull, default, settings)
             : new Ship(itemManager, liveZone, hull, settings);
-        var equipped = new EquippedItem[loadout.Slots.Count];
+        equipped = new EquippedItem[loadout.Slots.Count];
         for (var i = 0; i < loadout.Slots.Count; i++)
         {
             var slot = loadout.Slots[i];
@@ -182,26 +217,22 @@ public static class Loadouts
                 .Concat(entity.DockingBays)
                 .First(item => item.EquippableItem == unit);
         }
-        if (failures.Count > reported) return null;
-
-        var built = new (List<Weapon> weapons, List<EquippedItem> items)[groupCount];
-        for (var g = 0; g < groupCount; g++)
-        {
-            var items = g < groups.Length ? groups[g].Select(i => equipped[i]).ToList() : new List<EquippedItem>();
-            built[g] = (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
-        }
-        entity.WeaponGroups = built;
-        return entity;
+        return failures.Count > reported ? null : entity;
     }
 
-    // How one design is built, or null with the failure listed; nothing is minted until the returned builder runs. A
-    // pinned product is built as named, whatever choose says; it must be a product of the design. A design with no
-    // product at all is outside the economy (docs/scenarios-cut.md, Q3: generation, stock and sale all go through
-    // products) and is built unbranded, with no maker, at UnbrandedQuality (a stated quality replaces it). Otherwise choose names the product, and
-    // null (nothing available) or a product of another design is a failure.
-    public static Func<CraftedItemInstance> Resolve<T>(ItemManager itemManager, CultRecordRef<T> design,
-        CultRecordRef<FactionProductData> product, Func<CraftedItemData, FactionProductData> choose, string where,
-        List<string> failures, float? quality = null) where T : CraftedItemData
+    // What the catalog alone says about one design of a loadout: the design, and whether it pins a product, has no product
+    // at all, or needs a chooser to name one. Nothing is minted and nothing drawn.
+    private sealed class Settled
+    {
+        public CraftedItemData Data;
+        public FactionProductData Pinned;   // the product the loadout names, if it does
+        public bool Unbranded;              // a design no product makes
+        public string Where;
+    }
+
+    // Null with the failure listed.
+    private static Settled Settle<T>(ItemManager itemManager, CultRecordRef<T> design, CultRecordRef<FactionProductData> product,
+        string where, List<string> failures) where T : CraftedItemData
     {
         var cache = itemManager.ItemData;
         var data = cache.Get(design);
@@ -211,35 +242,69 @@ public static class Loadouts
             return null;
         }
 
-        FactionProductData made;
         if (product.IsSet())
         {
-            made = cache.Get(product);
+            var made = cache.Get(product);
             if (made == null)
             {
                 failures.Add($"{where}: product {product.Key} is not in the catalog");
                 return null;
             }
+            if (!made.Design.Key.Equals(design.Key))
+            {
+                failures.Add($"{where}: product {made.Name} is not a product of {data.Name}");
+                return null;
+            }
+            return new Settled { Data = data, Pinned = made, Where = where };
         }
-        else
+
+        return new Settled
         {
-            if (!cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(design.Key)))
-                return () => itemManager.CreateInstance(itemManager.CreateLot(data, default, quality ?? UnbrandedQuality));
-            made = choose(data);
+            Data = data, Where = where,
+            Unbranded = !cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(design.Key))
+        };
+    }
+
+    // A design made with no product, at UnbrandedQuality: no maker, no draw. It is also the stand-in the fit trial builds
+    // every design as, since a brand never changes a shape. A settled design that failed is never built.
+    private static Func<CraftedItemInstance> Unbranded(ItemManager itemManager, Settled settled) =>
+        () => itemManager.CreateInstance(itemManager.CreateLot(settled.Data, default, UnbrandedQuality));
+
+    // How a settled design is built, or null with the failure listed; nothing is minted until the returned builder runs.
+    // A design-only slot is where choose is asked, and may draw.
+    private static Func<CraftedItemInstance> Build(ItemManager itemManager, Settled settled,
+        Func<CraftedItemData, FactionProductData> choose, float? quality, List<string> failures)
+    {
+        if (settled == null) return null;
+        if (settled.Unbranded)
+            return () => itemManager.CreateInstance(itemManager.CreateLot(settled.Data, default, quality ?? UnbrandedQuality));
+        var made = settled.Pinned;
+        if (made == null)
+        {
+            made = choose(settled.Data);
             if (made == null)
             {
-                failures.Add($"{where}: no available product of {data.Name}");
+                failures.Add($"{settled.Where}: no available product of {settled.Data.Name}");
+                return null;
+            }
+            if (!made.Design.Key.Equals(itemManager.ItemData.RefOf(settled.Data).Key))
+            {
+                failures.Add($"{settled.Where}: product {made.Name} is not a product of {settled.Data.Name}");
                 return null;
             }
         }
-
-        if (!made.Design.Key.Equals(design.Key))
-        {
-            failures.Add($"{where}: product {made.Name} is not a product of {data.Name}");
-            return null;
-        }
         return () => itemManager.CreateInstance(quality is { } q ? itemManager.CreateLot(made, q) : itemManager.CreateLot(made));
     }
+
+    // How one design is built, or null with the failure listed; nothing is minted until the returned builder runs. A
+    // pinned product is built as named, whatever choose says; it must be a product of the design. A design with no
+    // product at all is outside the economy (docs/scenarios-cut.md, Q3: generation, stock and sale all go through
+    // products) and is built unbranded, with no maker, at UnbrandedQuality (a stated quality replaces it). Otherwise choose names the product, and
+    // null (nothing available) or a product of another design is a failure.
+    public static Func<CraftedItemInstance> Resolve<T>(ItemManager itemManager, CultRecordRef<T> design,
+        CultRecordRef<FactionProductData> product, Func<CraftedItemData, FactionProductData> choose, string where,
+        List<string> failures, float? quality = null) where T : CraftedItemData =>
+        Build(itemManager, Settle(itemManager, design, product, where, failures), choose, quality, failures);
 
     private static string Cell(LoadoutSlot slot) => $"slot {slot.Position.x},{slot.Position.y}";
 }

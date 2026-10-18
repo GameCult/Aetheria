@@ -630,21 +630,72 @@ public sealed partial class RunStartTests
         Assert.Equal(expected.Random.NextFloat(), next);
     }
 
-    [Fact]
-    public void An_unbuildable_boss_loadout_draws_nothing()
+    // Everything a generated zone exposes afterwards: the serialized pack, the ledger, the roster and the gear of its ships, and
+    // the next draw of the item stream. A faction's generator stream shows in the ships it outfitted, so it is in the pack.
+    private string ZoneFacts(ItemManager items, ZonePack pack)
+    {
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+        var bytes = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePack.MessagePackSerializer.Serialize(pack, options)));
+        var gear = pack.Entities.Select(entity => $"{HullName(items, entity)}|{(entity.Faction.IsSet() ? entity.Faction.Key.ToString() : "-")}|{string.Join(";", Cells(items, entity))}");
+        return $"pack {bytes} NextLot={items.Lots.NextLot} lots={items.Lots.Lots.Count}\n{string.Join("\n", gear)}\nnext item draw {items.Random.NextFloat():R}";
+    }
+
+    // The boss of the named faction, whose Loadout is made unbuildable by unbuild, refuses before anything is minted or drawn: the
+    // zone is the zone with no boss in every state it exposes. The faction need not be the zone's nearest.
+    private void AssertUnbuildableBossIsAsIfAbsent(string bossFaction, Action<Loadout> unbuild)
     {
         var galaxy = DemoGalaxy(1);
         var loadout = GiveAntagonistABoss(galaxy);
-        loadout.Slots[0].Position = new int2(999, 999);
+        unbuild(loadout);
         StoreLoadout(loadout);
-        var items = LoggingItems(new List<string>());
-        var pack = BossZonePack(galaxy, items, galaxy.Exit);
-        Assert.False(pack.BossSpawned);
-        var next = items.Random.NextFloat();
+        var boss = galaxy.Factions.Single(faction => faction.Name == bossFaction);
+        Zhestokost(galaxy).BossLoadout = default;
+        SetBoss(boss, loadout);
         galaxy.BossZones.Clear();
+        galaxy.BossZones[boss] = galaxy.Exit;
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned, bossFaction);
+        Assert.Contains(log, line => line.Contains("Antagonist Boss") && line.Contains("cannot be built"));
+
+        var bare = DemoGalaxy(1);
+        bare.BossZones.Clear();
         var bareItems = LoggingItems(new List<string>());
-        var bare = BossZonePack(galaxy, bareItems, galaxy.Exit);
-        Assert.Equal(Roster(bareItems, bare), Roster(items, pack));
-        Assert.Equal(bareItems.Random.NextFloat(), next);
+        var barePack = BossZonePack(bare, bareItems, bare.Exit);
+        Assert.Equal($"{bossFaction}\n{ZoneFacts(bareItems, barePack)}", $"{bossFaction}\n{ZoneFacts(items, pack)}");
+    }
+
+    private IEnumerable<string> AllFactionNames() => DemoGalaxy(1).Factions.Select(faction => faction.Name).OrderBy(name => name, StringComparer.Ordinal);
+
+    private static void MoveOut(Loadout loadout, int slots)
+    {
+        for (var i = 0; i < slots; i++) loadout.Slots[i].Position = new int2(999 - i, 999 - i);
+    }
+
+    [Fact]
+    public void An_unbuildable_boss_loadout_with_one_failure_leaves_the_zone_as_if_it_had_no_boss()
+    {
+        foreach (var faction in AllFactionNames()) AssertUnbuildableBossIsAsIfAbsent(faction, loadout => MoveOut(loadout, 1));
+    }
+
+    [Fact]
+    public void An_unbuildable_boss_loadout_with_several_failures_leaves_the_zone_as_if_it_had_no_boss()
+    {
+        foreach (var faction in AllFactionNames()) AssertUnbuildableBossIsAsIfAbsent(faction, loadout => MoveOut(loadout, 3));
+    }
+
+    // A design-only slot asks the chooser, which draws its faction's stream; the fit is decided before it is asked.
+    [Fact]
+    public void An_unbuildable_boss_loadout_with_design_only_slots_leaves_the_zone_as_if_it_had_no_boss()
+    {
+        foreach (var faction in AllFactionNames())
+            AssertUnbuildableBossIsAsIfAbsent(faction, loadout =>
+            {
+                foreach (var slot in loadout.Slots) slot.Product = default;
+                Assert.Contains(loadout.Slots, slot => _cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(slot.Design.Key)));
+                MoveOut(loadout, 1);
+                loadout.Slots[loadout.Slots.Count - 1].Position = new int2(900, 900);
+            });
     }
 }
