@@ -505,6 +505,59 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         }
     }
 
+    private static float Total(GeneratorPlanet p) => (p.Empty ? 0f : p.Mass) + p.Children.Sum(Total);
+
+    // A bodyless ring member is the heavy one when its family outweighs its siblings, whatever mass it was stored with before it
+    // became a binary, and a family folded out of the ring's way joins it: a bodyless member of family 600 (stored 10), a body of
+    // 100 and a non-ring child of 150 (a child that cannot fit beyond the ring always folds) keep all 850, and the body is untouched.
+    [Fact]
+    public void ABodylessHeavyMemberTakesTheFoldedChildAndItsMass()
+    {
+        var root = new GeneratorPlanet { Empty = true };
+        var bodyless = Body(root, 10f, 0, true);
+        bodyless.Empty = true;
+        Body(bodyless, 300f, 0, true);
+        Body(bodyless, 300f, .5f, true);
+        var body = Body(root, 100f, .5f, true);
+        var outer = Body(root, 150f);
+        ZoneGenerator.Place(root, AuthoredPlanetSettings(), 1e8f, float.PositiveInfinity);
+        Assert.True(root.Empty && root.Children.Count == 2 && !root.Children.Contains(outer), "the non-ring child did not fold out of the ring's way");
+        Assert.True(Math.Abs(Total(root) - 850f) <= 1e-3f, $"the tree holds {Total(root)} of 850: a folded family's mass was lost");
+        Assert.True(body.Mass == 100f, "the child folded into the lighter member, not the bodyless one whose family outweighs it");
+    }
+
+    // A ring is judged on its heaviest member's family, however little mass a bodyless member was stored with. With a Roche limit
+    // steepening as mass squared, a ring of one bodyless member of nine 1000s and a body of 1 stands outside nine 1000s' Roche margin and
+    // folds inside it; judged on the stored mass of 1, it would stand either way.
+    [Theory]
+    [InlineData(.98f, false)]
+    [InlineData(1.02f, true)]
+    public void ARingIsJudgedOnABodylessMembersFamily(float clearance, bool stands)
+    {
+        var settings = AuthoredPlanetSettings();
+        settings.RocheLimit = new ExponentialCurve { Exponent = 2f, Multiplier = 1f, Constant = 0f };
+        var ringDistance = clearance * RocheMargin * settings.RocheLimit.Evaluate(9000f);
+        var root = new GeneratorPlanet { Empty = true };
+        var bodyless = Body(root, 1f, 0, true);
+        bodyless.Empty = true;
+        for (var k = 0; k < 9; k++) Body(bodyless, 1000f, k / 9f, true);
+        Body(root, 1f, .5f, true);
+        ZoneGenerator.Place(root, settings, ringDistance / .375f, float.PositiveInfinity);
+        Assert.True(root.Empty == stands, stands ? "a ring outside its heaviest family's Roche margin folded" : "a ring inside its heaviest family's Roche margin stood");
+    }
+
+    // A node with no ring still settles its children: a satellite of a child at distance 0 has no reach and folds into it.
+    [Fact]
+    public void ABodylessNodeWithoutARingStillSettlesItsChildren()
+    {
+        var root = new GeneratorPlanet { Empty = true };
+        var child = Body(root, 500f);
+        Body(child, 50f);
+        Body(root, 700f);
+        ZoneGenerator.Place(root, AuthoredPlanetSettings(), 1e8f, float.PositiveInfinity);
+        Assert.True(child.Children.All(c => c.Distance > 0), "a child's satellite was left at its centre, unsettled");
+    }
+
     // A ring member's children end within a fifth of the chord to the member's nearest partner, where the chord, not the member's
     // fade, is what holds them.
     [Fact]

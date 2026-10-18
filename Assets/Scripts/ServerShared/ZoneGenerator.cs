@@ -598,10 +598,13 @@ public static class ZoneGenerator
 		float Family(GeneratorPlanet p) => (p.Empty ? 0f : p.Mass) + p.Children.Sum(c => Family(c));
 		// A bodyless node pulls from afar as one body of its family's mass, which it becomes if its ring cannot stand (binaries-orbited-from-afar)
 		float OneBody(GeneratorPlanet p) => p.Empty ? Family(p) : WellMass(p);
+		// A folded family joins its target: a body takes its mass, a bodyless node (whose own Mass is no mass) takes it as a child,
+		// which its own Settle then places.
 		void Fold(GeneratorPlanet node, GeneratorPlanet into)
 		{
-			into.Mass += Family(node);
 			node.Parent.Children.Remove(node);
+			if (into.Empty) { node.Parent = into; into.Children.Add(node); }
+			else into.Mass += Family(node);
 		}
 
 		void PlaceChildren(List<GeneratorPlanet> children, Func<float> lower, float upper, GeneratorPlanet into)
@@ -610,7 +613,7 @@ public static class ZoneGenerator
 			float AtLeast(GeneratorPlanet child, float edge)
 			{
 				var m = OneBody(child);
-				var mInto = WellMass(into);
+				var mInto = OneBody(into);
 				return m <= 0 || mInto <= 0 ? edge : Math.Max(edge, 2 * CuspMargin * Roche(m) * Strength(mInto) / Strength(m));
 			}
 
