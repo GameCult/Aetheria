@@ -11190,197 +11190,182 @@ with the wider scope taken when the FusedRounds premise is fixed.
 `no-save-compatibility-before-players` the cut may refuse it, but a refusal gate would be code
 written for nobody.
 
-## Stand-in hulls (SI)
+## Agent-built hulls
 
-**Superseded 2026-10-18 by ruling `hull-art-communicates-form`:** the placeholder-look goal and the schematic-generated body below are set aside; agent-built hulls are low-poly models that communicate each ship's form and faction, beside hero assets. The probe's package path, anchors and replace-by-real-art lifecycle are evidence for the re-map; its visual grammar and cut sequence are not live.
+Replaces section "Stand-in hulls (SI)". Imagination pass `imagination-ag6-hull-art2`, session `self-2026-10-18-ag6`,
+2026-10-18, pinned to Aetheria `origin/master` d28ce42d (worktree `C:\aeth-wt\ag6-hull-art2`). Serves ruling
+`hull-art-communicates-form`. It supersedes `hull-programmer-art-reads-as-stand-in`. The ruling asks for agent-built
+low-poly hulls that communicate each ship's intended form and its faction ("A Zhestokost ammo tender shouldn't look the
+same as a Pirate fighter"). It also asks for a couple of fully produced hero assets to compare them with, so that hull
+variety is not gated on the operator's manual throughput. Research:
+`docs/research/2026-10-18-agent-built-hull-art-prior-art.md` and `docs/research/2026-10-18-faction-form-language-prior-art.md`.
 
-Imagination pass `imagination-ag6-hull-art`, session `self-2026-10-18-ag6`, 2026-10-18. Pinned to Aetheria
-`origin/master` 6d10331c (worktree `C:\aeth-wt\ag6-hull-art`). Serves ruling
-`hull-programmer-art-reads-as-stand-in`, which supersedes `hull-programmer-art-stopgap`.
-Research input: `docs/research/2026-10-18-agent-built-hull-art-prior-art.md`. That file surveys making agent-built
-art look good or deliberate. This ruling asks for the opposite, so the research's §B3 (low poly that reads as
-deliberate) is evidence about what to avoid. The greybox "dev texture" convention below comes from general practice,
-not from that file (one of the gaps listed at the end).
+Kept from SI: the package path, the anchor rules (SI-B1 to SI-B3), and replace-by-real-art as one act by one owner.
+Dropped from SI: the body generated from the schematic, the grey grid mark, and glyphs by mount kind.
 
-Scratch root `S` = `C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-CultLib\1b477360-19e3-41e2-bde4-8932ace0b8fd\scratchpad\imagination-ag6-hull-art`.
+Scratch root `S` = `C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-CultLib\1b477360-19e3-41e2-bde4-8932ace0b8fd\scratchpad\imagination-ag6-hull-art2`.
 
 ### Renders for the operator
 
-- `S\probe\out\longinus_top_standin_vs_existing.png`: top view, stand-in (left) and the shipped `Longinus.fbx` (right), each at its own scale.
-- `S\probe\out\longinus_iso_standin_vs_existing.png`: three-quarter view, same pair.
-- `S\probe\out\longinus_combat_zoom_proxy.png`: both top views at ship lengths of 48, 80 and 128 px.
-- `S\probe\out\longinus_top_same_metres.png`: both in one 40 m frame. The stand-in uses 2 m cells and the shipped mesh about 1 m per cell (SI-B5).
+- `S\out\sheets\1_pair_same_scale.png`: the two probe hulls in three views (three-quarter, top, port side). Both use
+  the same camera, light and metres per pixel. On the left is the Zhestokost ammo tender "Podvoz", 23 m. On the right
+  is the Pirate fighter "Markdown", 15 m, built on a stolen Rossum & Douglas wedge.
+- `S\out\sheets\3_pirate_vs_djinni_hero.png`: the Pirate fighter beside `Djinni.fbx`, the shipped Rossum & Douglas
+  hull. Djinni is grey because its materials are not read.
+- `S\out\sheets\4_zhestokost_vs_operator_art.png`: the tender beside the operator's Zhestokost faction sheet
+  (`Asset Sources/Zhestokost.png`, cropped) and the shipped `Turret.fbx`.
+- `S\out\sheets\5_combat_zoom_proxy.png`: both top views at ship lengths of 48, 80 and 128 px.
+- `S\out\sheets\2_pair_own_framing.png`: each hull framed to its own size.
 
-All four come from one scratch rasterizer (`S\probe\render.py`) with the same camera and light. The stand-in side is
-read back from the `ship.glb` the package path accepted, so it is not a separate preview.
+All renders come from one scratch flat-shaded rasterizer (`S\render.py`). They are read back from the `ship.glb`
+files that the package path accepted.
 
-### What the game reads (body facts)
+### Probe (AH-P)
 
-- **SI-B1. Package shape.** A mod hull is `GameData/Mods/<id>/ship.cc` plus `ship.glb`. The `.cc` holds `HullData`
-  (`mod-hull:<id>`) and `ShipAuthoring` (`mod-ship:<id>`; `ModelAsset`, `Anchors`, `SchematicLines`, `Joints`).
-  Source: `ShipAuthoring.cs:12-21`, `docs/moddable-ship-authoring.md:160-200`.
-- **SI-B2. Anchors the game needs.** Exactly one each of `map-icon`, `hull-collider`, `shield` and `tractor`
-  (`ShipAuthoring.cs:288-290`). Each visible hardpoint has a mount anchor whose id is its mount id: `thruster-emitter`,
-  `radiator-mesh` or `weapon-mount`. Each weapon needs at least one `weapon-muzzle` whose ParentId is the mount
-  (`:325-356`). These nodes must carry a mesh: thruster-emitter, radiator-mesh, map-icon and hull-collider. The
-  shield node needs three positive scale radii (`ShipModCatalog.cs:256-262`). Weapon mounts and the tractor may be
-  empties. Internal hardpoints have no anchor. Every hardpoint needs a non-empty mount id.
-- **SI-B3. Frame.** Blender Ship Root has the nose toward -Y, starboard toward -X and Z up. Cell (x, y) is centred at
-  `origin - 2(x, y)`, schematic +x is starboard and +y is forward, so row 0 is the stern
-  (`tools/blender/aetheria_ships/hull_grid.py:3-20`). Package exports with `export_yup` (`__init__.py:791`), so the
-  glTF nose is +Z. Hardpoint `Rotation` gives the facing: 0 nose, 1 port, 2 aft, 3 starboard
-  (`hull_grid.py:141-145`). A footprint shape is stored as placed, and validation reads it at `Position` without
-  rotating it (`ShipAuthoring.cs:310-320`).
-- **SI-B4. Longinus HullData** (decoded from `GameData/Aetheria.cc` with cultcache-py, `S\grid.py`). It is 6 x 17
-  cells, symmetric, with 13 hardpoints. Visible: Th.L and Th.R (2x2, rows 0-1, aft), Th.CW and Th.CCW (1x2, row 14,
-  port and starboard), En.L and En.R (1x2, row 8), La.L and La.R (1x3, flanks, rows 5-7), Ra.L and Ra.R (1x2,
-  row 2). Internal: Reactor, ControlModule, and Sensors, which has a **null mount id**. Because of that null id, a
-  package copy of the shipped Longinus is refused until the Sensors hardpoint is given an id (`ship_cc.replace_layout`
-  raised "needs 7 typed fields and a stable mount ID"). The probe gave it the id `Sensors`.
-- **SI-B5. Scale.** The add-on authors at 2 m per cell (`hull_grid.py:11`, "Settings.SchematicCellSize"; New Ship
-  sizes "this many 2 m cells"). The shipped `Longinus.fbx` body is 5.2 x 16.8 m for 6 x 17 cells, about 1 m per cell
-  (`S\fbx.py`, mesh `Cube.043`). Ruling `schematic-and-model-are-separate-spaces` already allows the two to differ.
-  The stand-in uses the add-on's 2 m.
-- **SI-B6. Materials today.** `ShipModVisual` imports the GLB with glTFast and keeps its glTF materials. The only
-  material it adds is the schematic line material (`ShipModVisual.cs:55-64`). `Aetheria/Hull` and the UV0 livery mask
-  belong to `ships-hull-material`, which has a spec but has not landed. So a stand-in's look today is whatever its
-  glTF materials say.
-- **SI-B7. `ship-authoring create --like`** copies a shipped hull's stats with an empty shape and no hardpoints
-  (`ShipAuthoringCommands.cs:57-75`, `HullLike` clears `Shape` and `Hardpoints`). The layout comes from Blender or
-  from `ship_cc.replace_layout`.
-- **SI-B8. OpenSCAD over LevelDsl, decided from source.** The Geometry.Csg `LevelDsl` has box, cut box, oriented box,
-  cylinder_z, dome_cap_z and floret_arm, with no hull or free-axis cone (research, Internal fit), and it needs a
-  cargo build. OpenSCAD nightly with Manifold is installed, and brush-tree's `openscad-target` already rules
-  OpenSCAD-shaped text. LevelDsl was not probed.
+The probe has three layers, each a separate file:
+- **Faction languages**, in `S\lang\`. `zhestokost.kit.scad`, `rnd.kit.scad` and `pirate.kit.scad` hold the shape
+  vocabulary as OpenSCAD modules. `*.lang.json` holds the identity and forbidden lines quoted from the lore, the
+  proportion ranges, the symmetry rule and the palette zones. The target folds each faction's JSON into its `.scad`;
+  see cut `agent-hull-source`.
+- **Role briefs**, in `S\hulls\*.brief.json`. Each gives the faction, donor, role, the play line from
+  `Faction Play.md`, the reads the hull must show, the size class, the triangle budget and the mounts.
+- **Hull sources**, in `S\hulls\*.scad`, written by the agent. They are about 40 lines each, compose only kit modules,
+  are split by colour zone, and echo their anchors.
 
-### The probe (Longinus)
+`S\build.py` renders each part through `openscad.com --backend Manifold --render all`, one process at a time. All 28
+PIDs are in `S\out\pids.log`, the first 3404 and the last 20348. It then writes `ship.glb` and runs the checks.
 
-The stand-in source has three files (`S\probe\`):
-- `standin.scad`: the vocabulary. Glyph per kind, kind colours, cell frame, part dispatch.
-- `longinus.layout.scad`: generated from HullData by `gen_layout.py`, and never edited by hand. It holds the visible
-  mounts: id, kind, position, placed footprint and rotation.
-- `longinus.standin.scad`: agent-authored, 25 lines. Four `hull()` segments make the body (stern block, flared
-  weapons section, spine, nose), plus a `deck()` height function.
+- **AH-P1. Checks.** All pass (`S\out\<id>\checks.json`).
+  - Tender: 3468 triangles. The bbox is 10.5 x 23.4 x 5.9 m, inside its 18-28 m size class. Body h/w is 0.42 and w/l
+    is 0.61, inside Zhestokost's ranges [0.25, 0.6] and [0.35, 0.75]. Bilateral symmetry has a worst mirror miss of
+    0.0000 m. It has five mount anchors, and every weapon has a muzzle nose-ward of its mount.
+  - Fighter: 1466 triangles and 15 m long. The donor body's h/w is 0.20 and w/l 0.69, inside the R&D ranges. The
+    asymmetry rule holds.
+  - The vertex-based asymmetry figure (0.91 unmirrored) is too lenient, because tessellation alone breaks vertex
+    pairs. The silhouette measure below is the one to keep.
+- **AH-P2. Package path, on Yggdrasil, GREEN** (`S\ygg-agenthull-2.log`). The run used the scratch clone
+  `...\imagination-ag6-hull-art\vclone` at a10b5d64. That is 6d10331c plus throwaway commits, never pushed;
+  `git diff 6d10331c d28ce42d` touches no ship code. The job:
+  1. `ship-authoring create --like Longinus` for `agent.zhammotender` and `agent.pifighter`.
+  2. A gameplay layout authored separately, with mount ids matching the hull source's anchors.
+  3. `ship_cc.replace_visual` with the anchors.
+  4. `validate`: "7 hardpoints, 10 anchors" and "5 hardpoints, 8 anchors (records and model)".
+  5. `compose`: "Composed 2 mod ships".
 
-`build.py` renders each part separately with `openscad.com --backend Manifold --render all -D part="…"` (one process
-at a time, about 22 runs). It then writes `ship.glb`: a flat-faceted mesh per part, UV0 as a top-down projection in
-cell units, and nodes tagged `extras.aetheria.id`. It also writes `anchors.json`.
+  Run 1 was red because it had no `/pins` or `/lfs` mounts (the `DOCKER_ARGS` recipe in briefs.md).
+- **AH-P3. Silhouettes** (`S\out\sheets\metrics.json`). The silhouettes are scaled to their own bounding box, so the
+  comparison is of shape, not size. Tender against fighter: IoU 0.69 from the top and 0.52 from the side. Mirror IoU
+  from the top: tender 1.00, fighter 0.80, Djinni 1.00. These numbers are guardrails, not the judge.
+- **AH-P4. What the renders show.**
+  - The two read as different ships at every size, including 48 px. The tender is a dark, broad stepped block with
+    twin handling booms and eight oxide-red magazines hung outboard. A top-down camera sees those magazines; the
+    first version hung them under the booms, where they were hidden from above, and was moved. The fighter is a pale
+    wedge with a gun as long as the hull on the port side, a mismatched bell drive on the starboard quarter, a teal
+    crew slash and primer plates.
+  - The faction read holds without labels:
+    - Zhestokost shows stepped masses, deep seams, plates, tow lugs, recessed machinery and a low broad body.
+    - The Pirate fighter shows the donor wedge plus additions, each with a mount: a saddle under the gun, struts on
+      the drive, a strut under the sensor pod. A cable run joins the gun to the drive.
+  - Weaknesses:
+    - The charcoal Zhestokost body is low-contrast on dark space at 48 px.
+    - The fighter's thin side profile carries little.
+    - Nothing yet has the operator's one-segment-bevel and weighted-normal finish. Box chamfers stand in for it.
+      Blender's Bevel and Weighted Normal at Package would supply the real finish (`shippable-part-bar`, brush-tree).
+- **AH-P5. Not proven.**
+  - Unity: the ships were not flown, and `ShipModPlaySmoke` was not run.
+  - Blender was not in the loop.
+  - The real combat camera was not used.
+  - Only one agent authored both hulls. No second hull per faction tests whether the language holds a family
+    together; that is the next probe line.
 
-- **SI-P1. Measurements** (`S\probe\build.py` output):
-  - The body has 104 triangles. 0 of its 60 vertices lie outside the hull cells, and the worst miss of the mirror
-    test is 0.0000 m (the body is symmetric).
-  - The GLB is 84 KB, with 28 nodes and 18 anchors.
-  - All 10 visible mounts project into their own footprint: weapons and radiators at the footprint centre, thrusters
-    on the footprint edge they face.
-  - The probe checked vertices, not edges, against the cells. Each segment is convex inside a rectangular run of
-    cells, which is why the vertex check suffices here; a stepped outline needs an edge check.
-- **SI-P2. Package path, on Yggdrasil.** `ygg-verify` ran on a scratch clone at `2329782244d3`. That clone is
-  6d10331c plus `standin-probe/`; its commits are throwaway and were never pushed to origin. Image
-  `mcr.microsoft.com/dotnet/sdk:10.0`, with pins `/pins/cultlib-git-45c2f40` and `/pins/cultlib-9c1b06cd` and the
-  `/lfs` catalog. Log: `S\ygg-standin-6.log`, GREEN. The steps were:
-  1. `ship-authoring create … --like Longinus`.
-  2. `ship_cc.replace_layout` with Longinus' shape and hardpoints, then `ship_cc.replace_visual` with the 18 anchors
-     (the add-on's own Python).
-  3. `validate`, which reported "13 hardpoints, 18 anchors, 0 lines (records and model)", meaning
-     `ShipModCatalog.ReadPackage` judged the GLB.
-  4. `compose`, which reported "Composed 1 mod ships", with no exclusions.
+### Body facts found on the way (AH-B)
 
-  Runs 1-5 were red on job plumbing: LFS pointer, CultLib pins, empty layout from `--like`, and the null Sensors id.
-- **SI-P3. Not proven.** The Unity side was not run: `ShipModPreview.Smoke -assemble` and `ShipModPlaySmoke.Run`
-  (thrusters, weapons with muzzles, collider, map icon). The probe's GLB writer is scratch Python, not the add-on's
-  Package Ship. Blender was not in the loop, because no current Blender is on Starfire (only 2.77 and 2.78 under
-  `D:\Applications`). Glyph proportions were checked only in the proxy renders, never at the real combat camera.
-- **SI-P4. What the renders show.**
-  - From above, the stand-in states where every gun, launcher, engine and radiator is, by colour. At 48 px the
-    shipped mesh reads only as a silhouette.
-  - The body reads as an unfinished blockout: slab facets, a cell grid, no surface detail. Nobody would take it for
-    the shipped hull.
-  - The grid is texture noise at 48 px. In engine, mips average it away at distance.
-  - The first radiator fins were edge-on from above and vanished. They became panels tilted 30° outward. Energy
-    barrels were thickened from 0.14 to 0.28 m for the same reason.
+- **AH-B1. A current Blender is installed.** `C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe`
+  exists. Follow-up `blender-pin-operator` records it as Steam's 5.2.2 LTS. The brief's premise ("only 2.77/2.78")
+  came from `D:\Applications` and is wrong, so no install question is raised.
+- **AH-B2. Package already derives map-icon, shield and tractor** (`_regenerate_anchors`, `__init__.py:1009`). A
+  hull source therefore emits only mounts and mesh anchors. That subtracts four anchors from what the probe built.
+- **AH-B3. The add-on derives schematic Positions from the placement of model mounts.** `_plan_mounts`
+  (`__init__.py:409`) writes the HullData Position from where a weapon-mount empty sits. This conflicts with
+  `schematic-and-model-are-separate-spaces`, under which nothing is derived from model geometry, and it is pre-existing.
+  Cut `agent-hull-source` measures it first and reports it as a fork rather than bypassing it. Its owner is the
+  hardpoint walkthrough (`hardpoint-work-held-for-walkthrough`).
+- **AH-B4. No shipped ship embodies a current faction language.**
+  - Djinni (R&D) is a rounded, bulbous body, not the lore's flying wedge.
+  - The operator said of Longinus (Alakrita) that she would be happy never to see it again.
+  - Turret is a Zhestokost turret, not a ship.
 
-### Visual grammar (proposal; the look is question `standin-visual-mark`)
+  So the heroes are a real fork (question `agent-hull-hero-assets`).
+- **AH-B5. The two Zhestokost sources disagree.**
+  - The lore page gives charcoal, iron and oxide, a low broad hull, and identity "without relying on red paint".
+  - The operator's faction sheet shows a tan body with dark breakup, orange-red stripes, a tall stepped tower, and a
+    forward boom with hanging magazines.
 
-1. **Body.** A few convex `hull()` segments that follow the hull's outline and its concept (Concept Mill image or
-   description). Flat facets at `$fn = 8`. No bevels, panel lines, greebles or invented surface detail. One neutral
-   grey, carrying a dark line every 2 m cell on UV0, which is projected top-down in cell units. The grid is the
-   greybox mark, and because the cells are the schematic's, it also states size class.
-2. **Mount glyphs by kind,** each in one saturated colour, on its footprint, facing its Rotation:
-   - energy: a puck and one long barrel;
-   - ballistic: a puck and two short thick barrels;
-   - launcher: a box with tube mouths on its facing face;
-   - thruster: a bell opening toward its facing, whose mouth disc is the `thruster-emitter` mesh;
-   - radiator: a panel tilted outward, which is itself the `radiator-mesh`.
+  The probe took its palette from the lore and the boom and magazines from the sheet (question
+  `zhestokost-language-source`).
+- **AH-B6. A Pirate language is a composition.** The lore makes the Pirate body another faction's hull ("an
+  identifiable donor hull"). Bench 3 names donors: an AU miner, an R&D wedge. So the Pirate language is an additions
+  kit plus a donor language, never a body of its own. The checker reads the donor's proportions and the Pirates'
+  asymmetry rule.
+- **AH-B7. The prompt-lab leak finding does not carry over to meshes.** For image models, shape motifs in a faction
+  block leak onto every hull (prompt-lab rule 3). For meshes nothing applies itself: a kit module appears only where a
+  hull source calls it. The language file can therefore hold shape vocabulary, and the role decides which pieces a
+  hull uses.
 
-   Internal hardpoints are not drawn, because the schematic UI owns them.
-3. **Size.** Model metres are cells x 2 m (the add-on's rule).
-4. **Faction.** None in the mesh. Once `ships-hull-material` lands, the body's UV0 is where the livery mask goes
-   (primary channel on the body). Until then the body is neutral grey.
+### Pipeline (target)
 
-### Model (SKILL step 0b): rows for the persistent kinds this adds
+1. **Faction language** `tools/blender/aetheria_ships/factions/<faction>.scad`. One file holds the kit modules and a
+   header of constants: zone palette, symmetry rule, proportion ranges (a Pirate hull uses its donor's). The lore
+   sources are cited in comments. The operator owns it; agents draft it.
+2. **Hull source** `GameData/Mods/<id>/hull.scad`. Its brief header gives faction, donor, role, length range, budget
+   and reads. It has one part per zone, and its anchors are echoed. An agent owns it.
+3. **Build From Hull Source**, a new add-on operator. It runs OpenSCAD per part, one process at a time, and checks
+   against the language. It then makes the zone meshes (one material per zone) and the anchor objects under Ship Root.
+4. **Save Layout** (the gameplay schematic, authored separately) and **Package Ship**, both existing:
+   - Package writes `ship.glb`, derives the map icon, shield and tractor, writes the anchors and runs validate.
+   - Zones become livery mask channels when `ships-hull-material` lands (`hull-paint-mask-texture`).
+5. **Render and compare.** A contact sheet puts the hull beside its faction's hero and beside a different-faction
+   hull, at one scale and at combat size. A model reads the sheet and judges whether the hull reads as its faction and
+   role. No rule decides that, because it is a question of meaning. The operator rules on the first few.
+
+### Model (SKILL step 0b)
 
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
-| Stand-in source, `GameData/Mods/<id>/standin.scad` | The package directory, which equals `ShipAuthoring.Id`, names it. One per package, at a fixed name. Injective because package ids are. | Created by an agent pass for a hull with no operator art. Revised by agents. Deleted in the same change that lands operator art for that package. | The agent pass (Imagination for content, Hands for the cut) authors the body. The operator decides when it dies, by packaging her art. Forbidden writer: nothing hand-edits the layout. |
-| Layout, generated | Derived from that package's HullData. | Regenerated on every build. Not committed, never edited. | HullData. Owner only under `standin-layout-follows-schematic` = follow-schematic. Under free-like-real-art this row disappears and the source holds mount placement. |
-| Shared vocabulary, `tools/blender/aetheria_ships/standin/standin.scad` | Single file. | Revised by cuts; a revision re-renders every stand-in at its next build. | The ship add-on (Aetheria). |
-| `ship.glb` | `ShipAuthoring.ModelAsset`: one slot per package. | While `standin.scad` exists, a build output of it. Afterwards, the output of the operator's Package. | Exactly one writer at a time. The slot holds one mesh, so two meshes can never both decide. |
-| "This hull is a stand-in" | The presence of `standin.scad` in the package. **No new field.** | Ends when the file is deleted. | Derived. Build Stand-in refuses a package without the file, so it can never overwrite operator art. Any "which hulls are still stand-ins" view is a directory listing. |
-| Anchors | `ShipAuthoring.Anchors`, ids = mount ids. | Rewritten by Package on each build, stand-in or art. Ids are stable across the swap. | Package Ship (`ship_cc.replace_visual`). The same anchor ids keep loadouts and saves valid across the swap. |
+| Faction language, `factions/<faction>.scad` | The faction slug. One file per faction. A Pirate hull includes its donor's file as well. | Drafted by an agent from the lore and the operator's art, marked draft, then approved by an operator ruling. A revision rebuilds every hull of that faction at its next Build. | The operator decides the language (`zhestokost-language-source` is the first). Agents propose; nothing else edits it. |
+| Hull source, `GameData/Mods/<id>/hull.scad` | The package id, equal to `ShipAuthoring.Id`. One per package. | Created by an agent pass for a hull with no operator art and revised by agents. Deleted by Package in the same act that packages operator art into that package. | Agents (Imagination designs, Hands lands). The operator decides when it dies, by packaging her art. |
+| "Agent-built" status | Presence of `hull.scad`. No field. | Ends when the file is deleted. | Derived. "Which hulls are agent-built" is a directory listing. |
+| Zone meshes and anchor objects in Blender | Marked `aetheria.hull_source`, with ids `aetheria.id`. | Replaced on every Build. Never hand-edited. | Build From Hull Source. Build refuses a collection holding meshes it did not make. |
+| `ship.glb` and ShipAuthoring anchors | `ShipAuthoring.ModelAsset`, with anchor ids equal to mount ids. | Rewritten by every Package, whether from an agent hull or operator art. The ids are stable across the swap, so loadouts and saves survive it. | Package Ship, the only writer. |
+| HullData layout (schematic) | `mod-hull:<id>`. | Authored through Save Layout. Linked to the model by mount name only. | The schematic author: agents for agent hulls, the operator for hers. Never Build. AH-B3 is the open conflict. |
+| Hero asset | A package with no `hull.scad` that is named as its faction's hero. | Set by an operator ruling (`agent-hull-hero-assets`). | The operator. |
 
-Replacement when real art arrives: the operator packages her collection into the same package. Package writes
-`ship.glb` and the anchors, and the same change deletes `standin.scad`. That is one act and one owner.
-Open choice inside the cut, not an operator fork: whether Package deletes `standin.scad` itself or refuses until it is
-deleted. Recommendation: Package deletes it when the bound collection was not built by Build Stand-in, and says so.
+### Questions admitted
 
-`standin.scad` ships inside the mod directory, so it may reach player builds. That is harmless, and it doubles as an
-example for modders. The alternative is `tools/standin/hulls/<id>.scad`, which breaks "presence in the package is the
-status".
+- `aetheria-release:question:agent-hull-hero-assets`: which meshes are the heroes. Recommended: `keepers-finished`.
+- `aetheria-release:question:zhestokost-language-source`: whether Zhestokost follows the lore text, the faction sheet,
+  or both. Recommended: `sheet-palette-both-shapes`.
 
-### Rationale
+Neither blocks the first cut.
 
-- **Why not Tripo or "deliberate low poly".** The ruling's test is "never mistaken for final art". Every element of
-  the grammar is chosen to fail the polish test on purpose: the grid, flat facets, kind colours, and no surface
-  detail. Each element also carries information (scale, mount kind, facing), so the look is utility.
-- **Why the layout is generated.**
-  - Readability: the mounts the player sees agree with the schematic UI.
-  - Upkeep: a schematic edit re-renders the stand-in with no agent pass.
-  - Opus's weak spot: spatial placement is the failure mode the prior art documents most (LL3M §5; CAD
-    valid-but-wrong), and generation leaves only the body to judgment.
+### Cut sequence
 
-  This is model geometry derived from cells, against `schematic-and-model-are-separate-spaces`, hence question
-  `standin-layout-follows-schematic`.
-- **Why Blender for the target, not the probe's Python.** Package Ship already writes `ship.glb` and the anchors,
-  and runs validate. A second GLB writer would be a second authority over the same file. The cut imports OpenSCAD
-  part meshes into the bound collection with role tags, then calls Package. Brush-tree's `bake-only` and
-  `lowered-hull-through-package` point the same way.
-
-### Cut sequence (one line each; no spec admitted, because `standin-build` waits on both questions)
-
-1. `standin-build`. Add-on operator Build Stand-in (headless-capable): checks that `standin.scad` exists, generates
-   the layout from the bound `ship.cc`, runs `openscad.com` per part, imports the parts into the bound collection with
-   `aetheria.role`/`aetheria.id` tags, and calls Package Ship. It carries the vocabulary file and Longinus as its test
-   hull, gives the shipped Longinus Sensors hardpoint a mount id (SI-B4), and adds a `smoke_standin.py` beside
-   `smoke_package.py`. Verification:
-   - `ShipModPreview.Smoke -assemble` and `ShipModPlaySmoke.Run` on the package;
-   - the in-cells, mirror and in-footprint checks from SI-P1 (the last only under follow-schematic).
-
-   Deploy owner: OpenSCAD in whatever image runs Blender smokes on Yggdrasil. Not established, because the Blender
-   smoke's host was not found.
-2. `standin-package-retire`. Package Ship, on a package that still has `standin.scad`, deletes the file when the
-   collection is the operator's (model row above). It can fold into cut 1 if small.
-3. `standin-role-hulls` (content). Stand-ins for the demo role hulls as their HullData land (follow-up
-   `demo-role-hulls`), and for the cast flyables until her art arrives. Each body is authored from the hull's
-   Concept Mill keeper or description (follow-up `hulls-through-concept-mill`).
-4. After `ships-hull-material`: the stand-in mask, with primary channel = body, so faction liveries colour stand-ins.
-   A line in that spec's next revision, not a cut of its own.
+- `agent-hull-source` (spec `aetheria-release:cut_spec:cut-agent-hull-source.r1`): the factions folder,
+  `hull_source.py`, Build From Hull Source, and Package deleting `hull.scad` when it packages operator art. The two
+  probe hulls become fixtures. Its first step measures AH-B3.
+- `agent-hull-family-probe`: one more hull for each of the two factions (a Zhestokost gunboat, a Pirate tender on an
+  AU miner donor). It tests whether a language holds a family together, judged on a sheet beside the hero. Waits on
+  agent-hull-source.
+- `agent-hulls-demo-roles`: hull sources for the demo's role hulls (follow-up `demo-role-hulls`) and the invented
+  Zhestokost boss hull (`demo-boss-hull-invented`), as packages through Package. Waits on agent-hull-family-probe,
+  `mods-in-tree` and `zhestokost-language-source`.
+- `agent-hull-finish`: Bevel and Weighted Normal on agent hulls at Package, and zones into the livery mask. Waits on
+  `ships-hull-material`.
 
 ### Gaps
 
-- Combat camera distance and angle were not read, so the zoom panel is a proxy.
-- The greybox dev-texture convention is general practice, not evidence in the Eyes file.
-- Where a current Blender runs headless for agents is not established on Starfire. The Package smoke's host was
-  not checked.
-- Settings.SchematicCellSize = 2 m is cited from `hull_grid.py`, not read from `Settings.asset`.
-- Scope reading, not a ruling: stand-ins are for hulls without operator art (demo role hulls; cast flyables until
-  hers land). Shipped legacy hulls keep their meshes.
+- No Unity flight of either hull.
+- No real combat camera.
+- The model read was one agent judging its own sheets.
+- Lucent and AU languages are not drafted.
+- The hero comparison is weak until the heroes exist.
