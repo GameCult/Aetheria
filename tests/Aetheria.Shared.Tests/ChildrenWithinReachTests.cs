@@ -9,7 +9,7 @@ using Xunit.Abstractions;
 using static CultMath.math;
 using float2 = CultMath.float2;
 
-// Aetheria gravity, children within reach: the production generator's zones (every zone of seeds 1-6, ambient off) read back
+// Aetheria gravity, children within reach: the production generator's zones (every zone of seeds 1-30, ambient off) read back
 // through the Zone's own tree, orbits and bodies. Each expectation is spelled from the rule it names and the law's constants
 // (GravityField), never from ZoneGenerator.Place's helpers.
 public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReachTests.Zones>
@@ -20,9 +20,9 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         public readonly List<(uint Seed, Zone Zone)> All = new List<(uint, Zone)>();
         public ZoneGenerationSettings Settings;
 
-        // Seeds 7, 11 and 12 held rings inside their heavy member's Roche margin (ring-roche-final-heavy), which seeds 1-6 do not
-        // show. Seed 10 holds a bodyless non-ring node whose massive children are never placed (distance 0); widen past 9 once that is fixed.
-        public Zones() : this(1, 9, null) { }
+        // Seeds 7, 11 and 12 held rings inside their heavy member's Roche margin (ring-roche-final-heavy), and seeds 10, 13, 21 and 30
+        // held a bodyless ring member whose own bodies sat at their node's centre (bodyless-node-places-children); seeds 1-6 show neither.
+        public Zones() : this(1, 30, null) { }
 
         // Not public: xunit builds the fixture through its one public constructor; a test that wants a tuned sample builds its own.
         internal Zones(uint first, uint last, Action<ZoneGenerationSettings> tune)
@@ -477,6 +477,32 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         ZoneGenerator.Place(root, settings, ringDistance / .375f, float.PositiveInfinity);
         Assert.True(!root.Empty && root.Children.Count == 0 && Math.Abs(root.Mass - 2.4f * mass) <= 1e-3f * mass,
             $"the ring stood at {ringDistance} with a member grown to {Math.Max(heavy.Mass, light.Mass)}");
+    }
+
+    // A ring member that is itself bodyless (a binary of binaries) is still on its node's ring: from afar it pulls as one body of
+    // its family's mass (binaries-orbited-from-afar), so it is placed and judged with the ring, never left at its node's centre.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ABodylessRingMemberSitsOnItsRing(bool bothBodyless)
+    {
+        const float radius = 1e6f;
+        var root = new GeneratorPlanet { Empty = true };
+        var a = Body(root, 100f, 0, true);
+        var b = Body(root, 100f, .5f, true);
+        foreach (var member in bothBodyless ? new[] { a, b } : new[] { a })
+        {
+            member.Empty = true;
+            Body(member, 50f, 0, true);
+            Body(member, 50f, .5f, true);
+        }
+        ZoneGenerator.Place(root, AuthoredPlanetSettings(), radius, float.PositiveInfinity);
+        Assert.True(root.Empty && root.Children.Count == 2, "the ring folded into its node or lost a member");
+        foreach (var member in new[] { a, b })
+        {
+            Assert.True(Math.Abs(member.Distance - .375f * radius) <= 1e-4f * radius, $"a ring member sits at {member.Distance}, not {.375f * radius}");
+            Assert.True(member.Children.All(c => c.Distance > 0), "a bodyless member's own ring was never placed");
+        }
     }
 
     // A ring member's children end within a fifth of the chord to the member's nearest partner, where the chord, not the member's

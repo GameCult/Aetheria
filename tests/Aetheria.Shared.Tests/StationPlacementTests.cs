@@ -133,17 +133,17 @@ public sealed class StationPlacementTests : IDisposable
         Assert.True(ahead > 0 && behind > 0, $"the seeds put stations on one side only (ahead {ahead}, behind {behind})");
     }
 
-            // A binary is a bodyless node under its parent; the station's source is never such a node, however many binaries there are.
+    // A rosette or binary is a bodyless node, a root included; the station's source is never such a node, however many there are.
     [Fact]
     public void AStationNeverSitsOnABinarysBodylessNode()
     {
         var binaries = 0;
         var stations = 0;
-        foreach (var built in GeneratedZones(null, 0, 4, int.MaxValue, z => { z.SatelliteCreationProbability = 1; z.BinaryCreationProbability = 1; }))
+        foreach (var built in GeneratedZones(null, 0, 4))
         {
             var zone = built.Zone;
             var bodyOrbits = zone.Planets.Values.Select(b => b.Orbit.Key).ToHashSet();
-            binaries += zone.Orbits.Count(o => o.Value.Data.Parent.IsSet() && !bodyOrbits.Contains(o.Key) && zone.Wells.Reach(o.Key) > 0f);
+            binaries += zone.Orbits.Count(o => !bodyOrbits.Contains(o.Key) && zone.Wells.Reach(o.Key) > 0f);
             var ridden = zone.Entities.OfType<OrbitalEntity>().Select(e => e.OrbitData).ToHashSet();
             foreach (var station in Orbitals(built).Where(e => TypeOf(built.Items, e) == HullType.Station))
             {
