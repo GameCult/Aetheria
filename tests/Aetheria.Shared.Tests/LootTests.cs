@@ -246,9 +246,13 @@ public sealed class LootTests : IDisposable
     public void AZoneWithoutARunSeedKeepsItsDrops(bool restoredFromAnOldSave)
     {
         var drops = restoredFromAnOldSave ? DropsAt("Dice", 0) : Released(KillInNewLab("Dice"), 0);
-        Assert.Equal(new[] { "Spare", "Orex7", "Spare" }, drops.Select(d => d.Item));
+        Assert.Equal(new[] { "Spare", "Spare", "Spare", "Orex7", "Spare" }, drops.Select(d => d.Item));
         Assert.All(drops, d => Assert.Equal(new float2(31, -17), d.Position));
-        var velocities = new[] { float2(-17.977364f, 17.372805f), float2(-5.908107f, 24.291857f), float2(-24.228783f, -6.1616626f) };
+        var velocities = new[]
+        {
+            float2(-14.870228f, -20.096674f), float2(-4.9265895f, -24.509768f), float2(-17.977364f, 17.372805f),
+            float2(-5.908107f, 24.291857f), float2(-24.228783f, -6.1616626f)
+        };
         for (var i = 0; i < velocities.Length; i++)
         {
             Assert.Equal(velocities[i].x, drops[i].Velocity.x, 3);
