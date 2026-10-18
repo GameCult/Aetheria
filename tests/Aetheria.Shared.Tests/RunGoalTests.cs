@@ -93,7 +93,8 @@ public sealed partial class RunStartTests
         fit.Slots = armed.Select(entry => entry.slot).ToList();
         if (openRank != null)
         {
-            var open = fit.Slots.OrderByDescending(slot => openRank(_cache.Get(slot.Design))).First();
+            // Only a design the Loadout fits once can be left open, so its products can be rearranged without touching a pinned slot.
+            var open = fit.Slots.Where(slot => fit.Slots.Count(other => other.Design.Key.Equals(slot.Design.Key)) == 1).OrderByDescending(slot => openRank(_cache.Get(slot.Design))).First();
             Assert.True(openRank(_cache.Get(open.Design)) > 0, "no weapon of the fit can be left design-only for this maker");
             open.Product = default;
         }
@@ -210,22 +211,34 @@ public sealed partial class RunStartTests
         var antagonist = Zhestokost(galaxy);
         var hull = MakeBoss("Boss A", 100, antagonist);
         var loadout = MakeBossLoadout(hull, antagonist, "Boss A loadout",
-            openRank: design =>
-            {
-                // A design the antagonist's outfitter can get, best one that also has a product it cannot: its pick is then a constrained choice.
-                var outfitter = GeneratorFor(galaxy, _items, antagonist, 1);
-                var made = _cache.GetAll<FactionProductData>().Where(product => product.Design.Key.Equals(_cache.RefOf(design).Key)).ToArray();
-                return made.Any(outfitter.IsAvailable) ? (made.Any(product => !outfitter.IsAvailable(product)) ? 2 : 1) : 0;
-            });
+            openRank: design => GeneratorFor(galaxy, _items, antagonist, 1) is var offered
+                && _cache.GetAll<FactionProductData>().Any(product => product.Design.Key.Equals(_cache.RefOf(design).Key) && offered.IsAvailable(product)) ? 1 : 0);
         Assert.True(loadout.Slots.Count > 1);
         var open = Assert.Single(loadout.Slots, slot => !slot.Product.IsSet());
 
         string Cell(LoadoutSlot slot, string brand) => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{_cache.Get(slot.Design).Name},{brand}";
         var pinned = loadout.Slots.Where(slot => slot != open).Select(slot => Cell(slot, _cache.Get(slot.Product).Name)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
-        // The brands the context can choose for it: the products of the design the antagonist's outfitter can get, never any maker's.
+        // The context's choice, made unmistakable: the design has two products, one the antagonist's outfitter cannot get (listed
+        // first) and one it can. The open slot is built as the one it can, whatever the key order or the draw.
+        var template = _cache.GetAll<FactionProductData>().First(product => product.Design.Key.Equals(open.Design.Key));
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+        FactionProductData Brand(string name, Faction maker)
+        {
+            var brand = MessagePack.MessagePackSerializer.Deserialize<FactionProductData>(MessagePack.MessagePackSerializer.Serialize(template, options), options);
+            brand.Name = name;
+            brand.Manufacturer = _cache.RefOf(maker);
+            return brand;
+        }
         var outfitter = GeneratorFor(galaxy, _items, antagonist, 1);
-        var brands = _cache.GetAll<FactionProductData>().Where(product => product.Design.Key.Equals(open.Design.Key) && outfitter.IsAvailable(product)).Select(product => product.Name).ToArray();
-        Assert.NotEmpty(brands);
+        var outsider = _cache.GetAll<Faction>().First(faction => !outfitter.IsAvailable(Brand("probe", faction)));
+        var made = Brand("A brand of an outsider", outsider);
+        var chosen = Brand("B brand of the antagonist", antagonist);
+        Assert.False(outfitter.IsAvailable(made));
+        Assert.True(outfitter.IsAvailable(chosen));
+        foreach (var product in _cache.GetAll<FactionProductData>().Where(product => product.Design.Key.Equals(open.Design.Key)).ToArray())
+            Assert.True(_cache.Remove(_cache.RefOf(product).Key));
+        _cache.Upsert(made);
+        _cache.Upsert(chosen);
 
         var items = LoggingItems(new List<string>());
         var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
@@ -233,8 +246,7 @@ public sealed partial class RunStartTests
         Assert.Equal(loadout.Slots.Count, cells.Length);
         Assert.Equal(pinned, cells.Where(cell => !cell.StartsWith($"{open.Position.x},{open.Position.y},")).OrderBy(x => x, StringComparer.Ordinal));
         var openCell = Assert.Single(cells, cell => cell.StartsWith($"{open.Position.x},{open.Position.y},"));
-        Assert.StartsWith(Cell(open, ""), openCell);
-        Assert.Contains(openCell[(openCell.LastIndexOf(',') + 1)..], brands);
+        Assert.Equal(Cell(open, "B brand of the antagonist"), openCell);
 
         var captured = Loadouts.Capture(items, (Ship) EntitySerializer.Unpack(items, null, boss), "probe");
         Assert.Equal(_cache.Get(loadout.HullProduct).Name, _cache.Get(captured.HullProduct).Name);
