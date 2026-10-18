@@ -16,9 +16,13 @@ using GameCult.Caching;
 // carries no quality numbers. A row already in the catalog (same name, design and maker) is skipped, so the same command is the
 // first apply, the second apply and the replay onto a merged catalog. A maker that already sells the design is not refused: a
 // tier is allowed. Dry run unless passed "apply".
+// product-lines tiers [apply] (cut product-tiers; rulings maker-design-tiers-allowed, bin-share-by-floor): authors the bins of
+// those lines. A tier row is (line product name, bin name, floor, text); the bin gets Design and Manufacturer from its line,
+// Bin = { Line, Floor }, and no Roles or Assembly of its own: the mint derives both from the line.
 public static class ProductLinesCommand
 {
     internal sealed record Row(string Design, string Name, string Maker, string Description);
+    internal sealed record TierRow(string Line, string Name, float Floor, string Description);
 
     private static readonly Row[] Weapons =
     {
@@ -85,6 +89,19 @@ public static class ProductLinesCommand
         new("Industrial Thermostatic Heater", "WarmUp+-", "NiteLife", "Room temperature, whatever the room."),
     };
 
+    // The bins of the shipped lines. The names and text are drafts the operator may rename.
+    private static readonly TierRow[] Tiers =
+    {
+        new("Sparrow", "Goldcrest", .67f, "Only the Sparrows that sang on the test bench. The rest still fly."),
+        new("Spotlight", "Spotlight Premiere", 0f, "Hand-picked for opening night."),
+        new("Rattler", "Rattler Select", 0f, "Pick of the batch. Still loud."),
+        new("SM-6 Marksman", "SM-6C Marksman Certified", 0f, "Individually certified to published tolerance.*"),
+        new("PowerHour 2.0", "PowerHour 2.0 VIP", .67f, "Skip the line. Same party, better parts."),
+        new("Juggernaut", "Juggernaut Guards", 0f, "The column's best drives go to the front of the column."),
+    };
+
+    internal static IReadOnlyList<TierRow> TierTable() => Tiers;
+
     // Every line the command knows, by the word that follows "product-lines".
     private static readonly Dictionary<string, Row[]> Lines = new() { ["weapons"] = Weapons, ["minor-powers"] = MinorPowers, ["gear"] = Gear };
 
@@ -93,16 +110,19 @@ public static class ProductLinesCommand
 
     // A product's record key is derived from its name, so the same table lands the same records every time it is applied: the
     // replay at a merge reproduces the branch's blob, and nothing that orders products by key reads a different order after it.
-    private static CultRecordKey KeyOf(Row row) =>
-        new(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes("product-line:" + row.Name)).AsSpan(0, 16)).ToString("N"));
+    private static CultRecordKey KeyOf(Row row) => KeyOf(row.Name);
+
+    private static CultRecordKey KeyOf(string name) =>
+        new(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes("product-line:" + name)).AsSpan(0, 16)).ToString("N"));
 
     public static int Run(string[] args, string root = null)
     {
         var apply = args.Contains("apply");
         var line = args.FirstOrDefault(a => a != "apply");
+        if (line == "tiers") return RunTiers(Tiers, apply, root);
         if (line == null || !Lines.TryGetValue(line, out var rows))
         {
-            Console.WriteLine($"usage: product-lines {string.Join("|", Lines.Keys)} [apply]");
+            Console.WriteLine($"usage: product-lines {string.Join("|", Lines.Keys)}|tiers [apply]");
             return 1;
         }
 
@@ -176,6 +196,68 @@ public static class ProductLinesCommand
         }))
             throw new InvalidOperationException("The catalog changed while the product line was being authored; nothing was written. Run it again.");
         Console.WriteLine($"\nAuthored {missing.Length} products in Aetheria.cc");
+        return 0;
+    }
+
+    // The tiers line has Run's shape: resolve every row first, so a refusal leaves the catalog untouched, then land the missing
+    // bins in one batch that expects each of their keys absent. A bin already in the catalog (this line, this floor) is skipped,
+    // so the same command is the first apply and the replay onto a merged catalog.
+    internal static int RunTiers(IReadOnlyList<TierRow> tiers, bool apply, string root)
+    {
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var designs = db.Cache.GetAll<CraftedItemData>().ToArray();
+        var products = db.Cache.GetAll<FactionProductData>().ToArray();
+
+        var resolved = new List<(TierRow Row, FactionProductData Line, bool Present)>();
+        for (var i = 0; i < tiers.Count; i++)
+        {
+            var row = tiers[i];
+            var lines = products.Where(p => p.Name == row.Line).ToArray();
+            if (lines.Length != 1) throw new InvalidOperationException($"Tier row {i}: expected exactly one line product, found {lines.Length}.");
+            var parent = lines[0];
+            if (parent.Bin != null) throw new InvalidOperationException($"Tier row {i}: the line is itself a bin.");
+            if (!float.IsFinite(row.Floor) || row.Floor < 0) throw new InvalidOperationException($"Tier row {i}: the floor is not a finite number of at least 0.");
+
+            var named = products.Where(p => string.Equals(p.Name, row.Name, StringComparison.OrdinalIgnoreCase)).ToArray();
+            var present = named.Length == 1 && named[0].Name == row.Name && named[0].Bin != null &&
+                named[0].Bin.Line.Key.Equals(db.Cache.RefOf(parent).Key) && named[0].Bin.Floor == row.Floor;
+            if (named.Length != 0 && !present) throw new InvalidOperationException($"Tier row {i}: the bin name already belongs to another product.");
+            if (!present && designs.Any(d => string.Equals(d.Name, row.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Tier row {i}: the bin name is the name of a design.");
+            resolved.Add((row, parent, present));
+        }
+
+        var missing = resolved.Where(r => !r.Present).ToArray();
+        if (missing.Length == 0)
+        {
+            Console.WriteLine("The tiers are already authored; nothing to do.");
+            return 0;
+        }
+
+        Console.WriteLine("Product tiers:");
+        foreach (var (row, parent, present) in resolved)
+            Console.WriteLine($"  {(present ? "present" : "new    ")} {row.Line} -> \"{row.Name}\" by {db.Cache.Get(parent.Manufacturer)?.ShortName}, floor {row.Floor:0.##}: {row.Description}");
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to author {missing.Length} bins.");
+            return 0;
+        }
+
+        if (!db.Cache.Commit(batch =>
+        {
+            foreach (var (row, _, _) in missing) batch.Expect(KeyOf(row.Name), null);
+            foreach (var (row, parent, _) in missing)
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = row.Name,
+                    Description = row.Description,
+                    Design = parent.Design,
+                    Manufacturer = parent.Manufacturer,
+                    Bin = new ProductBin { Line = db.Cache.RefOf(parent), Floor = row.Floor },
+                }, KeyOf(row.Name));
+        }))
+            throw new InvalidOperationException("The catalog changed while the tiers were being authored; nothing was written. Run it again.");
+        Console.WriteLine($"\nAuthored {missing.Length} bins in Aetheria.cc");
         return 0;
     }
 }
