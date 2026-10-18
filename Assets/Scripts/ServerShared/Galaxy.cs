@@ -28,8 +28,8 @@ public class Galaxy
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
 
-    // The seed this galaxy was generated at, which also seeds its run's item draws (RunStart); zero for a galaxy
-    // restored from a save.
+    // The run's seed, minted once by GalaxyStage.SeedFrom and carried by the save (SavedGame.Seed). It seeds
+    // generation, the run's item draws (RunStart) and the zone's drop dice (Zone.DropSeed).
     public uint Seed { get; }
     
     private GalaxyZone[] _exitPath;
@@ -51,6 +51,7 @@ public class Galaxy
         _cache = cultCache;
         Log = log;
         Background = savedGame.Background;
+        Seed = savedGame.Seed;
         
         Factions = savedGame.Factions.Select(faction => cultCache.Get(faction)).ToArray();
         for (var i = 0; i < Factions.Length; i++)

@@ -50,6 +50,11 @@ public class SavedGame
 
     [Key(13)]
     public int Credits;
+
+    // The run's seed (Galaxy.Seed), minted once by GalaxyStage.SeedFrom. Written only by RunSave.Capture and read only
+    // by Galaxy's save constructor; 0 in a save written before run-seed, which then rolls name-only drops.
+    [Key(14)]
+    public uint Seed;
 }
 
 // The run's lifecycle over the run store. Only Commit creates SavedGame, SavedZone and ProvenanceLedger records;
@@ -79,7 +84,8 @@ public static class RunSave
             Exit = Array.IndexOf(galaxy.Zones, galaxy.Exit),
             IsTutorial = galaxy.IsPrelude,
             ActionBarBindings = actionBar,
-            Credits = credits
+            Credits = credits,
+            Seed = galaxy.Seed
         };
 
         // A zone generated earlier but not loaded this session has no live Contents; its packed contents carry over.
