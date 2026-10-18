@@ -43,15 +43,16 @@ MODS = GAME / "GameData" / "Mods"
 FIXTURES = REPO / "tools" / "blender" / "tests" / "fixtures" / "hulls"
 THRUSTER, RADIATOR, BALLISTIC = "3", "6", "10"
 
-# fixture folder, ship id, stand-in box (x, y) metres and its length in cells, then the layout rows: (mount id, kind, cell)
+# fixture folder, ship id, stand-in box (x, y) metres and its length in cells, the layout rows (mount id, kind, cell),
+# the body zone the collider copies, and the palette each zone must carry
 HULLS = (
     ("zh-ammo-tender", "smoke.hull.tender", (10.0, 23.4), 12,
      (("Gun.D", BALLISTIC, (2, 3)), ("Th.L", THRUSTER, (0, 0)), ("Th.R", THRUSTER, (1, 0)),
       ("Ra.L", RADIATOR, (2, 0)), ("Ra.R", RADIATOR, (3, 0))),
-     {"primary": (0.42, 0.43, 0.45), "secondary": (0.20, 0.20, 0.22), "accent": (0.55, 0.22, 0.14), "recess": (0.08, 0.08, 0.09)}),
+     "primary", {"primary": (0.42, 0.43, 0.45), "secondary": (0.20, 0.20, 0.22), "accent": (0.55, 0.22, 0.14), "recess": (0.08, 0.08, 0.09)}),
     ("pi-fighter", "smoke.hull.fighter", (8.0, 15.0), 8,
      (("Gun.P", BALLISTIC, (3, 3)), ("Th.Main", THRUSTER, (0, 0)), ("Th.L", THRUSTER, (1, 0))),
-     {"rnd.primary": (0.72, 0.74, 0.76), "primer": (0.48, 0.27, 0.22), "weld": (0.70, 0.68, 0.62),
+     "rnd.primary", {"rnd.primary": (0.72, 0.74, 0.76), "primer": (0.48, 0.27, 0.22), "weld": (0.70, 0.68, 0.62),
       "accent": (0.10, 0.62, 0.60), "rnd.accent": (0.90, 0.89, 0.84)}),
 )
 
@@ -122,7 +123,7 @@ def make_ship(scene, fixture, ship_id, extent, length, rows):
     return collection, box, package
 
 
-def check_built(collection, root, palette, anchors_by_role):
+def check_built(collection, root, body, palette, anchors_by_role):
     objects = generated(collection)
     for zone, colour in palette.items():
         obj = objects.get(zone)
@@ -139,10 +140,12 @@ def check_built(collection, root, palette, anchors_by_role):
                     f"Anchor {anchor_id} ({role}) was not built")
     colliders = [o for o in objects.values() if o.get("aetheria.role") == "hull-collider"]
     require(len(colliders) == 1 and colliders[0].type == "MESH", "Build did not make exactly one collider mesh")
+    shape = lambda obj: sorted(tuple(round(c, 4) for c in v.co) for v in obj.data.vertices)
+    require(shape(colliders[0]) == shape(objects[body]), "The collider is not the body zone's mesh")
     return objects
 
 
-def one_hull(scene, number, fixture, ship_id, extent, length, rows, palette):
+def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palette):
     collection, box, package = make_ship(scene, fixture, ship_id, extent, length, rows)
     state = scene.aetheria_layout
     root = bpy.data.objects[next(o.name for o in collection.all_objects if o.get("aetheria.ship_root"))]
@@ -160,7 +163,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, palette):
         if role in ("weapon-mount", "thruster-emitter", "radiator-mesh", "weapon-muzzle"):
             roles.setdefault(role, []).append(obj.name)
     require(roles.get("weapon-mount") and roles.get("weapon-muzzle") and roles.get("thruster-emitter"), f"Anchors missing: {roles}")
-    first = check_built(collection, root, palette, roles)
+    first = check_built(collection, root, body, palette, roles)
     for muzzle in roles["weapon-muzzle"]:
         mount = first[muzzle].parent
         require(mount.get("aetheria.role") == "weapon-mount" and first[muzzle].get("aetheria.order") == 1, "A muzzle is not ordered under its mount")
@@ -285,9 +288,9 @@ def main():
         require(not (MODS / ship_id).exists(), f"{MODS / ship_id} exists; remove it first")
     scene = bpy.context.scene
     previous = None
-    for number, (fixture, ship_id, extent, length, rows, palette) in enumerate(HULLS, start=1):
+    for number, (fixture, ship_id, extent, length, rows, body, palette) in enumerate(HULLS, start=1):
         clear(previous)
-        previous = one_hull(scene, number, fixture, ship_id, extent, length, rows, palette)
+        previous = one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palette)
     clear(previous)
     never_built(scene)
 
