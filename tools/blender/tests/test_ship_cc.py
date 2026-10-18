@@ -237,7 +237,8 @@ class ProductMakerTests(ShipFileCase):
 
     def test_a_product_with_no_manufacturer_is_refused_naming_no_input(self):
         canary = "canary-product-name"
-        for body in ([None, canary, "Reliable."], [None, canary, None, None, None], [None, canary, None, None, ""],
+        for body in ([None, canary, "Reliable."], [None, canary, None, None], [None, canary, None, None, None],
+                     [None, canary, None, None, ""],
                      [None, canary, None, None, 7]):
             with self.subTest(body=body):
                 self.setUp()
