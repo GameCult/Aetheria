@@ -105,6 +105,12 @@ public class AsteroidBeltData : BodyData
     // it on first load through FieldKinds.Ensure, the same function generation uses.
     [JsonProperty("kind"), Key(10)]
     public CultRecordRef<FieldKindData> Kind;
+
+    // A Trojan swarm (ruling trojans-ride-host-period-with-stations): every rock rides the belt's rail at the rail's period, so
+    // the swarm keeps its shape. False on a belt from before this key (MessagePack leaves a missing trailing key at its default),
+    // which keeps each rock on its own distance's period: an annulus.
+    [JsonProperty("ridesRail"), Key(11)]
+    public bool RidesRail;
 }
 
 // Mining Cut 3 (docs/mining-cut-refresh.md, Q11): a kind of debris field, an authored catalog record. A chunk's

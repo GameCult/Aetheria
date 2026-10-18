@@ -126,6 +126,14 @@ public class ZoneGenerationSettings
     public ExponentialCurve AsteroidCount;
     public ExponentialLerp AsteroidRotationSpeed;
 
+    // Trojan swarms (ruling trojans-ride-host-period-with-stations): the chance a planet or gas giant with a body for a parent
+    // carries one, each swarm's length along the orbit (turns) and radial half-width (a fraction of the host's distance), and
+    // the rocks round each of L4 and L5 by host distance. 0 here: a settings object built in code draws none.
+    public float TrojanProbability = 0f;
+    public float TrojanArc = .07f;
+    public float TrojanHalfWidth = .06f;
+    public ExponentialCurve TrojanCount = new ExponentialCurve { Exponent = 1f, Multiplier = .04f, Constant = 8f };
+
     public float ResourceDensityMinimum = .1f;
     public float ResourceDensityMaximum = 1.5f;
 
