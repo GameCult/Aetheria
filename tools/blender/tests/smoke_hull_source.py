@@ -274,6 +274,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
 
     off_centre = root.location.x
     root.location.x = off_centre + 1.7  # _frame_ship would put it back: a refusal that frames first is caught
+    bpy.context.view_layer.update()
     framed = {o.name: tuple(o.matrix_world.translation) for o in collection.all_objects}
     for label, expected, prepare, restore in (
             ("no product", "The package has no product", lambda: None, lambda: None),
@@ -288,6 +289,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
         rows_now = layout_rows(scene)
         result, message = run(bpy.ops.aetheria.package_ship)
         restore()
+        bpy.context.view_layer.update()
         report = scene.aetheria_package_report
         require(result == {"CANCELLED"} and expected in report, f"Package took a hull with {label}: {report!r} {message!r}")
         require(not (package / "ship.glb").exists(), f"Package wrote ship.glb for a hull with {label}")
