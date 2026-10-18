@@ -888,8 +888,8 @@ name. Per ruling `no-save-compatibility-before-players` nothing reads key 11.
 |---|---|---|---|
 | Pirates `Faction` | Catalog record, name `Pirates` | Authored once by `AetherDb pirates-faction apply`; doctrine is added by faction-play r2 | Ruling `pirates-record-content`; the operator sees the dry run |
 | Package product | `mod-product:<id>:<maker key>` in the package's `ship.cc` | Written by `AetherDb ship-authoring product`; copied verbatim by compose; Blender never edits it | The package author |
-| Boss hull | `HullData.Boss` (key 33) | Set by `ship-authoring boss`; a faction's boss hulls are derived per generation from the products it makes | The package author; `BossHullsOf` derives |
-| `Faction.BossHull` (key 10) | Retired | Deleted by `boss-hull-derived` | none |
+| Boss loadout | `Faction.BossLoadout` (key 22), a reference to one Loadout; the Loadout names its hull by design | Set by an agent-authored catalog write (follow-up `zhestokost-boss-loadout`); resolved by `Loadouts.BossOf`, which refuses Unset or Missing | Agents write it, the operator tweaks in Studio (rulings `faction-boss-is-a-loadout-reference`, `boss-loadouts-agent-authored`) |
+| `Faction.BossHull` (key 10) | Retired, never reused | Deleted by `boss-loadout` (the derived-boss design with `HullData.Boss` was withdrawn unmerged) | none |
 | Pirates products | 8 `FactionProductData`, emoji names, over other makers' designs | Authored with the faction in one commit | Ruling `pirates-record-content` |
 | Package hull price | `HullData.Price` | Written by `ship-authoring price` (or `create --like`) | The package author |
 | Emoji font file | `Assets/Fonts/Emoji/<set>.ttf` + `emoji-font.lock` | Rebuilt only by `tools/emoji` at a new pinned version | The operator's `emoji-art-set` ruling |
@@ -10784,194 +10784,115 @@ worktree C:\aeth-wt\ag6-quality-readers at 70c7a497. Catalog: GameData/Aetheria.
   quality-layers-combine, not in the spec, so the spec does not wait on it. context-pack: 14
   anchors SAME.
 
-## Boss hull derived
+## Boss loadout
 
-r3's probes and source reads were made by imagination-ag6-boss-hull (session self-2026-10-18-ag6),
-2026-10-18, in the detached worktree `C:\aeth-wt\ag6-boss-hull` at `origin/master` `eb27ced1`
-(BH1-BH11). r4's probes were made by imagination-ag6-boss-hull-r4 in the same worktree at the
-branch head `095baf2f`, which is r3's h1 (BH12-BH17). Read by `cut-boss-hull-derived.r4`. This
-section supersedes the anchors of "Demo hulls, the Pirates and the boss" H7 (`@2a5fc00b`) and of
-Products PL6. Under Rationale below, r4 replaces r3's boss-loadout path. Ruling
-`boss-gear-is-a-loadout` revokes that path; it replaced `boss-gear-is-fixed`.
+This section replaces "Boss hull derived" (the `cut-boss-hull-derived` r1-r4 design: `HullData.Boss`,
+`BossHullsOf`, a Loadout found by hull product). Ruling `faction-boss-is-a-loadout-reference` replaced that
+design; r4 is withdrawn. Branch `eureka/aetheria-release-boss-hull-derived` (head `90f977bf`, reports h1, h2)
+is unmerged evidence only. Probes and source reads by imagination-ag6-boss-loadout (session
+self-2026-10-18-ag6), 2026-10-18, in the detached worktree `C:\aeth-wt\ag6-boss-loadout` at `origin/master`
+`a40072d9`, then `d28ce42d` (that commit adds one research doc only; every anchor below is the same at both).
+Read by `cut-boss-loadout.r1`. The model-page row `Faction.BossHull (key 10)` (about line 892) and the r4
+table row (about line 10958) now say: retired by `boss-loadout`, never reuse; add the row
+`Faction.BossLoadout (key 22) | CultRecordRef<Loadout> | the one owner of which Loadout is a faction's boss`.
 
 ### Body facts
 
-- **BH1. What the cut waits on is on master.** boss-gate is merged at `39c7508e`
-  (cut-boss-gate r2, verdict s3). faction-play-1 is merged at `d7f30ed1` (r3, h6), and its catalog
-  replay is at `aa12cbac`. minor-power-factions is merged at `c486b06d`. pirates-record is merged
-  at `2c065937` and package-product at `3535660c`.
-- **BH2. Faction keys at `eb27ced1`** (`Corporations.cs`): 1-5, 7, 8, a retired-key comment for 9
-  (`:39`), `BossHull` Key(10) at `:42-43`, then 11-15, 17 (Doctrine), 19 (Assembly) and 21
-  (Places). h1 deleted `BossHull` and retired key 10.
-- **BH3. HullData keys** (`ItemData.cs:531-556` at `eb27ced1`): 23, 24, 25, retired 26, 27, 28,
-  29 and 32 (`Visual`). h1 added `Boss` at Key(33) (`ItemData.cs:557-560` at `095baf2f`).
-- **BH4. Every BossHull reader at `eb27ced1`** was `Galaxy.cs:293`,
-  `LoadoutGenerator.cs:212-230`, `tools/AetherDb/Program.cs:586` and `:709-712`, and
-  `RunGoalTests.cs:74-115` and `:199-202`. h1 removed every one.
-- **BH5. Retiring a key with stored values needs no catalog rewrite.** Precedents: `1d689adf`
-  (Faction key 9) and `be7f2b07` (HullData key 26).
-- **BH6. Every generation hull draw goes through one availability rule**, `AvailableProducts`
-  (`LoadoutGenerator.cs:196-219` at `095baf2f`). Its candidate filter carries h1's
-  `!(entry.design is HullData { Boss: true })` (`:204`) ahead of the any-manufacturer fallback.
-  `ChooseProduct` (`:278-289`) has its own `Where` and does not exclude Boss hulls. r4 never asks
-  it for a hull, because `BossOf` returns only a Loadout whose `HullProduct` is set.
-- **BH7. Explicit hull draws.** `ScenarioStage.Generated` (`ScenarioStage.cs:93`) and AetherDb
-  `loadout` reach `AvailableProducts`. Many tests call `GenerateShipLoadout(h => h == hull)` on
-  shipped hulls, and none of those hulls is a Boss hull.
-- **BH8. The boss path at `095baf2f`.** `ZoneGenerator.cs:401-411` calls
-  `GetLoadoutGenerator(bossFaction).GenerateBossLoadout()` for every `BossZones` entry in the zone.
-  It logs "No boss could be generated" on null and otherwise marks the pack `Boss` and the zone
-  `BossSpawned`. `:414-415` logs exit-without-boss. `GetLoadoutGenerator` (`:282-287`) caches one
-  generator per faction over the zone's `random`. `GenerateBossLoadout` (`LoadoutGenerator.cs:221-233`)
-  builds `BossHullsOf[0]` through `ShipLoadout(product)` (`:55-66`: instance, Ship,
-  `OutfitEntity`, `EquipPickup`, `StockConsumables`, Pack). Otherwise it logs "makes no boss
-  hull" and generates the priciest ship hull on offer. Its readers are only `ZoneGenerator.cs:403`
-  and AetherDb `loadout` (`Program.cs:815`).
-- **BH9. The package writer.** `ShipAuthoringCommands.cs`: `Usage` at `:11`; h1 added `boss
-  <ship.cc> on|off`. Compose copies a package's HullData verbatim.
-  `ShipProductTests.ABossPackageIsItsMakersBossAfterCompose` passes at `095baf2f`.
-- **BH10. Zhestokost makes no ship hull, and the shipped catalog has no Boss hull.** Products PL6
-  still holds. Today's demo boss is the generated fallback: the priciest ordinary ship hull
-  Zhestokost can be offered. Under r4 there is no fallback, so the demo exit has no boss until a
-  Zhestokost Boss hull and its Loadout exist (question `demo-boss-before-its-hull`).
-- **BH11. Which hulls can be bosses.** Ruling `hull-programmer-art-reads-as-stand-in` (it
-  supersedes `hull-programmer-art-stopgap`) leaves the stopgap mechanism open. The Eyes facts file
-  at `ac835a8a` places stopgap art on the package path. Nothing in either derivation reads
-  `Prefab`, `Visual` or a model.
-- **BH12. The three failures in h1 are a fixture defect.** Probe p1 ran ygg-verify at `095baf2f`
-  with the filter of the three tests and the detailed console logger. All three throw
-  `InvalidOperationException: Sequence contains no matching element` at
-  `RunStartTests.FactionNamed` (`RunGoalTests.cs:75`), called with `"Lucent"` at `:130`, `:149`
-  and `:185`. The shipped faction is `"Lucent Media"`, and `"Lucent"` is its ShortName
-  (`DemoTerminusTests.cs:23`, `CatalogRoleTests.cs:368`). Probes p2 and p3 used a scratch clone
-  with only that string changed (`f683baa4`). All three passed: `Passed
-  A_boss_hull_two_makers_sell_is_a_boss_of_each`, `Passed Boss_hulls_are_never_stock_or_traffic`
-  and `Passed Another_factions_boss_hull_is_never_used`. The h1 job hid the messages because its
-  grep kept only `Assert|Expected|Actual` lines. Verdicts:
-  - `Boss_hulls_are_never_stock_or_traffic` is a real fixture defect. Its rule (ruling
-    `boss-hulls-exclusive`) holds once the name is fixed, and the test survives unchanged
-    otherwise.
-  - `Another_factions_boss_hull_is_never_used` is a real fixture defect. Its fallback assertions
-    die with the revoked path. Its rule, that another maker's Boss hull is not this faction's,
-    survives as a `NoBossHull` refusal.
-  - `A_boss_hull_two_makers_sell_is_a_boss_of_each` is a real fixture defect. Its `BossHullsOf`
-    rule survives. Its last assertion (the boss flies "Shared Boss") becomes "flies its Loadout".
-- **BH13. The Loadout record already carries the key from a boss hull to its gear.** `Loadout`
-  (`Loadout.cs:14-22`, schema `aetheria.loadout` v1) has `Name` (Key 0), `Hull` (Key 1),
-  `Slots` (Key 2: `Position`, `Rotation`, `Design`, optional `Product`), `WeaponGroups` (Key 3)
-  and `HullProduct` (Key 4, optional). `HullProduct` names the product, and therefore the maker,
-  of the hull. So "the Loadout whose `HullProduct` is the faction's boss hull product" needs no new
-  field on `Loadout`, `Faction`, `FactionProductData` or `HullData`. It also tells apart two makers
-  of one shared Boss hull.
-- **BH14. `Loadouts.Materialize` is already the builder a fixed boss needs.** It is all or
-  nothing, pins a set product as named, and builds a design-only slot through the passed chooser.
-  Its doc says a game spawner passes `LoadoutGenerator.ChooseProduct`. It builds a Ship from a ship
-  hull with the given zone, null included, as `ShipLoadout` did, and pads to `WeaponGroupCount`.
-  It adds no pickup, consumables or outfit. Its callers today are `ScenarioStage.cs:179` (fits)
-  and the capture round trip in tests.
-- **BH15. A catalog Loadout cannot name a package hull.** `Loadouts.Commit` (`Loadout.cs:78-98`)
-  is the only writer of Loadout records, through the in-game capture command
-  (`ActionGameManager.cs:643`). It refuses any loadout whose hull or slot design is a mod key.
-  Package hulls and products are keyed `mod-hull:`, `mod-product:` and `mod-ship:`
-  (`ShipModCatalog.cs:23-30`), and "the shipped catalog ... never reference[s] one". A package
-  carries only its HullData, its ShipAuthoring and its products (`ShipModCatalog.Package`,
-  `:13-21`). So a boss Loadout for a package Boss hull has to ride in the package. That is the
-  next cut line below, not r4.
-- **BH16. Boss-dependent tests.** `RunGoalTests.cs` holds 18 tests. Those that read the demo's
-  fallback boss are `Boss_spawns_once_in_boss_zone`, `Boss_spawns_in_a_zone_that_is_not_ambient`,
-  `Exit_sealed_until_boss_dies`, `Boss_mark_survives_continue` and
-  `Exit_open_after_save_of_a_slain_boss`. `Exit_sealed_when_no_ship_hull_is_on_offer` pins the
-  fallback's null branch. No other test file references `IsBoss`, `BossSpawned` or `ExitOpen`.
-- **BH17. CultCache variants are not available to Aetheria yet.** CultLib `src` has variant
-  records (`CultCache.cs:59-60`, `CultVariantDelta`, "a variant record (slot 4): its base and
-  overrides"). Aetheria pins CultLib `45c2f4006f5f` (`Directory.Build.props:6`), and
-  `git grep CultVariantDelta 45c2f40` finds nothing. An interim Boss hull copied from a shipped
-  hull would be a plain copy until the pin moves. "Variant" is that record kind, never a loadout
-  (ruling `boss-gear-is-a-loadout`).
+- **BL1. What decides the boss today.** `ZoneGenerator.GenerateZone`'s boss block (`ZoneGenerator.cs:423-439`)
+  calls `LoadoutGenerator.GenerateBossLoadout` (`LoadoutGenerator.cs:212-230`). That method flies
+  `Faction.BossHull` (`Corporations.cs:42-43`, key 10) through `GenerateShipLoadout`. When that is unset or
+  unsold it flies the dearest ship hull on offer. So every demo boss today is the generated fallback. The
+  main galaxy picks boss factions by `BossHull.IsSet()` (`Galaxy.cs:291-295`). AetherDb `factions` prints the
+  hull (`Program.cs:700-718`), and the `dangling` comment names it (`:586`).
+- **BL2. Catalog state (probe: msgpack decode of `GameData/Aetheria.cc`, 186,037 bytes).** There are 15 Faction
+  rows, each a 22-element array (keys 0-21). Index 10 is `''` (unset) on all 15, so deleting `BossHull`
+  loses no data. Index 20 is nil on all; it was `assemblyDeviation`, retired by `30597b0e`, with no
+  never-reuse note in the source. The catalog holds no `aetheria.loadout` records. The new reference
+  therefore takes key **22**.
+- **BL3. A Loadout names its hull by design.** `Loadout.Hull` (key 1) is the design and `HullProduct` (key 4)
+  the optional brand (`Loadout.cs:14-22`). `Loadouts.Materialize` (`:113-167`) builds hull and slots through
+  `Resolve` (`:174-214`). A pinned product is built as named whatever the chooser says. A design with no
+  product at all is built unbranded, with no maker, at `UnbrandedQuality` .95. Otherwise the chooser picks.
+  So a boss Loadout needs no format change, and the boss is built by the same builder as scenario fits and
+  capture. Header and comments still say "preset (a variant)", which ruling `boss-gear-is-a-loadout`
+  corrects. `ActionGameManager.cs:645-647` prints "Preset '...'".
+- **BL4. What is on the market today (probe: every enumeration of designs and products).** Every generated
+  draw goes through `LoadoutGenerator.AvailableProducts` (`:188-210`): hulls, gear, station stock and
+  consumables. It enumerates `FactionProductData` and filters by `IsAvailable` (`:251-253`), the design's
+  price > 0 and a gear home. `ChooseProduct` (`:262-272`) is the chooser for design-only slots. It
+  enumerates products and filters by the same `IsAvailable`. `SoldHulls` (`:237-238`), the hulls that
+  give gear a home, enumerates products. No game path offers a design except through a product. The design
+  enumerations found are `ShipModShips.cs:44` (visual prototypes), `ShipAuthoring.cs:181` (package load),
+  `ShipModCatalog.cs:139`, `ZoneGenerator.cs:274` (station reach), console `give` (`ActionGameManager.cs:539`)
+  and AetherDb reports. None of them stocks, spawns or sells. So **an item is on the market iff some product
+  of it is on offer** is already the rule, and its one owner is the product set read through
+  `AvailableProducts`, `ChooseProduct` and `SoldHulls`. The price-0 filter in `AvailableProducts` is a
+  second, partial gate. `ChooseProduct` and `SoldHulls` ignore it, and package validation refuses price 0
+  for a hull with products (`ShipAuthoring.cs:220-229`). It is value, not market membership, and is not a
+  candidate mechanism.
+- **BL5. "No product" already has a meaning.** Scenarios ruling Q3 (`docs/scenarios-cut.md:20`, `:155`) says
+  "a design no product sells is a scenario test design and nothing else". `ScenarioTests.cs:576-610`
+  (`EveryUnsoldDesignIsAScenarioTestDesign`) and `ProductLinesCatalogTests.cs:14-34` (weapon designs: Smoke
+  only) pin it. A package hull may ship with no products (`ShipAuthoring.cs:222`, `if (products.Length == 0)
+  return;`).
+- **BL6. Brand rulings.** `designs-are-tech-nodes`: flavour names belong to products.
+  `catalog-grows-generic-designs-branded-products`: branding lives in products. With no product, a boss
+  hull's only name is its design's, and its quality is .95 rather than drawn from its maker's
+  `Faction.Assembly` (key 19).
+- **BL7. Boss consumers that stay.** `Galaxy.PlaceGate` (`Galaxy.cs:148-151`) maps the demo antagonist's home
+  to `BossZones` and `Exit` whatever the antagonist flies. `RunGoal` (`RunGoal.cs:10-17`) opens the gate only
+  when the exit zone spawned a boss and it is dead (it fails closed). `EntityPack.Boss` and
+  `EntitySerializer` (`:31`, `:85`) are unchanged. `ActionGameManager.cs:365` says "Its guardian holds it
+  shut" when no boss is present.
+- **BL8. Tests on the old path.** `RunGoalTests.cs` (329 lines): `Boss_hull_from_BossHull_else_fallback`
+  (`:73-97`), `Boss_hull_nobody_sells_falls_back` (`:99-115`) and `Exit_sealed_when_no_ship_hull_is_on_offer`
+  (`:214-228`) pin the fallback. `Exit_open_only_in_the_exit_zone` (`:193-212`) sets `BossHull`. Five tests
+  rely on a demo boss existing on the bare catalog (`:41-71`, `:116-160`, `:230-240`). No other test reads
+  `BossHull` or `GenerateBossLoadout` (grep). Other tests touch `BossZones` only as saved-game fields.
+- **BL9. Reusable from `90f977bf`.** The Loadout.cs header rewrite (`git show 90f977bf:Assets/Scripts/ServerShared/Loadout.cs`,
+  lines 9-13). The ZoneGenerator boss block shape (Materialize with `liveZone: null` and
+  `GetLoadoutGenerator(bossFaction).ChooseProduct`; green in h2's full run at `d912cf44`, 2431 passed).
+  The fixture pattern `MakeBossLoadout` (capture a generated fit, keep its weapon slots, renumber groups) and
+  `StoreLoadout` through `_cache.Commit(batch => batch.Upsert(typeof(Loadout), ...))` (`fc992f5a`).
+  h2's diagnosis that three r3 failures were the fixture name "Lucent" for "Lucent Media". h2's
+  `LoadoutCommitCommand` (125 lines, plus 210 lines of tests) takes a hull *product*. It is for the next
+  cut and must accept a hull design.
 
-### Rationale (r4)
+### Rationale (r1)
 
-- **One owner of what a boss flies:** `Loadouts.BossOf(CultCache, Faction, out BossRefusal)`, in
-  `Loadout.cs` beside the other owners of Loadout records. It takes `BossHullsOf(items, faction)[0]`
-  and returns the Loadout whose `HullProduct` key is that product's key, first by Name ordinal.
-  When there is none, it returns null with `NoBossHull` or `NoLoadout`. It reads no `Random`, no
-  model and no availability rule. `ZoneGenerator`'s boss block, `Galaxy.PlaceFactionsMain` and
-  AetherDb `factions` all call it. `LoadoutGenerator.BossHullsOf` stays the one owner of which hull
-  is a boss.
-- **Keyed on the product, not the hull** (BH13). A Boss hull two makers sell is a boss of each,
-  and each maker's boss is the Loadout on its own product. No field on Faction or the product
-  points at a Loadout, so no second record can disagree with the Loadout.
-- **No generator on the boss path.** `GenerateBossLoadout`, its priciest-hull fallback and
-  `ShipLoadout(product)` are deleted. `GenerateShipLoadout` gets back its single body, because the
-  boss was `ShipLoadout`'s only other caller. The boss is built by `Loadouts.Materialize`, the one
-  builder from a Loadout (BH14). It carries exactly its cells: no tractor pickup, no consumables
-  and no outfit pass.
-- **The chooser is not a draw of gear.** Materialize needs a chooser only for a design-only slot.
-  Ruling `loadout-product-optional-context-chooses` says that slot's product is chosen by context,
-  and `ChooseProduct` is that rule's owner. It never picks a design, a cell or the hull. The
-  negative check forbids every generator draw on the boss path (`GenerateShipLoadout`,
-  `RandomHull`, `RandomProduct(s)`, `OutfitEntity`, `EquipPickup`, `StockConsumables`). An agent
-  who wants the brand fixed pins the slot's product.
-- **A typed refusal, never a fallback.** `BossRefusal { None, NoBossHull, NoLoadout }`.
-  `Loadouts.Describe` names the missing field (`HullData.Boss`, `Loadout.HullProduct`) and echoes
-  no product name or record key. The zone logs `<faction> has no boss: it <describe>.`, spawns
-  nothing and leaves `BossSpawned` false, so the exit gate fails closed through boss-gate's
-  existing rule. A Loadout that does not fit is logged with Materialize's failures and also spawns
-  nothing.
-- **Galaxy picks factions that have a boss to fly.** In the main galaxy, a faction with a Boss
-  hull but no Loadout gets no boss zone. That keeps a placed boss zone from being empty by
-  construction.
-- **Authoring** (ruling `boss-loadouts-agent-authored`). AetherDb `loadout-commit <name> <hull
-  product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group i,j]... [--replace]` writes one
-  Loadout through `Loadouts.Commit`, which stays the only writer. The command first resolves every
-  name exactly and test-materializes the Loadout, so a typo or a misfit refuses before anything is
-  written. The operator adjusts the record in Studio afterwards. The command is argument-driven,
-  not a coded table like `product-lines tiers`. A coded table replayed at merges would fight her
-  Studio edits. The record in the catalog is the authority, and the commit message records the
-  command line for a merge replay.
-- **Vocabulary.** `Loadout.cs` says "Loadout" throughout. "Preset" and "variant" go from its
-  comments and messages. The wider sweep (the `capturepreset` console command, `ScenarioStage`,
-  `Provenance`, `LoadoutGenerator` and `ActionGameManager` comments) is follow-up
-  `loadout-vocabulary-sweep`.
-- **Kept from r3 (h1, landed):** Faction.BossHull is deleted with key 10 retired, `HullData.Boss`
-  Key(33) stays, `BossHullsOf` stays, the exclusive clause in `AvailableProducts` stays (ruling
-  `boss-hulls-exclusive`), and `ship-authoring boss`, the compose test and the no-authored-model
-  test stay (ruling `hull-programmer-art-reads-as-stand-in`).
-- **Revoked from r3:** `GenerateBossLoadout` through `BossHullsOf` and `ShipLoadout(product)`, the
-  AetherDb `loadout` boss branch, `Boss_without_a_boss_hull_falls_back`, and the "makes no boss
-  hull" log.
-- **Prior art (from memory, medium confidence; no Eyes pass this round):** Starsector's unique
-  bosses (for example the Ziggurat and the Omega flagships) fly hand-authored variant files
-  attached to a scripted fleet, never the faction's autofit. EVE's officer and faction-commander
-  spawns have fixed fittings per NPC type. Both match a fixed record keyed to the boss, with no
-  generator.
+- **Which Loadout is a faction's boss.** One owner: the field `Faction.BossLoadout` (key 22), authored in
+  Studio or by an agent command (ruling `boss-loadouts-agent-authored`). `Loadouts.BossOf(items, faction, out
+  BossRefusal)` is its one resolver (Unset, Missing). ZoneGenerator, Galaxy's main-galaxy pick and AetherDb
+  `factions` call it. Nothing derives a boss from hulls, products or flags.
+- **What a boss flies.** Its Loadout, through `Loadouts.Materialize`, whose chooser
+  (`ChooseProduct`) only brands a design-only slot (ruling `loadout-product-optional-context-chooses`). No
+  generator draw sits on the boss path, and nothing is outfitted, picked up or stocked.
+- **What is on the market.** BL4: on the market iff a product of the item is on offer, owned by the product
+  set through `AvailableProducts`, `ChooseProduct` and `SoldHulls`. A boss hull reaches a ship only through a
+  Loadout, which names it by design (`Loadout.Hull`) or pins its product. This cut adds no off-market code. No
+  boss hull exists yet (ruling `demo-boss-hull-invented`), so nothing in this cut depends on how an
+  off-market item is marked. Question `off-market-items-keep-a-maker` asks whether an off-market item keeps a
+  maker, a brand and a drawn quality. If it does, its product carries one general not-offered field read by
+  `IsAvailable` and `SoldHulls`. If it does not, it has no product, and the Q3 census accepts a design a
+  Loadout names. The recommendation is the field (BL5, BL6). The answer lands with the boss-hull authoring
+  cut.
+- **The demo exit meanwhile.** After this cut and until a Zhestokost boss Loadout is authored, the demo exit
+  zone logs "Zhestokost has no boss: it sets no Faction.BossLoadout." and the exit-without-boss line. No boss
+  spawns, `BossSpawned` stays false, and the gate stays sealed (RunGoal fails closed). **The demo cannot be
+  won.** The sealed-gate dialog says "Its guardian holds it shut", which is wrong while no guardian exists.
+  That stands until the boss lands; it is not reworded here.
+- **Rejected.** A boss flag on hulls (operator, ruling `faction-boss-is-a-loadout-reference`). Excluding
+  hulls named by any boss Loadout from `AvailableProducts`: a boss-specific clause, barred by ruling
+  `off-market-is-general`. Price 0 as the off-market mark (BL4). Keeping a generated fallback: barred by
+  rulings `boss-gear-is-a-loadout` and `demo-boss-hull-invented`.
 
-### Model page rows
+### Cut sequence (boss strand)
 
-Replace the rows in "Demo scope, Model page rows" (`Boss hull`, `Faction.BossHull`), and add the
-boss Loadout row:
-
-| Kind | Identity | Lifecycle | Authority |
-|---|---|---|---|
-| Boss hull | `HullData.Boss` (key 33, bool) on any HullData: shipped, package, or agent-built stopgap | Set by `ship-authoring boss <ship.cc> on\|off` on packages, or in Studio's inspector on catalog hulls. Derived per generation; stored nowhere | The hull's author sets the flag. `LoadoutGenerator.BossHullsOf` derives the faction from the product's maker |
-| Boss Loadout | A `Loadout` record (`aetheria.loadout` v1) whose `HullProduct` is a faction's Boss hull product, at `Loadouts.KeyOf(name)` | Written by AetherDb `loadout-commit` (agents) or the in-game capture, both through `Loadouts.Commit`. Studio edits after that. Read at zone generation by `Loadouts.BossOf` | `Loadouts.BossOf` alone decides what a boss flies, and `Loadouts.Materialize` builds it. No generator draw |
-| `Faction.BossHull` (key 10) | Retired; never reuse | Deleted by `boss-hull-derived`. The shipped records keep `''` in the slot (BH5) | none |
-
-### Cut sequence
-
-- `boss-hull-derived` (spec `cut-boss-hull-derived.r4`, branch at `095baf2f`). Its merge waits on
-  question `demo-boss-before-its-hull`.
-- If `interim-catalog-boss` is chosen: `zhestokost-interim-boss`, a sibling content cut that lands
-  with r4. Through AetherDb it writes a catalog Boss hull copied from the hull today's demo boss
-  flies (BH10), plus its Zhestokost product and its Loadout (`loadout-commit`). It is replayed at
-  merges and replaced when the real Zhestokost Boss hull lands.
-- `package-boss-loadout`: a package carries its boss Loadout, as it carries its product (ruling
-  `package-carries-product`, BH15). `ship.cc` gains Loadout records, Compose writes them under a
-  `mod-loadout:` key that `IsModKey` knows, and `ship-authoring loadout` writes them. It is needed
-  before the first package Boss hull can be a boss. `BossOf` already matches it unchanged, by
-  `HullProduct` key in the composed cache.
-- `demo-cast-hulls`'s "Waits on" reads "boss-hull-derived (spec cut-boss-hull-derived.r4)" until it
-  merges.
+- `boss-loadout` (spec `cut-boss-loadout.r1`): `Faction.BossLoadout` replaces `BossHull`;
+  `GenerateBossLoadout` is deleted; the boss refuses typed.
+- Next: boss Loadout authoring. AetherDb `loadout-commit` (from h2, taking a hull design with an optional
+  `@product`) and a way to set `Faction.BossLoadout`. It lands with the answer to
+  `off-market-items-keep-a-maker` and the invented Zhestokost hull (follow-up `zhestokost-boss-loadout`).
 
 ## Product tiers
 
