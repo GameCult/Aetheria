@@ -96,15 +96,15 @@ public class Galaxy
         SectorBackgroundSettings background, 
         CultCache cache,
         Action<string> log,
-        Action<string> progressCallback = null,
-        uint seed = 0)
+        Action<string> progressCallback,
+        uint seed)
     {
         _cache = cache;
         IsPrelude = false;
         Background = background;
         Log = log;
         var factions = cache.GetAll<Faction>();
-        Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        Seed = seed != 0 ? seed : throw new ArgumentOutOfRangeException(nameof(seed), "a generated galaxy takes its run's seed from GalaxyStage, never zero");
         var random = new Random(Seed);
         Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
         foreach (var f in Factions) FactionRelationships[f] = FactionRelationship.Neutral;
@@ -163,15 +163,15 @@ public class Galaxy
         PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
         Action<string> log,
-        Action<string> progressCallback = null,
-        uint seed = 0)
+        Action<string> progressCallback,
+        uint seed)
     {
         _cache = cache;
         IsPrelude = true;
 
         Background = background;
         Log = log;
-        Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        Seed = seed != 0 ? seed : throw new ArgumentOutOfRangeException(nameof(seed), "a generated galaxy takes its run's seed from GalaxyStage, never zero");
         var random = new Random(Seed);
         
         var factions = new List<Faction>();
