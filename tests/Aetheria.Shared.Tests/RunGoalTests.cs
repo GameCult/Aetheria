@@ -94,9 +94,13 @@ public sealed partial class RunStartTests
         if (openIf != null) fit.Slots.First(slot => openIf(_cache.Get(slot.Design))).Product = default;
         fit.Hull = _cache.RefOf(boss);
         fit.HullProduct = _cache.RefOf(_cache.GetAll<FactionProductData>().Single(product => _cache.Get(product.Design) == boss && _cache.Get(product.Manufacturer) == maker));
-        _cache.Upsert(typeof(Loadout), fit, Loadouts.KeyOf(name));
+        StoreLoadout(fit);
         return fit;
     }
+
+    // A Loadout record at Loadouts.KeyOf(Name), the key Loadouts.Commit writes it under.
+    private void StoreLoadout(Loadout loadout) =>
+        Assert.True(_cache.Commit(batch => batch.Upsert(typeof(Loadout), loadout, Loadouts.KeyOf(loadout.Name))));
 
     // The demo's antagonist gets a Boss hull and its Loadout: the shipped catalog has neither.
     private HullData GiveAntagonistABoss(Galaxy galaxy)
@@ -147,11 +151,11 @@ public sealed partial class RunStartTests
         MakeBossLoadout(c, antagonist, "Aab loadout of Boss C");
         MakeBossLoadout(a, antagonist, "Zz second loadout of Boss A");
         MakeBossLoadout(a, antagonist, "Zz first loadout of Boss A");
-        _cache.Upsert(typeof(Loadout), new Loadout
+        StoreLoadout(new Loadout
         {
             Name = "Aac loadout of the decoy", Hull = _cache.RefOf(priciest),
             HullProduct = new CultRecordRef<FactionProductData>(decoyRef.Key)
-        }, Loadouts.KeyOf("Aac loadout of the decoy"));
+        });
 
         Assert.Equal(new[] { "Boss A", "Boss B", "Boss C" }, LoadoutGenerator.BossHullsOf(_cache, antagonist).Select(entry => entry.hull.Name));
         var loadout = Loadouts.BossOf(_cache, antagonist, out var refusal);
@@ -535,7 +539,7 @@ public sealed partial class RunStartTests
         var hull = MakeBoss("Boss A", 100, antagonist);
         var loadout = MakeBossLoadout(hull, antagonist, "Unfittable loadout");
         loadout.Slots[0].Position = new int2(999, 999);
-        _cache.Upsert(typeof(Loadout), loadout, Loadouts.KeyOf(loadout.Name));
+        StoreLoadout(loadout);
         Assert.Equal("Unfittable loadout", Loadouts.BossOf(_cache, antagonist, out _).Name);
 
         var log = new List<string>();

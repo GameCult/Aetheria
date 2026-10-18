@@ -139,7 +139,7 @@ public sealed class LoadoutCommitCommandTests : IDisposable
                 case "mod-design":
                     var mod = Copy(cache.GetAll<EquippableItemData>().Single(d => d.Name == fit.designName));
                     mod.Name = "Mod gadget";
-                    cache.Upsert(mod.GetType(), mod, new CultRecordKey("mod-ship:mod.gadget"));
+                    Assert.True(cache.Commit(batch => batch.Upsert(mod.GetType(), mod, new CultRecordKey("mod-ship:mod.gadget"))));
                     break;
             }
             cache.FlushAsync().Wait();
