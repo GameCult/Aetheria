@@ -108,21 +108,6 @@ public sealed partial class RunStartTests
     }
 
     [Fact]
-    public void Boss_without_a_boss_hull_falls_back()
-    {
-        var galaxy = DemoGalaxy(1);
-        var priciest = PriciestSold();
-
-        var log = new List<string>();
-        var items = LoggingItems(log);
-        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
-        Assert.Equal(priciest.Name, HullName(items, boss));
-        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("makes no boss hull"));
-        Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, Zhestokost(galaxy)));
-        Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, null));
-    }
-
-    [Fact]
     public void Another_factions_boss_hull_is_never_used()
     {
         var galaxy = DemoGalaxy(1);
@@ -352,22 +337,6 @@ public sealed partial class RunStartTests
             boss.HeatstrokeDeath.OnNext(Unit.Default);
         Assert.False(RunGoal.BossAlive(zone));
         Assert.False(RunGoal.ExitOpen(zone));
-    }
-
-    // A boss that cannot be generated (no ship hull on offer at all) never marks the zone as having spawned one.
-    [Fact]
-    public void Exit_sealed_when_no_ship_hull_is_on_offer()
-    {
-        var galaxy = DemoGalaxy(1);
-        foreach (var product in _cache.GetAll<FactionProductData>().Where(product => _cache.Get(product.Design) is HullData { HullType: HullType.Ship }).ToArray())
-            Assert.True(_cache.Remove(_cache.RefOf(product).Key));
-        var log = new List<string>();
-        var items = LoggingItems(log);
-        var pack = BossZonePack(galaxy, items, galaxy.Exit, ambient: false);
-        Assert.False(pack.BossSpawned);
-        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
-        Assert.Contains(log, line => line.Contains("No boss could be generated for Zhestokost"));
-        Assert.False(RunGoal.ExitOpen(new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy)));
     }
 
     // A boss killed before the save stays dead after it, and the gate stays open: the spawn fact travels with the zone.

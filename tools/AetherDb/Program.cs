@@ -806,18 +806,13 @@ public static class Program
             string outcome;
             try
             {
-                // Generation never offers a Boss hull, so one is built through its first product.
-                var bossProduct = hull.Boss && hull.HullType == HullType.Ship
-                    ? db.Cache.GetAll<FactionProductData>().Where(p => db.Cache.Get(p.Design) == hull).OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault()
-                    : null;
                 var pack = hull.HullType switch
                 {
-                    HullType.Ship when hull.Boss => bossProduct == null ? null : generator.ShipLoadout(bossProduct),
                     HullType.Ship => generator.GenerateShipLoadout(candidate => candidate == hull),
                     HullType.Turret => generator.GenerateTurretLoadout(),
                     _ => generator.GenerateStationLoadout()
                 };
-                outcome = pack != null ? "ok" : hull.Boss && hull.HullType == HullType.Ship ? "NO LOADOUT (boss hull with no product)" : "NO LOADOUT (nothing suitable found)";
+                outcome = pack != null ? "ok" : "NO LOADOUT (nothing suitable found)";
                 if (pack == null) failures++;
                 if (pack != null && log.Any(l => l.Contains("targeting system available", StringComparison.OrdinalIgnoreCase))) targetingGaps++;
             }
