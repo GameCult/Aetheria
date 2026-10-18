@@ -350,6 +350,11 @@ class LanguageOwnershipTests(unittest.TestCase):
         fixture.hull_lang = language() + language(symmetry=("asymmetric", 0.99))
         self.assertEqual(fixture.failed(), [self.OWN])
 
+    def test_the_genuine_language_echoed_after_an_altered_one_does_not_save_the_hull(self):
+        fixture = Fixture()
+        fixture.hull_lang = language(symmetry=("asymmetric", 0.99)) + language()
+        self.assertEqual(fixture.failed(), [self.OWN])
+
     def test_a_hull_that_echoes_no_language_or_another_factions_fails(self):
         for text in ("", language("rnd")):
             fixture = Fixture()
@@ -392,9 +397,12 @@ class FakeOpenScad:
 class LanguageLibraryTests(unittest.TestCase):
     def test_a_faction_name_that_is_not_a_plain_word_or_has_no_file_is_refused_without_a_process(self):
         with tempfile.TemporaryDirectory() as folder, mock.patch.object(hs.subprocess, "Popen") as popen:
-            (Path(folder) / "zhestokost.scad").write_text("", encoding="utf-8")
-            read = hs.language_library("openscad", Path(folder))
-            for faction in ("../zhestokost", "Zhestokost", "", "nobody", "zhestokost.scad"):
+            library = Path(folder) / "languages"
+            library.mkdir()
+            (library / "zhestokost.scad").write_text("", encoding="utf-8")
+            (Path(folder) / "escape.scad").write_text("", encoding="utf-8")  # a file outside the library
+            read = hs.language_library("openscad", library)
+            for faction in ("../escape", "Zhestokost", "", "nobody", "zhestokost.scad"):
                 with self.assertRaises(hs.HullSourceError) as caught:
                     read(faction)
                 self.assertNotIn("nobody", str(caught.exception))
