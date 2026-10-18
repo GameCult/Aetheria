@@ -551,6 +551,79 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(.2f, items.GetTier(secondInstance).tier.Quality, 3);
     }
 
+    // The shipped tiers (Settings.asset) band a lot's effective quality, so the tier hides a sleeper whose part sits above
+    // its assembly (price-follows-effective-quality). Assembly at the fourth threshold, parts at the top and bottom
+    // thresholds: the capped mean falls in the second band, where the uncapped part mean reaches the third, the assembly
+    // alone the fourth and the best part the fifth.
+    [Fact]
+    public void GetTierHidesAnOverSpecPart()
+    {
+        using var cache = Open();
+        var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+        var tiers = settings.Tiers;
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        var assembly = tiers[3].Quality;
+        var sleeperLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp),
+            Origin = new Attributed(),
+            Quality = assembly,
+            Roles = new List<RoleFill>
+            {
+                new RoleFill { Role = "lens", Quality = tiers[4].Quality },
+                new RoleFill { Role = "frame", Quality = tiers[0].Quality }
+            }
+        });
+        var cappedMean = (assembly + tiers[0].Quality) / 2f;
+        var rolelessLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = cappedMean, Roles = new List<RoleFill>() });
+
+        var sleeper = items.GetTier((CraftedItemInstance) items.CreateInstance(sleeperLot));
+        var roleless = items.GetTier((CraftedItemInstance) items.CreateInstance(rolelessLot));
+        Assert.Equal(tiers[1].Name, sleeper.tier.Name);
+        Assert.Equal(roleless.tier.Name, sleeper.tier.Name);
+        Assert.Equal(roleless.upgrades, sleeper.upgrades);
+    }
+
+    // The tolerance is open: a quality a full .001 under a threshold stays in the tier below, one inside it reaches the
+    // threshold's tier. Upgrades count steps of .0499 above the tier's threshold. Every value comes from the shipped tiers.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void GetTierToleranceIsOpenAtEveryShippedThreshold(int index)
+    {
+        using var cache = Open();
+        var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+        var tiers = settings.Tiers;
+        Assert.True(tiers.Length > index, "premise: the shipped asset carries this tier");
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        string TierAt(float quality) => items.GetTier((CraftedItemInstance) items.CreateInstance(items.Lots.Add(
+            new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = quality, Roles = new List<RoleFill>() }))).tier.Name;
+
+        var threshold = tiers[index].Quality;
+        Assert.Equal(tiers[index - 1].Name, TierAt(threshold - .001f));
+        Assert.Equal(tiers[index].Name, TierAt(threshold - .0005f));
+        Assert.Equal(tiers[index].Name, TierAt(threshold));
+    }
+
+    [Fact]
+    public void GetTierUpgradesAreStepsOfFortyNineNinetyNinePerTenThousand()
+    {
+        using var cache = Open();
+        var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        // Two steps and a hair above the lowest threshold: the step width decides whether that counts as two or one.
+        var quality = settings.Tiers[0].Quality + 2 * .0499f + .0001f;
+        var lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = quality, Roles = new List<RoleFill>() });
+        var result = items.GetTier((CraftedItemInstance) items.CreateInstance(lot));
+        Assert.Equal(settings.Tiers[0].Name, result.tier.Name);
+        Assert.Equal(2, result.upgrades);
+    }
+
     // S7 (docs/stats-and-power-cut.md Cut 1 findings): a Quality term must raise the lot's quality to its own
     // declared Exponent, not always to 1. StatsReadTheLot uses Exponent = 1 throughout, which cannot distinguish
     // "read the term's exponent" from "always use 1" -- pow(x, 1) == x either way. Exponent = 2 here can: a
