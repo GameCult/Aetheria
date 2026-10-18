@@ -186,7 +186,10 @@ public sealed partial class RunStartTests
 
         string Cell(LoadoutSlot slot, string brand) => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{_cache.Get(slot.Design).Name},{brand}";
         var pinned = loadout.Slots.Where(slot => slot != open).Select(slot => Cell(slot, _cache.Get(slot.Product).Name)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
-        var brands = _cache.GetAll<FactionProductData>().Where(product => product.Design.Key.Equals(open.Design.Key)).Select(product => product.Name).ToArray();
+        // The brands the context can choose for it: what the antagonist's own outfitter picks over many draws, never by key order.
+        var brands = Enumerable.Range(1, 64).Select(seed => GeneratorFor(galaxy, _items, antagonist, (uint) seed).ChooseProduct(_cache.Get(open.Design))?.Name)
+            .Where(name => name != null).Distinct().ToArray();
+        Assert.NotEmpty(brands);
 
         var items = LoggingItems(new List<string>());
         var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
