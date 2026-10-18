@@ -22,7 +22,7 @@ import bpy
 import numpy
 from mathutils import Matrix, Vector
 
-from . import hull_grid
+from . import hull_grid, hull_source
 from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
                       encode_hardpoint, layout_revision, read, read_layout, replace_layout, replace_lines,
                       replace_visual, valid_ship_id)
@@ -609,6 +609,9 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
             return _refuse(self, exc)
 
 
+DEFAULT_OPENSCAD = r"C:\Tools\OpenSCAD-2026.09.23-x86-64\openscad.com"
+
+
 class AETHERIA_AP_preferences(bpy.types.AddonPreferences):
     bl_idname = __package__
 
@@ -636,8 +639,14 @@ class AETHERIA_AP_preferences(bpy.types.AddonPreferences):
         name="Bake max ray distance", default=0.0, min=0.0, unit="LENGTH",
         description="The longest ray, in metres, Bake From Source casts from the extruded surface. 0 means no limit")
 
+    openscad: bpy.props.StringProperty(
+        name="OpenSCAD", subtype="FILE_PATH", default=DEFAULT_OPENSCAD,
+        description="The OpenSCAD executable (openscad.com on Windows, 2026.09 or later: Build From Hull Source uses its "
+                    "Manifold backend)")
+
     def draw(self, context):
         self.layout.prop(self, "game_folder")
+        self.layout.prop(self, "openscad")
         self.layout.prop(self, "max_texture")
         self.layout.prop(self, "bake_size")
         self.layout.prop(self, "bake_cage_extrusion")
@@ -1515,6 +1524,146 @@ def _frame_ship(context, collection, root, path, saved_shape):
     _recentre(root, hull_grid.cell_centre((float(origin[0]), float(origin[1])), centre[0], centre[1]))
 
 
+HULL_SOURCE_MARK = "aetheria.hull_source"  # set on every object Build From Hull Source makes; Build replaces only these
+HULL_COLLIDER = ("hull-collider", "collider", "Hull Collider")
+
+
+def _hull_source_file(collection):
+    """The bound package's hull.scad, or None. A package holds one next to its ship.cc while its hull is agent-built."""
+    stored = collection.get("aetheria.ship_cc")
+    if not stored or collection.get("aetheria.pending"):
+        return None
+    source = Path(bpy.path.abspath(stored)).with_name(hull_source.HULL_FILE)
+    return source if source.is_file() else None
+
+
+def _hull_source_objects(collection):
+    return [obj for obj in collection.all_objects if obj.get(HULL_SOURCE_MARK)]
+
+
+def _hull_material(ship_id, zone, colour, emissive=False):
+    """The zone's material: a flat colour from the language palette, made once per ship and zone, recoloured on a rebuild."""
+    name = f"{ship_id}.{zone}"
+    material = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    material.use_nodes = True
+    shader = _principled(material)
+    shader.inputs["Base Color"].default_value = (*colour, 1.0)
+    shader.inputs["Metallic"].default_value = 0.0
+    shader.inputs["Roughness"].default_value = 0.85
+    shader.inputs["Emission Color"].default_value = (*colour, 1.0)
+    shader.inputs["Emission Strength"].default_value = 1.0 if emissive else 0.0
+    return material
+
+
+def _hull_mesh(name, mesh, material, offset=(0.0, 0.0, 0.0), yaw=0.0):
+    """A flat-shaded mesh of the hull source's, expressed in the frame of an object that stands at offset, turned yaw."""
+    cos, sin = math.cos(-yaw), math.sin(-yaw)
+    vertices = [((x - offset[0]) * cos - (y - offset[1]) * sin, (x - offset[0]) * sin + (y - offset[1]) * cos,
+                 z - offset[2]) for x, y, z in mesh.vertices]
+    data = bpy.data.meshes.new(name)
+    data.from_pydata(vertices, [], [tuple(tri) for tri in mesh.triangles])
+    data.update()
+    data.materials.append(material)
+    return data
+
+
+def _build_hull_source(context, collection, runner=None):
+    """Replaces the objects Build made before with the hull source's zone meshes, anchors and collider under Ship Root.
+    Refuses, before anything changes, when the source cannot be read, breaks a check of its faction's language, or the
+    collection holds render meshes Build did not make (operator art: Build never overwrites it). Writes no layout row."""
+    source = _hull_source_file(collection)
+    if source is None:
+        raise ValueError("The bound package holds no hull.scad")
+    root = _ship_root(collection)
+    if root is not None:
+        _refuse_loose_meshes(context, collection)
+        if any(not obj.get(HULL_SOURCE_MARK) for obj in _own_meshes(collection)):
+            raise ValueError("The collection holds meshes the hull source did not make; Build From Hull Source "
+                             "replaces only its own objects")
+    addon = context.preferences.addons.get(__package__)
+    executable = addon.preferences.openscad if addon and addon.preferences else DEFAULT_OPENSCAD
+    hull = hull_source.build(runner or hull_source.openscad_runner(executable, source))
+    broken = hull.failed()
+    if broken:
+        raise ValueError("The hull source breaks its faction's language or its brief: " + "; ".join(c.name for c in broken))
+    ship_id = collection["aetheria.id"]
+    if root is None:
+        root = bpy.data.objects.new(SHIP_ROOT, None)
+        root["aetheria.ship_root"] = True
+        collection.objects.link(root)
+    for obj in _hull_source_objects(collection):
+        _discard_object(obj)
+
+    def mark(obj):
+        obj[HULL_SOURCE_MARK] = True
+        return obj
+
+    def link(obj):
+        collection.objects.link(obj)
+        _attach_to_root(obj, root)
+        return mark(obj)
+
+    for zone, mesh in hull.zones.items():
+        name = zone.replace(":", ".")
+        link(bpy.data.objects.new(name, _hull_mesh(name, mesh, _hull_material(ship_id, name, hull.colours[zone]))))
+    placed, anchors = {}, {a.id: a for a in hull.anchors}
+    for anchor in hull.anchors:  # a muzzle follows its mount in the echo order the source gave
+        yaw = math.radians(anchor.yaw)
+        if anchor.role in hull_source.MESH_ROLES:
+            colour, emissive = (hull.glow, True) if anchor.role == "thruster-emitter" else (hull.radiator, False)
+            material = _hull_material(ship_id, f"{anchor.role}.{anchor.id}", colour, emissive)
+            obj = link(bpy.data.objects.new(
+                anchor.id, _hull_mesh(anchor.id, hull.anchor_meshes[anchor.id], material, anchor.position, yaw)))
+            obj.location, obj.rotation_euler = anchor.position, (0.0, 0.0, yaw)
+            obj["aetheria.role"], obj["aetheria.id"] = anchor.role, anchor.id
+        elif anchor.role == "weapon-mount":
+            obj = mark(_make_empty(collection, anchor.id, anchor.role, root, anchor.position, yaw))
+        else:
+            mount = anchors[anchor.parent]
+            turn = -math.radians(mount.yaw)
+            dx, dy = anchor.position[0] - mount.position[0], anchor.position[1] - mount.position[1]
+            local = (dx * math.cos(turn) - dy * math.sin(turn), dx * math.sin(turn) + dy * math.cos(turn),
+                     anchor.position[2] - mount.position[2])
+            order = 1 + len(_muzzles(placed[anchor.parent]))
+            obj = mark(_make_empty(collection, anchor.id, anchor.role, placed[anchor.parent], local, order=order))
+        placed[anchor.id] = obj
+    role, anchor_id, name = HULL_COLLIDER
+    collider = link(bpy.data.objects.new(name, _hull_mesh(
+        name, hull.zones[hull.body_zone], _hull_material(ship_id, "collider", (0.5, 0.5, 0.5)))))
+    collider["aetheria.role"], collider["aetheria.id"] = role, anchor_id
+    return hull
+
+
+def _retire_hull_source(collection):
+    """Deletes the package's hull.scad when operator art is what was packaged: the collection holds render meshes and
+    none of Build's objects. A hull never built, or built and packaged as it stands, keeps its source. Returns whether the
+    file was deleted."""
+    source = _hull_source_file(collection)
+    root = _ship_root(collection)
+    if source is None or root is None or _hull_source_objects(collection) or not _own_meshes(collection):
+        return False
+    source.unlink()
+    return True
+
+
+class AETHERIA_OT_build_hull_source(bpy.types.Operator):
+    bl_idname = "aetheria.build_hull_source"
+    bl_label = "Build From Hull Source"
+    bl_description = ("Replace the hull's generated objects with the meshes, mount anchors and collider that the "
+                      "package's hull.scad describes, after checking it against its faction's form language. Never "
+                      "touches the layout or objects you made")
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, _ = _layout_path(context)
+            hull = _build_hull_source(context, collection)
+            self.report({"INFO"}, f"Built {len(hull.zones)} zones and {len(hull.anchors)} anchors from hull.scad")
+            return {"FINISHED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+
+
 class AETHERIA_OT_package_ship(bpy.types.Operator):
     bl_idname = "aetheria.package_ship"
     bl_label = "Package Ship"
@@ -1567,6 +1716,8 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             self.report({"ERROR"}, scene.aetheria_package_report)
             return {"CANCELLED"}
         scene.aetheria_package_report = f"Packaged {len(anchors)} anchors; the validator accepted the ship"
+        if _retire_hull_source(collection):
+            scene.aetheria_package_report += "; deleted hull.scad: this package ships your art"
         self.report({"INFO"}, scene.aetheria_package_report)
         return {"FINISHED"}
 
@@ -1610,6 +1761,11 @@ class AETHERIA_PT_ship(bpy.types.Panel):
         row.operator("aetheria.flip_nose", icon="LOOP_BACK")
         row.operator("aetheria.rasterise_hull", icon="MESH_GRID")
         layout.operator("aetheria.bake_from_source", icon="RENDER_RESULT")
+        try:
+            if _hull_source_file(_ship_collection(context)) is not None:
+                layout.operator("aetheria.build_hull_source", icon="MESH_CUBE")
+        except ValueError:
+            pass
         if not state.ship_id:
             self._draw_package(context, layout)
             return
@@ -1685,7 +1841,8 @@ classes = (AETHERIA_PG_cell, AETHERIA_PG_hardpoint, AETHERIA_PG_layout,
            AETHERIA_OT_save_layout, AETHERIA_OT_bind_ship_collection,
            AETHERIA_OT_capture_ship_lines, AETHERIA_OT_new_ship, AETHERIA_OT_flip_nose,
              AETHERIA_OT_bake_from_source,
-           AETHERIA_OT_rasterise_hull, AETHERIA_OT_package_ship, AETHERIA_AP_preferences, AETHERIA_PT_ship)
+           AETHERIA_OT_rasterise_hull, AETHERIA_OT_build_hull_source, AETHERIA_OT_package_ship,
+           AETHERIA_AP_preferences, AETHERIA_PT_ship)
 
 
 def register():
