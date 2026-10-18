@@ -555,6 +555,11 @@ public class HullData : EquippableItemData
     [Inspectable, JsonProperty("visual"), Key(32)]
     public CultRecordRef<ShipAuthoring> Visual;
 
+    // Only bosses fly this hull. Which factions it is a boss for comes from its products' makers
+    // (LoadoutGenerator.BossHullsOf), so the flag names no faction and reads no model.
+    [Inspectable, JsonProperty("boss"), Key(33)]
+    public bool Boss;
+
     // The farthest corner of any occupied hull cell from the centre of mass the schematic frame uses, in world
     // units: a true bound on how far the hull reaches from its position (the half-diagonal of the bounding box is not,
     // as FireControl.Detonate's comment records). A cell at (x, y) spans x +/- .5 and y +/- .5.

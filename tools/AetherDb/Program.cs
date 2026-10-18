@@ -695,7 +695,8 @@ public static class Program
     }
 
     // Each faction's generation-critical links and the size of its curated place list. An empty list is not broken:
-    // Galaxy.NamePlaces falls back to catalogue designations for a faction without one.
+    // Galaxy.NamePlaces falls back to catalogue designations for a faction without one. The boss column is derived:
+    // the Boss hulls the faction makes (LoadoutGenerator.BossHullsOf), never a field on the faction.
     private static int Factions()
     {
         var db = AetherDb.Open();
@@ -704,7 +705,8 @@ public static class Program
         foreach (var faction in db.Cache.GetAll<Faction>().OrderBy(f => f.Name))
         {
             var key = db.Cache.RefOf(faction).Key;
-            var boss = "none";
+            var bosses = LoadoutGenerator.BossHullsOf(db.Cache, faction);
+            var boss = bosses.Length == 0 ? "none" : string.Join(',', bosses.Select(b => b.hull.Name));
             Console.WriteLine($"{faction.Name,-26} {faction.ShortName,-13} {faction.Places.Length,-22} {boss,-14} {faction.InfluenceDistance,-9} {(faction.Doctrine == null ? "none" : faction.Doctrine.EngageOn.ToString()),-10} " +
                 products.Count(p => p.Manufacturer.Key.Equals(key)));
         }
@@ -804,13 +806,18 @@ public static class Program
             string outcome;
             try
             {
+                // Generation never offers a Boss hull, so one is built through its first product.
+                var bossProduct = hull.Boss && hull.HullType == HullType.Ship
+                    ? db.Cache.GetAll<FactionProductData>().Where(p => db.Cache.Get(p.Design) == hull).OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault()
+                    : null;
                 var pack = hull.HullType switch
                 {
+                    HullType.Ship when hull.Boss => bossProduct == null ? null : generator.ShipLoadout(bossProduct),
                     HullType.Ship => generator.GenerateShipLoadout(candidate => candidate == hull),
                     HullType.Turret => generator.GenerateTurretLoadout(),
                     _ => generator.GenerateStationLoadout()
                 };
-                outcome = pack == null ? "NO LOADOUT (nothing suitable found)" : "ok";
+                outcome = pack != null ? "ok" : hull.Boss && hull.HullType == HullType.Ship ? "NO LOADOUT (boss hull with no product)" : "NO LOADOUT (nothing suitable found)";
                 if (pack == null) failures++;
                 if (pack != null && log.Any(l => l.Contains("targeting system available", StringComparison.OrdinalIgnoreCase))) targetingGaps++;
             }

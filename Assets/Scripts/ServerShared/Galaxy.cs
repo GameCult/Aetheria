@@ -288,9 +288,9 @@ public class Galaxy
         progressCallback?.Invoke("Placing Factions");
         if (progressCallback != null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
 
-        // Choose some megas to have bosses placed based on whether a boss hull is assigned
+        // Choose some megas to have bosses placed: the factions that make a Boss hull
         var bossMegas = Factions
-            .Where(m => m.BossHull.IsSet())
+            .Where(m => LoadoutGenerator.BossHullsOf(_cache, m).Length > 0)
             .Take(bossCount)
             .ToArray();
 

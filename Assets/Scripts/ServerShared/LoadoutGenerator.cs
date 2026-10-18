@@ -48,7 +48,13 @@ public class LoadoutGenerator
             ItemManager.Log("Unable to generate ship loadout: no compatible hull found!");
             return null;
         }
-        var hull = ItemManager.CreateInstance(hullProduct) as EquippableItem;
+        return ShipLoadout(hullProduct);
+    }
+
+    // The ship a hull product becomes: outfit, pickup, consumables, packed. Callers choose the product; this is the one build.
+    public EntityPack ShipLoadout(FactionProductData product)
+    {
+        var hull = ItemManager.CreateInstance(product) as EquippableItem;
         if(hull==null)
             ItemManager.Log("WHAT???");
         var entity = new Ship(ItemManager, null, hull, ItemManager.GameplaySettings.DefaultEntitySettings);
@@ -184,7 +190,9 @@ public class LoadoutGenerator
     }
 
     // The products this faction can be offered for a design kind (only gear needs a home), and whether manufacturer preference applies (it does
-    // not once a required item has fallen back to any manufacturer). The one availability rule for every selection.
+    // not once a required item has fallen back to any manufacturer). The one availability rule for every selection: a Boss
+    // hull is never on offer, so it is never station stock, ordinary traffic, a generated scenario fit or another faction's
+    // fallback boss, and only BossHullsOf reaches it.
     private ((FactionProductData product, T design)[] available, bool preferManufacturers) AvailableProducts<T>(Predicate<T> filter, bool required) where T : CraftedItemData
     {
         var hulls = SoldHulls(ItemManager.ItemData);
@@ -193,6 +201,7 @@ public class LoadoutGenerator
             .Where(entry =>
                 entry.design != null &&
                 entry.design.Price > 0 &&
+                !(entry.design is HullData { Boss: true }) &&
                 entry.product.Manufacturer.IsSet() &&
                 (!(entry.design is EquippableItemData equippable) || HasHome(equippable, hulls)) &&
                 (filter?.Invoke(entry.design) ?? true))
@@ -209,10 +218,12 @@ public class LoadoutGenerator
         return (available, preferManufacturers);
     }
 
-    // A faction's boss: the most expensive ship hull the faction can be offered, with the gap logged. Null only when no
-    // ship hull is on offer at all.
+    // A faction's boss: the Boss hull it makes (BossHullsOf, dearest first), else the most expensive ordinary ship hull the
+    // faction can be offered, with the gap logged. Null only when no ship hull is on offer at all.
     public EntityPack GenerateBossLoadout()
     {
+        var made = BossHullsOf(ItemManager.ItemData, Faction);
+        if (made.Length > 0) return ShipLoadout(made[0].product);
         ItemManager.Log($"{Faction?.Name ?? "This faction"} makes no boss hull; its boss flies the most expensive ship hull instead.");
 
         var (available, _) = AvailableProducts<HullData>(hull => hull.HullType == HullType.Ship, required: true);
@@ -220,6 +231,19 @@ public class LoadoutGenerator
         var priciest = available.OrderByDescending(entry => entry.design.Price).ThenBy(entry => entry.design.Name, StringComparer.Ordinal).First().design;
         return GenerateShipLoadout(hull => hull == priciest);
     }
+
+    // The one owner of which hull is a faction's boss: the Ship hulls flagged Boss among the designs of the products the
+    // faction manufactures, dearest first then by name. The flag lives on the hull and the maker on the product, so a Boss
+    // hull several makers sell is a boss of each; nothing here reads a model, a prefab or a visual.
+    public static (FactionProductData product, HullData hull)[] BossHullsOf(CultCache items, Faction faction) =>
+        faction == null
+            ? Array.Empty<(FactionProductData, HullData)>()
+            : items.GetAll<FactionProductData>()
+                .Where(product => items.Get(product.Manufacturer) == faction)
+                .Select(product => (product, hull: items.Get(product.Design) as HullData))
+                .Where(entry => entry.hull is { Boss: true, HullType: HullType.Ship })
+                .OrderByDescending(entry => entry.hull.Price).ThenBy(entry => entry.hull.Name, StringComparer.Ordinal).ThenBy(entry => entry.product.Name, StringComparer.Ordinal)
+                .ToArray();
 
     // Hardpoint gear that no hull in the catalog can mount has no home (operator, 2026-09-30: "we'll need to author a
     // bunch more hulls before all the gear variety in the game has a home"): generation never offers it, so no station

@@ -8,6 +8,8 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using CultMath;
+using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using UniRx;
 using Xunit;
 
@@ -37,6 +39,191 @@ public sealed partial class RunStartTests
         .Select(product => _cache.Get(product.Design) as HullData)
         .Where(hull => hull != null && hull.HullType == HullType.Ship && hull.Price > 0)
         .Distinct().ToArray();
+
+    // A Boss hull a faction makes, by the production path: a copy of a sold ship hull (so it builds into a real ship) flagged
+    // Boss under its own name and price, and one copy of that hull's product per maker. A copy rather than the shipped
+    // hull itself, because flagging a shipped hull would make it a Boss hull of every maker the catalog gives it.
+    private HullData MakeBoss(string name, int price, params Faction[] makers) => MakeBoss(HullType.Ship, name, price, makers);
+
+    private HullData MakeBoss(HullType type, string name, int price, params Faction[] makers)
+    {
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+        T Copy<T>(T document) => MessagePack.MessagePackSerializer.Deserialize<T>(MessagePack.MessagePackSerializer.Serialize(document, options), options);
+
+        var like = SoldShipHulls().OrderBy(hull => hull.Name, StringComparer.Ordinal).First();
+        var likeProduct = _cache.GetAll<FactionProductData>().OrderBy(product => product.Name, StringComparer.Ordinal)
+            .First(product => _cache.Get(product.Design) == like);
+        var boss = Copy(like);
+        boss.Name = name;
+        boss.Price = price;
+        boss.HullType = type;
+        boss.Boss = true;
+        boss.Prefab = null;
+        boss.Visual = default;
+        var bossRef = _cache.Upsert(boss);
+        foreach (var maker in makers)
+        {
+            var product = Copy(likeProduct);
+            product.Name = $"{name} by {maker.Name}";
+            product.Design = bossRef;
+            product.Manufacturer = _cache.RefOf(maker);
+            _cache.Upsert(product);
+        }
+        return _cache.Get(bossRef);
+    }
+
+    private static Faction FactionNamed(Galaxy galaxy, string name) => galaxy.Factions.Single(faction => faction.Name == name);
+
+    private HullData PriciestSold() =>
+        SoldShipHulls().OrderByDescending(hull => hull.Price).ThenBy(hull => hull.Name, StringComparer.Ordinal).First();
+
+    private LoadoutGenerator GeneratorFor(Galaxy galaxy, ItemManager items, Faction faction, uint seed)
+    {
+        var random = new CultMath.Random(seed);
+        return new LoadoutGenerator(ref random, items, galaxy, galaxy.Exit, faction, .5f);
+    }
+
+    [Fact]
+    public void Boss_flies_the_boss_hull_its_faction_makes()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var cheapest = SoldShipHulls().Min(hull => hull.Price);
+        var priciest = PriciestSold();
+        Assert.True(cheapest < priciest.Price, "the catalog needs two ship hulls of different price for this test to tell them apart");
+
+        // The faction also makes the dearest ordinary hull, and three Boss hulls: B and A tie on price, C is cheaper. The boss
+        // is the dearest Boss hull, ties by name: not the dearest hull it makes, not the first product, not the cheapest.
+        _cache.Upsert(new FactionProductData { Name = "Decoy", Design = _cache.RefOf(priciest), Manufacturer = _cache.RefOf(antagonist) });
+        MakeBoss("Boss B", cheapest + 10, antagonist);
+        MakeBoss("Boss C", cheapest, antagonist);
+        MakeBoss("Boss A", cheapest + 10, antagonist);
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
+        Assert.Equal("Boss A", HullName(items, boss));
+        Assert.DoesNotContain(log, line => line.Contains("makes no boss hull"));
+        Assert.Equal(new[] { "Boss A", "Boss B", "Boss C" }, LoadoutGenerator.BossHullsOf(_cache, antagonist).Select(entry => entry.hull.Name));
+    }
+
+    [Fact]
+    public void Boss_without_a_boss_hull_falls_back()
+    {
+        var galaxy = DemoGalaxy(1);
+        var priciest = PriciestSold();
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
+        Assert.Equal(priciest.Name, HullName(items, boss));
+        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("makes no boss hull"));
+        Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, Zhestokost(galaxy)));
+        Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, null));
+    }
+
+    [Fact]
+    public void Another_factions_boss_hull_is_never_used()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var lucent = FactionNamed(galaxy, "Lucent");
+        var expected = PriciestSold().Name;
+        // Dearer than every ordinary hull, and Lucent's alone: Zhestokost neither derives it nor falls back to it.
+        var luxury = MakeBoss("Lucent Flagship", PriciestSold().Price + 1000, lucent);
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
+        Assert.Equal(expected, HullName(items, boss));
+        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("makes no boss hull"));
+        Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, antagonist));
+        Assert.Same(luxury, Assert.Single(LoadoutGenerator.BossHullsOf(_cache, lucent)).hull);
+    }
+
+    [Fact]
+    public void A_boss_hull_two_makers_sell_is_a_boss_of_each()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var lucent = FactionNamed(galaxy, "Lucent");
+        var shared = MakeBoss("Shared Boss", PriciestSold().Price - 1, antagonist, lucent);
+        // A Boss station hull the antagonist also makes is no boss: a boss is a ship.
+        MakeBoss(HullType.Station, "Boss Station", PriciestSold().Price + 1, antagonist);
+
+        Assert.Same(shared, Assert.Single(LoadoutGenerator.BossHullsOf(_cache, antagonist)).hull);
+        Assert.Same(shared, Assert.Single(LoadoutGenerator.BossHullsOf(_cache, lucent)).hull);
+        var items = LoggingItems(new List<string>());
+        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
+        Assert.Equal("Shared Boss", HullName(items, boss));
+    }
+
+    // Ruling hull-programmer-art-stopgap: a boss hull may be an agent's stopgap with no authored model.
+    [Fact]
+    public void A_boss_hull_needs_no_authored_model()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var bare = MakeBoss("Bare Boss", 1, antagonist);
+        Assert.Null(bare.Prefab);
+        Assert.False(bare.Visual.IsSet());
+
+        Assert.Same(bare, Assert.Single(LoadoutGenerator.BossHullsOf(_cache, antagonist)).hull);
+        var items = LoggingItems(new List<string>());
+        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
+        Assert.Equal("Bare Boss", HullName(items, boss));
+    }
+
+    // A Boss hull is flown only by bosses: with the cheapest price (the heaviest draw weight) and every relevant maker, it still
+    // never comes out of a generation draw, including the any-manufacturer fallback and a faction no maker is allied to.
+    [Fact]
+    public void Boss_hulls_are_never_stock_or_traffic()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var lucent = FactionNamed(galaxy, "Lucent");
+        var bossShip = MakeBoss("Traffic Boss", 1, antagonist, lucent);
+        var bossStation = MakeBoss(HullType.Station, "Stock Boss", 1, antagonist, lucent);
+        var stranger = new Faction { Name = "Stranger" };
+        _cache.Upsert(stranger);
+        stranger = _cache.GetAll<Faction>().Single(faction => faction.Name == "Stranger");
+        MakeBoss("Strangers Foe Boss", 1, lucent);
+        var log = new List<string>();
+        var items = LoggingItems(log);
+
+        var drawn = 0;
+        for (uint seed = 1; seed <= 20; seed++)
+            foreach (var faction in new[] { antagonist, lucent, stranger, null })
+            {
+                var generator = GeneratorFor(galaxy, items, faction, seed);
+                for (var i = 0; i < 3; i++)
+                {
+                    var pack = generator.GenerateShipLoadout();
+                    Assert.NotNull(pack);
+                    drawn++;
+                    Assert.DoesNotContain(HullName(items, pack), new[] { "Traffic Boss", "Strangers Foe Boss" });
+                    Assert.NotEqual("Stock Boss", generator.RandomHull(HullType.Station).design?.Name);
+                }
+                // Asked for by name, with the boss the only candidate: nothing is on offer, however the fallback is reached.
+                Assert.Null(generator.GenerateShipLoadout(hull => hull == bossShip));
+                Assert.Null(generator.GenerateShipLoadout(hull => hull.Name == "Strangers Foe Boss"));
+                Assert.Null(generator.RandomHull(HullType.Station, hull => hull == bossStation).design);
+            }
+        Assert.Equal(20 * 4 * 3, drawn);
+    }
+
+    [Fact]
+    public void Main_galaxy_bosses_are_factions_that_make_boss_hulls()
+    {
+        Assert.Empty(RunStart.Generate(new MainGalaxy(), Inputs(() => 1)).BossZones);
+
+        var maker = _cache.GetAll<Faction>().OrderBy(faction => faction.Name, StringComparer.Ordinal).First();
+        MakeBoss("Main Boss", 100, maker);
+        var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
+        var bossFaction = Assert.Single(galaxy.BossZones.Keys);
+        Assert.Equal(maker.Name, bossFaction.Name);
+        Assert.NotEmpty(LoadoutGenerator.BossHullsOf(_cache, bossFaction));
+    }
 
     [Fact]
     public void Boss_spawns_once_in_boss_zone()
@@ -152,10 +339,10 @@ public sealed partial class RunStartTests
     public void Exit_open_only_in_the_exit_zone()
     {
         var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
-        // The shipped catalog sets no BossHull outside the demo's antagonist, so the main galaxy places no boss: give a
-        // faction one and a boss zone that is not the exit, as the generator would for a faction with a boss hull.
+        // The shipped catalog has no Boss hull, so the main galaxy places no boss: give a faction one and a boss zone that is
+        // not the exit, as the generator would for a faction that makes a Boss hull.
         var faction = galaxy.Factions.First();
-        faction.BossHull = _cache.RefOf(SoldShipHulls().First());
+        MakeBoss("Gate Boss", 100, faction);
         var bossZone = galaxy.Zones.First(zone => zone != galaxy.Exit);
         galaxy.BossZones[faction] = bossZone;
         var zone = ZoneOf(galaxy, bossZone);
