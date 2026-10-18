@@ -281,6 +281,21 @@ public sealed partial class RunStartTests
         Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, null));
     }
 
+    // No faction has no boss hulls, even when a Boss hull has a product with no maker (which a null faction would equal).
+    [Fact]
+    public void No_faction_has_no_boss_hull()
+    {
+        var galaxy = DemoGalaxy(1);
+        var orphan = MakeBoss("Orphan Boss", 100);
+        var key = _cache.RefOf(orphan).Key;
+        _cache.Upsert(new FactionProductData { Name = "Orphan product", Design = new CultRecordRef<CraftedItemData>(key) });
+
+        Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, null));
+        Assert.Null(Loadouts.BossOf(_cache, null, out var refusal));
+        Assert.Equal(BossRefusal.NoBossHull, refusal);
+        Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, Zhestokost(galaxy)));
+    }
+
     // A Boss hull whose product has no Loadout is refused typed at the derivation. The refusal names the missing field and
     // echoes no input: the canary hull name, its product's name and the record keys reach no log line.
     [Fact]
@@ -590,6 +605,7 @@ public sealed partial class RunStartTests
         var hull = MakeBoss("Boss A", 100, antagonist);
         var loadout = MakeBossLoadout(hull, antagonist, "Unfittable loadout");
         loadout.Slots[0].Position = new int2(999, 999);
+        loadout.Slots[1].Position = new int2(998, 998);
         StoreLoadout(loadout);
         Assert.Equal("Unfittable loadout", Loadouts.BossOf(_cache, antagonist, out _).Name);
 
@@ -598,7 +614,9 @@ public sealed partial class RunStartTests
         var pack = BossZonePack(galaxy, items, galaxy.Exit, ambient: false);
         Assert.False(pack.BossSpawned);
         Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
-        Assert.Contains(log, line => line.Contains("Unfittable loadout") && line.Contains("does not fit"));
+        var refusal = Assert.Single(log, line => line.Contains("Unfittable loadout") && line.Contains("does not fit"));
+        Assert.Equal(2, Regex.Matches(refusal, "does not fit").Count);
+        Assert.Contains("; ", refusal);
         Assert.False(RunGoal.ExitOpen(new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy)));
     }
 
