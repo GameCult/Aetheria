@@ -553,4 +553,80 @@ public sealed partial class RunStartTests
         Assert.Equal(0, gate.x, 3);
         Assert.Equal(zone.Pack.Radius * ratio, gate.y, 2);
     }
+
+    // Soul's probes of cut boss-loadout pass s1, kept as behaviour: the rules the first eight tests let a mutant past.
+
+    [Fact]
+    public void The_boss_is_the_loadout_its_faction_names_even_when_another_loadout_shares_its_hull()
+    {
+        var galaxy = DemoGalaxy(1);
+        var decoy = MakeBossLoadout(BossTestHull(), "Aaa Same Hull");
+        decoy.Slots = decoy.Slots.Take(1).ToList();
+        decoy.WeaponGroups = new int[0][];
+        StoreLoadout(decoy);
+        var boss = GiveAntagonistABoss(galaxy);
+        Assert.True(boss.Slots.Count > decoy.Slots.Count);
+        var pack = Assert.Single(BossZonePack(galaxy, _items, galaxy.Exit).Entities, e => e.Boss);
+        Assert.Equal(LoadoutCells(boss), Cells(_items, pack));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_refused_boss_flies_no_catalog_loadout_and_draws_nothing(bool dangling)
+    {
+        var galaxy = DemoGalaxy(1);
+        var hull = SoldShipHulls().OrderBy(h => h.Name, StringComparer.Ordinal).First();
+        StoreLoadout(new Loadout { Name = "Aaa Decoy", Hull = _cache.RefOf(hull) });
+        if (dangling) Zhestokost(galaxy).BossLoadout = new CultRecordRef<Loadout>(Loadouts.KeyOf("CANARY-7f3a"));
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        var next = items.Random.NextFloat();
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, e => e.Boss);
+        Assert.DoesNotContain(log, l => l.Contains("CANARY"));
+        galaxy.BossZones.Clear();
+        var bareItems = LoggingItems(new List<string>());
+        var bare = BossZonePack(galaxy, bareItems, galaxy.Exit);
+        Assert.Equal(Roster(bareItems, bare), Roster(items, pack));
+        Assert.Equal(bareItems.Random.NextFloat(), next);
+    }
+
+    [Fact]
+    public void A_design_only_boss_slot_whose_design_only_outsiders_make_refuses_the_boss()
+    {
+        var galaxy = DemoGalaxy(1);
+        var faction = Zhestokost(galaxy);
+        var loadout = GiveAntagonistABoss(galaxy);
+        var outfitter = GeneratorFor(galaxy, _items, faction, 1);
+        var open = loadout.Slots.First(slot => _cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(slot.Design.Key) && outfitter.IsAvailable(p)));
+        var outsider = _cache.GetAll<Faction>().OrderBy(f => f.Name, StringComparer.Ordinal).First(f => f.Name != faction.Name && !faction.Allegiance.ContainsKey(_cache.RefOf(f)));
+        foreach (var p in _cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(open.Design.Key))) p.Manufacturer = _cache.RefOf(outsider);
+        Assert.Null(outfitter.ChooseProduct(_cache.Get(open.Design)));
+        open.Product = default;
+        StoreLoadout(loadout);
+        var log = new List<string>();
+        var pack = BossZonePack(galaxy, LoggingItems(log), galaxy.Exit, ambient: false);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, e => e.Boss);
+        Assert.Contains(log, l => l.Contains("Antagonist Boss") && l.Contains("no available product"));
+    }
+
+    [Fact]
+    public void The_boss_path_draws_only_what_building_its_loadout_draws()
+    {
+        var galaxy = DemoGalaxy(1);
+        var loadout = GiveAntagonistABoss(galaxy);
+        var withBoss = LoggingItems(new List<string>());
+        Assert.True(BossZonePack(galaxy, withBoss, galaxy.Exit, ambient: false).BossSpawned);
+        var next = withBoss.Random.NextFloat();
+        galaxy.BossZones.Clear();
+        var expected = LoggingItems(new List<string>());
+        BossZonePack(galaxy, expected, galaxy.Exit, ambient: false);
+        var failures = new List<string>();
+        Assert.NotNull(Loadouts.Materialize(expected, null, loadout, GeneratorFor(galaxy, expected, Zhestokost(galaxy), 7).ChooseProduct, failures));
+        Assert.Empty(failures);
+        Assert.Equal(expected.Random.NextFloat(), next);
+    }
 }
