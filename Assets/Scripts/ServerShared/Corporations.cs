@@ -37,8 +37,7 @@ public class Faction
     [InspectableColor, JsonProperty("secondaryColor"), Key(8)]
     public float3 SecondaryColor;
 
-    [Inspectable, JsonProperty("nameFile"), Key(9)]
-    public CultRecordRef<NameFile> GeonameFile;
+    // Key 9 was the faction's name-file link, retired by ruling faction-curated-place-names; never reuse it.
 
     [Inspectable, JsonProperty("bossHull"), Key(10)]
     public CultRecordRef<HullData> BossHull;
@@ -70,11 +69,23 @@ public class Faction
     // tune it in Studio after that. Key 16 is reserved for Relations and 18 for Livery.
     [Inspectable, JsonProperty("assembly"), Key(19)]
     public AssemblyDistribution Assembly;
+
+    // Curated place names in authored order; the home zone takes the first (ruling faction-curated-place-names).
+    // Authored by AetherDb place-names, which restores the table on every apply.
+    [Inspectable, JsonProperty("places"), Key(21)]
+    public FactionPlace[] Places = Array.Empty<FactionPlace>();
 }
 
-[CultDocument("aetheria.namefile", "1"), Inspectable, MessagePackObject]
-public class NameFile
+// Historical, narrative and strategic intent join as keys 2+ when economics-driven placement lands (ruling faction-curated-place-names).
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class FactionPlace
 {
-    [CultName, Key(1)] public string Name;
-    [Key(2)] public string[] Names;
+    [Inspectable, JsonProperty("name"), Key(1)]
+    public string Name;
+
+    // The one rule for a valid place name: trimmed, non-empty and not a catalogue designation (EAC-, any case). Galaxy.NamePlaces
+    // treats an invalid entry as absent; AetherDb place-names refuses a table that holds one.
+    public static bool IsValidName(string name) =>
+        !string.IsNullOrEmpty(name) && name == name.Trim() && !name.StartsWith("EAC-", StringComparison.OrdinalIgnoreCase);
 }
+

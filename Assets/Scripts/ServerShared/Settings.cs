@@ -45,14 +45,6 @@ public class GalaxyShapeSettings
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
-public class NameGeneratorSettings
-{
-    public int NameGeneratorMinLength = 5;
-    public int NameGeneratorMaxLength = 10;
-    public int NameGeneratorOrder = 4;
-}
-
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
 public class SectorBackgroundSettings
 {
     public float NoiseAmplitude;

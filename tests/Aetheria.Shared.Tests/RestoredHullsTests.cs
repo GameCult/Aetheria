@@ -91,9 +91,6 @@ public sealed class RestoredHullsTests
         NoisePosition = 536.5106f, CloudExponent = 10, CloudAmplitude = .01f,
     };
 
-    internal static NameGeneratorSettings TutorialNameSettings() =>
-        new NameGeneratorSettings { NameGeneratorMinLength = 5, NameGeneratorMaxLength = 10, NameGeneratorOrder = 3 };
-
     // A station's orbit is a copy of its source planet's own (Parent, Distance) (ZoneGenerator.CreateLagrangeOrbit),
     // so it always matches that one planet. It matches MORE than one planet only when the source planet shares its
     // distance with a sibling under the same parent -- exactly what ZoneGenerator's potentialLagrangePoints filter
@@ -153,8 +150,7 @@ public sealed class RestoredHullsTests
         var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
         for (var seed = 1u; seed <= 64u; seed++)
         {
-            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
-                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
             foreach (var zone in galaxy.Zones.Where(z => !ReferenceEquals(z, galaxy.Entrance)))
             {
                 var orbits = ParentedPlanetOrbits(cache, ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, isTutorial: false, ambient: false));
@@ -366,7 +362,6 @@ public sealed class RestoredHullsTests
         var zoneSettings = TutorialZoneSettings();
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
-        var names = TutorialNameSettings();
         var gameData = TestCatalog.Repo;
         var sawGenuineLagrangeOrbit = false;
         for (uint seed = 1; seed <= 25; seed++)
@@ -375,7 +370,7 @@ public sealed class RestoredHullsTests
             try
             {
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-                var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+                var galaxy = new Galaxy(tutorialSettings, background, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
@@ -407,7 +402,6 @@ public sealed class RestoredHullsTests
         var zoneSettings = TutorialZoneSettings();
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
-        var names = TutorialNameSettings();
         var gameData = TestCatalog.Repo;
         var sawGenuineCandidate = false;
         for (uint seed = 1; seed <= 25; seed++)
@@ -416,7 +410,7 @@ public sealed class RestoredHullsTests
             try
             {
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-                var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+                var galaxy = new Galaxy(tutorialSettings, background, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
@@ -454,8 +448,7 @@ public sealed class RestoredHullsTests
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
-                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
 
             var zoneSettings = TutorialZoneSettings();
@@ -490,8 +483,7 @@ public sealed class RestoredHullsTests
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
-                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
 
             var zoneSettings = TutorialZoneSettings();
@@ -532,7 +524,6 @@ public sealed class RestoredHullsTests
         var zoneSettings = TutorialZoneSettings();
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
-        var names = TutorialNameSettings();
         var gameData = TestCatalog.Repo;
 
         var checkedAny = false;
@@ -542,7 +533,7 @@ public sealed class RestoredHullsTests
             try
             {
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-                var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+                var galaxy = new Galaxy(tutorialSettings, background, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
@@ -677,8 +668,7 @@ public sealed class RestoredHullsTests
     // real zone from a real galaxy (e.g. one already known to have no Lagrange candidate) and make it the Entrance.
     private static Galaxy BuildGalaxyWithForcedEntrance(CultCache cache, uint seed, string entranceZoneName)
     {
-        var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
-            cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+        var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
         var target = galaxy.Zones.Single(z => z.Name == entranceZoneName);
 
         var factions = galaxy.Factions;
@@ -789,8 +779,7 @@ public sealed class RestoredHullsTests
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
-                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
 
             int StationCount(GalaxyZone zone, bool isTutorial) =>
@@ -830,8 +819,7 @@ public sealed class RestoredHullsTests
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
-                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
 
             var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
@@ -866,8 +854,7 @@ public sealed class RestoredHullsTests
     // Must fail if that guard is dropped for real.
     private static Galaxy BuildGalaxyWithBoostedPresence(CultCache cache, uint seed, string zoneName)
     {
-        var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
-            cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+        var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
         var target = galaxy.Zones.Single(z => z.Name == zoneName);
 
         var factions = galaxy.Factions;

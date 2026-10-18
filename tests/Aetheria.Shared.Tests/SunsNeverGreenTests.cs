@@ -183,7 +183,7 @@ public sealed class SunsNeverGreenTests : IDisposable
             var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
             var tutorial = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
             var galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-                authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), cache, new PlayerSettings(),
+                cache, new PlayerSettings(),
                 Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
             var items = new ItemManager(cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
             var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");

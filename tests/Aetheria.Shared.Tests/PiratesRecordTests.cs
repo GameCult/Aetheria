@@ -25,7 +25,7 @@ public sealed partial class RunStartTests
         var others = _cache.GetAll<Faction>().Where(faction => faction != pirates).Select(faction => _cache.RefOf(faction)).ToArray();
         Assert.NotEmpty(others);
         Assert.All(others, other => Assert.True(pirates.Allegiance.ContainsKey(other)));
-        Assert.NotNull(_cache.Get(pirates.GeonameFile));
+        Assert.NotEmpty(pirates.Places);
 
         var products = PiratesProducts();
         Assert.Equal(8, products.Length);

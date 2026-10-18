@@ -54,7 +54,7 @@ public sealed class StationPlacementTests : IDisposable
             var settings = authored.Read<GameplaySettings>("GameplaySettings");
             var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
                 authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-                authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), cache, new PlayerSettings(),
+                cache, new PlayerSettings(),
                 Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
             var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
             stock?.Invoke(items);

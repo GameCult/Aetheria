@@ -55,7 +55,6 @@ public sealed partial class RunStartTests
             authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"),
             authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
             authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-            authored.Read<NameGeneratorSettings>("NameGeneratorSettings"),
             _cache, new PlayerSettings(), Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, clock);
     }
 

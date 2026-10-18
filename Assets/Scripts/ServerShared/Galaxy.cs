@@ -20,7 +20,6 @@ public class Galaxy
     public HashSet<GalaxyZone> DiscoveredZones = new HashSet<GalaxyZone>();
     
     public SectorBackgroundSettings Background { get; }
-    public NameGeneratorSettings NameGeneratorSettings { get; }
     public Faction[] Factions { get; }
     public GalaxyZone[] Zones { get; }
     public GalaxyZone Entrance { get; }
@@ -34,7 +33,6 @@ public class Galaxy
     public uint Seed { get; }
     
     private GalaxyZone[] _exitPath;
-    private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
     private readonly CultCache _cache;
 
     public GalaxyZone[] ExitPath
@@ -96,7 +94,6 @@ public class Galaxy
     public Galaxy(
         SectorGenerationSettings settings, 
         SectorBackgroundSettings background, 
-        NameGeneratorSettings nameGeneratorSettings, 
         CultCache cache,
         Action<string> log,
         Action<string> progressCallback = null,
@@ -131,7 +128,7 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        GenerateNames(cache, nameGeneratorSettings, ref random, progressCallback);
+        NamePlaces(ref random, progressCallback);
 
         progressCallback?.Invoke("Done!");
         if(progressCallback!=null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
@@ -162,7 +159,6 @@ public class Galaxy
     public Galaxy(
         TutorialGenerationSettings settings,
         SectorBackgroundSettings background,
-        NameGeneratorSettings nameGeneratorSettings,
         CultCache cache,
         PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
@@ -259,7 +255,7 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        GenerateNames(cache, nameGeneratorSettings, ref random, progressCallback);
+        NamePlaces(ref random, progressCallback);
         
         // progressCallback?.Invoke("Weaving Narrative");
         // var processor = new StoryProcessor(playerSettings, narrativeDirectory, this, ref random, Log);
@@ -350,31 +346,37 @@ public class Galaxy
         }
     }
 
-    private void GenerateNames(CultCache cache,
-        NameGeneratorSettings nameGeneratorSettings,
-        ref Random random,
-        Action<string> progressCallback = null)
+    // Each faction names the zones it owns from its own curated list (ruling faction-curated-place-names): nearest its
+    // home first, so the home zone takes the capital, which is Places[0]. A zone left over when a list is spent, and every
+    // zone nobody owns, takes a catalogue designation. A name is never used twice, ignoring case.
+    internal void NamePlaces(ref Random random, Action<string> progressCallback = null)
     {
-        var used = new HashSet<string>();
-        for (var i = 0; i < Factions.Length; i++)
+        progressCallback?.Invoke("Naming places");
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var zone in Zones) zone.Name = null;
+
+        foreach (var faction in Factions)
         {
-            progressCallback?.Invoke($"Feeding Markov Chains: {i + 1} / {Factions.Length}");
-            //if(progressCallback!=null) Thread.Sleep(250); // Inserting Delay to make it seem like it's doing more work lmao
-            var faction = Factions[i];
-            _nameGenerators[faction] = new MarkovNameGenerator(ref random, cache.Get(faction.GeonameFile).Names, nameGeneratorSettings, used);
+            if (!HomeZones.TryGetValue(faction, out var home)) continue;
+            var places = (faction.Places ?? Array.Empty<FactionPlace>()).Select(p => p?.Name).Where(FactionPlace.IsValidName).ToArray();
+            var next = 0;
+            var owned = Zones.Select((zone, index) => (zone, index)).Where(z => z.zone.Owner == faction)
+                .OrderBy(z => z.zone.Distance[home]).ThenBy(z => z.index);
+            foreach (var (zone, _) in owned)
+            {
+                while (next < places.Length && used.Contains(places[next])) next++;
+                if (next == places.Length) break;
+                zone.Name = places[next];
+                used.Add(places[next++]);
+            }
         }
 
-        // Generate zone name using the owner's name generator, otherwise assign catalogue ID
-        foreach (var zone in Zones)
+        foreach (var zone in Zones.Where(z => z.Name == null))
         {
-            if (zone.Owner != null)
-            {
-                zone.Name = _nameGenerators[zone.Owner].NextName.Trim();
-            }
-            else
-            {
-                zone.Name = $"EAC-{random.NextInt(9999).ToString()}";
-            }
+            string designation;
+            do designation = $"EAC-{random.NextInt(9999)}";
+            while (!used.Add(designation));
+            zone.Name = designation;
         }
     }
 

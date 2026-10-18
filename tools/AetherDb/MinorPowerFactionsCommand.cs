@@ -19,23 +19,22 @@ public static class MinorPowerFactionsCommand
 {
     // Own: the weights this faction names for the other minor powers; every other faction but the Pirates gets Default.
     // Gain: the weight every existing faction (bar the Pirates and Miss Terri's) gains toward this faction.
-    // Geonames is the name file the faction draws place names from (question minor-power-geonames: the nearest existing file).
     internal sealed record Def(string Name, string ShortName, string Description, float3 Primary, float3 Secondary,
-        string Geonames, int Influence, float Gain, float Default, (string ShortName, float Weight)[] Own);
+        int Influence, float Gain, float Default, (string ShortName, float Weight)[] Own);
 
     internal static readonly Def[] Factions =
     {
         new("Aya Collective", "Aya",
             "A federation of communes, clinics and repair crews. Its equipment comes with the drawings, so the people it protects can keep it running.",
-            new float3(.72f, .36f, .22f), new float3(.12f, .36f, .25f), "Congo", 3, .3f, .3f,
+            new float3(.72f, .36f, .22f), new float3(.12f, .36f, .25f), 3, .3f, .3f,
             new[] { ("Forge", 1f), ("Megiddo", .5f) }),
         new("Megiddo", "Megiddo",
             "A defended fleet that holds its boundary until the question is answered. Others buy its protection without sharing its faith.",
-            new float3(.07f, .09f, .15f), new float3(.90f, .85f, .74f), "pleiades", 4, .3f, .2f,
+            new float3(.07f, .09f, .15f), new float3(.90f, .85f, .74f), 4, .3f, .2f,
             new[] { ("Aya", .5f), ("Forge", .5f) }),
         new("Orbital Forge", "Forge",
             "Belt engineers who hollow asteroids into homes and yards. Their standards leave room to adapt them, and their drawings travel further than their ships.",
-            new float3(.42f, .30f, .22f), new float3(.30f, .38f, .52f), "pleiades", 3, .5f, .5f,
+            new float3(.42f, .30f, .22f), new float3(.30f, .38f, .52f), 3, .5f, .5f,
             Array.Empty<(string, float)>()),
     };
 
@@ -51,17 +50,14 @@ public static class MinorPowerFactionsCommand
         var apply = args.Contains("apply");
         var db = AetherDb.Open(catalogWritable: apply, root: root);
         var existing = db.Cache.GetAll<Faction>().ToArray();
-        var nameFiles = db.Cache.GetAll<NameFile>().ToArray();
 
-        // Refuse before any write: a name or short name held by a faction under another key, and a missing name file.
+        // Refuse before any write: a name or short name held by a faction under another key.
         foreach (var def in Factions)
         {
             var key = KeyOf(def);
             foreach (var other in existing.Where(f => f.Name == def.Name || f.ShortName == def.ShortName))
                 if (!db.Cache.RefOf(other).Key.Equals(key))
                     throw new InvalidOperationException("Faction Name or ShortName: held by a faction under another key (conflict).");
-            if (nameFiles.Count(n => n.Name == def.Geonames) != 1)
-                throw new InvalidOperationException("Faction GeonameFile: expected exactly one name file (missing).");
         }
 
         var minorKeys = Factions.ToDictionary(d => d.ShortName, KeyOf);
@@ -80,7 +76,7 @@ public static class MinorPowerFactionsCommand
         }
 
         foreach (var def in created)
-            Console.WriteLine($"New faction \"{def.Name}\" ({def.ShortName}): influence {def.Influence}, names \"{def.Geonames}\", colours ({def.Primary.x:0.00}, {def.Primary.y:0.00}, {def.Primary.z:0.00}) / ({def.Secondary.x:0.00}, {def.Secondary.y:0.00}, {def.Secondary.z:0.00})\n  {def.Description}\n  allegiance: {string.Join(", ", def.Own.Select(o => $"{o.ShortName} {o.Weight:0.##}"))} others {def.Default:0.##}");
+            Console.WriteLine($"New faction \"{def.Name}\" ({def.ShortName}): influence {def.Influence}, colours ({def.Primary.x:0.00}, {def.Primary.y:0.00}, {def.Primary.z:0.00}) / ({def.Secondary.x:0.00}, {def.Secondary.y:0.00}, {def.Secondary.z:0.00})\n  {def.Description}\n  allegiance: {string.Join(", ", def.Own.Select(o => $"{o.ShortName} {o.Weight:0.##}"))} others {def.Default:0.##}");
         foreach (var (holder, missing) in gains)
             Console.WriteLine($"  {holder.ShortName} gains {string.Join(", ", missing.Select(d => $"{d.ShortName} {d.Gain:0.##}"))}");
 
@@ -101,7 +97,7 @@ public static class MinorPowerFactionsCommand
                 {
                     Name = def.Name, ShortName = def.ShortName, Description = def.Description,
                     PrimaryColor = def.Primary, SecondaryColor = def.Secondary,
-                    GeonameFile = db.Cache.RefOf(nameFiles.Single(n => n.Name == def.Geonames)), InfluenceDistance = def.Influence,
+                    InfluenceDistance = def.Influence,
                 };
                 foreach (var reference in everyone) faction.Allegiance[reference] = def.Default;
                 foreach (var other in Factions.Where(o => o != def))
