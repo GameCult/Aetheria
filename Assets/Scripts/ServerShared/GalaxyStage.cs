@@ -46,7 +46,8 @@ public sealed class GalaxyStage
         _clock = clock ?? (() => (uint) (DateTime.Now.Ticks % uint.MaxValue));
     }
 
-    // The seed this generation runs at, never zero: the scenario's, or the clock's when the scenario's is zero.
+    // The run's one minter: the scenario's seed, or the clock's when the scenario's is zero, never zero. Galaxy carries
+    // what it mints and SavedGame keeps it, so Continue rolls the same drops.
     public uint Seed { get; private set; }
 
     internal void SeedFrom(Scenario scenario)

@@ -61,7 +61,7 @@ public sealed class LootTests : IDisposable
     }
 
     private Lab Build(string zoneName = "Loot", float probability = .5f, float lifetime = 30f, float velocity = 25f,
-        bool well = false, float spread = 0f)
+        bool well = false, float spread = 0f, uint? runSeed = null)
     {
         var settings = new GameplaySettings
         {
@@ -104,6 +104,7 @@ public sealed class LootTests : IDisposable
         cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = Solid(4, 4), Durability = 4 });
         cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = Solid(1, 1), MaxStack = 100 });
         cache.FlushAsync().Wait();
+        var galaxy = runSeed.HasValue ? RunSeedFixture.Continue(cache, zoneName, runSeed.Value) : null;
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 9000; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
@@ -111,7 +112,9 @@ public sealed class LootTests : IDisposable
         var planets = new PlanetSettings();
         var pack = new ZonePack { Radius = well ? 1000 : 0 };
         if (well) WellFixture.Dig(cache, pack, planets, 300, 100);
-        var zone = new Zone(items, planets, pack, new GalaxyZone { Name = zoneName, Owner = null }, null);
+        var zone = galaxy != null
+            ? new Zone(items, planets, pack, galaxy.Zones[0], galaxy)
+            : new Zone(items, planets, pack, new GalaxyZone { Name = zoneName, Owner = null }, null);
         return new Lab { Items = items, Zone = zone };
     }
 
@@ -207,6 +210,61 @@ public sealed class LootTests : IDisposable
         var count = first.Zone.FloatingItems.Count;
         Kill(Spawn(first, at));
         Assert.True(Differ(dropsA, Released(first, count)));
+    }
+
+    private List<(string Item, float2 Position, float2 Velocity)> DropsAt(string zoneName, uint runSeed)
+    {
+        var lab = Build(zoneName, runSeed: runSeed);
+        Kill(Spawn(lab, float3(31, 0, -17)));
+        return Released(lab, 0);
+    }
+
+    // A new game rolls different drops from other games: the same ship, killed in the same zone, at another run seed.
+    [Fact]
+    public void ANewGameRollsDifferentDrops()
+    {
+        var one = DropsAt("Dice", 1);
+        Assert.True(one.Count > 2, "the fixture must drop enough for a draw to show");
+        Assert.True(Differ(one, DropsAt("Dice", 2)));
+    }
+
+    // Reloading one save repeats its drops, and the run's other zones still roll on their own names.
+    [Fact]
+    public void ReloadingASaveRepeatsItsDrops()
+    {
+        var first = DropsAt("Dice", 7);
+        Assert.True(first.Count > 2, "the fixture must drop enough for a draw to show");
+        AssertSameDrops(first, DropsAt("Dice", 7));
+        Assert.True(Differ(first, DropsAt("Other dice", 7)));
+    }
+
+    // Pinned at eb27ced1, before run-seed: a zone with no galaxy, and a zone of a save written before run-seed (seed 0),
+    // roll on the zone's name alone and drop exactly what they dropped.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AZoneWithoutARunSeedKeepsItsDrops(bool restoredFromAnOldSave)
+    {
+        var drops = restoredFromAnOldSave ? DropsAt("Dice", 0) : Released(KillInNewLab("Dice"), 0);
+        Assert.Equal(new[] { "Spare", "Spare", "Spare", "Orex7", "Spare" }, drops.Select(d => d.Item));
+        Assert.All(drops, d => Assert.Equal(new float2(31, -17), d.Position));
+        var velocities = new[]
+        {
+            float2(-14.870228f, -20.096674f), float2(-4.9265895f, -24.509768f), float2(-17.977364f, 17.372805f),
+            float2(-5.908107f, 24.291857f), float2(-24.228783f, -6.1616626f)
+        };
+        for (var i = 0; i < velocities.Length; i++)
+        {
+            Assert.Equal(velocities[i].x, drops[i].Velocity.x, 3);
+            Assert.Equal(velocities[i].y, drops[i].Velocity.y, 3);
+        }
+    }
+
+    private Lab KillInNewLab(string zoneName)
+    {
+        var lab = Build(zoneName);
+        Kill(Spawn(lab, float3(31, 0, -17)));
+        return lab;
     }
 
     [Fact]

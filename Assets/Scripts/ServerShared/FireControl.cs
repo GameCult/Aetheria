@@ -775,7 +775,7 @@ public static class FireControl
     // Lays a mine for a mine layer: freezes the payload as evaluated now (stats, the item's blast radius, the
     // layer and its faction) and hands the body to Zone.Lay, the one adder. It launches at the shooter's velocity
     // plus the mount direction turned by a dice angle within +-Spread/2, times Velocity; the dice are the mine's
-    // own (zone seed, MineStream, body id), so no other roll is perturbed. No target, no PendingShot, no price:
+    // own (the zone's DropSeed, MineStream, body id), so no other roll is perturbed. No target, no PendingShot, no price:
     // InstantWeapon has already paid. A layer whose item has no blast radius lays nothing.
     public static void Lay(Weapon weapon, EquippedItem item, Entity source)
     {
@@ -789,7 +789,7 @@ public static class FireControl
 
         var id = zone.NextBodyId();
         var half = weapon.Spread / 2f;
-        var angle = radians(SimulationDice.For(zone.CombatSeed, SimulationDice.MineStream, id.Value).NextFloat(-half, half));
+        var angle = radians(SimulationDice.For(zone.DropSeed, SimulationDice.MineStream, id.Value).NextFloat(-half, half));
         var s = sin(angle);
         var c = cos(angle);
         var mount = MountDirection(item).xz;

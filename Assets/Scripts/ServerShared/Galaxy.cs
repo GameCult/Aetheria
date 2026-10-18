@@ -28,8 +28,8 @@ public class Galaxy
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
 
-    // The seed this galaxy was generated at, which also seeds its run's item draws (RunStart); zero for a galaxy
-    // restored from a save.
+    // The run's seed, minted once by GalaxyStage.SeedFrom and carried by the save (SavedGame.Seed). It seeds
+    // generation, the run's item draws (RunStart) and the zone's drop dice (Zone.DropSeed).
     public uint Seed { get; }
     
     private GalaxyZone[] _exitPath;
@@ -51,6 +51,7 @@ public class Galaxy
         _cache = cultCache;
         Log = log;
         Background = savedGame.Background;
+        Seed = savedGame.Seed;
         
         Factions = savedGame.Factions.Select(faction => cultCache.Get(faction)).ToArray();
         for (var i = 0; i < Factions.Length; i++)
@@ -96,15 +97,15 @@ public class Galaxy
         SectorBackgroundSettings background, 
         CultCache cache,
         Action<string> log,
-        Action<string> progressCallback = null,
-        uint seed = 0)
+        Action<string> progressCallback,
+        uint seed)
     {
         _cache = cache;
         IsPrelude = false;
         Background = background;
         Log = log;
         var factions = cache.GetAll<Faction>();
-        Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        Seed = seed != 0 ? seed : throw new ArgumentOutOfRangeException(nameof(seed), "a generated galaxy takes its run's seed from GalaxyStage, never zero");
         var random = new Random(Seed);
         Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
         foreach (var f in Factions) FactionRelationships[f] = FactionRelationship.Neutral;
@@ -163,15 +164,15 @@ public class Galaxy
         PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
         Action<string> log,
-        Action<string> progressCallback = null,
-        uint seed = 0)
+        Action<string> progressCallback,
+        uint seed)
     {
         _cache = cache;
         IsPrelude = true;
 
         Background = background;
         Log = log;
-        Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        Seed = seed != 0 ? seed : throw new ArgumentOutOfRangeException(nameof(seed), "a generated galaxy takes its run's seed from GalaxyStage, never zero");
         var random = new Random(Seed);
         
         var factions = new List<Faction>();

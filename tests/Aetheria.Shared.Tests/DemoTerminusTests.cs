@@ -51,6 +51,8 @@ public sealed partial class RunStartTests
         var (game, zones) = RunSave.Capture(_cache, galaxy, arena, staged.Player, new SavedActionBarBinding[0], 0);
         RunSave.Commit(_cache, game, zones, _items.Lots);
         var restored = new Galaxy(_cache, _cache.GetGlobal<SavedGame>(), _ => { });
+        Assert.NotEqual(0u, galaxy.Seed);
+        Assert.Equal(galaxy.Seed, restored.Seed);
 
         Dictionary<string, FactionRelationship> Standing(Galaxy g) => g.Factions.ToDictionary(faction => faction.Name, faction => g.FactionRelationships[faction]);
         Assert.Equal(new Dictionary<string, FactionRelationship>
