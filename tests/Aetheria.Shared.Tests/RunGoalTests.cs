@@ -71,50 +71,6 @@ public sealed partial class RunStartTests
     }
 
     [Fact]
-    public void Boss_hull_from_BossHull_else_fallback()
-    {
-        var galaxy = DemoGalaxy(1);
-        var antagonist = Zhestokost(galaxy);
-        var hulls = SoldShipHulls().OrderByDescending(hull => hull.Price).ThenBy(hull => hull.Name, StringComparer.Ordinal).ToArray();
-        var priciest = hulls.First();
-        var cheaper = hulls.Last();
-        Assert.True(cheaper.Price < priciest.Price, "the catalog needs two ship hulls of different price for this test to tell them apart");
-
-        // Set and sold: the boss flies it, and nothing is logged about a gap.
-        antagonist.BossHull = _cache.RefOf(cheaper);
-        var log = new List<string>();
-        var items = LoggingItems(log);
-        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
-        Assert.Equal(cheaper.Name, HullName(items, boss));
-        Assert.DoesNotContain(log, line => line.Contains("BossHull"));
-
-        // Unset: the most expensive ship hull on offer, and the log names the missing BossHull.
-        antagonist.BossHull = default;
-        log.Clear();
-        boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
-        Assert.Equal(priciest.Name, HullName(items, boss));
-        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("no BossHull"));
-    }
-
-    // Set but sold by no product: the boss falls back the same way, and the log says which hull has no seller.
-    [Fact]
-    public void Boss_hull_nobody_sells_falls_back()
-    {
-        var galaxy = DemoGalaxy(1);
-        var antagonist = Zhestokost(galaxy);
-        var sold = SoldShipHulls();
-        // A ship hull no product sells, dearer than any that is sold: the fallback must not pick it.
-        var unsold = new HullData { Name = "Unsold Test Hull", HullType = HullType.Ship, Price = sold.Max(hull => hull.Price) + 1 };
-        _cache.Upsert(unsold);
-        antagonist.BossHull = _cache.RefOf(unsold);
-        var log = new List<string>();
-        var items = LoggingItems(log);
-        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
-        Assert.Equal(sold.OrderByDescending(hull => hull.Price).ThenBy(hull => hull.Name, StringComparer.Ordinal).First().Name, HullName(items, boss));
-        Assert.Contains(log, line => line.Contains(unsold.Name) && line.Contains("BossHull"));
-    }
-
-    [Fact]
     public void Exit_sealed_until_boss_dies()
     {
         var galaxy = DemoGalaxy(1);
@@ -209,22 +165,6 @@ public sealed partial class RunStartTests
             boss.HeatstrokeDeath.OnNext(Unit.Default);
         Assert.False(RunGoal.BossAlive(zone));
         Assert.False(RunGoal.ExitOpen(zone));
-    }
-
-    // A boss that cannot be generated (no ship hull on offer at all) never marks the zone as having spawned one.
-    [Fact]
-    public void Exit_sealed_when_no_ship_hull_is_on_offer()
-    {
-        var galaxy = DemoGalaxy(1);
-        foreach (var product in _cache.GetAll<FactionProductData>().Where(product => _cache.Get(product.Design) is HullData { HullType: HullType.Ship }).ToArray())
-            Assert.True(_cache.Remove(_cache.RefOf(product).Key));
-        var log = new List<string>();
-        var items = LoggingItems(log);
-        var pack = BossZonePack(galaxy, items, galaxy.Exit, ambient: false);
-        Assert.False(pack.BossSpawned);
-        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
-        Assert.Contains(log, line => line.Contains("No boss could be generated for Zhestokost"));
-        Assert.False(RunGoal.ExitOpen(new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy)));
     }
 
     // A boss killed before the save stays dead after it, and the gate stays open: the spawn fact travels with the zone.

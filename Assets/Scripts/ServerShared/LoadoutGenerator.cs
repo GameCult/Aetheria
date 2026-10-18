@@ -209,26 +209,6 @@ public class LoadoutGenerator
         return (available, preferManufacturers);
     }
 
-    // A faction's boss: its BossHull when the faction sets one and a product sells it, else the most expensive ship hull
-    // the faction can be offered, with the gap logged. Null only when no ship hull is on offer at all.
-    public EntityPack GenerateBossLoadout()
-    {
-        var bossHull = Faction != null && Faction.BossHull.IsSet() ? ItemManager.ItemData.Get(Faction.BossHull) : null;
-        if (bossHull != null)
-        {
-            var boss = GenerateShipLoadout(hull => hull == bossHull);
-            if (boss != null) return boss;
-            ItemManager.Log($"{Faction.Name}'s BossHull {bossHull.Name} is not sold by any product; its boss flies the most expensive ship hull instead.");
-        }
-        else
-            ItemManager.Log($"{Faction?.Name ?? "This faction"} has no BossHull; its boss flies the most expensive ship hull instead.");
-
-        var (available, _) = AvailableProducts<HullData>(hull => hull.HullType == HullType.Ship, required: true);
-        if (available.Length == 0) return null;
-        var priciest = available.OrderByDescending(entry => entry.design.Price).ThenBy(entry => entry.design.Name, StringComparer.Ordinal).First().design;
-        return GenerateShipLoadout(hull => hull == priciest);
-    }
-
     // Hardpoint gear that no hull in the catalog can mount has no home (operator, 2026-09-30: "we'll need to author a
     // bunch more hulls before all the gear variety in the game has a home"): generation never offers it, so no station
     // stocks it. It gains one the moment a hull with a hardpoint that takes it exists. Tool gear goes in any interior.
