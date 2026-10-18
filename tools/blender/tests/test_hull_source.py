@@ -465,6 +465,9 @@ class FingerprintTests(unittest.TestCase):
                       ("a", (1.0, 2.5), [[0.0, 1.0, 2.0]], 4), ("a", (1.0, 2.5), [[0.0, 1.0], [2.0]], 3)):
             self.assertNotEqual(base, hs.fingerprint(*other))
 
+    def test_a_list_of_two_empty_lists_is_not_one_list_holding_one(self):
+        self.assertNotEqual(hs.fingerprint([], []), hs.fingerprint([[]]))
+
     def test_float_noise_below_five_decimals_and_a_negative_zero_do_not_change_it(self):
         self.assertEqual(hs.fingerprint((1.0, 0.0)), hs.fingerprint((1.0 + 1e-8, -0.0)))
         self.assertEqual(hs.fingerprint((-1e-9,)), hs.fingerprint((0.0,)))
