@@ -40,9 +40,11 @@ public sealed partial class RunStartTests
 
     // The two Large Drives, refitted with lots staged at the low and high end of the makers' assembly range (.55 and .85, each
     // with its parts at its assembly), so their effective qualities differ by construction. The lots are fitted through the
-    // ship's own unequip and equip, so heat, thrust and the allocator stay the production path.
+    // ship's own unequip and equip (an active entity refuses both, so it is deactivated for the refit and reactivated), so
+    // heat, thrust and the allocator stay the production path.
     private void StageDriveLots(Ship ship)
     {
+        ship.Deactivate();
         var drives = AllocDrives(ship).OrderBy(d => d.Item.Position.x).ToArray();
         Assert.Equal(2, drives.Length);
         var assemblies = new[] { .55f, .85f };
@@ -63,6 +65,7 @@ public sealed partial class RunStartTests
             };
             Assert.True(ship.TryEquip(staged, fitted.Position));
         }
+        ship.Activate();
     }
 
     [Fact]
