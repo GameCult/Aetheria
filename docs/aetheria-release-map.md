@@ -54,8 +54,7 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - gear-lines (spec cut-gear-lines.r1, remaps withdrawn product-lines-gear): 22 second-maker gear products as 'product-lines gear' in ProductLinesCommand. The follow-up's rows less its two Compact Sensor rows, plus Medium Drive, Large Drive and Industrial Thermostatic Heater, so every role-bearing ship gear design that is sold has two makers (Muon Fusion and the four station reactors exempt). The command's no-roles refusal exempts cargo bays. Waits on: nothing; runs now. Replay: 'product-lines gear apply', either side of minor-power-factions, before assembly-from-maker. Body facts: Products PL3, PL10-PL12.
-- product-tiers: A maker sells several products of one design at different performance (ruling maker-design-tiers-allowed, 2026-10-16). In the operator's words, "segmentation via binning and sub-assembly selection": no new innovation or component roles. Maps per-tier ProductRole quality and a Price that follows quality, which today comes from the design (question maker-design-tiers, depends). The tier rows go through product-lines' ProductLinesCommand. Product names stay unique (NoTwoProductsShareAName). ProductRole's mean and deviation come from the maker's one MakerProfiles row, so two tiers at one maker need a per-tier offset. That offset is this cut's design, not a second profile table. Ship products are keyed one per maker per hull (ShipModCatalog.ProductKey(id, maker)); whether hull tiers widen that key is this cut's to map, not assumed. Waits on: product-lines-weapons (its command and the deleted test); product-lines-gear (same catalog writer). Since ruling quality-min-tolerance-binned-assembly a tier row may also set its own FactionProductData.Assembly (assembly-from-maker r3 adds the field; no product sets it yet, AFM3).
-- quality-readers: Price, the rarity tier name and colour, Entity.cs heat, durability and wear, and ChooseProduct's affordability read the item's effective quality, the mean of min(part, assembly) over its roles, assembly alone for a roleless lot (ruling effective-quality-mean-of-roles). Today they read Lot.Quality (PL9). Waits on: assembly-from-maker r3 merged.
+- product-tiers: A maker sells several products of one design at different performance (ruling maker-design-tiers-allowed, 2026-10-16). In the operator's words, "segmentation via binning and sub-assembly selection": no new innovation or component roles. Maps per-tier ProductRole quality and a Price that follows quality, which today comes from the design (question maker-design-tiers, depends). The tier rows go through product-lines' ProductLinesCommand. Product names stay unique (NoTwoProductsShareAName). ProductRole's mean and deviation come from the maker's one MakerProfiles row, so two tiers at one maker need a per-tier offset. That offset is this cut's design, not a second profile table. Ship products are keyed one per maker per hull (ShipModCatalog.ProductKey(id, maker)); whether hull tiers widen that key is this cut's to map, not assumed. Waits on: product-lines-weapons (its command and the deleted test); product-lines-gear (same catalog writer). Since ruling quality-min-tolerance-binned-assembly a tier row may also set its own FactionProductData.Assembly (assembly-from-maker r3 adds the field; no product sets it yet, AFM3). Once quality-readers lands, a lot's price already follows its effective quality, so tiers that differ in role or assembly distributions differ in price with no per-product Price (map 'Quality readers at 70c7a497'); whether ChooseProduct weighs that price is question chooseproduct-affordability (option with-product-tiers).
 - run-seed: Drops mix a per-game seed stored in the save (ruling loot-seed-in-save, 2026-10-16). A new game rolls different drops from other games, reloading one save repeats its drops, and tests pass a fixed seed. Today Zone.CombatSeed is the zone name's StableHash (Zone.cs:144). It feeds three dice: the loot dice (Zone.cs:414, LootStream, by death ordinal), the mine lay scatter (FireControl.cs:791, MineStream) and the shot dice (FireControl.cs:930). The ruling covers drops, and the question named loot and mine fragments, so the seed mixes into the loot and mine streams. Whether hit rolls also take it is not ruled: the cut raises it. Do not change CombatSeed itself and carry that along silently. The seed lives on SavedGame, minted by the new-run branch. The run lifecycle is record-level (ActionGameManager.cs:58-60), so the seed must reach Zone at construction from the run, not from the catalog. Owns follow-up loot-dice-run-seed (its old owners, loot-1 r2 and sim-mines, are merged). Waits on: nothing in the mind.
 - mining-yield: Mining Cut 5 (docs/mining-cut-refresh.md 'Cut 5. Composition, the loot roll, the mined lot, and the same-path test agent'). Ruling mining-overflow-floats (2026-10-16) replaces that plan's deposit rule: units a shot extracts go into the shooter's cargo through TryStore, and what the hold cannot take is released through Zone.Release (Zone.cs:356) as floating items, which the player and NPCs collect through the one pickup path. The plan's AFullHoldLosesTheOverflow test becomes AFullHoldReleasesTheOverflow. Mining Cuts 4 and 7 stay with follow-up mining-cuts-4-5-7, which this cut's spec resolves with them. Waits on: mining Cut 4 (FireControl shots at chunks), full game (demo scope table: no buyer for ore in the demo).
 - boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first). After damage-falloff: a Range Extender multiplies Range only, so it lengthens the falloff ramp and leaves EffectiveRange where it was; the cut decides whether it also targets EffectiveRange (section "Damage falloff at fire time", DF8).
@@ -10690,3 +10689,93 @@ today. It takes the designation fallback from both, and invents no names when a 
 - **Miss Terri's** gets no list from any agent (`miss-terris-belongs-to-emily-r3`). Question
   `miss-terris-place-names` recommends asking Emily now, because the demo prelude shows her
   zones as designations until a list exists.
+
+## Quality readers at 70c7a497 (imagination-ag6-quality-readers, 2026-10-18)
+
+Maps cut quality-readers under ruling effective-quality-mean-of-roles, after assembly-from-maker
+merged (55bda75a; origin/master 70c7a497). Spec cut-quality-readers.r1.
+
+### Body facts
+
+Probes QR1-QR5 by imagination-ag6-quality-readers (session self-2026-10-18-ag6), 2026-10-18, in
+worktree C:\aeth-wt\ag6-quality-readers at 70c7a497. Catalog: GameData/Aetheria.cc, LFS oid
+22342ea3, decoded in Python (script qr1.py in the agent's scratch, after afm2-sim.py).
+
+- **QR1, every reader of lot quality, by search** (`git grep -E "\bQuality\b"` over Assets/Scripts
+  and tools, then callers of each hit). The lot's own `Lot.Quality` is read in six places:
+  `ItemManager.GetPrice` (ItemManager.cs:117, price; StationServices BuyPrice, SellPrice,
+  RepairCost and RepairShare all go through it), `ItemManager.GetTier` (:225-234; callers
+  PropertiesPanel.cs:438 title, TradeMenu.cs:195 list colour, ZoneRenderer.cs:314 floating-item
+  colour), `UnequippedStatContext`'s durability exponent (ItemManager.cs:99-102),
+  `EquippedItem`'s ThermalExponent and DurabilityExponent (Entity.cs:2194-2201) and Wear
+  (Entity.cs:2372), and `Lot.QualityForRole`'s three fallbacks (Provenance.cs:80-83: empty role,
+  null Roles, role without a fill). Role-named StatSource.Quality terms read
+  `QualityForRole` (ItemData.cs:753), min(part, assembly) since assembly-from-maker. No other
+  reader exists: no AI code, loot code, save path, AetherDb command or UI reads a lot's quality
+  or its fills; ConsumableItemEffect, PowerRequestContext and NominalContext pass the Lot to
+  stat evaluation only. Lot.Quality is persisted (key 2); an effective quality derived from it and
+  the fills needs no format change.
+- **QR2, ChooseProduct has no affordability term:** LoadoutGenerator.cs:262-273 weighs each
+  available product by `ProductWeight` = `ManufacturerPreference` (allegiance over home-zone
+  distance) only. It chooses a product before any lot exists, so no lot's quality, effective or
+  not, is there to read. No outfitter has a budget (PL9).
+- **QR3, roleless Quality terms on the shipped catalog:** 367 role-named Quality terms on ranged
+  stats of roled designs; 4 unnamed terms, all on flat stats (Min = Max, no effect); no
+  Quality term at all on a roleless design. So re-pointing the QualityForRole fallbacks changes
+  no shipped stat; it decides fixtures and future content.
+- **QR4, price and tier over the shipped catalog,** 400 lots per product (61,200 lots, 5,600
+  roleless), assembly from product.Assembly ?? Faction.Assembly (15 of 16 makers set, no product
+  sets its own), fills per ProductRole, both clamped to [.01, 1], QualityPriceModifier .25-8
+  exponent 3, Settings.asset tiers .3/.45/.6/.75/.9. Assembly-only (master today) against
+  effective (mean of min(fill, assembly), assembly for a roleless lot): mean price multiplier
+  2.83 to 1.60 (x.56); assembly minus effective .13 on average, at most .97; tier unchanged on
+  44% of lots. Tier shares Common/Uncommon/Rare/Epic/Legendary: assembly-only .08/.26/.39/.21/.06,
+  effective .24/.50/.22/.04/.004. Effective quality never exceeds assembly, so no price rises.
+- **QR5, fixtures:** StationServicesTests, the Editor smokes and most LoadoutTests lots carry
+  empty or null Roles, so they read the assembly either way. Tests that change:
+  LoadoutTests.StatsReadTheLot (:527, the unnamed term on a .2 lot with lens .15 reads .15) and
+  AssemblyFromMakerTests.FallbacksReadTheAssembly (:188, still green, since its fill .9 is above
+  the assembly .4, so it no longer pins what it names). Staged fits mint every fill at the
+  stated quality (assembly-from-maker r3), so their effective quality equals it; Generated fits
+  draw, and their heat, durability and wear move.
+
+### Rationale
+
+- **One owner, on the lot.** `Lot.EffectiveQuality()` beside `QualityForRole`: the lot already
+  owns the per-role ceiling, and every reader holds a Lot. A method, not a property: Lot is an
+  int-keyed MessagePackObject, and the codebase marks every computed public member of one
+  [IgnoreMember] (AgentTask.cs:21, FollowTask.cs:10); a method needs neither.
+  Nothing caches it; the lot is immutable once minted (ItemData.cs:744-752), and the per-tick
+  Wear read costs a two- or three-element loop.
+- **The fallbacks read effective quality.** Ruling quality-is-assembly-over-supply-chain makes
+  final stats depend on both layers; an unnamed Quality term reading assembly alone would skip
+  the parts. QR3 shows no shipped stat moves.
+- **Mean over the lot's fills, not the design's roles.** The fills are what was built (Mint fills
+  every design role, AFM3); a lot minted before roles has null Roles and reads its assembly, as
+  the ruling says for roleless lots. An empty list is roleless too, never a divide by zero.
+- **ChooseProduct's affordability is not in this cut.** There is no term to re-point (QR2), a
+  product-level expectation would be a second quality function, and "affordable" needs a budget
+  no outfitter has. The ruling's clause echoes the depends line of question
+  effective-quality-scalar; the option the operator picked did not mention ChooseProduct. That is
+  question chooseproduct-affordability, raised in follow-up quality-layers-combine, which keeps
+  only that part open.
+- **Balance is a note, not a gate.** QR4's drop in price and tier is what the ruling buys:
+  price no longer pays for parts the assembly wastes. Settings.asset's Tiers and
+  QualityPriceModifier are the knobs.
+- **quality-layers-combine:** item 1 (one combined quality read by price, tier, heat, durability,
+  wear and display) is this cut; item 2 (assembly from the builder) landed in assembly-from-maker;
+  item 3 (real components) is deferred by named-components-after-demo. What remains is its
+  closing line, ChooseProduct ranking by affordability, now question chooseproduct-affordability.
+
+### Model page rows (quality-readers)
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Effective quality (`Lot.EffectiveQuality()`) | Derived per lot; no identity of its own. | Never stored: computed from Lot.Quality and Lot.Roles, both immutable once minted. | `Lot.EffectiveQuality()` alone; price, tier, heat, durability, wear and the QualityForRole fallbacks call it. |
+
+### Admitted
+
+- question chooseproduct-affordability and cut_spec cut-quality-readers.r1 (receipt
+  mind-commit-f9d28914...), base 70c7a497. The question is raised in follow-up
+  quality-layers-combine, not in the spec, so the spec does not wait on it. context-pack: 14
+  anchors SAME.
