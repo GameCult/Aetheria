@@ -300,6 +300,48 @@ public sealed class ProductChoiceTests : IDisposable
         Assert.Equal(0f, three.Outfitter(three.OutEven, 1, 0).ProductWeight(three.Product("lamp-a")));
     }
 
+    // Ruling bin-share-by-floor holds on every draw of a design, not only the preference-weighted one. When every reachable maker
+    // weighs 0 the ChooseProduct draw is by share alone, and Alpha's line and bin together keep the half they held as one product.
+    [Fact]
+    public void ABinLeavesItsMakersShareOfTheAllZeroWeightDrawUnchanged()
+    {
+        int AlphaDraws(Rig rig)
+        {
+            var lamp = rig.Cache.GetByName<GearData>("Lamp");
+            var zero = rig.Cache.GetByName<Faction>("OutZero");
+            return Enumerable.Range(1, 1000).Count(i => rig.Cache.Get(rig.Outfitter(zero, Seed(i), 0).ChooseProduct(lamp).Manufacturer).Name == "Alpha");
+        }
+
+        Assert.InRange(AlphaDraws(Build("lamp-z", "lamp-a")), 440, 560);
+        Assert.InRange(AlphaDraws(Build(new[] { .67f }, new[] { "lamp-z", "lamp-a" })), 440, 560);
+        Assert.InRange(AlphaDraws(Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" })), 440, 560);
+    }
+
+    // The same for a required item that has fallen back to any manufacturer (OutNone is allied to nobody, so no product is on offer
+    // and the fallback weighs every product alike, but for the bins' shares).
+    [Fact]
+    public void ABinLeavesItsMakersShareOfTheRequiredFallbackDrawUnchanged()
+    {
+        int AlphaDraws(Rig rig)
+        {
+            var log = new List<string>();
+            var items = new ItemManager(rig.Cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), log.Add);
+            var lamp = rig.Cache.GetByName<GearData>("Lamp");
+            var alpha = Enumerable.Range(1, 1000).Count(i =>
+            {
+                var random = new Random(Seed(i));
+                var generator = new LoadoutGenerator(ref random, items, rig.Galaxy, null, rig.OutNone, .5f);
+                return rig.Cache.Get(generator.RandomProduct<EquippableItemData>(0, design => design == lamp, required: true).product.Manufacturer).Name == "Alpha";
+            });
+            Assert.NotEmpty(log);
+            return alpha;
+        }
+
+        Assert.InRange(AlphaDraws(Build("lamp-z", "lamp-a")), 440, 560);
+        Assert.InRange(AlphaDraws(Build(new[] { .67f }, new[] { "lamp-z", "lamp-a" })), 440, 560);
+        Assert.InRange(AlphaDraws(Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" })), 440, 560);
+    }
+
     // A weight that read the allegiance alone would give 1 : .25 here, an 80% draw; the zone and allegiance together
     // give 1 : .125 for alpha at its own zone, 89%.
     [Fact]
