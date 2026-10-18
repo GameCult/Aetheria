@@ -37,7 +37,6 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - faction-play-4: Faction play 4 (r3): the tender loop on real rounds, full-game scope. A member low on magazines rearms from its tender. Waits on: faction-play-3, ballistic-ammo (blocked on faction-play-3 and ballistic-ammo).
 - retire-prelude: Retire the prelude and the tutorial: Galaxy.IsPrelude, SavedGame.IsTutorial, TutorialGalaxy and. Waits on: demo-galaxy, boss-gate, retire-longinusx, gear-without-presence (refresh needed (96-commit drift)).
 - autofire-threshold: Missiles 3 (r5): autofire in the sim. Each autofire gun picks its subject through ChooseSubject (munitions first) and. Waits on: munition-shots (blocked on munition-shots).
-- boss-hull-derived: A faction's boss hull is derived (r2): HullData.Boss on a hull the faction makes a product of, set by its own. Waits on: boss-gate, pirates-record, package-product (all merged; not blocked). Runs after faction-pair's faction-play-1 and maker-only-faction, which edit Faction in Corporations.cs and the main galaxy's faction draw in Galaxy.cs; like every catalog command it also edits tools/AetherDb/Program.cs. No Boss hull exists until the operator's Zhestokost boss package (follow-up zhestokost-boss-hull). Body facts: Products PL5-PL6.
 - autofire-controls: Missiles 3b (r2): the player sets autofire; the HUD marks munitions and autofire groups; the Point Defense scenario. Waits on: autofire-threshold, controls-hud, pd-gear (blocked on autofire-threshold and controls-hud).
 - broadside-gunboat: Broadside returns on a real gunboat: the operator's Zhestokost line-gunboat package (side-rotated Ballistic hardpoints). Waits on: mods-in-tree, package-product (blocked on package-product and the operator package).
 - demo-cast-hulls: Demo cast hulls land (r3): the operator's five packages under GameData/Mods, each its maker's ship under its own name. Waits on: mods-in-tree, pirates-record, package-product, boss-hull-derived (blocked on package-product, boss-hull-derived and operator packages).
@@ -54,8 +53,12 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - gear-lines (spec cut-gear-lines.r1, remaps withdrawn product-lines-gear): 22 second-maker gear products as 'product-lines gear' in ProductLinesCommand. The follow-up's rows less its two Compact Sensor rows, plus Medium Drive, Large Drive and Industrial Thermostatic Heater, so every role-bearing ship gear design that is sold has two makers (Muon Fusion and the four station reactors exempt). The command's no-roles refusal exempts cargo bays. Waits on: nothing; runs now. Replay: 'product-lines gear apply', either side of minor-power-factions, before assembly-from-maker. Body facts: Products PL3, PL10-PL12.
-- product-tiers: A maker sells several products of one design at different performance (ruling maker-design-tiers-allowed, 2026-10-16). In the operator's words, "segmentation via binning and sub-assembly selection": no new innovation or component roles. Maps per-tier ProductRole quality and a Price that follows quality, which today comes from the design (question maker-design-tiers, depends). The tier rows go through product-lines' ProductLinesCommand. Product names stay unique (NoTwoProductsShareAName). ProductRole's mean and deviation come from the maker's one MakerProfiles row, so two tiers at one maker need a per-tier offset. That offset is this cut's design, not a second profile table. Ship products are keyed one per maker per hull (ShipModCatalog.ProductKey(id, maker)); whether hull tiers widen that key is this cut's to map, not assumed. Waits on: product-lines-weapons (its command and the deleted test); product-lines-gear (same catalog writer). Since ruling quality-min-tolerance-binned-assembly a tier row may also set its own FactionProductData.Assembly (assembly-from-maker r3 adds the field; no product sets it yet, AFM3). Once quality-readers lands, a lot's price already follows its effective quality, so tiers that differ in role or assembly distributions differ in price with no per-product Price (map 'Quality readers at 70c7a497'); whether ChooseProduct weighs that price is question chooseproduct-affordability (option with-product-tiers).
-- run-seed: Drops mix a per-game seed stored in the save (ruling loot-seed-in-save, 2026-10-16). A new game rolls different drops from other games, reloading one save repeats its drops, and tests pass a fixed seed. Today Zone.CombatSeed is the zone name's StableHash (Zone.cs:144). It feeds three dice: the loot dice (Zone.cs:414, LootStream, by death ordinal), the mine lay scatter (FireControl.cs:791, MineStream) and the shot dice (FireControl.cs:930). The ruling covers drops, and the question named loot and mine fragments, so the seed mixes into the loot and mine streams. Whether hit rolls also take it is not ruled: the cut raises it. Do not change CombatSeed itself and carry that along silently. The seed lives on SavedGame, minted by the new-run branch. The run lifecycle is record-level (ActionGameManager.cs:58-60), so the seed must reach Zone at construction from the run, not from the catalog. Owns follow-up loot-dice-run-seed (its old owners, loot-1 r2 and sim-mines, are merged). Waits on: nothing in the mind.
+- product-tiers: spec cut-product-tiers.r1 (map section Product tiers). A binned product names its maker's line of one
+  design and a floor in deviations; the mint draws its parts and its final test from the line above that floor. Six
+  binned products, no hull tiers. Blocked on question tier-stock-share.
+- product-tiers-hulls (later, one line): ship hulls stay one product per maker per hull
+  (`ShipModCatalog.ProductKey(id, maker)`). A binned hull needs that key widened and its package's product record to
+  carry a Bin. Not mapped.
 - mining-yield: Mining Cut 5 (docs/mining-cut-refresh.md 'Cut 5. Composition, the loot roll, the mined lot, and the same-path test agent'). Ruling mining-overflow-floats (2026-10-16) replaces that plan's deposit rule: units a shot extracts go into the shooter's cargo through TryStore, and what the hold cannot take is released through Zone.Release (Zone.cs:356) as floating items, which the player and NPCs collect through the one pickup path. The plan's AFullHoldLosesTheOverflow test becomes AFullHoldReleasesTheOverflow. Mining Cuts 4 and 7 stay with follow-up mining-cuts-4-5-7, which this cut's spec resolves with them. Waits on: mining Cut 4 (FireControl shots at chunks), full game (demo scope table: no buyer for ore in the demo).
 - boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first). After damage-falloff: a Range Extender multiplies Range only, so it lengthens the falloff ramp and leaves EffectiveRange where it was; the cut decides whether it also targets EffectiveRange (section "Damage falloff at fire time", DF8).
 - boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
@@ -860,7 +863,7 @@ deletes the flag with no behaviour change except where named.
 **Why `IsPrelude` is split by rule, not renamed.** It bundles four unrelated rules, and each goes
 to its owner:
 - influence halving -> the cast's own `InfluenceScale` (the demo's cast sets .5, so its galaxy is
-  unchanged), carried by the Galaxy and the save (key 14) because later zones read it (PR2);
+  unchanged), carried by the Galaxy and the save (key 15) because later zones read it (PR2);
 - the entrance station -> `Scenario.EntranceStation`, a declaration beside `Ambient`, default true,
   false for MainGalaxy, so every scenario's arena is unchanged; RunStart.GenerateArena applies it;
 - availability -> the general rule of gear-without-presence;
@@ -875,7 +878,7 @@ supplier with no local presence carries the largest trade cost, so it is reachab
 preferred. Zero distance (today's accident) would make absent makers the most preferred, inverting
 the rule.
 
-**Old saves.** Key 14 absent decodes as 0 and the save constructor refuses a non-positive scale by
+**Old saves.** Key 15 absent decodes as 0 and the save constructor refuses a non-positive scale by
 name. Per ruling `no-save-compatibility-before-players` nothing reads key 11.
 
 ### Model page rows
@@ -894,7 +897,7 @@ name. Per ruling `no-save-compatibility-before-players` nothing reads key 11.
 | Ligatures per text | Each TMP component's `fontFeatures` | `liga` added once by `EmojiFont.EnableLigatures`; new components inherit TMP Settings | `EmojiFont.EnableLigatures`, then the component |
 | EmojiOne sample | none | Deleted by `emoji-font` | none |
 | Galaxy cast (replaces `TutorialGenerationSettings`) | A scenario's code constant (`DemoTerminus.Cast`) | Compiled with the game; no authored settings copy | The scenario |
-| `Galaxy.InfluenceScale` | Its galaxy | Set by the constructor (the cast's value, 1 for main), saved as `SavedGame` key 14 | The cast |
+| `Galaxy.InfluenceScale` | Its galaxy | Set by the constructor (the cast's value, 1 for main), saved as `SavedGame` key 15 | The cast |
 | `Scenario.EntranceStation` | Its scenario | Compiled | The scenario; `RunStart` applies it |
 | `SavedGame` key 11 (`IsTutorial`) | Retired | Not read, not written | none |
 | `Galaxy.IsPrelude`, `TutorialGalaxy`, `TutorialGenerationSettings`, `GameSettings.TutorialGenerationSettings` | Deleted by `retire-prelude` | | none |
@@ -10779,3 +10782,401 @@ worktree C:\aeth-wt\ag6-quality-readers at 70c7a497. Catalog: GameData/Aetheria.
   mind-commit-f9d28914...), base 70c7a497. The question is raised in follow-up
   quality-layers-combine, not in the spec, so the spec does not wait on it. context-pack: 14
   anchors SAME.
+
+## Boss hull derived
+
+Probes and source reads by imagination-ag6-boss-hull (session self-2026-10-18-ag6), 2026-10-18,
+in the detached worktree `C:\aeth-wt\ag6-boss-hull` at `origin/master` `eb27ced1`. `origin/master`
+moved to `ac835a8a` during the pass. That commit adds only
+`docs/research/2026-10-18-agent-built-hull-art-prior-art.md`, so every anchor below is the same
+at both. Read by `cut-boss-hull-derived.r3`. This section supersedes the anchors of "Demo hulls,
+the Pirates and the boss" H7 (`@2a5fc00b`) and of Products PL6. Its design rationale
+("The boss hull is derived, not named") stands, with the changes recorded under Rationale below.
+
+### Body facts
+
+- **BH1. What the cut waits on is on master.** boss-gate is merged at `39c7508e`
+  (cut-boss-gate r2, verdict s3). faction-play-1 is merged at `d7f30ed1` (r3, h6), and its catalog
+  replay is at `aa12cbac`. minor-power-factions is merged at `c486b06d`; it is the remap of
+  maker-only-faction. pirates-record is merged at `2c065937` and package-product at `3535660c`.
+  No cut that edits Faction or the main galaxy's faction draw is still in flight ahead of this
+  one.
+- **BH2. Faction keys at `eb27ced1`** (`Corporations.cs`): 1-5, 7, 8, a retired-key comment for 9
+  (`:39`), `BossHull` Key(10) at `:42-43`, then 11-15, 17 (Doctrine), 19 (Assembly) and 21 (Places).
+- **BH3. HullData keys** (`ItemData.cs:531-556`): 23, 24, 25, retired 26 (`:542`), 27, 28, 29 and
+  32 (`Visual`, `:555-556`). Key 33 is free on HullData. Fuse's Key(32) at `:526` is on a sibling
+  type.
+- **BH4. Every BossHull reader at `eb27ced1`** (`git grep BossHull`):
+  `Galaxy.cs:293` (`PlaceFactionsMain` picks boss factions by `BossHull.IsSet()`, `:291-295`);
+  `LoadoutGenerator.cs:212-230` (`GenerateBossLoadout`);
+  `tools/AetherDb/Program.cs:586` (dangling comment) and `:709-712` (the factions boss column and
+  its `broken` count, the method's only use of `broken`, `:700-716`);
+  `RunGoalTests.cs:74-115` (two tests) and `:199-202` (Exit_open_only_in_the_exit_zone sets one).
+  No writer exists: no AetherDb command, no Pirates or minor-power command, no package path.
+  `GameData/Aetheria.cc` holds the string `bossHull`, which is its schema table.
+- **BH5. Retiring a key with stored values needs no catalog rewrite.** Precedents: `1d689adf`
+  retired Faction key 9 and `be7f2b07` retired HullData key 26, and neither touched
+  `GameData/Aetheria.cc`. The suite loads the shipped catalog in `RunStartTests`' constructor.
+  This is a precedent read; no decode was run in this pass.
+- **BH6. Every generation hull draw goes through one availability rule.** `RandomHull`
+  (`LoadoutGenerator.cs:165-170`) calls `RandomProduct`, then `RandomProducts` (`:176-185`), then
+  `AvailableProducts` (`:188-210`). Station stock (`:126-127`) and the boss fallback (`:226`) also
+  go through `AvailableProducts`. Its `candidates` filter (`:191-198`) runs before the
+  any-manufacturer fallback (`:201-206`). An exclusion placed there therefore holds on the
+  fallback too. `ChooseProduct` (`:262-273`) has its own `Where` and serves presets that name a
+  design.
+- **BH7. Explicit hull draws.** `ScenarioStage.Generated` (`ScenarioStage.cs:90-97`) and AetherDb
+  `loadout` (`Program.cs:805-818`, which runs every hull through `GenerateShipLoadout(candidate
+  => candidate == hull)`) both reach `AvailableProducts`. Many tests call
+  `GenerateShipLoadout(h => h == hull)` on shipped hulls (for example `RestoredHullsTests.cs:606`).
+  None of those hulls is a Boss hull.
+- **BH8. The boss path.** `ZoneGenerator.cs:398-412` calls `GenerateBossLoadout` for every
+  `BossZones` entry in the zone and marks the result `Boss`. `Galaxy.cs:150` sets the prelude and
+  demo antagonist's boss zone without reading any hull. `Galaxy` holds `_cache` (`:36`, set at
+  `:51`, `:102` and `:169`), so `PlaceFactionsMain` can call a static derivation over the catalog.
+- **BH9. The package writer.** `ShipAuthoringCommands.cs` (157 lines): `Usage` at `:11`, `inspect`
+  at `:29-35`, `price` at `:79-93` (it judges before it writes, and a refusal leaves the file
+  byte-identical), and `product` at `:94-125`. `ShipProductTests.ProductAndPriceCommands`
+  (`:259-300`) pins the price and product commands with `RefusedAndUntouched`. Compose copies a
+  package's HullData verbatim, so a member set in the package reaches the composed catalog.
+  `ComposeCopiesEveryProductAndEachMakerIsOfferedTheHull` (`:80-100`) byte-compares products.
+- **BH10. Zhestokost makes no ship hull.** Products PL6 still holds: its only hull product is the
+  Turret. Until a Zhestokost Boss hull exists, the demo boss is the logged fallback (the priciest
+  ordinary ship hull Zhestokost can be offered).
+- **BH11. Which hulls can be bosses.** Ruling `hull-programmer-art-stopgap` (2026-10-18) leaves
+  open whether boss hulls come from the operator's packages or an agent-built stopgap. The Eyes
+  facts file at `ac835a8a` places stopgap art on the package path. Nothing in the derivation
+  reads `Prefab`, `Visual` or a model, so a hull from either source, or with neither, can be a
+  boss.
+
+### Rationale
+
+- **One owner of which hull is a faction's boss:** `LoadoutGenerator.BossHullsOf(CultCache,
+  Faction)`. It returns the faction's products whose design is a `HullType.Ship` HullData with
+  `Boss` set, ordered by hull Price descending, then hull Name ordinal. The flag is authored on
+  the hull, and the faction comes from the product's maker. Nothing stores the pairing.
+  `GenerateBossLoadout`, `Galaxy.PlaceFactionsMain` and AetherDb `factions` all call it.
+- **One owner of "a Boss hull is never on offer":** `AvailableProducts`' candidate filter (BH6).
+  r2 put the exclusion on `RandomHull` and the stock filter, and gave `RandomHull` a boss bool.
+  That made two sites and one mode flag, and it missed the fallback's own
+  `AvailableProducts` call. r3 uses one clause instead. The boss is built straight from its
+  product through a new `ShipLoadout(FactionProductData)` builder, which is the body of
+  `GenerateShipLoadout` after its draw. So the boss path never asks the availability rule to
+  make an exception.
+- **The "named but unsold" branch goes.** It existed because BossHull named a design. A
+  derivation that starts from products cannot name an unsold hull, so its log line and its test
+  (`Boss_hull_nobody_sells_falls_back`) are deleted. They are not rewritten.
+- **A boss is not a market draw.** `ShipLoadout` from the boss product does not apply
+  `AvailableProducts`' `Price > 0` rule. A price-0 Boss hull is still a boss.
+- **Kept:** a sold Boss hull's hardpoints still count in `SoldHulls`, so gear only it can mount has
+  a home. That gear is loot. `ScenarioStage.Generated("<boss hull>")` fails like any unavailable
+  hull. `ChooseProduct` is untouched.
+- **Prior art (from memory, medium confidence; no Eyes pass this round):** Starsector tags unique
+  and boss hulls so markets never sell them. They are spawned by script, outside a faction's
+  known-ships draw. EVE's officer spawns fly hulls that no market sells. Both match the exclusive
+  reading. Question `boss-hull-exclusive` asks the operator to confirm it.
+
+### Model page rows
+
+Replace the two rows in "Demo scope, Model page rows" (`Boss hull`, `Faction.BossHull`) with:
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Boss hull | `HullData.Boss` (key 33, bool) on any HullData, whether shipped, package, or agent-built stopgap | Set by `ship-authoring boss <ship.cc> on\|off` on packages, or in Studio's inspector on shipped hulls. Derived per generation; stored nowhere | The hull's author sets the flag. `LoadoutGenerator.BossHullsOf` derives the faction from the product's maker |
+| `Faction.BossHull` (key 10) | Retired; never reuse | Deleted by `boss-hull-derived`. The shipped records keep `''` in the slot (BH5) | none |
+
+### Cut sequence
+
+Remove the `boss-hull-derived` line. Change the `demo-cast-hulls` line's "boss-hull-derived" in
+"Waits on" to "boss-hull-derived (spec cut-boss-hull-derived.r3)" until it merges.
+
+## Product tiers
+
+Ruling maker-design-tiers-allowed (operator: "segmentation via binning and sub-assembly selection ... no new
+innovation or component roles"). Rulings that constrain this cut: quality-min-tolerance-binned-assembly (min(part,
+assembly); a product may carry its own assembly), effective-quality-mean-of-roles and price-follows-effective-quality
+(price and tier read Lot.EffectiveQuality, since quality-readers), quality-triangle-is-per-facility (paying for quality
+in cost or throughput is later crafting work, set per facility), outfitting-affordability-waits-for-budget
+(ChooseProduct gets no cost term), design-only-weighted-draw (ProductWeight is the draw's one weight),
+named-components-after-demo (role fills stay a statistical stand-in).
+
+### Body facts (probes and source reads at eb27ced1)
+
+- PT1 (source read, `Assets/Scripts/ServerShared/ItemManager.cs:130-154`): `Mint` draws `Lot.Quality` from
+  `product.Assembly ?? maker.Assembly ?? new AssemblyDistribution()` and each role fill from the product's
+  `ProductRole` for that role (default `new ProductRole()`, mean .5), both through `Random.NextGaussian` clamped to
+  [.01, 1]. A tier needs no game change to differ in quality: a product's own Roles and Assembly already drive the
+  draw. `CreateLot(product, quality)` (stated) draws nothing.
+- PT2 (source read, `ItemManager.cs:114-119, 226-236`; `Settings.asset:221-224`): price is
+  `QualityPriceModifier.Evaluate(EffectiveQuality) * design.Price`, with `ExponentialLerp` minimum .25, maximum 8 and
+  exponent 3, so the multiplier is `.25 + q^3 * 7.75`. Tier thresholds are Common .3, Uncommon .45, Rare .6, Epic
+  .75 and Legendary .9 (`Settings.asset:191-216`). A tier product prices from its lots with no per-product Price.
+- PT3 (catalog probe, `scratchpad/imagination-ag6-product-tiers/cat3.py` decoding `GameData/Aetheria.cc` with
+  msgpack): 153 products, and no maker sells two products of one design. FactionProductData's schema in the file has
+  slots 1-6 (6 = Assembly), and no product sets Assembly. Faction.Assembly (slot 19) is set for every maker except
+  Ewan Hart. Examples: Finch .76±.19, Lucent .66±.15, AU .64±.13, R&D .68±.15, NiteLife .66±.13, Zhestokost .62±.10,
+  Megiddo .85±.05. The six candidate lines each have two roles at their maker's profile: Sparrow (Light Laser, Finch
+  .65±.20), Spotlight (Light Laser, Lucent .60±.15), Rattler (Light Machine Gun, AU .50±.12), SM-6 Marksman (Slug
+  Rifle, R&D .60±.15), PowerHour 2.0 (High-Yield Reactor, NiteLife .55±.12) and Juggernaut (Large Drive, Zhestokost
+  .50±.08).
+- PT4 (source read, `LoadoutGenerator.cs:176-184, 255-272`): `ProductWeight(product)` is the maker's preference, used
+  per product by `RandomProducts` (stock and generated fits) and `ChooseProduct`. A second product of one maker and
+  design would double that maker's weight for the design.
+- PT5 (source read, `tools/AetherDb/ProductLinesCommand.cs:12-181`): a row is (design, name, maker, text), and its
+  roles are written at `Program.MakerProfiles[maker]`. A product's key is a hash of its name. The command already
+  accepts a maker that sells the design. `NoMakerSellsTwoProductsOfOneDesign` is no longer in the tree (grep at
+  eb27ced1). `NoTwoProductsShareAName` stands (`ProductLinesCatalogTests.cs:36-46`).
+- PT6 (source reads): three tool paths and two catalog tests assume that every product authors every role of its
+  design. They are the census role-gap loop (`Program.cs:131-145`), roles-migrate (`Program.cs:367-380`),
+  roles-backfill (`Program.cs:2219-2234`), `CatalogRoleTests.ShippedCatalogRolesAreLive` (`:62-67`) and
+  `RolesBackfillIsAuthored` (`:264-282`, which reads the Large Drive). `AssemblyFromMakerCommand.Derive` averages
+  product Roles, so a product with no roles adds nothing to it (`AssemblyFromMakerCommand.cs:23-34`).
+  `AssemblyFromMakerCatalogTests:25` asserts that every shipped product has a null Assembly.
+- PT7 (Monte Carlo, `mc.py`, 200k lots, 3 roles, moment-matched slices): this repeats Soul's s1 finding that the
+  final test alone barely matters. For Lucent, binning only the final test to its top half lifts mean effective
+  quality .556 to .591. Selecting only the parts lifts it to .639, because assembly caps the parts. Selecting both
+  lifts it to .704. A tight-QC maker has little to bin: for Megiddo (±.05) the best bin lifts .747 to .790.
+- PT8 (Monte Carlo, `mc2.py`, 200k lots, exact truncation by rejection at mean + z·sd, the six PT3 lines at their
+  catalog distributions). The table below shows the line, then the top half (z 0) and the top quarter (z .67) of
+  parts and final test, each as mean effective quality / mean price multiplier / worst tier / tier shares:
+
+  | line | line | top half (z 0) | top quarter (z .67) |
+  |---|---|---|---|
+  | Sparrow (Finch) | .587 / x2.04 / Common | .781 / x4.02 / Rare (Epic .64) | .883 / x5.62 / Epic (Leg .35) |
+  | Spotlight (Lucent) | .543 / x1.61 / Common | .694 / x2.87 / Rare (Rare .88) | .773 / x3.85 / Rare (Epic .73) |
+  | Rattler (AU) | .479 / x1.17 / Common | .592 / x1.88 / Uncommon | .651 / x2.41 / Uncommon (Rare .92) |
+  | SM-6 Marksman (R&D) | .550 / x1.66 / Common | .699 / x2.94 / Rare | .777 / x3.92 / Rare (Epic .75) |
+  | PowerHour 2.0 (NiteLife) | .521 / x1.42 / Common | .639 / x2.30 / Uncommon | .699 / x2.92 / Rare |
+  | Juggernaut (Zhestokost) | .488 / x1.18 / Common | .563 / x1.64 / Uncommon | .601 / x1.95 / Uncommon |
+
+  Isolating the stages on Spotlight's top half gives .587 for the final test alone, .616 for the parts alone and .694
+  for both. With the parts alone, the maker's margin is the headroom: Lucent's lift grows from +.060 at margin 0 to
+  +.083 at .1, +.102 at .2 and +.112 at .3.
+
+### What the operator sees in a shop
+
+A station that stocks Light Lasers can show four of them: Sparrow and Goldcrest (Finch), and Spotlight and Spotlight
+Premiere (Lucent). In TradeMenu each title is coloured by its tier. A plain line ranges from Common up. A binned one
+never shows below its floor tier: Spotlight Premiere is always Rare or better, at about 1.8 times Spotlight's average
+price (x2.87 against x1.61). Goldcrest is Epic or Legendary at about 2.75 times Sparrow's price. The properties panel
+reads, for example, "Spotlight Premiere (Rare++)". How much a bin buys follows the maker's quality control. Finch's
+loose QC (±.20) leaves a lot to bin, so its bins jump two tiers. Zhestokost's tight drives (±.08) bin only to a better
+Uncommon: Juggernaut Guards costs about 1.4 times Juggernaut and still looks Uncommon. How often a binned product
+appears beside its line is question tier-stock-share. Under the recommended split-evenly, the maker is as present as
+before and its stock divides evenly between line and bin.
+
+### Authority map
+
+- Owner: a line (a FactionProductData with no Bin) owns its design's role distributions for its maker, and its own
+  Assembly when it carries one. A binned product owns only its name, its text, which line it bins (`Bin.Line`) and its
+  floor (`Bin.Floor`, in deviations above each distribution's mean). `ItemManager.Mint` is the one place where a
+  binned lot's distributions are derived.
+- Inputs: product.Bin; the line's Roles and Assembly; the maker's Faction.Assembly; the run's Random.
+- Outputs: a Lot whose Product is the binned product (so Title and Brand read it), with every fill and the assembly
+  drawn at or above the floor. Price and tier follow from EffectiveQuality, unchanged.
+- Derived state: a binned product's quality distributions are derived and never stored. Its Roles stay empty and its
+  Assembly null. It has no per-product Price. Its draw weight is derived from its maker's preference (question
+  tier-stock-share).
+- Forbidden writers: ProductLinesCommand never writes Roles or Assembly onto a binned product. roles-migrate and
+  roles-backfill never backfill one. The census never reports its empty Roles as a gap. Studio edits to a line's roles
+  or a maker's AssemblyMean reach its bins through the derivation, with no copy to resync.
+- Shared paths: every unstated mint goes through `CreateLot(product)`: generation stock, generated and design-only
+  fits (ChooseProduct), loot, and the run start. A staged `CreateLot(product, quality)` bypasses the draw. A merge
+  replays `product-lines tiers apply` and never merges the blob (follow-up catalog-merge-replay-order).
+- Deletion line: none deleted. The comments that describe a segment as "a second product with a role pumped up"
+  (`FactionProduct.cs:11-13, 38-41`) and a binned line as a product's own assembly (`:32-33`) are rewritten to the
+  live rule.
+
+### Rationale
+
+- Why the bin is linked and not copied. A command could write a tier's Roles and Assembly as frozen slices of its line,
+  with no schema change. Each such slice would be a cache of live tunables. The operator tunes a maker's AssemblyMean
+  in Studio (ruling quality-min-tolerance-binned-assembly), and after that the frozen tier silently stops being the top
+  of its line. Her definition is "products that basically do the same thing ... with different performance
+  characteristics", so a bin derives from its line, and one owner makes drift structurally impossible. The cost is one
+  persisted type (two slots) and four sites that skip a binned product (PT6).
+- Why both stages are binned. PT7 and PT8: under the hard min, a better final test alone is nearly inert. Picked parts
+  alone are capped at the maker's margin, so for parts-only selection the margin is the headroom (PT8 margin rows),
+  and that is where the margin matters. The bins in this cut select both stages at one floor, as the operator's
+  premium-needs-a-matching-supply-chain note says (ruling quality-triangle-is-per-facility).
+- Why truncation and not moment matching. Rejection at mean + z·sd is the exact truncated normal of the line's own
+  Box-Muller draw, and it gives the player a guarantee they can read: a bin never shows below its floor tier. A
+  moment-matched gaussian has the same mean but can still roll a Common. The rejection loop is bounded at 64 tries per
+  draw and then mints at the cutoff, so the draw always ends and stays deterministic per seed. Unbinned products
+  consume the stream exactly as before.
+- Why the floor is in deviations. A floor in deviations needs no inverse normal: z 0 is the top half and z .67 the top
+  quarter. Its fraction (1 - Phi(z) per stage) is only needed for the bin-share option of question tier-stock-share.
+- Why the line is not sorted. In real binning the base SKU is what is left after sorting. Here the line keeps its full
+  distribution, so a plain Spotlight can still roll Epic. Sorting the line would re-author every binned line and add a
+  ceiling, and sorting a facility's own output is the crafting work that quality-triangle-is-per-facility defers. That
+  choice is option sorted-line of tier-stock-share, not built here.
+- Prior art (from general knowledge, confidence high on the shape and low on numbers). Semiconductor speed binning:
+  one die design is sold as several SKUs sorted by tested frequency and voltage, and the premium SKU is a guaranteed
+  floor, not a better average. Die harvesting: partly defective dies sell as lower SKUs. Makers also down-bin good
+  parts to meet demand, so a SKU's supply share is a commercial choice and not only yield, which is why split-evenly
+  is defensible for the demo.
+- Hulls are out. `ShipModCatalog.ProductKey(id, maker)` keys one product per maker per hull, and hull products live
+  in packages that the Python writer leaves untouched (`ship_cc.py:5`). Widening that key is its own cut.
+
+### Model page rows
+
+- FactionProductData: identity is the record key, a hash of the name. Lifecycle: authored by AetherDb commands and
+  tuned in Studio. Authority: a line owns its roles and its optional assembly. Slot 7 `Bin` (ProductBin: slot 0 Line,
+  a CultRecordRef<FactionProductData>; slot 1 Floor, a float) marks a binned product, which owns no distributions of
+  its own. Invariant: a Bin's Line has the same Design and Manufacturer and is not itself binned.
+- Lot (unchanged schema): a binned lot records the binned product, and its fills and assembly sit at or above the
+  floor of the line's distributions.
+- ProductWeight: the maker's preference, divided evenly among the maker's products of that design (pending
+  tier-stock-share). It is still the one weight of RandomProducts and ChooseProduct.
+
+## Run seed" section at the end of docs/aetheria-release-map.md (or beside "Mines in the sim").
+2. Remove the "- run-seed: ..." line from the first "## Cut sequence" (spec cut-run-seed.r1 now carries it).
+3. In "Retiring the prelude and the tutorial", the planned `Galaxy.InfluenceScale` moves from SavedGame key 14 to key 15:
+   run-seed takes key 14 (RS6). Two places: the "influence halving" bullet ("carried by the Galaxy and the save (key 14)"),
+   the "Old saves" paragraph ("Key 14 absent decodes as 0"), and the model-page row `Galaxy.InfluenceScale` ("saved as `SavedGame` key 14").
+4. The spec cites this as "map section Run seed (to be committed)"; fix its DocRefs if you want line ranges.
+-->
+
+## Run seed
+
+Ruling `loot-seed-in-save` (2026-10-16): a new game rolls different drops from other games,
+reloading one save repeats its drops, and tests pass a fixed seed. Spec `cut-run-seed.r1`,
+base `eb27ced1`. Question `run-seed-zone-dice-scope` (raised in the spec) asks whether the
+zone's other dice take the seed too.
+
+### Body facts (master `eb27ced1`, 2026-10-18)
+
+- **RS1. A run seed already exists, and nothing saves it.** `Galaxy.Seed` (`Galaxy.cs:31-33`) is
+  the seed a galaxy was generated at. `GalaxyStage.SeedFrom` (`GalaxyStage.cs:52-56`) mints it:
+  the scenario's `Seed` if non-zero, else the clock, never zero. `GalaxyStage.Main`/`Prelude`
+  (`:59-82`) pass it to the generation constructors. `RunStart.SeedItems` (`RunStart.cs:62-65`)
+  seeds the run's item draws from it. The save constructor (`Galaxy.cs:48-92`) never sets it, so a
+  continued run has `Seed == 0` (the comment at `:31-32` says so). `SavedGame` (`SavedGame.cs:9-53`,
+  `aetheria.savedgame` v1) has keys 0-13 and no seed. `RunSave.Capture` (`:60-96`) is its only
+  writer, and the save constructor its only reader (`MainMenu.cs:111` on Continue).
+- **RS2. Galaxy has a second minter.** Both generation constructors fall back to the clock when
+  passed 0: `Seed = seed == 0 ? (uint)(DateTime.Now.Ticks % uint.MaxValue) : seed`
+  (`Galaxy.cs:107`, `:174`), with `uint seed = 0` defaults (`:100`, `:167`). No game caller relies on
+  that: the only game callers are `GalaxyStage.cs:64,81`, which pass a non-zero seed. Every test
+  caller (33 calls over tests/ and Assets/) passes progressCallback and a seed positionally. No
+  Editor or `tools/` code builds a Galaxy.
+- **RS3. Zone dice are rooted in the zone name alone.** `Zone.CombatSeed` (`Zone.cs:127`) is
+  `galaxyZone?.Name.StableHash() ?? 1337u` (`:154`). The constructor receives the run's `Galaxy`
+  (`:144`). The only game construction is `ActionGameManager.cs:730`, which passes `CurrentGalaxy`;
+  most test fixtures pass `null`. Five dice read CombatSeed, each through its own stream
+  (`SimulationDice.cs:11-16`): loot (`Zone.cs:455`, `LootStream`, by death ordinal), mine lay
+  scatter (`FireControl.cs:792`, `MineStream`, by body id), patrol circuit (`Zone.cs:317`,
+  `PatrolStream`, by agent id), AI range-sample offset (`Combat.cs:178`, `CombatSampleStream`, by
+  agent id; ruling `ai-sample-offset-off-item-stream`), and shot dice (`FireControl.cs:931`, its own
+  mix of CombatSeed and ShotId). The map's earlier line numbers (`Zone.cs:144`, `:414`,
+  `FireControl.cs:791`, `:930`) have drifted to these.
+- **RS4. `SimulationDice.Mix(0) == 0`** (`SimulationDice.cs:23-31`; pinned by
+  `FloatingBodyTests.cs:119`). So `seed ^ Mix(runSeed)` leaves `seed` unchanged when `runSeed` is 0:
+  a zone with no galaxy, or a galaxy restored from a pre-run-seed save, keeps today's dice.
+- **RS5. Probes (ygg-verify, full suite `tests/Aetheria.Shared.Tests`, CultLib 45c2f40, CultMath
+  9c1b06cd, catalog LFS staged; throwaway commits in `C:\aeth-wt\ag6-rseed-probe`, not for merge).**
+  - Base `eb27ced1`: `TheDirectWeaponKillsTheFragileHullWhileASmokeRoundIsStillInTheAir` passes
+    (`base2.log`).
+  - Probe A, `87329cd1`: one line, `CombatSeed = name hash ^ Mix(galaxy?.Seed ?? 0)`, so all five
+    dice take the run seed. Result: 2406 passed, 1 failed (`probeA.log`). The failure is
+    `TheDirectWeaponKillsTheFragileHullWhileASmokeRoundIsStillInTheAir` (`SmokeRoundsSteppedTests.cs:93-125`,
+    scenario FusedRounds, Seed 108), on `Assert.NotNull(deadAt)` (the failure names
+    `Nullable<float>`, which is `deadAt`; `landed` is a nullable tuple). The smoke round landed
+    before the Cluster Cannon killed the fragile hull. The check's premise, that the cannon kills
+    inside the round's flight, holds at base only because of how seed 108's shot dice fall.
+  - Probe B, `8350e901`: `Zone.DropSeed = CombatSeed ^ Mix(galaxy?.Seed ?? 0)`, read by the loot
+    dice and the mine scatter only. Result: 2407 passed, 0 failed (`probeB.log`).
+  Logs are in the Imagination scratchpad `imagination-ag6-run-seed/`.
+- **RS6. SavedGame key 14 is free at master.** It is reserved only in prose, by the unspecced
+  `retire-prelude` plan for `Galaxy.InfluenceScale`. `run-seed` lands first and takes key 14, and
+  that plan moves to 15. MessagePack int keys decode an absent key as the default, so a pre-cut save
+  reads `Seed == 0`.
+- **RS7. Dice ordinals are runtime state, not saved.** `_deaths` (`Zone.cs:134`), `_lastBodyId`
+  (`:130`) and `_lastAgentId` (`:137`) restart at 0 whenever a Zone is built from its pack, which
+  happens on every Continue. Reloading one save repeats its drops (the ruled sense). It also means
+  that within one save, the first death after a Continue rerolls the dice of the zone's first death
+  before the save. That is not ruled (follow-up `zone-dice-ordinals-reset-on-load`).
+- **RS8. Two campaign follow-ups were checked and not folded.** `zone-content-seeded-by-name` is
+  about `ZoneGenerator.cs:52`, which this cut does not touch. Generation already mixes the zone's
+  per-run position there, and its CombatSeed half (a rename rerolls fights) is unchanged here,
+  because DropSeed keeps CombatSeed as its base. `generation-draw-enumeration-order` is about
+  `LoadoutGenerator.cs:174-209`, also not touched.
+
+### Prior art
+
+Single-player games that store a run seed put every random system under it, and split it into one
+stream per subsystem so systems cannot perturb each other:
+- Slay the Spire keeps one seed per run, shows it to the player and saves it. Separate generators
+  run from it for monsters, events, cards, relics, potions, treasure, the merchant, shuffles and
+  misc, and some are re-derived per floor from seed and floor. Reloading repeats outcomes. High
+  confidence.
+- XCOM: Enemy Unknown saves its generator state, so reloading and repeating an action repeats a hit
+  roll. Its "Save Scum" option re-seeds on load instead. The design space matches the question's
+  `seed-in-save` and `seed-per-session` options. Medium-high confidence.
+- Seeded roguelikes (Brogue, DCSS seeded mode) derive levels and items from one game seed. Medium
+  confidence on DCSS details.
+
+Here `SimulationDice` is already the per-subsystem split (one stream constant per system). What the
+precedent leaves open is only the scope: whether the run seed reaches some streams or all of them.
+
+### Authority map
+
+- **Owner.** `GalaxyStage.SeedFrom` mints a new run's seed (the scenario's, else the clock, never
+  zero). `Galaxy.Seed` carries it for the live run. `SavedGame.Seed` (key 14) persists it.
+- **Inputs.** `Scenario.Seed` and the injected clock (minting); `SavedGame.Seed` (Continue).
+- **Outputs.** Galaxy generation and the run's item draws, as today. New: `Zone.DropSeed`, the
+  zone's drop dice root, `CombatSeed ^ Mix(Galaxy.Seed)`, read by the loot dice and the mine scatter.
+- **Derived state.** `Zone.DropSeed` is derived at construction and never stored. `Zone.CombatSeed`
+  stays the zone's name-rooted identity for shot, patrol and range-sample dice (pending the
+  question). It no longer feeds any drop.
+- **Forbidden writers.** Galaxy's own clock fallback (`Galaxy.cs:107`, `:174`) is deleted: a
+  generated galaxy refuses seed 0 rather than minting one. Nothing writes `SavedGame.Seed` except
+  `RunSave.Capture`, and nothing sets `Galaxy.Seed` except its constructors. Zone takes no seed from
+  the catalog, from `ItemManager.Random`, or from a static.
+- **Shared paths.** New run (`RunStart.Generate`, then `GalaxyStage`, then Galaxy), Continue
+  (`MainMenu.cs:111`, `Galaxy(cache, saved)`), Save (`RunSave.Capture`, then `Commit`), and zone
+  build (`ActionGameManager.cs:730` and every fixture's `new Zone(..., galaxy)`) all read the one
+  `Galaxy.Seed`.
+- **Deletion line.** The clock fallback and the `= 0` seed defaults in both generation constructors
+  are cut before DropSeed is added.
+
+### Model page rows
+
+| Kind | What names it | Over time | Who decides |
+|---|---|---|---|
+| Run seed (`Galaxy.Seed`, `SavedGame` key 14) | Its run; non-zero for every run made after `run-seed` | Minted once at new run by `GalaxyStage.SeedFrom`; saved by `RunSave.Capture`; restored by the save constructor; never changed for the life of the run; a pre-cut save reads 0 and keeps name-only drops (ruling `no-save-compatibility-before-players`: no migration, no refusal) | `GalaxyStage.SeedFrom` (scenario seed or clock) |
+| `Zone.DropSeed` | Its zone in its run: `CombatSeed ^ Mix(Galaxy.Seed)` | Derived at Zone construction, never stored | `Zone`'s constructor; read by `DropLoot` and `FireControl.Lay` |
+| `Zone.CombatSeed` | Its zone name (`StableHash`), 1337 with no GalaxyZone | Derived at construction; feeds shot, patrol and range-sample dice and is DropSeed's base | `Zone`'s constructor; scope pending question `run-seed-zone-dice-scope` |
+
+### Rationale
+
+**Reuse `Galaxy.Seed`, don't mint a second seed.** The run already has one seed, fixed by the
+scenario or the clock, and it already seeds generation and item draws. A separate "loot seed" would
+be a second identity for the same run. With both saved, a scenario's fixed `Seed` would fix the
+galaxy and the gear but not the drops. "Tests pass a fixed seed" is satisfied by the existing
+`Scenario.Seed` and the Galaxy constructors' `seed` parameter. Seed streams cannot correlate, because
+every dice draw passes through `SimulationDice.For`'s triple fmix32 with its own stream constant.
+
+**Cut Galaxy's clock fallback.** It is a second minter that no game path uses, and with the seed now
+saved it would be a quiet way to make a galaxy whose drops nobody chose. `GalaxyStage.SeedFrom` is
+the one place a run's seed comes from.
+
+**XOR with `Mix(seed)`, not a new hash.** `Mix(0) == 0` (RS4), so every galaxy-less fixture and every
+pre-cut save keeps its dice bit for bit. Probe B measured zero churn over 2407 tests. This is
+arithmetic, not a special case: no branch tests for zero.
+
+**Drops only, for now (the question's recommendation).** The ruling covers drops, and probe B lands
+it with no fixture moved. Putting all five dice under the run seed is where the prior art points,
+and it is one line (probe A). But it moves the FusedRounds check, whose premise rides seed 108's
+shot dice. A re-settle that reseeds the scenario or widens the horizon is the "hide the coupling"
+fix that ruling `ai-sample-offset-off-item-stream` refused. The honest fix is to make that check's
+premise hold by construction, and that is its own piece of work. The player-visible difference
+between the two scopes is small. Shot dice are keyed by ShotId, which follows fight history. Patrol
+circuits pick from orbits that `ZoneGenerator` already generates per run (name hash ^ position). Only
+the AI's range-sample offset repeats by zone name across games, and with curated place names
+(ruling `faction-curated-place-names`) names can recur. So the recommendation is drops only now,
+with the wider scope taken when the FusedRounds premise is fixed.
+
+**Old saves.** A pre-cut save reads `Seed == 0` and continues with name-only drops. Under ruling
+`no-save-compatibility-before-players` the cut may refuse it, but a refusal gate would be code
+written for nobody.
