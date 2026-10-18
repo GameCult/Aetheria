@@ -564,7 +564,8 @@ public sealed class LoadoutTests : IDisposable
     }
 
     // F4: GetPrice reads the lot's effective quality through GameplaySettings.QualityPriceModifier: a lot of assembly .8 whose
-    // one part is .2 prices exactly as a roleless .2 lot (price-follows-effective-quality).
+    // one part is .2 prices exactly as a roleless .2 lot (price-follows-effective-quality), and a lot of assembly .6 with
+    // parts .9 and .2 (capped to .6 and .2) prices as a roleless .4 lot: the mean of the capped parts, not the best part.
     [Fact]
     public void GetPriceReadsEffectiveQuality()
     {
@@ -580,11 +581,21 @@ public sealed class LoadoutTests : IDisposable
             Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .8f,
             Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .2f } }
         });
+        var middleLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .4f, Roles = new List<RoleFill>() });
+        var mixedLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .6f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .9f }, new RoleFill { Role = "frame", Quality = .2f } }
+        });
         var low = (EquippableItem) items.CreateInstance(lowLot);
         var high = (EquippableItem) items.CreateInstance(highLot);
         var sleeper = (EquippableItem) items.CreateInstance(sleeperLot);
+        var middle = (EquippableItem) items.CreateInstance(middleLot);
+        var mixed = (EquippableItem) items.CreateInstance(mixedLot);
         Assert.True(items.GetPrice(high) > items.GetPrice(low));
         Assert.Equal(items.GetPrice(low), items.GetPrice(sleeper));
+        Assert.Equal(items.GetPrice(middle), items.GetPrice(mixed));
+        Assert.True(items.GetPrice(middle) > items.GetPrice(low));
         Assert.True(items.GetPrice(sleeper) < items.GetPrice(high));
     }
 
