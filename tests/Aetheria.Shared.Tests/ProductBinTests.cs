@@ -1,0 +1,175 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using GameCult.Caching;
+using Xunit;
+
+// A bin is a product of its maker's line above a floor (aetheria-release, cut product-tiers; ruling maker-design-tiers-allowed):
+// the mint derives its distributions from the line on every lot, truncated below line mean + Floor deviations, and the lot is
+// still the bin's. Lots here come from CreateLot(product), the production mint, on the AssemblyFromMakerTests fixture.
+public sealed class ProductBinTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-bins-" + Guid.NewGuid().ToString("N"));
+    private readonly CultCache _cache;
+    private readonly ItemManager _items;
+    private readonly CultRecordRef<CraftedItemData> _lens;
+    private readonly List<string> _log = new List<string>();
+
+    public ProductBinTests()
+    {
+        Directory.CreateDirectory(_root);
+        _cache = AetheriaStores.Open(Path.Combine(_root, "Aetheria.cc"), catalogWritable: true);
+        var gear = _cache.Upsert(new GearData
+        {
+            Name = "Lensed", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10,
+            Roles = { new ItemRole { Name = "lens" } }
+        });
+        _lens = new CultRecordRef<CraftedItemData>(gear.Key);
+        _items = new ItemManager(_cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _log.Add) { Random = new CultMath.Random(7u) };
+    }
+
+    public void Dispose()
+    {
+        _cache.Dispose();
+        Directory.Delete(_root, true);
+    }
+
+    private static AssemblyDistribution A(float mean, float deviation) => new AssemblyDistribution { Mean = mean, StandardDeviation = deviation };
+
+    // A maker at assembly .6 +- .1 and a line of the Lensed design at lens .5 +- .1.
+    private FactionProductData Line(string name = "Line", float lensMean = .5f, float lensDeviation = .1f, AssemblyDistribution own = null, float makerMean = .6f)
+    {
+        var maker = _cache.Upsert(new Faction { Name = name + " Maker", Assembly = A(makerMean, .1f) });
+        _cache.Upsert(new FactionProductData
+        {
+            Name = name, Design = _lens, Manufacturer = maker, Assembly = own,
+            Roles = { new ProductRole { Role = "lens", Mean = lensMean, StandardDeviation = lensDeviation } }
+        });
+        return _cache.GetAll<FactionProductData>().Single(p => p.Name == name);
+    }
+
+    private FactionProductData Bin(FactionProductData line, string name, float floor)
+    {
+        _cache.Upsert(new FactionProductData
+        {
+            Name = name, Design = line.Design, Manufacturer = line.Manufacturer,
+            Bin = new ProductBin { Line = _cache.RefOf(line), Floor = floor }
+        });
+        return _cache.GetAll<FactionProductData>().Single(p => p.Name == name);
+    }
+
+    private Lot[] Mint(FactionProductData product, int count) =>
+        Enumerable.Range(0, count).Select(_ => _items.Lots[_items.CreateLot(product)]).ToArray();
+
+    private static float[] Fills(Lot[] lots) => lots.Select(l => l.Roles.Single().Quality).ToArray();
+
+    // Floor 0 is the top half of the line: nothing under the line's mean, in the fills or in the assembly.
+    [Fact]
+    public void BinnedFillsAndAssemblyNeverFallBelowTheFloor()
+    {
+        var lots = Mint(Bin(Line(), "Top Half", 0), 400);
+        Assert.All(lots, lot =>
+        {
+            Assert.True(lot.Roles.Single().Quality >= .5f - 1e-5f, "a fill fell under the line's mean");
+            Assert.True(lot.Quality >= .6f - 1e-5f, "an assembly fell under the maker's mean");
+        });
+        Assert.InRange(Fills(lots).Average(), .55f, .60f);
+    }
+
+    // The floor is in the line's standard deviations: .67 on .5 +- .1 cuts at .567 and the truncated mean is .627.
+    [Fact]
+    public void FloorIsInDeviations()
+    {
+        var fills = Fills(Mint(Bin(Line(), "Top Quarter", .67f), 400));
+        Assert.All(fills, fill => Assert.True(fill >= .567f - 1e-5f, "a fill fell under mean + floor deviations"));
+        Assert.InRange(fills.Average(), .61f, .645f);
+    }
+
+    // A bin keeps no distribution of its own: after it exists, the line and the maker move and the bin follows.
+    [Fact]
+    public void BinDerivesFromItsLineNotACopy()
+    {
+        var line = Line();
+        var bin = Bin(line, "Follower", 0);
+        Assert.Empty(bin.Roles);
+        Assert.Null(bin.Assembly);
+        line.Roles.Single().Mean = .7f;
+        var maker = _cache.Get(line.Manufacturer);
+        maker.Assembly = A(.8f, .1f);
+        _cache.Commit(batch =>
+        {
+            batch.Upsert(typeof(FactionProductData), line, _cache.RefOf(line).Key);
+            batch.Upsert(typeof(Faction), maker, _cache.RefOf(maker).Key);
+        });
+        var lots = Mint(bin, 300);
+        Assert.All(lots, lot =>
+        {
+            Assert.True(lot.Roles.Single().Quality >= .7f - 1e-5f, "the bin read a copy of its line's fill");
+            Assert.True(lot.Quality >= .8f - 1e-5f, "the bin read a copy of its maker's assembly");
+        });
+    }
+
+    // A line's own assembly is the final test a bin of it sits: the maker's is read only when the line sets none.
+    [Fact]
+    public void BinReadsTheLinesOwnAssemblyBeforeTheMakers()
+    {
+        var bin = Bin(Line(own: A(.85f, .05f), makerMean: .4f), "Certified", 0);
+        Assert.All(Mint(bin, 300), lot => Assert.True(lot.Quality >= .85f - 1e-5f, "the bin assembled as its maker, not its line"));
+    }
+
+    // 6 deviations above a .2 +- .01 line is out of reach in 64 draws: the mint returns the cutoff, .26, and does not loop.
+    [Fact]
+    public void UnreachableFloorMintsAtTheCutoff()
+    {
+        var bin = Bin(Line(lensMean: .2f, lensDeviation: .01f, own: A(.2f, .01f)), "Unreachable", 6);
+        Assert.All(Mint(bin, 20), lot =>
+        {
+            Assert.Equal(.26f, lot.Roles.Single().Quality, 5);
+            Assert.Equal(.26f, lot.Quality, 5);
+        });
+    }
+
+    // Snapshot of the first five assemblies and fills at base, before the bin existed (seed 20261018, lens .5 +- .1, maker .6 +- .1).
+    [Fact]
+    public void UnbinnedMintConsumesTheStreamAsBefore()
+    {
+        var line = Line();
+        _items.Random = new CultMath.Random(20261018u);
+        var lots = Mint(line, 5);
+        var assemblies = new[] { .59560823f, .68289334f, .57563853f, .5639112f, .59828424f };
+        var fills = new[] { .6311789f, .5835483f, .47641385f, .46416125f, .45124212f };
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal(assemblies[i], lots[i].Quality, 5);
+            Assert.Equal(fills[i], lots[i].Roles.Single().Quality, 5);
+        }
+    }
+
+    // The lot is the bin's: its product, its title, and the line's maker as its brand.
+    [Fact]
+    public void ABinnedLotIsBrandedAsTheBin()
+    {
+        var line = Line();
+        var bin = Bin(line, "Premiere", 0);
+        var lotId = _items.CreateLot(bin);
+        Assert.Equal(_cache.RefOf(bin), _items.Lots[lotId].Product);
+        var instance = _items.CreateInstance(lotId);
+        Assert.Equal("Premiere", _items.Title(instance));
+        var (maker, product) = _items.Brand(instance);
+        Assert.Equal(_cache.Get(line.Manufacturer).Name, maker.Name);
+        Assert.Equal("Premiere", product.Name);
+    }
+
+    // A bin whose line the catalog does not hold mints as a product with no roles of its own, and says so.
+    [Fact]
+    public void ABinOfALineTheCatalogLacksMintsAtDefaultsAndLogs()
+    {
+        var line = Line();
+        var bin = Bin(line, "Orphan", 0);
+        _cache.Remove(_cache.RefOf(line).Key);
+        var lots = Mint(bin, 5);
+        Assert.Equal(5, lots.Length);
+        Assert.NotEmpty(_log);
+    }
+}
