@@ -432,9 +432,12 @@ public sealed partial class RunStartTests
     {
         var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
         // The shipped catalog sets no boss Loadout, so the main galaxy places no boss: give a faction one and a boss zone that is
-        // not the exit, as the generator would for a faction with a boss Loadout.
-        var faction = galaxy.Factions.First();
-        SetBoss(faction, MakeBossLoadout(SoldShipHulls().First(), "Gate Boss"));
+        // not the exit, as the generator would for a faction with a boss Loadout. The Loadout leaves its hull's brand to the
+        // context, so the faction is one that can get a product of the hull: its own maker.
+        var hull = SoldShipHulls().OrderBy(h => h.Name, StringComparer.Ordinal).First();
+        var maker = _cache.Get(_cache.GetAll<FactionProductData>().First(product => _cache.Get(product.Design) == hull).Manufacturer);
+        var faction = galaxy.Factions.Single(candidate => candidate.Name == maker.Name);
+        SetBoss(faction, MakeBossLoadout(hull, "Gate Boss"));
         var bossZone = galaxy.Zones.First(zone => zone != galaxy.Exit);
         galaxy.BossZones[faction] = bossZone;
         var zone = ZoneOf(galaxy, bossZone);
