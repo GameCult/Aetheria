@@ -115,7 +115,6 @@ public sealed class ShipSchemaPinTests
     {
         var scad = File.ReadAllText(Locate("tools", "blender", "aetheria_ships", "factions", file));
         var literal = Regex.Match(scad, @"^[A-Z]+_LANG = \[[^;]*""([^""]+)""\];", RegexOptions.Multiline);
-?$", RegexOptions.Multiline);
         Assert.True(literal.Success, $"{file} has no *_LANG with a maker as its last element");
         var db = AetherDb.Open(root: AetherDb.FindRoot());
         try
