@@ -44,22 +44,28 @@ public class TrojanSwarmTests
         using var zones = new ChildrenWithinReachTests.Zones(First, Last, null);
         var s = zones.Settings;
         int swarms = 0, l4 = 0, l5 = 0;
-        var drift = 0f;
+        float drift = 0f, widest = 0f, longest = 0f;
         foreach (var (seed, zone) in zones.All)
             foreach (var (host, rail, swarm) in Swarms(zone))
             {
                 swarms++;
                 var d = host.Data.Distance;
+                // The host is a planet or a gas giant: heavier than a moon, no heavier than a sun.
+                var hostMass = zone.Planets.Values.Where(b => !(b is AsteroidBeltData) && zone.Orbits[b.Orbit.Key] == host).Select(b => b.Mass).Single();
+                Assert.True(hostMass > s.PlanetMass && hostMass <= s.SunMass, $"seed {seed}: a swarm host of mass {hostMass}");
                 Assert.Equal(2 * (int) s.TrojanCount.Evaluate(d), swarm.Data.Asteroids.Length);
                 int sideA = 0, sideB = 0;
                 for (var i = 0; i < swarm.Data.Asteroids.Length; i++)
                 {
                     var rock = swarm.Data.Asteroids[i];
                     Assert.True(Math.Abs(rock.Distance / d - 1) <= s.TrojanHalfWidth * 1.0001f, $"seed {seed}: a rock sits {rock.Distance} from a rail at {d}");
+                    widest = Math.Max(widest, Math.Abs(rock.Distance / d - 1));
                     float Offset(double t) => Wrap(Turn(swarm.Pose(i, t, float2.zero, 1).xy) - Turn(OrbitData.Evaluate((float) frac(t / host.Period + host.Data.Phase))));
                     var at0 = Offset(0);
                     var side = at0 > 0 ? 1f / 6 : -1f / 6;
                     if (side > 0) { l4++; sideA++; } else { l5++; sideB++; }
+                    Assert.Equal(i % 2 == 0, side > 0); // even rocks round L4 (a sixth of a turn ahead), odd round L5
+                    longest = Math.Max(longest, Math.Abs(at0 - side));
                     Assert.True(Math.Abs(at0 - side) <= s.TrojanArc / 2 + 1e-4f, $"seed {seed}: a rock sits {at0} turns from its host");
                     drift = Math.Max(drift, Math.Abs(Wrap(Offset(3600) - at0)));
                 }
@@ -68,6 +74,8 @@ public class TrojanSwarmTests
         _out.WriteLine($"swarms {swarms}, rocks at L4 {l4}, L5 {l5}, largest drift against the host over an hour {drift} turns");
         Assert.True(swarms >= 10, $"only {swarms} swarms in seeds {First}-{Last}");
         Assert.True(l4 > 0 && l5 > 0);
+        Assert.True(widest > s.TrojanHalfWidth / 2, $"the widest rock sits {widest} off its rail, half-width {s.TrojanHalfWidth}");
+        Assert.True(longest > s.TrojanArc / 4, $"the farthest rock sits {longest} turns from its point, half-arc {s.TrojanArc / 2}");
         Assert.True(drift < 1e-3f, $"a swarm rock drifts {drift} turns against its host in an hour");
     }
 
