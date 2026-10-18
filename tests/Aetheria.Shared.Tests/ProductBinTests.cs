@@ -130,6 +130,27 @@ public sealed class ProductBinTests : IDisposable
         });
     }
 
+    // The search draws at most 64 times, and stops at the first draw that clears the cutoff: the stream after it is what shows how
+    // many draws it took. An unreachable cutoff takes exactly 64, a deviation of 0 (draw equal to the cutoff) takes 1.
+    [Fact]
+    public void TheSearchDrawsAtMostSixtyFourTimesAndStopsAtTheFirstDrawThatClearsTheCutoff()
+    {
+        float AfterDraws(int draws)
+        {
+            var random = new CultMath.Random(11u);
+            for (var i = 0; i < draws; i++) random.NextGaussian(0, 1);
+            return random.NextGaussian(0, 1);
+        }
+
+        var unreachable = new CultMath.Random(11u);
+        Assert.Equal(40f, unreachable.NextGaussianAbove(0, 1, 40f));
+        Assert.Equal(AfterDraws(64), unreachable.NextGaussian(0, 1));
+
+        var immediate = new CultMath.Random(11u);
+        Assert.Equal(.5f, immediate.NextGaussianAbove(.5f, 0, 0));
+        Assert.Equal(AfterDraws(1), immediate.NextGaussian(0, 1));
+    }
+
     // Snapshot of the first five assemblies and fills at base, before the bin existed (seed 20261018, lens .5 +- .1, maker .6 +- .1).
     [Fact]
     public void UnbinnedMintConsumesTheStreamAsBefore()
@@ -137,6 +158,7 @@ public sealed class ProductBinTests : IDisposable
         var line = Line();
         _items.Random = new CultMath.Random(20261018u);
         var lots = Mint(line, 5);
+        Assert.Empty(_log);
         var assemblies = new[] { .59560823f, .68289334f, .57563853f, .5639112f, .59828424f };
         var fills = new[] { .6311789f, .5835483f, .47641385f, .46416125f, .45124212f };
         for (var i = 0; i < 5; i++)
@@ -170,6 +192,7 @@ public sealed class ProductBinTests : IDisposable
         _cache.Remove(_cache.RefOf(line).Key);
         var lots = Mint(bin, 5);
         Assert.Equal(5, lots.Length);
-        Assert.NotEmpty(_log);
+        Assert.Equal(5, _log.Count);
+        Assert.All(_log, message => Assert.False(string.IsNullOrWhiteSpace(message)));
     }
 }
