@@ -1524,7 +1524,7 @@ def _frame_ship(context, collection, root, path, saved_shape):
     _recentre(root, hull_grid.cell_centre((float(origin[0]), float(origin[1])), centre[0], centre[1]))
 
 
-HULL_SOURCE_MARK = "aetheria.hull_source"  # set on every object Build From Hull Source makes; Build replaces only these
+HULL_BUILT = "aetheria.hull_built"  # on the collection: {object name: fingerprint} of what Build From Hull Source made
 HULL_COLLIDER = ("hull-collider", "collider", "Hull Collider")
 
 
@@ -1537,8 +1537,24 @@ def _hull_source_file(collection):
     return source if source.is_file() else None
 
 
-def _hull_source_objects(collection):
-    return [obj for obj in collection.all_objects if obj.get(HULL_SOURCE_MARK)]
+def _fingerprint(obj):
+    """What Build made of obj, as it stands: its place under its parent, the anchor properties and, for a mesh, its geometry.
+    A copy has another name and an edit changes this, so neither is taken for Build's own."""
+    values = [obj.parent.name if obj.parent else "", tuple(obj.location), tuple(obj.rotation_euler), tuple(obj.scale),
+              obj.get("aetheria.role", ""), obj.get("aetheria.id", ""), obj.get("aetheria.order", 0)]
+    if obj.type == "MESH":
+        values += [[tuple(v.co) for v in obj.data.vertices], [tuple(p.vertices) for p in obj.data.polygons]]
+    return hull_source.fingerprint(*values)
+
+
+def _hull_built(collection):
+    """(untouched, changed): Build's objects found in the collection as it made them, and those it made that were edited.
+    The record is the only owner: an object is Build's when its name and fingerprint are the ones recorded."""
+    record = collection.get(HULL_BUILT)
+    record = record.to_dict() if record is not None else {}
+    present = {obj.name: obj for obj in collection.all_objects if obj.name in record}
+    untouched = [obj for name, obj in present.items() if _fingerprint(obj) == record[name]]
+    return untouched, [obj for obj in present.values() if obj not in untouched]
 
 
 def _hull_material(ship_id, zone, colour, emissive=False):
@@ -1567,7 +1583,7 @@ def _hull_mesh(name, mesh, material, offset=(0.0, 0.0, 0.0), yaw=0.0):
     return data
 
 
-def _build_hull_source(context, collection, runner=None):
+def _build_hull_source(context, collection):
     """Replaces the objects Build made before with the hull source's zone meshes, anchors and collider under Ship Root.
     Refuses, before anything changes, when the source cannot be read, breaks a check of its faction's language, or the
     collection holds render meshes Build did not make (operator art: Build never overwrites it). Writes no layout row."""
@@ -1575,14 +1591,16 @@ def _build_hull_source(context, collection, runner=None):
     if source is None:
         raise ValueError("The bound package holds no hull.scad")
     root = _ship_root(collection)
+    untouched, changed = _hull_built(collection)
     if root is not None:
         _refuse_loose_meshes(context, collection)
-        if any(not obj.get(HULL_SOURCE_MARK) for obj in _own_meshes(collection)):
-            raise ValueError("The collection holds meshes the hull source did not make; Build From Hull Source "
-                             "replaces only its own objects")
+        theirs = [obj for obj in _own_meshes(collection) if obj not in untouched]
+        if theirs or changed:
+            raise ValueError("The collection holds meshes the hull source did not make, or objects it made that were "
+                             "changed; Build From Hull Source replaces only what it made and nobody touched")
     addon = context.preferences.addons.get(__package__)
     executable = addon.preferences.openscad if addon and addon.preferences else DEFAULT_OPENSCAD
-    hull = hull_source.build(runner or hull_source.openscad_runner(executable, source))
+    hull = hull_source.build(hull_source.openscad_runner(executable, source), hull_source.language_library(executable))
     broken = hull.failed()
     if broken:
         raise ValueError("The hull source breaks its faction's language or its brief: " + "; ".join(c.name for c in broken))
@@ -1591,11 +1609,12 @@ def _build_hull_source(context, collection, runner=None):
         root = bpy.data.objects.new(SHIP_ROOT, None)
         root["aetheria.ship_root"] = True
         collection.objects.link(root)
-    for obj in _hull_source_objects(collection):
+    for obj in untouched:
         _discard_object(obj)
+    made = []
 
     def mark(obj):
-        obj[HULL_SOURCE_MARK] = True
+        made.append(obj)
         return obj
 
     def link(obj):
@@ -1631,18 +1650,25 @@ def _build_hull_source(context, collection, runner=None):
     collider = link(bpy.data.objects.new(name, _hull_mesh(
         name, hull.zones[hull.body_zone], _hull_material(ship_id, "collider", (0.5, 0.5, 0.5)))))
     collider["aetheria.role"], collider["aetheria.id"] = role, anchor_id
+    collection[HULL_BUILT] = {obj.name: _fingerprint(obj) for obj in made}
     return hull
 
 
 def _retire_hull_source(collection):
-    """Deletes the package's hull.scad when operator art is what was packaged: the collection holds render meshes and
-    none of Build's objects. A hull never built, or built and packaged as it stands, keeps its source. Returns whether the
-    file was deleted."""
+    """Deletes the package's hull.scad when the body is the operator's: the collection holds render meshes that Build did
+    not make as they stand, and no zone mesh of Build's is left. The anchors and collider she kept are hers from then on.
+    A hull never built, or built and packaged as it stands, keeps its source. Returns whether the file was deleted."""
     source = _hull_source_file(collection)
     root = _ship_root(collection)
-    if source is None or root is None or _hull_source_objects(collection) or not _own_meshes(collection):
+    if source is None or root is None:
+        return False
+    untouched, _ = _hull_built(collection)
+    zones = [obj for obj in untouched if obj.type == "MESH" and "aetheria.role" not in obj]
+    if zones or not [obj for obj in _own_meshes(collection) if obj not in untouched]:
         return False
     source.unlink()
+    if HULL_BUILT in collection:
+        del collection[HULL_BUILT]
     return True
 
 

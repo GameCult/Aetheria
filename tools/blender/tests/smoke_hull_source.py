@@ -13,16 +13,23 @@ Rossum & Douglas wedge) the smoke makes a ship from a stand-in box (New Ship), a
 the hull.scad into the package and runs the panel's operators:
 
   Build: zone meshes with one palette material each, the mount anchors, the emitter and radiator meshes and a collider,
-  all marked aetheria.hull_source under Ship Root, and no layout row changed by Build itself.
+  all recorded on the collection by name and fingerprint under Ship Root, each at the pose the hull source gives it
+  (a mount yawed 90 degrees included), and no layout row changed by Build itself.
   A second Build replaces only its own objects: an object the author made, a mesh and an empty, is still there.
   Build refuses, naming a rule and no input, a hull source that breaks its language's or brief's rule, and changes nothing.
-  Build refuses a collection that holds a render mesh it did not make, and changes nothing.
-  Package accepts the built ship (the C# validator), writes ship.glb with a node per anchor, and leaves hull.scad.
-  Once the author has taken the generated objects over (the mark is gone) Package deletes hull.scad and says so.
+  Build refuses a hull source that redefines or shadows its faction's language (reassigned variable, second echo, a
+  language file beside the hull), and changes nothing.
+  Build refuses, and changes nothing, a collection that holds a render mesh it did not make, a copy of a generated zone,
+  or a generated zone or mount that was edited in place.
+  Package accepts the built ship (the C# validator), writes ship.glb with a node per anchor, and leaves hull.scad; a
+  Build after Package still works.
+  The author replaces the zone meshes with her art and keeps Build's anchors and collider: Package deletes hull.scad in
+  that one act and says so, and Build then refuses.
   A hull that was never built keeps its hull.scad through the same deletion rule.
 """
 
 import json
+import math
 import os
 import shutil
 import struct
@@ -57,6 +64,18 @@ HULLS = (
 )
 
 
+# per fixture: the variable the hull's language is in, a value that redefines it (every rule loosened), the language file a
+# copy of which beside hull.scad would shadow the include, and a colour in it
+ATTACKS = {
+    "zh-ammo-tender": ("ZH_LANG", '["zhestokost", ZH_ZONES, "primary", ZH_GLOW, ZH_RADIATOR, [[0, 9], [0, 9]], ["asymmetric", 0.0]]',
+                       "zhestokost.scad", "[0.42, 0.43, 0.45]"),
+    "pi-fighter": ("PI_LANG", '["pirate", PI_ZONES, "", PI_GLOW, PI_RADIATOR, [], ["bilateral", 0.0]]',
+                   "pirate.scad", "[0.48, 0.27, 0.22]"),
+}
+EXECUTABLE = None  # the OpenSCAD the add-on preference names, set by main
+hull_source = None  # aetheria_ships.hull_source, set by main
+
+
 def require(condition, message):
     if not condition:
         raise SystemExit(message)
@@ -79,7 +98,9 @@ def approx(a, b, tolerance=1e-3):
 
 
 def generated(collection):
-    return {obj.name: obj for obj in collection.all_objects if obj.get("aetheria.hull_source")}
+    """Build's objects, by the record Build keeps on the collection."""
+    record = collection.get("aetheria.hull_built")
+    return {obj.name: obj for obj in collection.all_objects if record is not None and obj.name in record}
 
 
 def layout_rows(scene):
@@ -151,6 +172,8 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     root = bpy.data.objects[next(o.name for o in collection.all_objects if o.get("aetheria.ship_root"))]
     rows_before = layout_rows(scene)
     source = package / "hull.scad"
+    lang_var, lang_value, shadowed, shadow_colour = ATTACKS[fixture]
+    runner = hull_source.openscad_runner(EXECUTABLE, source)
     require(source.is_file(), "The fixture hull.scad was not copied")
     require("Build From Hull Source" == bpy.ops.aetheria.build_hull_source.get_rna_type().name, "Build is not registered")
 
@@ -169,6 +192,11 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
         require(mount.get("aetheria.role") == "weapon-mount" and first[muzzle].get("aetheria.order") == 1, "A muzzle is not ordered under its mount")
         require(first[muzzle].matrix_world.translation.y < mount.matrix_world.translation.y, "A muzzle is not nose-ward of its mount")
     require(layout_rows(scene) == rows_before, "Build changed the layout buffer")
+    check_poses(collection, root, runner)
+    if fixture == "zh-ammo-tender":
+        original = source.read_text(encoding="utf-8")
+        yawed_mount(scene, box, collection, root, package, source, original, runner)
+        first = generated(collection)
     print(f"PASS {number}.1 {fixture} builds: {len(first)} objects, {sum(len(v) for v in roles.values())} anchors")
 
     # A second Build replaces only its own objects; the author's own empty and mesh (outside render meshes' reach: a mesh
@@ -234,17 +262,142 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
           f"{[(hp.mount_id, (hp.x, hp.y)) for hp in moved]} (authored at {[r[2] for r in rows if r[1] == BALLISTIC]})")
     print(f"PASS {number}.5 Package accepts the built ship and keeps hull.scad")
 
-    # The author takes the generated objects over: Package deletes hull.scad and says so.
-    for obj in generated(collection).values():
-        del obj["aetheria.hull_source"]
+    # What Package did to the built objects is not an edit: Build still replaces them.
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"FINISHED"}, f"Build after Package was refused: {message!r}")
+    print(f"PASS {number}.6 Build after Package replaces its own objects")
+
+    # A hull source that redefines or shadows its faction's language: refused, nothing changes.
+    attacks = []
+    for label, change in (
+            ("reassigns the language after the include", lambda text: text + f"\n{lang_var} = {lang_value};\n"),
+            ("echoes a second language", lambda text: text + f'\nif (part == "lang") echo(lang = {lang_value});\n')):
+        attacks.append((label, lambda change=change: source.write_text(change(original), encoding="utf-8"), lambda: None))
+    shadow = package / shadowed
+    shadow_text = (REPO / "tools" / "blender" / "aetheria_ships" / "factions" / shadowed).read_text(encoding="utf-8")
+    require(shadow_text.count(shadow_colour) >= 1, "The shadow's colour is not in the language file")
+    attacks.append(("shadows the language file beside itself",
+                    lambda: shadow.write_text(shadow_text.replace(shadow_colour, "[1, 0, 1]"), encoding="utf-8"),
+                    lambda: shadow.unlink()))
+    for label, apply, undo in attacks:
+        apply()
+        names = sorted(o.name for o in collection.all_objects)
+        select(box)
+        result, message = run(bpy.ops.aetheria.build_hull_source)
+        undo()
+        source.write_text(original, encoding="utf-8")
+        require(result == {"CANCELLED"} and "includes its faction's language files" in message,
+                f"A hull that {label} was built: {message!r}")
+        require(sorted(o.name for o in collection.all_objects) == names, "A refused Build changed objects")
+        for echoed in (ship_id, str(GAME), fixture):
+            require(echoed not in message, f"The refusal echoes an input ({echoed})")
+    print(f"PASS {number}.7 Build refuses a hull that redefines or shadows its language")
+
+    # An author's copy of a generated zone, and an edit of a generated zone or mount, are the author's: Build refuses
+    # and leaves them as they are.
+    zone = bpy.data.objects[body]
+    piece = zone.copy()
+    piece.data = zone.data.copy()
+    piece.name = "my piece"
+    collection.objects.link(piece)
+    names = sorted(o.name for o in collection.all_objects)
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"CANCELLED"} and "did not make" in message, f"Build ignored a copy of a generated zone: {message!r}")
+    require(sorted(o.name for o in collection.all_objects) == names and bpy.data.objects.get("my piece") is piece,
+            "Build removed a copy of a generated zone")
+    mesh = piece.data
+    bpy.data.objects.remove(piece)
+    bpy.data.meshes.remove(mesh)
+    original_vertices = [tuple(v.co) for v in zone.data.vertices]
+    zone.data.vertices[0].co.z += 5.0
+    zone.data.update()
+    names = sorted(o.name for o in collection.all_objects)
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"CANCELLED"} and "did not make" in message, f"Build ignored an edited zone: {message!r}")
+    require(sorted(o.name for o in collection.all_objects) == names and abs(zone.data.vertices[0].co.z - original_vertices[0][2] - 5.0) < 1e-3,
+            "Build discarded an edited zone")
+    api = sys.modules["aetheria_ships"]
+    require(api._retire_hull_source(collection) is False and source.is_file(),
+            "One edited zone, with the others still Build's, retired hull.scad")
+    for vertex, co in zip(zone.data.vertices, original_vertices):
+        vertex.co = co
+    zone.data.update()
+    mount = bpy.data.objects[roles["weapon-mount"][0]]
+    at = tuple(mount.location)
+    mount.location.x += 1.0
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"CANCELLED"} and abs(mount.location.x - at[0] - 1.0) < 1e-6, f"Build discarded a moved mount: {message!r}")
+    mount.location = at
+    print(f"PASS {number}.8 Build refuses and keeps a copy and an edit of what it made")
+
+    # The author replaces the zone meshes with her art and keeps Build's anchors and collider: Package ships the ship
+    # and retires hull.scad in that one act; Build is gone with it.
+    for name in list(generated(collection)):
+        obj = generated(collection)[name]
+        if obj.type == "MESH" and "aetheria.role" not in obj:
+            bpy.data.objects.remove(obj)
+    art_mesh = bpy.data.meshes.new("author hull")
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bm.to_mesh(art_mesh)
+    bm.free()
+    art = bpy.data.objects.new("author hull", art_mesh)
+    collection.objects.link(art)
+    art.parent = root
+    require(any(o.get("aetheria.role") for o in generated(collection).values()), "The scene kept no anchor of Build's")
     select(box)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
     require(result == {"FINISHED"} and "deleted hull.scad" in report, f"Package did not retire the hull source: {report!r} {message!r}")
     require(not source.exists(), "hull.scad is still there after the author's art was packaged")
+    require("aetheria.hull_built" not in collection, "The record of Build's objects outlived hull.scad")
     require(all(echoed not in report for echoed in (ship_id, str(GAME))), "The report echoes an input")
-    print(f"PASS {number}.6 operator art retires hull.scad, with a report")
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"CANCELLED"} and bpy.data.objects.get("author hull") is art, f"Build ran after takeover: {message!r}")
+    print(f"PASS {number}.9 her art with Build's anchors kept retires hull.scad, with a report; Build then refuses")
     return collection
+
+
+def check_poses(collection, root, runner):
+    """Every built anchor stands where the hull source says in Ship Root's frame, turned as it says, and the emitter and
+    radiator meshes are the source's meshes in that frame."""
+    inverse = root.matrix_world.inverted()
+    for anchor in hull_source.read_anchors(runner("anchors")[1]):
+        obj = bpy.data.objects[anchor.id]
+        local = inverse @ obj.matrix_world
+        require(approx(tuple(local.translation), anchor.position), f"{anchor.id} stands at {tuple(local.translation)}, not {anchor.position}")
+        if anchor.role != "weapon-muzzle":
+            turn = local.to_euler().z
+            want = math.radians(anchor.yaw)
+            require(approx((math.cos(turn), math.sin(turn)), (math.cos(want), math.sin(want))),
+                    f"{anchor.id} is turned {math.degrees(turn):.1f} degrees, not {anchor.yaw}")
+        if anchor.role in hull_source.MESH_ROLES:
+            made = sorted(tuple(round(c, 3) for c in (inverse @ obj.matrix_world @ v.co)) for v in obj.data.vertices)
+            wanted = sorted(tuple(round(c, 3) for c in v) for v in hull_source.parse_off(runner(hull_source.MESH_ROLES[anchor.role] + anchor.id)[0]).vertices)
+            require(len(made) == len(wanted) and all(approx(a, b, 2e-3) for a, b in zip(made, wanted)),
+                    f"The mesh of {anchor.id} is not the source's mesh in Ship Root's frame")
+
+
+def yawed_mount(scene, box, collection, root, package, source, original, runner):
+    """A mount the source turns 90 degrees stands, turned, where it says, and its muzzle follows it."""
+    changed = original.replace('[0, Y0+3.2, H+0.6], 0, ""]', '[0, Y0+3.2, H+0.6], 90, ""]')
+    require(changed != original, "The tender's mount is not where the pose test turns it")
+    source.write_text(changed, encoding="utf-8")
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"FINISHED"}, f"Build refused a turned mount: {message!r}")
+    check_poses(collection, root, runner)
+    require(abs(bpy.data.objects["Gun.D"].rotation_euler.z - math.pi / 2) < 1e-4, "The mount is not turned 90 degrees")
+    source.write_text(original, encoding="utf-8")
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"FINISHED"}, f"Build refused the restored source: {message!r}")
+    print("PASS 1.10 a turned mount and its muzzle stand where the source puts them")
 
 
 def clear(collection):
@@ -269,14 +422,19 @@ def main():
     sys.path.insert(0, str(REPO / "tools" / "blender"))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
     import aetheria_ships
+    global hull_source, EXECUTABLE
+    hull_source = aetheria_ships.hull_source
     aetheria_ships._brokkr_cultlib = lambda context: PACKAGES
     preferences = bpy.context.preferences.addons["aetheria_ships"].preferences
     preferences.game_folder = str(GAME)
     if OPENSCAD:
         preferences.openscad = OPENSCAD
+    EXECUTABLE = preferences.openscad
     real = aetheria_ships.hull_source.openscad_runner
 
     def logged(executable, source, **kwargs):
+        kwargs.pop("on_start", None)
+
         def on_start(pid):
             if PID_LOG:
                 with open(PID_LOG, "a") as log:

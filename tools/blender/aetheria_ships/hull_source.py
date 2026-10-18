@@ -1,11 +1,14 @@
 """Agent-built hulls: reads a hull.scad through OpenSCAD and judges it against its faction's form language.
 
 No bpy import. A hull source is a GameData/Mods/<id>/hull.scad that includes its faction's language file (and, for a
-Pirate hull, its donor's) from factions/. Everything the add-on needs is echoed by one part of that file:
+Pirate hull, its donor's) from factions/. Everything the add-on needs is echoed by one part of that file. The faction's language is owned by its own file in
+factions/: the checks read it from there, by the faction the brief names, and the hull's own `lang` echo is only compared
+with it (a hull that redefines or shadows an included language fails a check):
 
     brief    ECHO brief = [faction, donor, role, [length_min, length_max], [tris_min, tris_max], reads]
     lang     ECHO lang  = [faction, [[zone, [r, g, b]], ...], body zone, glow, radiator, proportion, symmetry]
-             (every included language file echoes its own; a Pirate language has no body zone and no proportion)
+             (every included language file echoes its own, and so does factions/<faction>.scad run alone; a Pirate
+             language has no body zone and no proportion)
     anchors  ECHO anchor = [id, role, [x, y, z], yaw, parent]      one line per anchor, yaw 0 nose, 90 port
     <zone>   the zone's geometry, OFF; a donor's zone is named "<donor>:<zone>"
     emit:<id>, rad:<id>   the mesh of a thruster-emitter or radiator-mesh anchor
@@ -14,6 +17,7 @@ Frame: Ship Root, metres, nose -Y, starboard -X, up +Z. build() returns a HullBu
 check. Messages and check names are fixed text: nothing a hull source says is echoed back.
 """
 
+import hashlib
 import json
 import math
 import os
@@ -31,6 +35,7 @@ SILHOUETTE_CELL = 0.25  # metres, the top-view raster the symmetry check compare
 ANCHOR_ROLES = ("weapon-mount", "weapon-muzzle", "thruster-emitter", "radiator-mesh")
 MESH_ROLES = {"thruster-emitter": "emit:", "radiator-mesh": "rad:"}
 ECHO_PARTS = ("brief", "lang", "anchors")  # parts that make no geometry; their ECHO lines are the answer
+LANGUAGE_NAME = re.compile(r"[a-z][a-z0-9_]*")
 ECHO_LINE = re.compile(r"^ECHO: (\w+) = (.*)$", re.MULTILINE)
 
 # A runner answers one part of the hull source with (OFF text, ECHO text). OFF text is "" when the part made no geometry.
@@ -146,6 +151,23 @@ def parse_echoes(text, name):
     return values
 
 
+def fingerprint(*values):
+    """A digest of numbers, strings and the lists of them, floats to five decimals: equal exactly when the values are."""
+    digest = hashlib.sha256()
+
+    def add(value):
+        if isinstance(value, (list, tuple)):
+            digest.update(b"[")
+            for item in value:
+                add(item)
+            digest.update(b"]")
+        else:
+            digest.update((f"{round(value, 5) + 0.0:.5f};" if isinstance(value, float) else f"{value!r};").encode())
+
+    add(values)
+    return digest.hexdigest()
+
+
 def _vector(value, size, numbers=True):
     if not isinstance(value, list) or len(value) != size or (numbers and not all(_number(v) for v in value)):
         raise HullSourceError("The hull source echoed a vector of the wrong shape")
@@ -179,7 +201,8 @@ def _proportion(raw):
 
 
 def read_languages(text):
-    languages = {}
+    """Every language echoed in text, in echo order."""
+    languages = []
     for raw in parse_echoes(text, "lang"):
         if not isinstance(raw, list) or len(raw) != 7 or not isinstance(raw[1], list):
             raise HullSourceError("A faction language has the wrong shape")
@@ -194,7 +217,7 @@ def read_languages(text):
                             symmetry)
         if language.body and language.body not in language.zone_names():
             raise HullSourceError("A faction language's body zone is not one of its zones")
-        languages[language.faction] = language
+        languages.append(language)
     return languages
 
 
@@ -238,17 +261,25 @@ def _triangles_xy(mesh):
     return [tuple(mesh.vertices[v][:2] for v in tri) for tri in mesh.triangles]
 
 
-def build(runner):
-    """Reads the hull source through runner (see Runner) and judges it. Raises HullSourceError when the source cannot be
-    read at all; otherwise returns a HullBuild whose failed() lists the checks it breaks."""
+def _language(library, faction):
+    """The language of factions/<faction>.scad, which owns it: exactly one echo, naming that faction."""
+    (language,) = _exactly_one(read_languages(library(faction)), "language")
+    if language.faction != faction:
+        raise HullSourceError("A faction language file echoes the language of another faction")
+    return language
+
+
+def build(runner, library):
+    """Reads the hull source through runner (see Runner) and judges it against the languages library(faction) answers with
+    (the ECHO text of that faction's own language file). Raises HullSourceError when the source cannot be read at all;
+    otherwise returns a HullBuild whose failed() lists the checks it breaks."""
     _, text = runner("brief")
     brief = read_brief(text)
     _, text = runner("lang")
-    languages = read_languages(text)
-    own = languages.get(brief.faction)
-    donor = languages.get(brief.donor) if brief.donor else None
-    if own is None or (brief.donor and donor is None):
-        raise HullSourceError("The hull source does not include the language of its faction or its donor")
+    included = read_languages(text)
+    own = _language(library, brief.faction)
+    donor = _language(library, brief.donor) if brief.donor else None
+    owned = [own] + ([donor] if donor else [])
     zone_keys = list(own.zone_names()) + [f"{donor.faction}:{z}" for z in (donor.zone_names() if donor else ())]
     colours = {z: own.colour(z) for z in own.zone_names()}
     colours.update({f"{donor.faction}:{z}": donor.colour(z) for z in (donor.zone_names() if donor else ())})
@@ -261,8 +292,12 @@ def build(runner):
     anchor_meshes = {a.id: parse_off(runner(MESH_ROLES[a.role] + a.id)[0]) for a in anchors if a.role in MESH_ROLES}
     judge = donor or own
     body_zone = f"{donor.faction}:{donor.body}" if donor else own.body
-    result = HullBuild(brief, languages, zones, colours, anchors, anchor_meshes, own.glow, own.radiator, body_zone)
-    result.checks = _checks(result, own, judge)
+    result = HullBuild(brief, {language.faction: language for language in owned}, zones, colours, anchors, anchor_meshes,
+                       own.glow, own.radiator, body_zone)
+    by_faction = lambda language: language.faction
+    result.checks = [Check("the hull includes its faction's language files and changes none of them",
+                           sorted(included, key=by_faction) == sorted(owned, key=by_faction), "")]
+    result.checks += _checks(result, own, judge)
     return result
 
 
@@ -342,3 +377,15 @@ def openscad_runner(executable, source, library=FACTIONS_DIR, on_start=None):
             return ("", written + output) if part in ECHO_PARTS else (written, output)
 
     return run
+
+
+def language_library(executable, library=FACTIONS_DIR, on_start=None):
+    """The `library` build() reads languages from: faction -> the ECHO text of library/<faction>.scad run alone, so a hull
+    source (or a file beside it) cannot stand in for the faction's own file."""
+    def read(faction):
+        file = library / f"{faction}.scad"
+        if not LANGUAGE_NAME.fullmatch(faction) or not file.is_file():
+            raise HullSourceError("The hull source names a faction that has no language file")
+        return openscad_runner(executable, file, library=library, on_start=on_start)("lang")[1]
+
+    return read

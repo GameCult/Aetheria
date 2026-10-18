@@ -10,8 +10,10 @@ hull_source is loaded by path because the package __init__ imports bpy.
 import importlib.util
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _spec = importlib.util.spec_from_file_location(
     "hull_source", Path(__file__).resolve().parents[1] / "aetheria_ships" / "hull_source.py")
@@ -46,13 +48,15 @@ def brief(faction="zhestokost", donor="", length=(8, 14), triangles=(10, 100)):
 
 
 class Fixture:
-    """A hull source as the fake runner sees it: part -> (OFF, ECHO)."""
+    """A hull source as the fake runner sees it: part -> (OFF, ECHO). library holds the ECHO text of each faction's own
+    language file; the hull's own `lang` echo is the files it includes, unless hull_lang says otherwise."""
 
     def __init__(self):
+        self.library = {"zhestokost": language()}
+        self.hull_lang = None
         # Body 6 wide, 10 long, 2 high (h/w 0.33, w/l 0.6); a bilateral plate on top; one gun with a muzzle nose-ward.
         self.parts = {
             "brief": ("", brief()),
-            "lang": ("", language()),
             "primary": (box(-3, 3, -5, 5, 0, 2), ""),
             "secondary": (box(-1, 1, -1, 1, 2, 3), ""),
             "anchors": ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""])
@@ -62,10 +66,15 @@ class Fixture:
         }
 
     def runner(self):
-        return lambda part: self.parts[part]
+        return lambda part: ("", self.hull_lang if self.hull_lang is not None else "".join(self.library.values()))             if part == "lang" else self.parts[part]
+
+    def read_library(self, faction):
+        if faction not in self.library:
+            raise hs.HullSourceError("no such language file")
+        return self.library[faction]
 
     def build(self):
-        return hs.build(self.runner())
+        return hs.build(self.runner(), self.read_library)
 
     def failed(self):
         return [c.name for c in self.build().failed()]
@@ -106,7 +115,7 @@ class ReadingTests(unittest.TestCase):
 
     def test_a_pirate_language_reads_with_no_body_and_no_proportion(self):
         pirate = hs.read_languages(language("pirate", ("primer", "weld"), body="", proportion=None,
-                                            symmetry=("asymmetric", 0.9)))["pirate"]
+                                            symmetry=("asymmetric", 0.9)))[0]
         self.assertEqual((pirate.body, pirate.proportion, pirate.symmetry), ("", None, ("asymmetric", 0.9)))
 
     def test_a_language_naming_an_unknown_rule_or_a_body_outside_its_zones_is_refused(self):
@@ -143,13 +152,22 @@ class JudgementTests(unittest.TestCase):
     def test_the_language_decides_proportions_not_the_hull(self):
         # The same 6 x 10 x 2 body: inside Zhestokost's ranges, outside a language that wants tall narrow bodies.
         fixture = Fixture()
-        fixture.parts["lang"] = ("", language(proportion=((0.8, 1.2), (0.1, 0.3))))
+        fixture.library["zhestokost"] = language(proportion=((0.8, 1.2), (0.1, 0.3)))
         self.assertEqual(fixture.failed(), ["the body's proportions lie inside the language's ranges"])
 
     def test_a_body_too_tall_for_the_language_fails_proportion_and_nothing_else(self):
         fixture = Fixture()
         fixture.parts["primary"] = (box(-3, 3, -5, 5, 0, 5), "")
         self.assertEqual(fixture.failed(), ["the body's proportions lie inside the language's ranges"])
+
+    def test_a_body_too_wide_for_its_length_fails_proportion_and_nothing_else(self):
+        fixture = Fixture()
+        fixture.parts["primary"] = (box(-6, 6, -5, 5, 0, 4), "")  # h/w 0.33 but w/l 1.2
+        self.assertEqual(fixture.failed(), ["the body's proportions lie inside the language's ranges"])
+
+    def test_every_zone_of_the_language_is_coloured_with_its_own_palette_entry(self):
+        built = Fixture().build()
+        self.assertEqual(built.colours, {"primary": (0.1, 0.2, 0.3), "secondary": (0.2, 0.2, 0.3)})
 
     def test_a_body_too_narrow_for_the_language_fails_proportion(self):
         fixture = Fixture()
@@ -163,17 +181,17 @@ class JudgementTests(unittest.TestCase):
 
     def test_a_bilateral_bound_is_met_by_exactly_that_overlap(self):
         fixture = Fixture()
-        fixture.parts["lang"] = ("", language(symmetry=("bilateral", 1.0)))
+        fixture.library["zhestokost"] = language(symmetry=("bilateral", 1.0))
         self.assertEqual(fixture.failed(), [])
 
     def test_an_asymmetric_language_refuses_a_symmetric_hull(self):
         fixture = Fixture()
-        fixture.parts["lang"] = ("", language("zhestokost", symmetry=("asymmetric", 0.9)))
+        fixture.library["zhestokost"] = language("zhestokost", symmetry=("asymmetric", 0.9))
         self.assertEqual(fixture.failed(), ["the top view obeys the language's asymmetric rule"])
 
     def test_an_asymmetric_language_accepts_a_lopsided_hull(self):
         fixture = Fixture()
-        fixture.parts["lang"] = ("", language("zhestokost", symmetry=("asymmetric", 0.9)))
+        fixture.library["zhestokost"] = language("zhestokost", symmetry=("asymmetric", 0.9))
         fixture.parts["secondary"] = (box(2, 8, -4, 4, 0, 3), "")
         self.assertEqual(fixture.failed(), [])
 
@@ -244,9 +262,9 @@ class DonorTests(unittest.TestCase):
     def pirate(donor_proportion=((0.12, 0.35), (0.55, 1.1)), donor="rnd"):
         fixture = Fixture()
         fixture.parts["brief"] = ("", brief("pirate", donor, length=(8, 14)))
-        fixture.parts["lang"] = ("", language("pirate", ("primer", "weld"), body="", proportion=None,
-                                             symmetry=("asymmetric", 0.9))
-                                 + language("rnd", ("primary", "secondary"), proportion=donor_proportion))
+        fixture.library = {"pirate": language("pirate", ("primer", "weld"), body="", proportion=None,
+                                              symmetry=("asymmetric", 0.9)),
+                           "rnd": language("rnd", ("primary", "secondary"), proportion=donor_proportion)}
         for key in ("primary", "secondary"):
             del fixture.parts[key]
         fixture.parts["rnd:primary"] = (box(-3, 3, -5, 5, 0, 1), "")  # h/w 0.17, w/l 0.6
@@ -275,8 +293,7 @@ class DonorTests(unittest.TestCase):
 
     def test_a_pirate_hull_that_names_no_donor_is_refused(self):
         fixture = self.pirate(donor="")
-        fixture.parts["lang"] = ("", language("pirate", ("primer", "weld"), body="", proportion=None,
-                                             symmetry=("asymmetric", 0.9)))
+        del fixture.library["rnd"]
         for key in ("rnd:primary", "rnd:secondary"):
             del fixture.parts[key]
         self.assertIn(self.DONOR, fixture.failed())
@@ -284,10 +301,165 @@ class DonorTests(unittest.TestCase):
     def test_a_hull_whose_language_has_proportions_of_its_own_may_not_name_a_donor(self):
         fixture = Fixture()
         fixture.parts["brief"] = ("", brief("zhestokost", "rnd"))
-        fixture.parts["lang"] = ("", language() + language("rnd", ("primary", "secondary")))
+        fixture.library["rnd"] = language("rnd", ("primary", "secondary"))
         fixture.parts["rnd:primary"] = (box(-3, 3, -5, 5, 0, 1), "")
         fixture.parts["rnd:secondary"] = (box(-1, 1, -1, 1, 1, 1.2), "")
         self.assertIn(self.DONOR, fixture.failed())
+
+
+class LanguageOwnershipTests(unittest.TestCase):
+    """The faction's language file owns its palette, proportions and symmetry rule: the hull's own `lang` echo is compared
+    with it and never judged against."""
+
+    OWN = "the hull includes its faction's language files and changes none of them"
+    PROPORTIONS = "the body's proportions lie inside the language's ranges"
+
+    def redefined(self, **language_arguments):
+        fixture = Fixture()
+        fixture.hull_lang = language(**language_arguments)
+        return fixture
+
+    def test_a_hull_that_includes_the_languages_unchanged_passes(self):
+        self.assertEqual(Fixture().failed(), [])
+
+    def test_a_hull_that_redefines_its_palette_fails_and_is_still_coloured_from_the_file(self):
+        fixture = Fixture()
+        fixture.hull_lang = echo("lang", ["zhestokost", [["primary", [1, 0, 1]], ["secondary", [1, 0, 1]]], "primary",
+                                          [1, 0.6, 0.2], [0.5, 0.5, 0.5], [[0.25, 0.6], [0.35, 0.75]], ["bilateral", 0.97]])
+        self.assertEqual(fixture.failed(), [self.OWN])
+        built = fixture.build()
+        self.assertEqual(built.colours["primary"], built.languages["zhestokost"].colour("primary"))
+        self.assertNotEqual(built.colours["primary"], (1, 0, 1))
+
+    def test_a_hull_that_adds_a_zone_to_its_palette_fails(self):
+        self.assertEqual(self.redefined(zones=("primary", "secondary", "extra")).failed(), [self.OWN])
+
+    def test_a_hull_that_redefines_the_proportions_fails_and_is_judged_by_the_file(self):
+        fixture = self.redefined(proportion=((0.0, 9.0), (0.0, 9.0)))
+        fixture.parts["primary"] = (box(-3, 3, -5, 5, 0, 5), "")  # too tall for the file's ranges
+        self.assertEqual(sorted(fixture.failed()), sorted([self.OWN, self.PROPORTIONS]))
+
+    def test_a_hull_that_redefines_the_symmetry_rule_fails_and_is_judged_by_the_file(self):
+        fixture = self.redefined(symmetry=("asymmetric", 0.99))
+        self.assertEqual(fixture.failed(), [self.OWN])
+        fixture.parts["secondary"] = (box(2, 6, -1, 1, 2, 3), "")  # lopsided: the file's bilateral rule refuses it
+        self.assertIn("the top view obeys the language's bilateral rule", fixture.failed())
+
+    def test_a_second_echo_of_the_language_after_the_first_fails(self):
+        fixture = Fixture()
+        fixture.hull_lang = language() + language(symmetry=("asymmetric", 0.99))
+        self.assertEqual(fixture.failed(), [self.OWN])
+
+    def test_a_hull_that_echoes_no_language_or_another_factions_fails(self):
+        for text in ("", language("rnd")):
+            fixture = Fixture()
+            fixture.hull_lang = text
+            self.assertEqual(fixture.failed(), [self.OWN])
+
+    def test_a_pirate_hull_must_include_its_donors_language_too(self):
+        fixture = DonorTests.pirate()
+        fixture.hull_lang = language("pirate", ("primer", "weld"), body="", proportion=None, symmetry=("asymmetric", 0.9))
+        self.assertEqual(fixture.failed(), [self.OWN])
+
+    def test_the_library_is_asked_for_the_faction_and_the_donor_the_brief_names(self):
+        asked = []
+        fixture = DonorTests.pirate()
+        hs.build(fixture.runner(), lambda faction: asked.append(faction) or fixture.read_library(faction))
+        self.assertEqual(sorted(asked), ["pirate", "rnd"])
+
+
+class FakeOpenScad:
+    """Stands in for subprocess.Popen: records each command and environment, writes `off` where -o points, and answers
+    with `output` and `returncode`."""
+
+    def __init__(self, returncode=0, off="", output=""):
+        self.returncode, self.off, self.output, self.calls = returncode, off, output, []
+        self.pid = 4242
+
+    def __call__(self, command, **kwargs):
+        self.calls.append((command, kwargs.get("env")))
+        if self.off:
+            Path(command[command.index("-o") + 1]).write_text(self.off, encoding="utf-8")
+        return self
+
+    def communicate(self, timeout=None):
+        return self.output, None
+
+    def kill(self):
+        pass
+
+
+class LanguageLibraryTests(unittest.TestCase):
+    def test_a_faction_name_that_is_not_a_plain_word_or_has_no_file_is_refused_without_a_process(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(hs.subprocess, "Popen") as popen:
+            (Path(folder) / "zhestokost.scad").write_text("", encoding="utf-8")
+            read = hs.language_library("openscad", Path(folder))
+            for faction in ("../zhestokost", "Zhestokost", "", "nobody", "zhestokost.scad"):
+                with self.assertRaises(hs.HullSourceError) as caught:
+                    read(faction)
+                self.assertNotIn("nobody", str(caught.exception))
+            popen.assert_not_called()
+
+    def test_the_language_is_read_from_the_factions_own_file_run_alone(self):
+        with tempfile.TemporaryDirectory() as folder:
+            library = Path(folder)
+            (library / "zhestokost.scad").write_text("", encoding="utf-8")
+            openscad = FakeOpenScad(output=language())
+            with mock.patch.object(hs.subprocess, "Popen", openscad):
+                text = hs.language_library("openscad", library)("zhestokost")
+            self.assertEqual(hs.read_languages(text)[0].faction, "zhestokost")
+            command = openscad.calls[0][0]
+            self.assertEqual(command[-1], str(library / "zhestokost.scad"))
+            self.assertEqual(command[command.index("-D") + 1], 'part="lang"')
+
+
+class RunnerTests(unittest.TestCase):
+    def run_part(self, part, openscad, **arguments):
+        with mock.patch.object(hs.subprocess, "Popen", openscad):
+            return hs.openscad_runner("scad", "hull.scad", **arguments)(part)
+
+    def test_openscad_is_asked_for_a_full_render_on_the_manifold_backend_of_one_part(self):
+        openscad = FakeOpenScad()
+        self.run_part("primary", openscad)
+        command = openscad.calls[0][0]
+        self.assertEqual(command[0], "scad")
+        self.assertEqual(command[command.index("--backend") + 1], "Manifold")
+        self.assertEqual(command[command.index("--render") + 1], "all")
+        self.assertEqual(command[command.index("-D") + 1], 'part="primary"')
+        self.assertEqual(command[-1], "hull.scad")
+
+    def test_the_language_folder_is_what_openscad_searches_for_includes(self):
+        openscad = FakeOpenScad()
+        self.run_part("primary", openscad, library=Path("some") / "languages")
+        self.assertEqual(openscad.calls[0][1]["OPENSCADPATH"], str(Path("some") / "languages"))
+
+    def test_a_part_openscad_fails_to_make_is_refused_without_echoing_its_output(self):
+        with self.assertRaises(hs.HullSourceError) as caught:
+            self.run_part("primary", FakeOpenScad(returncode=1, output=SECRET))
+        self.assertNotIn(SECRET, str(caught.exception))
+
+    def test_echo_parts_answer_the_echo_and_geometry_parts_the_off(self):
+        self.assertEqual(self.run_part("brief", FakeOpenScad(output=brief())), ("", brief()))
+        self.assertEqual(self.run_part("primary", FakeOpenScad(off=box(0, 1, 0, 1, 0, 1), output="log")),
+                         (box(0, 1, 0, 1, 0, 1), "log"))
+
+    def test_each_process_is_reported_to_on_start(self):
+        started = []
+        self.run_part("primary", FakeOpenScad(), on_start=started.append)
+        self.assertEqual(started, [4242])
+
+
+class FingerprintTests(unittest.TestCase):
+    def test_equal_values_give_equal_digests_and_a_change_gives_another(self):
+        base = hs.fingerprint("a", (1.0, 2.5), [[0.0, 1.0, 2.0]], 3)
+        self.assertEqual(base, hs.fingerprint("a", (1.0, 2.5), [[0.0, 1.0, 2.0]], 3))
+        for other in (("b", (1.0, 2.5), [[0.0, 1.0, 2.0]], 3), ("a", (1.0, 2.501), [[0.0, 1.0, 2.0]], 3),
+                      ("a", (1.0, 2.5), [[0.0, 1.0, 2.0]], 4), ("a", (1.0, 2.5), [[0.0, 1.0], [2.0]], 3)):
+            self.assertNotEqual(base, hs.fingerprint(*other))
+
+    def test_float_noise_below_five_decimals_and_a_negative_zero_do_not_change_it(self):
+        self.assertEqual(hs.fingerprint((1.0, 0.0)), hs.fingerprint((1.0 + 1e-8, -0.0)))
+        self.assertEqual(hs.fingerprint((-1e-9,)), hs.fingerprint((0.0,)))
 
 
 class RefusalTests(unittest.TestCase):
@@ -297,11 +469,18 @@ class RefusalTests(unittest.TestCase):
         with self.assertRaises(hs.HullSourceError):
             fixture.build()
 
-    def test_a_named_donor_whose_language_the_source_does_not_include_is_refused(self):
+    def test_a_named_donor_that_has_no_language_file_is_refused(self):
         fixture = Fixture()
         fixture.parts["brief"] = ("", brief("zhestokost", "rnd"))
         with self.assertRaises(hs.HullSourceError):
             fixture.build()
+
+    def test_a_language_file_that_echoes_another_faction_or_not_exactly_one_language_is_refused(self):
+        for text in (language("rnd"), language() + language(), ""):
+            fixture = Fixture()
+            fixture.library["zhestokost"] = text
+            with self.assertRaises(hs.HullSourceError):
+                fixture.build()
 
     def test_anchors_that_repeat_an_id_or_name_an_unknown_role_are_refused_without_echoing_them(self):
         for anchors in (echo("anchor", [SECRET, "weapon-mount", [0, 0, 0], 0, ""]) * 2,
@@ -311,6 +490,31 @@ class RefusalTests(unittest.TestCase):
             with self.assertRaises(hs.HullSourceError) as caught:
                 fixture.build()
             self.assertNotIn(SECRET, str(caught.exception))
+
+    def test_a_name_that_is_not_a_string_is_refused_wherever_the_source_gives_one(self):
+        def refused(fixture):
+            with self.assertRaises(hs.HullSourceError):
+                fixture.build()
+
+        for index in range(3):  # faction, donor, role
+            fixture = Fixture()
+            raw = ["zhestokost", "", "tender", [8, 14], [10, 100], ["a read"]]
+            raw[index] = 7
+            fixture.parts["brief"] = ("", echo("brief", raw))
+            refused(fixture)
+        fixture = Fixture()
+        fixture.parts["brief"] = ("", echo("brief", ["zhestokost", "", "tender", [8, 14], [10, 100], [7]]))
+        refused(fixture)
+        for anchor in ([7, "weapon-mount", [0, 0, 3], 0, ""], ["Gun.A", 7, [0, 0, 3], 0, ""],
+                       ["Gun.A", "weapon-mount", [0, 0, 3], 0, 7]):
+            fixture = Fixture()
+            fixture.parts["anchors"] = ("", echo("anchor", anchor))
+            refused(fixture)
+        for raw in ([7, [["primary", [1, 1, 1]]], "primary", [1, 1, 1], [1, 1, 1], [], ["bilateral", 1]],
+                    ["zhestokost", [[7, [1, 1, 1]]], "primary", [1, 1, 1], [1, 1, 1], [], ["bilateral", 1]],
+                    ["zhestokost", [["primary", [1, 1, 1]]], 7, [1, 1, 1], [1, 1, 1], [], ["bilateral", 1]]):
+            with self.assertRaises(hs.HullSourceError):
+                hs.read_languages(echo("lang", raw))
 
     def test_a_malformed_anchor_is_refused_without_echoing_it(self):
         fixture = Fixture()
