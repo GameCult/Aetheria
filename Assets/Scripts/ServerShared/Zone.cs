@@ -126,11 +126,15 @@ public class Zone
     // of touching a shared stream.
     public uint CombatSeed { get; }
 
+    // The zone's drop dice (loot and mine scatter): CombatSeed mixed with its run's seed (ruling loot-seed-in-save), so a
+    // new game drops differently and a reloaded save repeats. Mix(0) is 0, so a zone with no galaxy rolls on CombatSeed.
+    public uint DropSeed { get; }
+
     // The one source of floating item and mine ids: zone-scoped, from 1, never reused. Runtime state, not saved.
     private uint _lastBodyId;
     public FloatingBodyId NextBodyId() => new FloatingBodyId(++_lastBodyId);
 
-    // The death ordinal of the loot dice: the nth death in this zone rolls on SimulationDice.For(CombatSeed, LootStream, n).
+    // The death ordinal of the loot dice: the nth death in this zone rolls on SimulationDice.For(DropSeed, LootStream, n).
     private uint _deaths;
 
     // The zone-scoped agent ordinal, from 1, never reused: the key of a pilot's own dice.
@@ -152,6 +156,7 @@ public class Zone
         Settings = settings;
         _orbitPositionAt = OrbitPositionAt;
         CombatSeed = galaxyZone?.Name.StableHash() ?? 1337u;
+        DropSeed = CombatSeed ^ SimulationDice.Mix(galaxy?.Seed ?? 0u);
         var cache = itemManager.ItemData;
 
         // Cut 5, 5.6 (docs/fire-control-cut.md, Soul finding 7; operator ruling Q3): death removes the ship,
@@ -452,7 +457,7 @@ public class Zone
     private void DropLoot(Entity dead)
     {
         var settings = _itemManager.GameplaySettings;
-        var random = SimulationDice.For(CombatSeed, SimulationDice.LootStream, ++_deaths);
+        var random = SimulationDice.For(DropSeed, SimulationDice.LootStream, ++_deaths);
         var at = new float2(dead.Position.x, dead.Position.z);
         float2 Heading() { var angle = random.NextFloat() * 2f * PI; return float2(cos(angle), sin(angle)); }
         foreach (var equipped in dead.Equipment.ToArray())

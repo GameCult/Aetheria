@@ -67,7 +67,7 @@ public sealed class MineTests : IDisposable
     private Lab Build(float blast = 4f, float arming = 2f, float fuse = 2f, float life = 30f, float spread = 0f, float velocity = 0f,
         float damage = 100f, float range = 1000f, float cooldown = 1000f, Faction layerFaction = null,
         WeaponFuse? fuseKind = WeaponFuse.Proximity, bool well = false, float3? layerAt = null, int magazine = 100,
-        float minRange = 0f)
+        float minRange = 0f, uint? runSeed = null)
     {
         var settings = new GameplaySettings
         {
@@ -114,6 +114,7 @@ public sealed class MineTests : IDisposable
         cache.Upsert(Gear("Shield", new ShieldData { Efficiency = Constant(1), EnergyUsage = Constant(1), Capacity = Constant(1000000), RefillDuration = Constant(.01f), RestoreDuration = Constant(.01f) }, 10));
         cache.Upsert(Gear("TinyShield", new ShieldData { Efficiency = Constant(1), EnergyUsage = Constant(1), Capacity = Constant(.001f), RefillDuration = Constant(.01f), RestoreDuration = Constant(.01f) }, 10));
         cache.FlushAsync().Wait();
+        var galaxy = runSeed.HasValue ? RunSeedFixture.Continue(cache, "Mines", runSeed.Value) : null;
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 500; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
@@ -121,7 +122,9 @@ public sealed class MineTests : IDisposable
         var planets = new PlanetSettings();
         var pack = new ZonePack { Radius = well ? 1000 : 0 };
         if (well) WellFixture.Dig(cache, pack, planets, 300, 100);
-        var zone = new Zone(items, planets, pack, new GalaxyZone { Name = "Mines", Owner = null }, null);
+        var zone = galaxy != null
+            ? new Zone(items, planets, pack, galaxy.Zones[0], galaxy)
+            : new Zone(items, planets, pack, new GalaxyZone { Name = "Mines", Owner = null }, null);
         var lab = new Lab { Items = items, Zone = zone, Data = data, ItemData = cache.GetByName<WeaponItemData>("Mine Layer") };
 
         var layerRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Layer"));
@@ -683,6 +686,23 @@ public sealed class MineTests : IDisposable
         Assert.False(FireControl.Refuses(lab.Weapon, lab.Layer));
     }
 
+    // A new game scatters its mines differently: the same lay, at another run seed, launches at another velocity.
+    [Fact]
+    public void ANewGameScattersMinesDifferently()
+    {
+        float2 LaunchAt(uint runSeed)
+        {
+            var lab = Build(spread: 40f, velocity: 5f, layerFaction: A, runSeed: runSeed);
+            var atLay = default(KinematicBody);
+            using var sub = lab.Zone.Mines.ObserveAdd().Subscribe(e => atLay = e.Value.Body);
+            lab.Layer.Direction = normalize(float2(1, 2));
+            LayOne(lab);
+            return atLay.Velocity;
+        }
+
+        Assert.NotEqual(LaunchAt(1), LaunchAt(2));
+    }
+
     [Fact]
     public void TheLaunchAngleIsTheMinesOwnDice()
     {
@@ -697,9 +717,9 @@ public sealed class MineTests : IDisposable
 
         var mine = LayOne(lab);
 
-        // The angle is the first draw of (zone seed, mine stream, body id), in +-Spread/2, turning the mount
+        // The angle is the first draw of (the zone's DropSeed, mine stream, body id), in +-Spread/2, turning the mount
         // counterclockwise in the (x, y) plane.
-        var degreesTurned = SimulationDice.For(lab.Zone.CombatSeed, SimulationDice.MineStream, mine.Id.Value).NextFloat(-20f, 20f);
+        var degreesTurned = SimulationDice.For(lab.Zone.DropSeed, SimulationDice.MineStream, mine.Id.Value).NextFloat(-20f, 20f);
         var a = radians(degreesTurned);
         var m = FireControl.MountDirection(lab.WeaponItem).xz;
         var turned = float2(m.x * cos(a) - m.y * sin(a), m.x * sin(a) + m.y * cos(a));

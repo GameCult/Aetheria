@@ -188,6 +188,8 @@ public sealed class RunSaveTests : IDisposable
             Assert.Equal(0xC0FFEEu, galaxy.Seed);
             var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
+            // The zone's drop dice are its name's seed mixed with the run's.
+            Assert.Equal("Zone 0".StableHash() ^ SimulationDice.Mix(0xC0FFEEu), galaxy.Zones[0].Contents.DropSeed);
             var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0], 0);
             Assert.Equal(0xC0FFEEu, game.Seed);
             RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
@@ -203,7 +205,12 @@ public sealed class RunSaveTests : IDisposable
         using (var cache = Open())
         {
             Assert.Equal(0u, cache.GetGlobal<SavedGame>().Seed);
-            Assert.Equal(0u, new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { }).Seed);
+            var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
+            Assert.Equal(0u, galaxy.Seed);
+            var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            var zone = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
+            Assert.Equal("Zone 0".StableHash(), zone.CombatSeed);
+            Assert.Equal(zone.CombatSeed, zone.DropSeed);
         }
     }
 
