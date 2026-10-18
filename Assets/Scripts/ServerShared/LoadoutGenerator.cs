@@ -209,19 +209,11 @@ public class LoadoutGenerator
         return (available, preferManufacturers);
     }
 
-    // A faction's boss: its BossHull when the faction sets one and a product sells it, else the most expensive ship hull
-    // the faction can be offered, with the gap logged. Null only when no ship hull is on offer at all.
+    // A faction's boss: the most expensive ship hull the faction can be offered, with the gap logged. Null only when no
+    // ship hull is on offer at all.
     public EntityPack GenerateBossLoadout()
     {
-        var bossHull = Faction != null && Faction.BossHull.IsSet() ? ItemManager.ItemData.Get(Faction.BossHull) : null;
-        if (bossHull != null)
-        {
-            var boss = GenerateShipLoadout(hull => hull == bossHull);
-            if (boss != null) return boss;
-            ItemManager.Log($"{Faction.Name}'s BossHull {bossHull.Name} is not sold by any product; its boss flies the most expensive ship hull instead.");
-        }
-        else
-            ItemManager.Log($"{Faction?.Name ?? "This faction"} has no BossHull; its boss flies the most expensive ship hull instead.");
+        ItemManager.Log($"{Faction?.Name ?? "This faction"} makes no boss hull; its boss flies the most expensive ship hull instead.");
 
         var (available, _) = AvailableProducts<HullData>(hull => hull.HullType == HullType.Ship, required: true);
         if (available.Length == 0) return null;

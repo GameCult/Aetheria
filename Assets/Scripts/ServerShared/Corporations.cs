@@ -39,8 +39,7 @@ public class Faction
 
     // Key 9 was the faction's name-file link, retired by ruling faction-curated-place-names; never reuse it.
 
-    [Inspectable, JsonProperty("bossHull"), Key(10)]
-    public CultRecordRef<HullData> BossHull;
+    // Key 10 was the faction's named boss hull, retired by boss-hull-derived: a faction's boss hulls are derived from the Boss hulls it makes; never reuse it.
 
     [Inspectable, JsonProperty("influence"), Key(11)]
     public int InfluenceDistance = 4;

@@ -71,50 +71,6 @@ public sealed partial class RunStartTests
     }
 
     [Fact]
-    public void Boss_hull_from_BossHull_else_fallback()
-    {
-        var galaxy = DemoGalaxy(1);
-        var antagonist = Zhestokost(galaxy);
-        var hulls = SoldShipHulls().OrderByDescending(hull => hull.Price).ThenBy(hull => hull.Name, StringComparer.Ordinal).ToArray();
-        var priciest = hulls.First();
-        var cheaper = hulls.Last();
-        Assert.True(cheaper.Price < priciest.Price, "the catalog needs two ship hulls of different price for this test to tell them apart");
-
-        // Set and sold: the boss flies it, and nothing is logged about a gap.
-        antagonist.BossHull = _cache.RefOf(cheaper);
-        var log = new List<string>();
-        var items = LoggingItems(log);
-        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
-        Assert.Equal(cheaper.Name, HullName(items, boss));
-        Assert.DoesNotContain(log, line => line.Contains("BossHull"));
-
-        // Unset: the most expensive ship hull on offer, and the log names the missing BossHull.
-        antagonist.BossHull = default;
-        log.Clear();
-        boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
-        Assert.Equal(priciest.Name, HullName(items, boss));
-        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("no BossHull"));
-    }
-
-    // Set but sold by no product: the boss falls back the same way, and the log says which hull has no seller.
-    [Fact]
-    public void Boss_hull_nobody_sells_falls_back()
-    {
-        var galaxy = DemoGalaxy(1);
-        var antagonist = Zhestokost(galaxy);
-        var sold = SoldShipHulls();
-        // A ship hull no product sells, dearer than any that is sold: the fallback must not pick it.
-        var unsold = new HullData { Name = "Unsold Test Hull", HullType = HullType.Ship, Price = sold.Max(hull => hull.Price) + 1 };
-        _cache.Upsert(unsold);
-        antagonist.BossHull = _cache.RefOf(unsold);
-        var log = new List<string>();
-        var items = LoggingItems(log);
-        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
-        Assert.Equal(sold.OrderByDescending(hull => hull.Price).ThenBy(hull => hull.Name, StringComparer.Ordinal).First().Name, HullName(items, boss));
-        Assert.Contains(log, line => line.Contains(unsold.Name) && line.Contains("BossHull"));
-    }
-
-    [Fact]
     public void Exit_sealed_until_boss_dies()
     {
         var galaxy = DemoGalaxy(1);

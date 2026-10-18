@@ -583,8 +583,7 @@ public static class Program
 
     // Every CultRecordRef in the catalog that resolves to nothing, as "<record> <DeclaringType.Member> -> <key>".
     // Each "clear <DeclaringType.Member>" argument unsets that member's dangling refs, or removes that dictionary's
-    // dangling keys (Faction.BossHull clears boss hulls that would claim a chokepoint no boss can spawn in). Dry
-    // run unless passed "apply", which alone opens the catalog writable and lands every changed record in one commit.
+    // dangling keys. Dry run unless passed "apply", which alone opens the catalog writable and lands every changed record in one commit.
     private static int Dangling(string[] args)
     {
         var apply = args.Contains("apply");
@@ -702,19 +701,14 @@ public static class Program
         var db = AetherDb.Open();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         Console.WriteLine($"{"faction",-26} {"short",-13} {"places",-22} {"boss hull",-14} {"influence",-9} {"doctrine",-10} products");
-        var broken = 0;
         foreach (var faction in db.Cache.GetAll<Faction>().OrderBy(f => f.Name))
         {
             var key = db.Cache.RefOf(faction).Key;
-            var boss = !faction.BossHull.IsSet()
-                ? "none"
-                : db.Cache.Get(faction.BossHull)?.Name ?? "DANGLING";
-            if (boss == "DANGLING") broken++;
+            var boss = "none";
             Console.WriteLine($"{faction.Name,-26} {faction.ShortName,-13} {faction.Places.Length,-22} {boss,-14} {faction.InfluenceDistance,-9} {(faction.Doctrine == null ? "none" : faction.Doctrine.EngageOn.ToString()),-10} " +
                 products.Count(p => p.Manufacturer.Key.Equals(key)));
         }
-        Console.WriteLine($"\n{broken} factions carry a link that would break generation");
-        return broken;
+        return 0;
     }
 
     // What the saved run actually holds per zone. A zone carrying orbits but no orbital entities was packed by a
