@@ -53,7 +53,7 @@ public static class RunStart
             var hostile = placed.Stance == ScenarioStance.Hostile;
             placed.Entity.SetIff(player, hostile);
             player.SetIff(placed.Entity, hostile);
-            arena.Admit(placed.Entity, placed.Piloted);
+            arena.Admit(placed.Entity, placed.Piloted, placed.Task);
         }
         return new Staged { Player = player, Credits = stage.Credits, Entities = stage.Placed.Select(placed => placed.Entity).ToList() };
     }

@@ -22,11 +22,14 @@ public sealed class FusedRounds : Scenario
     public static readonly CultMath.float2 Mid = float2(-200, 600), Ahead = float2(0, 300), Fragile = float2(80, 240),
         Close = float2(6.4f, 4f), Stern = float2(0, -400);
 
+    // The shooter is staged at this quality, so the damage its Cluster Cannon deals does not ride the item stream.
+    public const float StagedQuality = .6f;
+
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {
-        var shooter = stage.Fit("Smoke Test Hull",
+        var shooter = stage.Fit("Smoke Test Hull", StagedQuality,
             ("Cockpit 2x2", int2(4, 6), None),
             ("Large Drive", int2(3, 0), Reversed),
             ("Large Drive", int2(5, 0), Reversed),

@@ -39,7 +39,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         OrbitalLayerHeight = orbitalLayerHeight,
         DefaultEntitySettings = new EntitySettings(),
-        Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
+        Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
         TargetGearInfoThreshold = .8f,
@@ -778,6 +778,46 @@ public sealed class FireControlPerWeaponTests : IDisposable
         }
 
         Assert.True(Optimum(1f) - Optimum(0f) > 100f);
+    }
+
+    // The range-sample offset is the pilot's own draw (zone seed, its id), never the item stream's: the same pilot
+    // samples the same optimum however many items were minted before it spawned, and two pilots sample their own.
+    // Kills: the offset drawn from ItemManager.Random; the agent id dropped from the draw.
+    [Fact]
+    public void AnAgentsSampleOffsetIsItsOwnAndNotTheItemStreams()
+    {
+        var r = Build(range: 400f, decoy: true);
+        float Optimum(uint id, int itemsMintedFirst)
+        {
+            for (var i = 0; i < itemsMintedFirst; i++) r.Shooter.ItemManager.Random.NextFloat();
+            var combat = new CombatState(new Minion(r.Shooter, new RoleDoctrine { RangeExponent = 1f, MinHitProbability = .2f }) { Id = id });
+            combat.Update(0f);
+            return combat.OptimumRange;
+        }
+
+        Assert.Equal(Optimum(3, 0), Optimum(3, 0));
+        Assert.Equal(Optimum(3, 0), Optimum(3, 17));
+        Assert.True(Enumerable.Range(1, 8).Select(i => Optimum((uint) i, 0)).Distinct().Count() > 1,
+            "pilots with different ids sample different offsets");
+
+        // Whose dice: each sampled range is the pilot's offset plus a whole step of the sample grid, so the optimum
+        // minus the offset from CombatSampleStream lands on the grid for every id; an offset from another stream
+        // (the loot dice, say) leaves a remainder. Kills: the offset drawn from another stream.
+        var min = r.Shooter.Weapons.Min(w => w.MinRange);
+        var step = (r.Shooter.Weapons.Max(w => w.Range) - min) / 32f; // Combat.DPS_SAMPLE_COUNT
+        foreach (var id in Enumerable.Range(1, 16).Select(i => (uint) i))
+        {
+            var offset = SimulationDice.For(r.Zone.CombatSeed, SimulationDice.CombatSampleStream, id).NextFloat(step);
+            var cells = (Optimum(id, 0) - offset - min) / step;
+            Assert.True(MathF.Abs(cells - MathF.Round(cells)) < .01f, $"id {id}: optimum is {cells} steps from the pilot's own offset");
+        }
+
+        // The other direction: sampling the optimum takes nothing from the item stream, so how a pilot fights never moves
+        // what is minted next. Kills: an AI draw from ItemManager.Random.
+        var items = r.Shooter.ItemManager;
+        var before = items.Random;
+        Optimum(5, 0);
+        Assert.Equal(before.NextFloat(), items.Random.NextFloat());
     }
 
     // A round refused on a Range that fell between the trigger and the round is still free: the burst is paid

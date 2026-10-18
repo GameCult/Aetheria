@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
+using GameCult.Caching;
 using static CultMath.math;
 using float2 = CultMath.float2;
 using float3 = CultMath.float3;
@@ -48,11 +49,20 @@ public sealed class ScenarioStage
         public Entity Entity;
         public ScenarioStance Stance;
         public bool Piloted;
+        public AgentTask Task;
     }
 
     // A hull fitted slot by slot: each slot a design or a product, the hull cell it goes in, and its rotation. A name is
     // a design (open: the stage chooses its product) or a product (pinned: that brand).
-    public ScenarioFit Fit(string hull, params (string design, int2 cell, ItemRotation rotation)[] slots)
+    public ScenarioFit Fit(string hull, params (string design, int2 cell, ItemRotation rotation)[] slots) =>
+        FitAt(hull, null, slots);
+
+    // The same fit with every lot it mints (hull, slots, unbranded) at the stated quality, drawing nothing. A fit a scenario's
+    // checks rest on states its quality, so the check does not ride the item stream.
+    public ScenarioFit Fit(string hull, float quality, params (string design, int2 cell, ItemRotation rotation)[] slots) =>
+        FitAt(hull, quality, slots);
+
+    private ScenarioFit FitAt(string hull, float? quality, (string design, int2 cell, ItemRotation rotation)[] slots)
     {
         var where = $"fit {hull}";
         var (hullData, hullProduct) = NamedOrProduct<HullData>(hull, where);
@@ -69,7 +79,7 @@ public sealed class ScenarioStage
                 Product = product == null ? default : _items.ItemData.RefOf(product)
             });
         }
-        return hullData != null && loadout.Slots.Count == slots.Length ? new ScenarioFit(loadout) : null;
+        return hullData != null && loadout.Slots.Count == slots.Length ? new ScenarioFit(loadout, quality) : null;
     }
 
     // A hull with nothing fitted.
@@ -126,6 +136,18 @@ public sealed class ScenarioStage
         return entity;
     }
 
+    // The task a piloted entity starts on: it closes on the target and holds there (the flight's follow task, standoff
+    // nothing), in place of the patrol circuit the zone would draw for it. A check that rests on where a pilot goes states
+    // it here, so the pilot's course is the scenario's and not a draw. An entity that is not placed and piloted, or a
+    // target that is not placed, is a failure.
+    public void Approach(Entity entity, Entity target)
+    {
+        var placement = _placed.FirstOrDefault(p => ReferenceEquals(p.Entity, entity));
+        if (placement == null || !placement.Piloted) { _failures.Add($"approach: {entity?.Name ?? "no entity"} is not a placed, piloted ship"); return; }
+        if (target == null) { _failures.Add("approach: no target to close on"); return; }
+        placement.Task = new FollowTask { Anchor = target, Standoff = 0f };
+    }
+
     // Items in the entity's first cargo bay, one per name. A name is an equippable or consumable design (open: the stage
     // chooses its product) or a product of one (pinned); a name that is neither is a failure.
     public void Cargo(Entity entity, params string[] names)
@@ -154,7 +176,7 @@ public sealed class ScenarioStage
         else
         {
             var failures = new List<string>();
-            entity = Loadouts.Materialize(_items, Arena, fit.Loadout, _choose, failures);
+            entity = Loadouts.Materialize(_items, Arena, fit.Loadout, _choose, failures, fit.Quality);
             _failures.AddRange(failures.Select(failure => $"{where} ({fit.Loadout.Name}): {failure}"));
             if (entity == null) return null;
         }
@@ -190,7 +212,13 @@ public sealed class ScenarioFit
 {
     internal readonly Loadout Loadout;
     internal readonly EntityPack Pack;
+    internal readonly float? Quality;
 
-    internal ScenarioFit(Loadout loadout) => Loadout = loadout;
+    internal ScenarioFit(Loadout loadout, float? quality = null)
+    {
+        Loadout = loadout;
+        Quality = quality;
+    }
+
     internal ScenarioFit(EntityPack pack) => Pack = pack;
 }

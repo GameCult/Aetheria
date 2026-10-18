@@ -102,7 +102,7 @@ public sealed class InspectionScannerCatalogTests
             ledger.Lots[1] = new Lot { Origin = new Attributed(), Quality = .5f };
             ledger.Lots[2] = new Lot
             {
-                Origin = new Attributed(), Quality = .5f,
+                Origin = new Attributed(), Quality = 1f,
                 Roles = product.Roles.Select(r => new RoleFill { Role = r.Role, Quality = r.Mean }).ToList(),
             };
             var items = new ItemManager(Cache, ledger, settings, _ => { });

@@ -22,6 +22,9 @@ public sealed partial class RunStartTests
 {
     private const float EvDt = 1f / 60f;
 
+    // The quality the hand-fitted ships are staged at, so their measured constants do not ride the item stream.
+    private const float EvStagedQuality = .6f;
+
     // The Longinus's drive train, fitted by name: its cockpit and power and the generated Longinus's thrusters (two Large Drive
     // forward, two Rugged Drive on the flanks).
     private static readonly (string design, int2 cell, ItemRotation rotation)[] EvLonginusDrive =
@@ -32,7 +35,7 @@ public sealed partial class RunStartTests
     };
 
     // The Duel's guns on a Longinus: the drive train above, its Targeting Computer, and the Duel's guns, launchers and sensor.
-    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "Cell Blaster", string second = null) => stage.Fit("Longinus",
+    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "Cell Blaster", string second = null) => stage.Fit("Longinus", EvStagedQuality,
         EvLonginusDrive.Concat(new (string design, int2 cell, ItemRotation rotation)[]
         {
             ("Guided Missile Launcher", int2(0, 5), ItemRotation.None), ("Guided Missile Launcher", int2(5, 5), ItemRotation.None), (gun, int2(1, 8), ItemRotation.None),
@@ -70,7 +73,7 @@ public sealed partial class RunStartTests
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
             djinni = stage.Place(EvDjinni(stage), float2(-10000, -30000), facing: float2(0, 1)) as Ship;
-            longinus = stage.Place(stage.Fit("Longinus", EvLonginusDrive), float2(-30000, -30000), facing: float2(0, 1)) as Ship;
+            longinus = stage.Place(stage.Fit("Longinus", EvStagedQuality, EvLonginusDrive), float2(-30000, -30000), facing: float2(0, 1)) as Ship;
         });
         var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
@@ -621,7 +624,7 @@ public sealed partial class RunStartTests
     // The target's fit, written out: the Djinni's own hardpoints filled with the Rugged Drive it is generated with, its
     // reactor, cockpit and radiators. What the evasion tests price is this ship's strafing, not whatever the generator
     // rolls for it from the galaxy.
-    private static ScenarioFit EvDjinni(ScenarioStage stage) => stage.Fit("Djinni",
+    private static ScenarioFit EvDjinni(ScenarioStage stage) => stage.Fit("Djinni", EvStagedQuality,
         ("Cockpit 2x2", int2(6, 3), ItemRotation.None), ("Compact Reactor", int2(6, 11), ItemRotation.None),
         ("Rugged Drive", int2(6, 0), ItemRotation.Reversed), ("Rugged Drive", int2(5, 1), ItemRotation.Reversed), ("Rugged Drive", int2(7, 1), ItemRotation.Reversed),
         ("Rugged Drive", int2(4, 4), ItemRotation.CounterClockwise), ("Rugged Drive", int2(4, 11), ItemRotation.CounterClockwise),

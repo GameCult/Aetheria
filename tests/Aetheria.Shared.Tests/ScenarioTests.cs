@@ -291,6 +291,80 @@ public sealed partial class RunStartTests
         Assert.Contains("No Such Gun", Assert.Single(failures));
     }
 
+    // A pilot's patrol circuit is its own draw (zone seed, agent id), not the item stream's: two arenas that differ only
+    // in items minted before the pilot is admitted give it the same circuit. Kills: the circuit drawn from ItemManager.Random.
+    [Fact]
+    public void APilotsPatrolCircuitDoesNotRideTheItemStream()
+    {
+        Zone Arena(int itemsMintedFirst)
+        {
+            var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
+            {
+                stage.Player(stage.Bare("Djinni"), float2(0, 0));
+                for (var i = 0; i < itemsMintedFirst; i++) stage.Place(stage.Generated("Longinus"), float2(900 + 40 * i, 0));
+                stage.Place(stage.Generated("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
+            }));
+            Assert.True(failures.Count == 0, string.Join("; ", failures));
+            return arena;
+        }
+        CultRecordKey[] Circuit(Zone arena) => ((PatrolOrbitsTask) Assert.Single(arena.Agents).Task).Circuit;
+
+        // The orbit keys are fresh per galaxy, so a circuit is compared by the place of each orbit among its zone's.
+        int[] Places(Zone arena) => Circuit(arena).Select(key => arena.Orbits.Keys.ToList().IndexOf(key)).ToArray();
+
+        var plain = Arena(0);
+        var disturbed = Arena(3);
+        Assert.True(plain.Orbits.Count > 4, "the zone has orbits to choose a circuit among");
+        Assert.Equal(4, Places(plain).Length);
+        Assert.Equal(Places(plain), Places(disturbed));
+    }
+
+    // Each pilot's circuit is keyed by its own id: three pilots admitted into one zone do not all patrol the same orbits.
+    // Kills: the circuit keyed by a constant.
+    [Fact]
+    public void EachPilotsPatrolCircuitIsItsOwn()
+    {
+        var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(0, 0));
+            for (var i = 0; i < 3; i++)
+                stage.Place(stage.Generated("Longinus"), float2(300 + 40 * i, 0), stance: ScenarioStance.Hostile, piloted: true);
+        }));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        var circuits = arena.Agents.Select(agent => string.Join(",", ((PatrolOrbitsTask) agent.Task).Circuit.Select(key => arena.Orbits.Keys.ToList().IndexOf(key)))).ToArray();
+        Assert.Equal(3, circuits.Length);
+        Assert.True(circuits.Distinct().Count() > 1, "every pilot patrols the same orbits: " + string.Join(" | ", circuits));
+    }
+
+    // A fit that states its quality mints every lot it builds at it, assembly and role fills alike; the same fit without one
+    // draws them from the item stream, so some lot comes out otherwise. A scenario's checks rest on the first.
+    [Fact]
+    public void StagedFitMintsAtItsQuality()
+    {
+        (string design, int2 cell, ItemRotation rotation)[] slots =
+        {
+            ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Compact Reactor", int2(2, 4), ItemRotation.None),
+            ("Large Drive", int2(1, 0), ItemRotation.Reversed), ("Radiator", int2(2, 2), ItemRotation.CounterClockwise)
+        };
+        var staged = Stage(Arena(true), new Scripted(true, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(0, 0));
+            stage.Place(stage.Fit("Longinus", .6f, slots), float2(300, 0));
+            stage.Place(stage.Fit("Longinus", slots), float2(-300, 0));
+        }));
+        IEnumerable<Lot> Lots(Entity entity) =>
+            EntitySerializer.Items(EntitySerializer.Pack(entity)).OfType<CraftedItemInstance>().Select(_items.GetLot).Prepend(_items.GetLot(entity.Hull));
+        var stated = Lots(staged.Entities[0]).ToArray();
+        var drawn = Lots(staged.Entities[1]).ToArray();
+        Assert.True(stated.Length > slots.Length);
+        Assert.All(stated, lot =>
+        {
+            Assert.Equal(.6f, lot.Quality, 3);
+            Assert.All(lot.Roles ?? new List<RoleFill>(), fill => Assert.Equal(.6f, fill.Quality, 3));
+        });
+        Assert.Contains(drawn, lot => Math.Abs(lot.Quality - .6f) > .001f);
+    }
+
     // A stance holds both ways between an entity and the player. A piloted entity has exactly one agent; an unpiloted
     // one has none, and nothing steers it. (It is not frozen: the zone's gravity still moves it, as it moves any ship,
     // so the rule is observed on its steering inputs.)

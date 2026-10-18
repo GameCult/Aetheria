@@ -322,7 +322,7 @@ public sealed class CatalogRoleTests
     private sealed class DisciplineContext : IStatContext
     {
         public DisciplineContext(float discipline) =>
-            Lot = new Lot { Quality = .123f, Roles = new List<RoleFill> { new RoleFill { Role = "emission-discipline", Quality = discipline } } };
+            Lot = new Lot { Quality = 1f, Roles = new List<RoleFill> { new RoleFill { Role = "emission-discipline", Quality = discipline } } };
         public Lot Lot { get; }
         public float HeatFactor(float exponent) => 1f;
         public float DurabilityFactor(float exponent) => 1f;

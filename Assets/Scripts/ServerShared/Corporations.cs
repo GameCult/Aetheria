@@ -63,6 +63,13 @@ public class Faction
     // The faction's rules of engagement; null fights as FactionDoctrine.Default.
     [Inspectable, JsonProperty("doctrine"), Key(17)]
     public FactionDoctrine Doctrine;
+
+    // The maker's final assembly: the distribution every lot of theirs draws its own quality from, and the hard ceiling on each
+    // of its roles (quality-lean-assembly-hard-ceiling). Null is not authored: a lot of theirs assembles at AssemblyDistribution's
+    // defaults. assembly-from-maker derives it once at the part mean plus a tolerance margin (quality-min-tolerance-binned-assembly);
+    // tune it in Studio after that. Key 16 is reserved for Relations and 18 for Livery.
+    [Inspectable, JsonProperty("assembly"), Key(19)]
+    public AssemblyDistribution Assembly;
 }
 
 [CultDocument("aetheria.namefile", "1"), Inspectable, MessagePackObject]

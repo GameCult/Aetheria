@@ -55,6 +55,7 @@ public sealed partial class RunStartTests
         var toWaiting = waiting.Position - player.Position;
         EvSettle(player); // a weapon's Range is read once the ship's stats have settled; the geometry above is as staged
         var range = projector.Behaviors.OfType<Weapon>().Single().Range;
+        Assert.InRange(range, Crossing.ProjectorRange - 1f, Crossing.ProjectorRange + 1f); // the constant the waiting place is 80% of
         Assert.True(FireControl.InArc(projector, toWaiting), "the waiting Djinni is inside the Lightning Projector's arc");
         Assert.True(length(toWaiting) <= range, "the waiting Djinni is inside the Lightning Projector's Range");
         Assert.True(length(toWaiting) > .75f * range, "the waiting Djinni is beyond three quarters of the Lightning Projector's Range");

@@ -28,6 +28,11 @@ public class FactionProductData
 
     [Inspectable, JsonProperty("roles"), Key(5)]
     public List<ProductRole> Roles = new List<ProductRole>();
+
+    // This line's own final test (maker-design-tiers-allowed): a binned or premium line is a better assembly as well as better
+    // parts. Null assembles as its maker does.
+    [Inspectable, JsonProperty("assembly"), Key(6)]
+    public AssemblyDistribution Assembly;
 }
 
 // How good this product's part is in one of its design's roles: a pseudo-gaussian distribution whose mean is
@@ -44,5 +49,17 @@ public class ProductRole
     public float Mean = .5f;
 
     [Inspectable, JsonProperty("standardDeviation"), Key(2)]
+    public float StandardDeviation = .15f;
+}
+
+// How well a maker puts the thing together: the technology and quality control of final assembly. A lot's own quality is drawn
+// from it, and it is the ceiling on every role the lot fills. Defaults are a middling maker.
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class AssemblyDistribution
+{
+    [Inspectable, JsonProperty("mean"), Key(0)]
+    public float Mean = .5f;
+
+    [Inspectable, JsonProperty("standardDeviation"), Key(1)]
     public float StandardDeviation = .15f;
 }

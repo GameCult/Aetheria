@@ -173,7 +173,10 @@ public class CombatState : BaseState
                 maxRange = weapon.Range;
         }
 
-        var offset = _agent.ItemManager.Random.NextFloat((maxRange - minRange) / DPS_SAMPLE_COUNT);
+        // The pilot's own dice, a pure function of the zone seed and its id: the same offset at every resample, and
+        // nothing that mints an item can move it.
+        var offset = SimulationDice.For(_agent.Ship.Zone.CombatSeed, SimulationDice.CombatSampleStream, _agent.Id)
+            .NextFloat((maxRange - minRange) / DPS_SAMPLE_COUNT);
         var optimumDPS = 0f;
         for (int i = 0; i < DPS_SAMPLE_COUNT; i++)
         {
