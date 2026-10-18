@@ -228,15 +228,15 @@ public static class ProductLinesCommand
         }
 
         var missing = resolved.Where(r => !r.Present).ToArray();
-        if (missing.Length == 0)
-        {
-            Console.WriteLine("The tiers are already authored; nothing to do.");
-            return 0;
-        }
-
         Console.WriteLine("Product tiers:");
         foreach (var (row, parent, present) in resolved)
             Console.WriteLine($"  {(present ? "present" : "new    ")} {row.Line} -> \"{row.Name}\" by {db.Cache.Get(parent.Manufacturer)?.ShortName}, floor {row.Floor:0.##}: {row.Description}");
+        if (missing.Length == 0)
+        {
+            Console.WriteLine("\nThe tiers are already authored; nothing to do.");
+            return 0;
+        }
+
         if (!apply)
         {
             Console.WriteLine($"\nDry run. Pass \"apply\" to author {missing.Length} bins.");
