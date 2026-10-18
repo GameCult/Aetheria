@@ -663,7 +663,9 @@ public sealed partial class RunStartTests
         bare.BossZones.Clear();
         var bareItems = LoggingItems(new List<string>());
         var barePack = BossZonePack(bare, bareItems, bare.Exit);
-        Assert.Equal($"{bossFaction}\n{ZoneFacts(bareItems, barePack)}", $"{bossFaction}\n{ZoneFacts(items, pack)}");
+        var expected = ZoneFacts(bareItems, barePack);
+        var actual = ZoneFacts(items, pack);
+        Assert.True(expected == actual, $"{bossFaction}: the zone with an unbuildable boss differs from the zone with none.\nno boss:\n{expected}\nunbuildable boss:\n{actual}\nlog: {string.Join(" / ", log)}");
     }
 
     private IEnumerable<string> AllFactionNames() => DemoGalaxy(1).Factions.Select(faction => faction.Name).OrderBy(name => name, StringComparer.Ordinal);
