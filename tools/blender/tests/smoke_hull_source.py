@@ -29,7 +29,8 @@ the hull.scad into the package and runs the panel's operators:
   judged).
   Package refuses an agent-built hull before it writes anything (ship.glb is not made) when the package holds no product,
   or a product by another maker than the language Build judged it against (hull-names-its-own-faction); with a product by
-  that maker it accepts. Her art needs no product.
+  that maker it accepts, with hull.scad in the package or not (the guard keys on Build's record), and a refused Package
+  changes nothing in the scene. Her art needs no product.
   Build and Package refuse copies that share an aetheria.id, selecting the original and the copies, and delete nothing.
   Package moves no row and turns no mount: every layout row is as authored after it, and a hand-turned mount keeps its yaw.
 """
@@ -76,9 +77,9 @@ HULLS = (
 # per fixture: the variable the hull's language is in, a value that redefines it (every rule loosened), the language file a
 # copy of which beside hull.scad would shadow the include, and a colour in it
 ATTACKS = {
-    "zh-ammo-tender": ("ZH_LANG", '["zhestokost", ZH_ZONES, "primary", ZH_GLOW, ZH_RADIATOR, [[0, 9], [0, 9]], ["asymmetric", 0.0]]',
+    "zh-ammo-tender": ("ZH_LANG", '["zhestokost", ZH_ZONES, "primary", ZH_GLOW, ZH_RADIATOR, [[0, 9], [0, 9]], ["asymmetric", 0.0], "16bad4f9-7fb5-41c5-8da0-dc76709eb7d3"]',
                        "zhestokost.scad", "[0.42, 0.43, 0.45]"),
-    "pi-fighter": ("PI_LANG", '["pirate", PI_ZONES, "", PI_GLOW, PI_RADIATOR, [], ["bilateral", 0.0]]',
+    "pi-fighter": ("PI_LANG", '["pirate", PI_ZONES, "", PI_GLOW, PI_RADIATOR, [], ["bilateral", 0.0], "1d8a168def994a76a1ce7cb18f59c038"]',
                    "pirate.scad", "[0.48, 0.27, 0.22]"),
 }
 EXECUTABLE = None  # the OpenSCAD the add-on preference names, set by main
@@ -255,26 +256,48 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     source.write_text(original, encoding="utf-8")
     print(f"PASS {number}.4 Build refuses a hull that breaks its brief")
 
-    # Package refuses an agent-built hull whose package has no product, or one by another maker, before it writes
-    # anything; the maker of the language Build judged it against is accepted.
+    # Package refuses an agent-built hull whose package has no product, one by another maker, or one right-maker product
+    # beside a wrong-maker one, and does so whether or not hull.scad is still in the package (the guard keys on Build's
+    # record), before it frames, exports or writes anything; the maker of the language Build judged it against is accepted.
     ship_cc = str(package / "ship.cc")
     require(collection.get("aetheria.hull_maker") and not (package / "ship.glb").exists(), "Build recorded no maker, or Package ran")
-    for label, expected, prepare in (("no product", "The package has no product", lambda: None),
-                                     ("a product by another maker", "not by the maker of the hull's faction language",
-                                      lambda: require(aetherdb(ship_cc, "product", ship_cc, other, "--name", "x") == 0,
-                                                      "AetherDb could not write the other maker's product"))):
+    away = source.with_name("hull.scad.away")
+
+    def add_product(faction, name):
+        require(aetherdb(ship_cc, "product", ship_cc, faction, "--name", name) == 0, "AetherDb could not write a product")
+
+    def scad_away():
+        source.rename(away)
+
+    def scad_back():
+        away.rename(source)
+
+    off_centre = root.location.x
+    root.location.x = off_centre + 1.7  # _frame_ship would put it back: a refusal that frames first is caught
+    framed = {o.name: tuple(o.matrix_world.translation) for o in collection.all_objects}
+    for label, expected, prepare, restore in (
+            ("no product", "The package has no product", lambda: None, lambda: None),
+            ("a product by another maker", "not by the maker of the hull's faction language",
+             lambda: add_product(other, "x"), lambda: None),
+            ("a product by another maker and hull.scad gone", "not by the maker of the hull's faction language",
+             scad_away, scad_back),
+            ("a right-maker and a wrong-maker product", "not by the maker of the hull's faction language",
+             lambda: add_product(maker, "y"), lambda: None)):
         prepare()
         select(box)
         rows_now = layout_rows(scene)
         result, message = run(bpy.ops.aetheria.package_ship)
+        restore()
         report = scene.aetheria_package_report
         require(result == {"CANCELLED"} and expected in report, f"Package took a hull with {label}: {report!r} {message!r}")
         require(not (package / "ship.glb").exists(), f"Package wrote ship.glb for a hull with {label}")
         require(layout_rows(scene) == rows_now, f"A refused Package changed a row ({label})")
+        require({o.name: tuple(o.matrix_world.translation) for o in collection.all_objects} == framed,
+                f"A refused Package moved the scene ({label})")
         for echoed in (ship_id, str(GAME), maker, other, collection["aetheria.hull_maker"]):
             require(echoed not in report, f"The refusal echoes an input ({echoed})")
-    require(aetherdb(ship_cc, "product", ship_cc, other, "--remove") == 0
-            and aetherdb(ship_cc, "product", ship_cc, maker, "--name", "x") == 0, "AetherDb could not swap the product")
+    root.location.x = off_centre
+    require(aetherdb(ship_cc, "product", ship_cc, other, "--remove") == 0, "AetherDb could not remove the other maker's product")
 
     # Package: the validator accepts the built ship and the GLB holds a node per anchor.
     mount = bpy.data.objects[roles["weapon-mount"][0]]

@@ -1649,13 +1649,16 @@ def _retire_hull_source(collection):
 
 
 def _refuse_wrong_maker(collection, path, cultlib):
-    """Refuses, before Package writes anything, an agent-built hull (hull.scad still in the package and not taken over by
-    her art) unless the package holds a product and every product is by the maker of the language Build judged the hull
-    against (ruling hull-faction-is-product-maker). The product owns the maker; Build's record is only what it judged."""
-    if _hull_source_file(collection) is None or _art_takes_over(collection):
+    """Refuses, before Package writes anything, an agent-built hull (one Build left a maker record on, or whose hull.scad
+    is still in the package) unless the package holds a product and every product is by the maker of the language Build
+    judged the hull against (ruling hull-faction-is-product-maker). Her art retires hull.scad and the record together and
+    needs no product. The product owns the maker; Build's record is only what it judged."""
+    if _art_takes_over(collection):
         return
     maker = collection.get(HULL_MAKER)
     if maker is None:
+        if _hull_source_file(collection) is None:
+            return
         raise ValueError("Build From Hull Source first: Package needs the maker it judged the hull against")
     makers = product_makers(path, cultlib)
     if not makers:
