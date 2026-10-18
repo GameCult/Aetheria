@@ -818,6 +818,25 @@ def _refuse_loose_meshes(context, collection):
         _refuse_selecting(context, loose, f"{len(loose)} meshes in the ship collection are not under Ship Root; parent them to it")
 
 
+def _shared_id_objects(collection):
+    """The role-bearing objects of the collection that share an aetheria.id with another: every copy and its original."""
+    by_id = {}
+    for obj in collection.all_objects:
+        anchor_id = obj.get("aetheria.id")
+        if obj.get("aetheria.role") is not None and isinstance(anchor_id, str):
+            by_id.setdefault(anchor_id, []).append(obj)
+    return [obj for group in by_id.values() if len(group) > 1 for obj in group]
+
+
+def _refuse_shared_ids(context, collection):
+    """Refuses while two role-bearing objects share an aetheria.id (a copy of a collider, emitter, radiator or mount),
+    selecting the original and the copies so the author can delete or re-id them. Nothing is deleted."""
+    shared = _shared_id_objects(collection)
+    if shared:
+        _refuse_selecting(context, shared, f"{len(shared)} objects share an aetheria.id; they are selected: delete the "
+                                           "copies or give each its own id")
+
+
 def _frame_inputs(context, collection, state):
     """Ship Root and the meshes Rasterise reads, or the refusal that stops Rasterise and Flip Nose before they change
     anything."""
@@ -1542,6 +1561,7 @@ def _build_hull_source(context, collection):
     untouched, changed = _hull_built(collection)
     if root is not None:
         _refuse_loose_meshes(context, collection)
+        _refuse_shared_ids(context, collection)
         theirs = [obj for obj in _own_meshes(collection) if obj not in untouched]
         if theirs or changed:
             raise ValueError("The collection holds meshes the hull source did not make, or objects it made that were "
@@ -1653,6 +1673,7 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             if collection.get("aetheria.pending"):
                 raise ValueError("Save Layout first")
             _refuse_loose_meshes(context, collection)
+            _refuse_shared_ids(context, collection)
             cultlib = _brokkr_cultlib(context)
             ship_id = collection["aetheria.id"]
             state = scene.aetheria_layout

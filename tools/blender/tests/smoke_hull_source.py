@@ -332,6 +332,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     result, message = run(bpy.ops.aetheria.build_hull_source)
     require(result == {"CANCELLED"} and abs(mount.location.x - at[0] - 1.0) < 1e-6, f"Build discarded a moved mount: {message!r}")
     mount.location = at
+    shared_ids_refused(scene, box, collection, ship_id, package, generated(collection), number)
     print(f"PASS {number}.8 Build refuses and keeps a copy and an edit of what it made")
 
     # The author replaces the zone meshes with her art and keeps Build's anchors and collider: Package ships the ship
@@ -361,6 +362,46 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     require(result == {"CANCELLED"} and bpy.data.objects.get("author hull") is art, f"Build ran after takeover: {message!r}")
     print(f"PASS {number}.9 her art with Build's anchors kept retires hull.scad, with a report; Build then refuses")
     return collection
+
+
+def shared_ids_refused(scene, box, collection, ship_id, package, objects, number):
+    """A copy of the collider, an emitter or radiator mesh or a weapon mount shares its original's aetheria.id: Build and
+    Package refuse by selecting the original and the copy, name a count and no input, and delete nothing."""
+    glb = package / "ship.glb"
+    glb_before = glb.read_bytes()
+    seen = set()
+    for obj in list(objects.values()):
+        role = obj.get("aetheria.role")
+        if role not in ("hull-collider", "thruster-emitter", "radiator-mesh", "weapon-mount") or role in seen:
+            continue
+        seen.add(role)
+        twin = obj.copy()
+        if obj.data is not None:
+            twin.data = obj.data.copy()
+        collection.objects.link(twin)
+        twin.parent = obj.parent
+        require(twin.get("aetheria.id") == obj.get("aetheria.id"), "The copy does not share its original's aetheria.id")
+        names = sorted(o.name for o in collection.all_objects)
+        for operator in (bpy.ops.aetheria.build_hull_source, bpy.ops.aetheria.package_ship):
+            for other in bpy.context.view_layer.objects:
+                other.select_set(False)
+            select(box)
+            result, message = run(operator)
+            message = message or scene.aetheria_package_report
+            require(result == {"CANCELLED"} and "2 objects share an aetheria.id" in message,
+                    f"A copy of a {role} was not refused by name of the shared id: {message!r}")
+            for echoed in (ship_id, str(GAME), obj.name, twin.name, obj["aetheria.id"]):
+                require(echoed not in message, f"The refusal echoes an input ({echoed})")
+            require(obj.select_get() and twin.select_get() and not box.select_get(),
+                    f"The refusal did not select the original and the copy of a {role}")
+            require(sorted(o.name for o in collection.all_objects) == names, "A refused operator deleted or added an object")
+            require(glb.read_bytes() == glb_before, "A refused Package wrote ship.glb")
+        mesh = twin.data
+        bpy.data.objects.remove(twin)
+        if mesh is not None and mesh.users == 0:
+            bpy.data.meshes.remove(mesh)
+    require(len(seen) >= 3, f"The copies covered too few roles: {sorted(seen)}")
+    print(f"PASS {number}.8b copies of {sorted(seen)} are refused by Build and Package, selected, nothing deleted")
 
 
 def check_poses(collection, root, runner):
