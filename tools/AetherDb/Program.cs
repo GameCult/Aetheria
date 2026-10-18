@@ -26,6 +26,7 @@ public static class Program
             case "station-fit": return StationFit();
             case "hardpoint-fit": return HardpointFit();
             case "loadout": return Loadout(args.Skip(1).ToArray());
+            case "loadout-commit": return LoadoutCommitCommand.Run(args.Skip(1).ToArray());
             case "save": return Save();
             case "factions": return Factions();
             case "dangling": return Dangling(args.Skip(1).ToArray());
@@ -63,7 +64,7 @@ public static class Program
                 return PlaceNamesCommand.Run(args.Skip(1).ToArray());
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear [apply], doctrine-catalog [apply], assembly-from-maker [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear [apply], doctrine-catalog [apply], assembly-from-maker [apply]");
                 return 1;
         }
     }
@@ -695,18 +696,18 @@ public static class Program
     }
 
     // Each faction's generation-critical links and the size of its curated place list. An empty list is not broken:
-    // Galaxy.NamePlaces falls back to catalogue designations for a faction without one. The boss column is derived:
-    // the Boss hulls the faction makes (LoadoutGenerator.BossHullsOf), never a field on the faction.
+    // Galaxy.NamePlaces falls back to catalogue designations for a faction without one. The boss column is derived
+    // through Loadouts.BossOf, never a field on the faction, and is display only.
     private static int Factions()
     {
         var db = AetherDb.Open();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
-        Console.WriteLine($"{"faction",-26} {"short",-13} {"places",-22} {"boss hull",-14} {"influence",-9} {"doctrine",-10} products");
+        Console.WriteLine($"{"faction",-26} {"short",-13} {"places",-22} {"boss",-14} {"influence",-9} {"doctrine",-10} products");
         foreach (var faction in db.Cache.GetAll<Faction>().OrderBy(f => f.Name))
         {
             var key = db.Cache.RefOf(faction).Key;
-            var bosses = LoadoutGenerator.BossHullsOf(db.Cache, faction);
-            var boss = bosses.Length == 0 ? "none" : string.Join(',', bosses.Select(b => b.hull.Name));
+            var bossLoadout = Loadouts.BossOf(db.Cache, faction, out var refusal);
+            var boss = bossLoadout?.Name ?? (refusal == BossRefusal.NoLoadout ? "NO LOADOUT" : "none");
             Console.WriteLine($"{faction.Name,-26} {faction.ShortName,-13} {faction.Places.Length,-22} {boss,-14} {faction.InfluenceDistance,-9} {(faction.Doctrine == null ? "none" : faction.Doctrine.EngageOn.ToString()),-10} " +
                 products.Count(p => p.Manufacturer.Key.Equals(key)));
         }
@@ -804,6 +805,15 @@ public static class Program
             var generator = new LoadoutGenerator(ref random, itemManager, null, null, null, .5f);
             log.Clear();
             string outcome;
+            if (hull.Boss && hull.HullType == HullType.Ship)
+            {
+                // A boss hull is never generated: it flies the Loadout authored on one of its products.
+                var productKeys = db.Cache.GetAll<FactionProductData>().Where(p => db.Cache.Get(p.Design) == hull).Select(p => db.Cache.RefOf(p).Key).ToArray();
+                var authored = db.Cache.GetAll<Loadout>().Where(l => l.HullProduct.IsSet() && productKeys.Contains(l.HullProduct.Key)).Select(l => l.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+                if (authored.Length == 0) failures++;
+                Console.WriteLine($"{hull.Name,-12} ({hull.HullType,-7}) {(authored.Length == 0 ? "NO LOADOUT (boss hull: author one with loadout-commit)" : "boss loadouts: " + string.Join(", ", authored))}");
+                continue;
+            }
             try
             {
                 var pack = hull.HullType switch
