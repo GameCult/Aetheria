@@ -99,6 +99,25 @@ public sealed class ShipProductTests : IDisposable
         }
     }
 
+    // The package path of the derivation: the flag survives compose on the hull, and the maker is the package's product's.
+    [Fact]
+    public void ABossPackageIsItsMakersBossAfterCompose()
+    {
+        Environment.CurrentDirectory = _root.Path;
+        var path = Package("mod.boss", "Bosshull", 100, Product("Acme Boss", _acme, "mod.boss"));
+        Assert.Equal(0, Run("boss", path, "on").Code);
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+        Assert.Equal(new[] { "mod.boss" }, composition.Included);
+
+        using var cache = AetheriaStores.Open(Derived);
+        var hull = Assert.IsType<HullData>(cache.Get(new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey("mod.boss"))));
+        Assert.True(hull.Boss);
+        var acme = cache.Get<Faction>(_acme);
+        var rival = cache.Get<Faction>(_rival);
+        Assert.Same(hull, Assert.Single(LoadoutGenerator.BossHullsOf(cache, acme)).hull);
+        Assert.Empty(LoadoutGenerator.BossHullsOf(cache, rival));
+    }
+
     [Fact]
     public void APackageWithAnUnknownMakerIsExcluded()
     {
@@ -297,6 +316,37 @@ public sealed class ShipProductTests : IDisposable
         Assert.Equal(0, Run("product", path, "ACM", "--remove").Code);
         Assert.Empty(ShipAuthoringStore.Load(path).Products);
         RefusedAndUntouched("product", path, "ACM", "--remove");
+    }
+
+    [Fact]
+    public void BossCommand()
+    {
+        Environment.CurrentDirectory = _root.Path;
+        var path = Package("mod.skiff", "Skiffhull", 100, Product("Acme Skiff", _acme, "mod.skiff"));
+        void RefusedAndUntouched(params string[] args)
+        {
+            var before = File.ReadAllBytes(path);
+            Assert.Equal(1, Run(args).Code);
+            Assert.Equal(before, File.ReadAllBytes(path));
+        }
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(FactionProductData).Assembly);
+        byte[] ProductBytes() => MessagePack.MessagePackSerializer.Serialize(ShipAuthoringStore.Load(path).Products.Single(), options);
+
+        var productBefore = ProductBytes();
+        Assert.False(ShipAuthoringStore.Read(path).Hull.Boss);
+        RefusedAndUntouched("boss", path, "yes");
+        RefusedAndUntouched("boss", path, "ON");
+        RefusedAndUntouched("boss", path);
+
+        Assert.Equal(0, Run("boss", path, "on").Code);
+        Assert.True(ShipAuthoringStore.Read(path).Hull.Boss);
+        Assert.Equal(productBefore, ProductBytes());
+        Assert.Contains(", boss", Run("inspect", path).Output);
+
+        Assert.Equal(0, Run("boss", path, "off").Code);
+        Assert.False(ShipAuthoringStore.Read(path).Hull.Boss);
+        Assert.Equal(productBefore, ProductBytes());
+        Assert.DoesNotContain(", boss", Run("inspect", path).Output);
     }
 
     [Fact]

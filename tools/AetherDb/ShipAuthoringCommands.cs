@@ -8,7 +8,7 @@ using System.Linq;
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] | --remove) | price <ship.cc> <price> | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] | --remove) | price <ship.cc> <price> | boss <ship.cc> on|off | compose <shipped.cc> <derived.cc> <mods-dir>";
 
     public static int Run(string[] args)
     {
@@ -29,7 +29,7 @@ public static class ShipAuthoringCommands
             if (args[0] == "inspect" && args.Length == 2)
             {
                 var (hull, ship, products) = ShipAuthoringStore.Load(args[1]);
-                Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints?.Count ?? 0} hardpoints, {ship.SchematicLines?.Count ?? 0} lines, {ship.SchematicLines?.Sum(line => line.Points?.Length / 3 ?? 0) ?? 0} points");
+                Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints?.Count ?? 0} hardpoints, {ship.SchematicLines?.Count ?? 0} lines, {ship.SchematicLines?.Sum(line => line.Points?.Length / 3 ?? 0) ?? 0} points{(hull.Boss ? ", boss" : "")}");
                 foreach (var product in products) Console.WriteLine($"product {product.Manufacturer.Key.Value}: {product.Name}");
                 return 0;
             }
@@ -89,6 +89,21 @@ public static class ShipAuthoringCommands
                     cache.FlushAsync().Wait();
                 }
                 Console.WriteLine($"{ship.Id}: price {price}.");
+                return 0;
+            }
+            if (args[0] == "boss" && args.Length == 3)
+            {
+                // Judged before the file is touched: a refusal leaves it byte-identical. Sets the hull's flag and no product.
+                if (args[2] != "on" && args[2] != "off")
+                    throw new InvalidOperationException("boss must be on or off.");
+                var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
+                hull.Boss = args[2] == "on";
+                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
+                {
+                    ShipAuthoringStore.Write(cache, hull, ship);
+                    cache.FlushAsync().Wait();
+                }
+                Console.WriteLine($"{ship.Id}: boss {args[2]}.");
                 return 0;
             }
             if (args[0] == "product" && args.Length >= 4)
