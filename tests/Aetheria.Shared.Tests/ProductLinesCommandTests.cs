@@ -42,7 +42,9 @@ public abstract class ProductLinesCommandTests : IDisposable
         Assert.Equal(Names.Length, products.Length);
         _shipped = products.Select(p => Describe(cache, p)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         _shippedKeys = products.Select(p => cache.RefOf(p).Key.Value).OrderBy(x => x, StringComparer.Ordinal).ToArray();
-        foreach (var product in products) Assert.True(cache.Remove(cache.RefOf(product).Key));
+        // A bin cannot outlive its line (the catalog read refuses it), so the bins of the removed lines go with them.
+        var binned = cache.GetAll<FactionProductData>().Where(p => p.Bin != null && products.Any(line => cache.RefOf(line).Key.Equals(p.Bin.Line.Key))).ToArray();
+        foreach (var product in products.Concat(binned)) Assert.True(cache.Remove(cache.RefOf(product).Key));
         cache.FlushAsync().Wait();
     }
 
