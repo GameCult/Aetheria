@@ -178,25 +178,25 @@ public sealed class RunSaveTests : IDisposable
         using (var cache = Open())
         {
             var game = Game(cache);
-            game.Seed = 0xC0FFEEu;
+            game.Seed = 0xC0FFEE42u;
             RunSave.Commit(cache, game, Zones(2, StageZoneContents(cache), 0), new ProvenanceLedger());
         }
 
         using (var cache = Open())
         {
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
-            Assert.Equal(0xC0FFEEu, galaxy.Seed);
+            Assert.Equal(0xC0FFEE42u, galaxy.Seed);
             var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
             // The zone's drop dice are its name's seed mixed with the run's.
-            Assert.Equal("Zone 0".StableHash() ^ SimulationDice.Mix(0xC0FFEEu), galaxy.Zones[0].Contents.DropSeed);
+            Assert.Equal("Zone 0".StableHash() ^ SimulationDice.Mix(0xC0FFEE42u), galaxy.Zones[0].Contents.DropSeed);
             var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0], 0);
-            Assert.Equal(0xC0FFEEu, game.Seed);
+            Assert.Equal(0xC0FFEE42u, game.Seed);
             RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
         }
 
         using (var cache = Open())
-            Assert.Equal(0xC0FFEEu, cache.GetGlobal<SavedGame>().Seed);
+            Assert.Equal(0xC0FFEE42u, cache.GetGlobal<SavedGame>().Seed);
 
         // A save written before run-seed holds no seed, and continues on name-only drops.
         using (var cache = Open())

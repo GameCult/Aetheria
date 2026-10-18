@@ -50,6 +50,7 @@ public sealed class ConsumableAiTests : IDisposable
         public GearData HeavyGun;
         public CultRecordRef<Faction> Maker;
         public float Optimum;
+        public CultRecordKey[] Circuit;
 
         public void Store(ConsumableItemData design) =>
             Assert.True(Hold.TryStore((ItemInstance) Items.CreateInstance(Items.CreateLot(design, Maker, .5f))));
@@ -97,7 +98,7 @@ public sealed class ConsumableAiTests : IDisposable
         }
     };
 
-    private Scene Build(bool carryVent = false, bool carryOverdrive = false, bool carryDecoy = false, int stackableVents = 0, float effective = 500f)
+    private Scene Build(bool carryVent = false, bool carryOverdrive = false, bool carryDecoy = false, int stackableVents = 0, float effective = 500f, uint? runSeed = null, int orbits = 1)
     {
         var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
         _caches.Add(cache);
@@ -150,7 +151,10 @@ public sealed class ConsumableAiTests : IDisposable
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
         EquippableItem Make<T>(string name) where T : CraftedItemData =>
             (EquippableItem) items.CreateInstance(items.CreateLot(cache.GetByName<T>(name), maker, .5f));
-        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var galaxy = runSeed.HasValue ? RunSeedFixture.Continue(cache, "Test Zone", runSeed.Value) : null;
+        var zone = galaxy != null
+            ? new Zone(items, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy)
+            : new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         Ship NewShip(string gear)
         {
             var ship = new Ship(items, zone, Make<HullData>("Skiff"), new EntitySettings())
@@ -174,8 +178,10 @@ public sealed class ConsumableAiTests : IDisposable
         // The agent joins as the zone admits a piloted ship (its Minion and CombatState come from production); the
         // locker is a gun ship nobody pilots.
         // One fixed orbit far from the fight, before the agent joins: a pilot that is not engaged patrols it, as production's would.
-        zone.Orbits.Add(new CultRecordKey("test-orbit"), new Orbit(new OrbitData { FixedPosition = float2(0, 5000) }));
+        for (var i = 0; i < orbits; i++)
+            zone.Orbits.Add(new CultRecordKey(orbits == 1 ? "test-orbit" : "test-orbit-" + i), new Orbit(new OrbitData { FixedPosition = float2(0, 5000) }));
         zone.Admit(scene.Agent, piloted: true);
+        scene.Circuit = ((PatrolOrbitsTask) zone.Agents.Single().Task).Circuit;
         zone.Admit(scene.Prey, piloted: false);
         zone.Admit(scene.Locker, piloted: false);
         // The flight is the only writer of the agent's Target: the agent senses the prey and holds a grudge on it, so the
@@ -356,6 +362,25 @@ public sealed class ConsumableAiTests : IDisposable
     // The production path for the optimum: a ship the zone admits as piloted derives it from its gun's live stats
     // before it needs it, and re-derives it when its loadout changes. The gun's effective range is 500 and the
     // heavy gun's is 800, so the optimum moves with the weapons it has now.
+    // The run seed feeds drops and mines only (ruling run-seed-drops-only): the same pilot in the same zone samples its
+    // range with the same offset and draws the same patrol circuit at every run seed. Kills: the combat-sample dice or
+    // the patrol dice read DropSeed.
+    [Theory]
+    [InlineData(1u, 2u)]
+    [InlineData(0xC0FFEE42u, 0x2468ACE1u)]
+    public void ThePilotsDiceDoNotMoveWithTheRunSeed(uint first, uint second)
+    {
+        var a = Build(runSeed: first, orbits: 8);
+        var b = Build(runSeed: second, orbits: 8);
+        a.AssertInCombat();
+        b.AssertInCombat();
+        Assert.NotEqual(a.Zone.DropSeed, b.Zone.DropSeed);
+        Assert.Equal(a.Zone.CombatSeed, b.Zone.CombatSeed);
+        Assert.Equal(a.Optimum, b.Optimum);
+        Assert.Equal(4, a.Circuit.Length);
+        Assert.Equal(a.Circuit, b.Circuit);
+    }
+
     [Fact]
     public void ASpawnedShipsOptimumFollowsItsWeaponsAndNeverReadsZero()
     {
