@@ -18,9 +18,9 @@ using Xunit;
 // and the run save.
 public sealed partial class RunStartTests
 {
-    private ZonePack BossZonePack(Galaxy galaxy, ItemManager items, GalaxyZone zone, bool ambient = true)
+    private ZonePack BossZonePack(Galaxy galaxy, ItemManager items, GalaxyZone zone, bool ambient = true, uint seed = 7)
     {
-        items.Random = new CultMath.Random(7);
+        items.Random = new CultMath.Random(seed);
         return ZoneGenerator.GenerateZone(items, _zoneSettings, _planetSettings, galaxy, zone, galaxy.IsPrelude, ambient);
     }
 
@@ -72,6 +72,49 @@ public sealed partial class RunStartTests
         return _cache.Get(bossRef);
     }
 
+    // A boss's fixed Loadout (ruling boss-gear-is-a-loadout), by the production capture: a generated fit of the hull MakeBoss
+    // copied, captured as a Loadout (Loadouts.Capture), cut down to its weapons so it is smaller than any generated fit (the
+    // tractor pickup and the rest are not in it), moved onto the boss hull and the maker's product of it, and stored at
+    // Loadouts.KeyOf(name), the key Loadouts.Commit writes. openIf leaves the first slot whose design satisfies it design-only.
+    // The shipped catalog has no Boss hull, so this and MakeBoss are fixtures.
+    private Loadout MakeBossLoadout(HullData boss, Faction maker, string name, Func<EquippableItemData, bool> openIf = null)
+    {
+        var like = SoldShipHulls().OrderBy(hull => hull.Name, StringComparer.Ordinal).First();
+        var random = new CultMath.Random(11);
+        var generator = new LoadoutGenerator(ref random, _items, null, null, null, .5f);
+        var ship = (Ship) EntitySerializer.Unpack(_items, null, generator.GenerateShipLoadout(hull => hull == like));
+        var fit = Loadouts.Capture(_items, ship, name);
+        var armed = fit.Slots.Select((slot, index) => (slot, index))
+            .Where(entry => _cache.Get(entry.slot.Design).Behaviors.Any(behavior => behavior is WeaponData)).ToArray();
+        Assert.NotEmpty(armed);
+        Assert.True(armed.Length < fit.Slots.Count, "the generated fit needs gear besides weapons for this fixture to tell a Loadout from a fit");
+        var renumbered = armed.Select((entry, number) => (entry.index, number)).ToDictionary(entry => entry.index, entry => entry.number);
+        fit.WeaponGroups = fit.WeaponGroups.Select(group => group.Where(renumbered.ContainsKey).Select(index => renumbered[index]).ToArray()).ToArray();
+        fit.Slots = armed.Select(entry => entry.slot).ToList();
+        if (openIf != null) fit.Slots.First(slot => openIf(_cache.Get(slot.Design))).Product = default;
+        fit.Hull = _cache.RefOf(boss);
+        fit.HullProduct = _cache.RefOf(_cache.GetAll<FactionProductData>().Single(product => _cache.Get(product.Design) == boss && _cache.Get(product.Manufacturer) == maker));
+        _cache.Upsert(typeof(Loadout), fit, Loadouts.KeyOf(name));
+        return fit;
+    }
+
+    // The demo's antagonist gets a Boss hull and its Loadout: the shipped catalog has neither.
+    private HullData GiveAntagonistABoss(Galaxy galaxy)
+    {
+        var antagonist = Zhestokost(galaxy);
+        var boss = MakeBoss("Antagonist Boss", 100, antagonist);
+        MakeBossLoadout(boss, antagonist, "Antagonist Boss loadout");
+        return boss;
+    }
+
+    // What a ship carries, cell by cell, as a Loadout would name it: position, rotation, design, product.
+    private static string[] Cells(ItemManager items, EntityPack pack)
+    {
+        var captured = Loadouts.Capture(items, (Ship) EntitySerializer.Unpack(items, null, pack), "probe");
+        return captured.Slots.OrderBy(slot => slot.Position.x).ThenBy(slot => slot.Position.y)
+            .Select(slot => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{items.ItemData.Get(slot.Design).Name},{(slot.Product.IsSet() ? items.ItemData.Get(slot.Product).Name : "-")}").ToArray();
+    }
+
     private static Faction FactionNamed(Galaxy galaxy, string name) => galaxy.Factions.Single(faction => faction.Name == name);
 
     private HullData PriciestSold() =>
@@ -83,8 +126,10 @@ public sealed partial class RunStartTests
         return new LoadoutGenerator(ref random, items, galaxy, galaxy.Exit, faction, .5f);
     }
 
+    // BossOf owns the boss. Zhestokost makes Boss A, B and C and a decoy ordinary hull. Loadouts sit on the decoy's product,
+    // on Boss B's and C's, and two on Boss A's: only Boss A's, first by name, is the boss's, whatever order the names fall in.
     [Fact]
-    public void Boss_flies_the_boss_hull_its_faction_makes()
+    public void Boss_flies_its_factions_boss_loadout()
     {
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
@@ -92,19 +137,141 @@ public sealed partial class RunStartTests
         var priciest = PriciestSold();
         Assert.True(cheapest < priciest.Price, "the catalog needs two ship hulls of different price for this test to tell them apart");
 
-        // The faction also makes the dearest ordinary hull, and three Boss hulls: B and A tie on price, C is cheaper. The boss
-        // is the dearest Boss hull, ties by name: not the dearest hull it makes, not the first product, not the cheapest.
-        _cache.Upsert(new FactionProductData { Name = "Decoy", Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(priciest).Key), Manufacturer = _cache.RefOf(antagonist) });
-        MakeBoss("Boss B", cheapest + 10, antagonist);
-        MakeBoss("Boss C", cheapest, antagonist);
-        MakeBoss("Boss A", cheapest + 10, antagonist);
+        // B and A tie on price, C is cheaper: the boss is the dearest Boss hull, ties by name.
+        var decoy = new FactionProductData { Name = "Decoy", Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(priciest).Key), Manufacturer = _cache.RefOf(antagonist) };
+        var decoyRef = _cache.Upsert(decoy);
+        var b = MakeBoss("Boss B", cheapest + 10, antagonist);
+        var c = MakeBoss("Boss C", cheapest, antagonist);
+        var a = MakeBoss("Boss A", cheapest + 10, antagonist);
+        MakeBossLoadout(b, antagonist, "Aaa loadout of Boss B");
+        MakeBossLoadout(c, antagonist, "Aab loadout of Boss C");
+        MakeBossLoadout(a, antagonist, "Zz second loadout of Boss A");
+        MakeBossLoadout(a, antagonist, "Zz first loadout of Boss A");
+        _cache.Upsert(typeof(Loadout), new Loadout
+        {
+            Name = "Aac loadout of the decoy", Hull = _cache.RefOf(priciest),
+            HullProduct = new CultRecordRef<FactionProductData>(decoyRef.Key)
+        }, Loadouts.KeyOf("Aac loadout of the decoy"));
+
+        Assert.Equal(new[] { "Boss A", "Boss B", "Boss C" }, LoadoutGenerator.BossHullsOf(_cache, antagonist).Select(entry => entry.hull.Name));
+        var loadout = Loadouts.BossOf(_cache, antagonist, out var refusal);
+        Assert.Equal(BossRefusal.None, refusal);
+        Assert.Equal("Zz first loadout of Boss A", loadout.Name);
 
         var log = new List<string>();
         var items = LoggingItems(log);
         var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
         Assert.Equal("Boss A", HullName(items, boss));
         Assert.DoesNotContain(log, line => line.Contains("makes no boss hull"));
-        Assert.Equal(new[] { "Boss A", "Boss B", "Boss C" }, LoadoutGenerator.BossHullsOf(_cache, antagonist).Select(entry => entry.hull.Name));
+    }
+
+    // Ruling boss-gear-is-a-loadout: the boss carries its Loadout's cells and nothing else. The generated fit of the same hull
+    // carries more (a tractor pickup, consumables); none of it is on the boss. No generator draw decides it: another seed gives
+    // the same cells. A design-only slot takes its brand from the context's ChooseProduct (ruling
+    // loadout-product-optional-context-chooses); a pinned one keeps the product it names.
+    [Fact]
+    public void Boss_carries_exactly_its_loadouts_cells()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var hull = MakeBoss("Boss A", 100, antagonist);
+        var loadout = MakeBossLoadout(hull, antagonist, "Boss A loadout",
+            openIf: design => GeneratorFor(galaxy, LoggingItems(new List<string>()), antagonist, 1).ChooseProduct(design) != null);
+        Assert.True(loadout.Slots.Count > 1);
+        var open = Assert.Single(loadout.Slots, slot => !slot.Product.IsSet());
+
+        string Cell(LoadoutSlot slot, string brand) => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{_cache.Get(slot.Design).Name},{brand}";
+        var pinned = loadout.Slots.Where(slot => slot != open).Select(slot => Cell(slot, _cache.Get(slot.Product).Name)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        var brands = _cache.GetAll<FactionProductData>().Where(product => product.Design.Key.Equals(open.Design.Key)).Select(product => product.Name).ToArray();
+
+        var items = LoggingItems(new List<string>());
+        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
+        var cells = Cells(items, boss);
+        Assert.Equal(loadout.Slots.Count, cells.Length);
+        Assert.Equal(pinned, cells.Where(cell => !cell.StartsWith($"{open.Position.x},{open.Position.y},")).OrderBy(x => x, StringComparer.Ordinal));
+        var openCell = Assert.Single(cells, cell => cell.StartsWith($"{open.Position.x},{open.Position.y},"));
+        Assert.StartsWith(Cell(open, ""), openCell);
+        Assert.Contains(openCell[(openCell.LastIndexOf(',') + 1)..], brands);
+
+        var captured = Loadouts.Capture(items, (Ship) EntitySerializer.Unpack(items, null, boss), "probe");
+        Assert.Equal(_cache.Get(loadout.HullProduct).Name, _cache.Get(captured.HullProduct).Name);
+        Assert.Equal(hull.Name, _cache.Get(captured.Hull).Name);
+        string[][] Groups(Loadout l) => l.WeaponGroups.Select(group => group.Select(i => $"{l.Slots[i].Position.x},{l.Slots[i].Position.y}").OrderBy(x => x, StringComparer.Ordinal).ToArray()).ToArray();
+        Assert.Equal(Groups(loadout).Where(group => group.Length > 0), Groups(captured).Where(group => group.Length > 0));
+
+        // No generator draw decides the gear: another seed builds the same pinned cells. Only the open slot's brand is the context's pick.
+        var otherItems = LoggingItems(new List<string>());
+        var other = Assert.Single(BossZonePack(galaxy, otherItems, galaxy.Exit, seed: 8).Entities, entity => entity.Boss);
+        var otherCells = Cells(otherItems, other);
+        Assert.Equal(pinned, otherCells.Where(cell => !cell.StartsWith($"{open.Position.x},{open.Position.y},")).OrderBy(x => x, StringComparer.Ordinal));
+    }
+
+    // No generated fallback: the shipped catalog has no Boss hull, so Zhestokost has no boss, however many ordinary hulls it can be offered.
+    [Fact]
+    public void Boss_without_a_boss_hull_is_refused()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        Assert.Null(Loadouts.BossOf(_cache, antagonist, out var refusal));
+        Assert.Equal(BossRefusal.NoBossHull, refusal);
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("HullData.Boss"));
+        Assert.Contains(log, line => line.Contains("Galaxy.Exit") && line.Contains("exit-without-boss"));
+        Assert.DoesNotContain(log, line => line.Contains("makes no boss hull"));
+        Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, null));
+    }
+
+    // A Boss hull whose product has no Loadout is refused typed at the derivation. The refusal names the missing field and
+    // echoes no input: the canary hull name, its product's name and the record keys reach no log line.
+    [Fact]
+    public void A_boss_hull_without_a_loadout_is_refused()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var hull = MakeBoss("Canary7f3a hull", 100, antagonist);
+        var product = _cache.GetAll<FactionProductData>().Single(p => _cache.Get(p.Design) == hull);
+        // A Loadout on another maker's boss product is not this boss's.
+        var lucent = FactionNamed(galaxy, "Lucent Media");
+        MakeBossLoadout(MakeBoss("Other boss", 50, lucent), lucent, "Other boss loadout");
+
+        Assert.Null(Loadouts.BossOf(_cache, antagonist, out var refusal));
+        Assert.Equal(BossRefusal.NoLoadout, refusal);
+        var described = Loadouts.Describe(refusal);
+        Assert.Contains("HullProduct", described);
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("HullProduct"));
+        foreach (var canary in new[] { "Canary7f3a", product.Name, _cache.RefOf(product).Key.Value, _cache.RefOf(hull).Key.Value })
+        {
+            Assert.DoesNotContain(log, line => line.Contains(canary));
+            Assert.DoesNotContain(canary, described);
+        }
+    }
+
+    // The key is the product, not the hull: a Boss hull both makers sell, with a Loadout on Lucent Media's product only.
+    [Fact]
+    public void A_loadout_on_another_makers_product_is_not_this_bosses()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var lucent = FactionNamed(galaxy, "Lucent Media");
+        var shared = MakeBoss("Shared Boss", 100, antagonist, lucent);
+        var loadout = MakeBossLoadout(shared, lucent, "Aaa Lucent only");
+
+        Assert.Equal(loadout.Name, Loadouts.BossOf(_cache, lucent, out var lucentRefusal).Name);
+        Assert.Equal(BossRefusal.None, lucentRefusal);
+        Assert.Null(Loadouts.BossOf(_cache, antagonist, out var refusal));
+        Assert.Equal(BossRefusal.NoLoadout, refusal);
+        Assert.False(BossZonePack(galaxy, LoggingItems(new List<string>()), galaxy.Exit).BossSpawned);
     }
 
     [Fact]
@@ -112,18 +279,22 @@ public sealed partial class RunStartTests
     {
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
-        var lucent = FactionNamed(galaxy, "Lucent");
-        var expected = PriciestSold().Name;
-        // Dearer than every ordinary hull, and Lucent's alone: Zhestokost neither derives it nor falls back to it.
+        var lucent = FactionNamed(galaxy, "Lucent Media");
+        // Dearer than every ordinary hull, and Lucent's alone, with its own Loadout: Zhestokost neither derives it nor falls back to it.
         var luxury = MakeBoss("Lucent Flagship", PriciestSold().Price + 1000, lucent);
+        MakeBossLoadout(luxury, lucent, "Lucent Flagship loadout");
 
         var log = new List<string>();
         var items = LoggingItems(log);
-        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
-        Assert.Equal(expected, HullName(items, boss));
-        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("makes no boss hull"));
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        Assert.Contains(log, line => line.Contains("Zhestokost") && line.Contains("HullData.Boss"));
+        Assert.Null(Loadouts.BossOf(_cache, antagonist, out var refusal));
+        Assert.Equal(BossRefusal.NoBossHull, refusal);
         Assert.Empty(LoadoutGenerator.BossHullsOf(_cache, antagonist));
         Assert.Same(luxury, Assert.Single(LoadoutGenerator.BossHullsOf(_cache, lucent)).hull);
+        Assert.Equal("Lucent Flagship loadout", Loadouts.BossOf(_cache, lucent, out _).Name);
     }
 
     [Fact]
@@ -131,25 +302,30 @@ public sealed partial class RunStartTests
     {
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
-        var lucent = FactionNamed(galaxy, "Lucent");
+        var lucent = FactionNamed(galaxy, "Lucent Media");
         var shared = MakeBoss("Shared Boss", PriciestSold().Price - 1, antagonist, lucent);
         // A Boss station hull the antagonist also makes is no boss: a boss is a ship.
         MakeBoss(HullType.Station, "Boss Station", PriciestSold().Price + 1, antagonist);
+        MakeBossLoadout(shared, lucent, "Aaa loadout of Lucent");
+        MakeBossLoadout(shared, antagonist, "Zzz loadout of Zhestokost");
 
         Assert.Same(shared, Assert.Single(LoadoutGenerator.BossHullsOf(_cache, antagonist)).hull);
         Assert.Same(shared, Assert.Single(LoadoutGenerator.BossHullsOf(_cache, lucent)).hull);
+        Assert.Equal("Zzz loadout of Zhestokost", Loadouts.BossOf(_cache, antagonist, out _).Name);
+        Assert.Equal("Aaa loadout of Lucent", Loadouts.BossOf(_cache, lucent, out _).Name);
         var items = LoggingItems(new List<string>());
         var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
         Assert.Equal("Shared Boss", HullName(items, boss));
     }
 
-    // Ruling hull-programmer-art-stopgap: a boss hull may be an agent's stopgap with no authored model.
+    // Ruling hull-programmer-art-reads-as-stand-in: a boss hull may be an agent's stopgap with no authored model.
     [Fact]
     public void A_boss_hull_needs_no_authored_model()
     {
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
         var bare = MakeBoss("Bare Boss", 1, antagonist);
+        MakeBossLoadout(bare, antagonist, "Bare Boss loadout");
         Assert.Null(bare.Prefab);
         Assert.False(bare.Visual.IsSet());
 
@@ -166,7 +342,7 @@ public sealed partial class RunStartTests
     {
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
-        var lucent = FactionNamed(galaxy, "Lucent");
+        var lucent = FactionNamed(galaxy, "Lucent Media");
         var bossShip = MakeBoss("Traffic Boss", 1, antagonist, lucent);
         var bossStation = MakeBoss(HullType.Station, "Stock Boss", 1, antagonist, lucent);
         var stranger = new Faction { Name = "Stranger" };
@@ -197,22 +373,29 @@ public sealed partial class RunStartTests
         Assert.Equal(20 * 4 * 3, drawn);
     }
 
+    // PlaceFactionsMain picks through BossOf: a faction with a Boss hull and no Loadout places nothing, and the faction that
+    // also has the Loadout is the one entry, though another faction sorts first.
     [Fact]
-    public void Main_galaxy_bosses_are_factions_that_make_boss_hulls()
+    public void Main_galaxy_bosses_are_factions_with_a_boss_loadout()
     {
         Assert.Empty(RunStart.Generate(new MainGalaxy(), Inputs(() => 1)).BossZones);
 
-        var maker = _cache.GetAll<Faction>().OrderBy(faction => faction.Name, StringComparer.Ordinal).First();
-        MakeBoss("Main Boss", 100, maker);
+        var makers = _cache.GetAll<Faction>().OrderBy(faction => faction.Name, StringComparer.Ordinal).Take(2).ToArray();
+        MakeBoss("Unarmed Boss", 100, makers[0]);
+        var armed = MakeBoss("Main Boss", 100, makers[1]);
+        Assert.Empty(RunStart.Generate(new MainGalaxy(), Inputs(() => 1)).BossZones);
+
+        MakeBossLoadout(armed, makers[1], "Main Boss loadout");
         var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
         var bossFaction = Assert.Single(galaxy.BossZones.Keys);
-        Assert.Equal(maker.Name, bossFaction.Name);
-        Assert.NotEmpty(LoadoutGenerator.BossHullsOf(_cache, bossFaction));
+        Assert.Equal(makers[1].Name, bossFaction.Name);
+        Assert.NotNull(Loadouts.BossOf(_cache, bossFaction, out _));
     }
 
     [Fact]
     public void Boss_spawns_once_in_boss_zone()
     {
+        var antagonistsBoss = GiveAntagonistABoss(DemoGalaxy(DemoSeeds.First()));
         foreach (var seed in DemoSeeds.Take(3))
         {
             var galaxy = DemoGalaxy(seed);
@@ -225,6 +408,7 @@ public sealed partial class RunStartTests
                 var boss = Assert.Single(bosses);
                 Assert.IsType<ShipPack>(boss);
                 Assert.Same(antagonist, _cache.Get(boss.Faction));
+                Assert.Equal(antagonistsBoss.Name, HullName(_items, boss));
                 // Generation is repeatable per zone: the same zone yields the same boss hull.
                 var again = Assert.Single(BossZonePack(galaxy, _items, zone).Entities, entity => entity.Boss);
                 Assert.Equal(HullName(_items, boss), HullName(_items, again));
@@ -237,6 +421,7 @@ public sealed partial class RunStartTests
     public void Boss_spawns_in_a_zone_that_is_not_ambient()
     {
         var galaxy = DemoGalaxy(1);
+        GiveAntagonistABoss(galaxy);
         var pack = BossZonePack(galaxy, _items, galaxy.Exit, ambient: false);
         Assert.Single(pack.Entities, entity => entity.Boss);
         Assert.DoesNotContain(pack.Entities, entity => !entity.Boss && entity is ShipPack);
@@ -246,6 +431,7 @@ public sealed partial class RunStartTests
     public void Exit_sealed_until_boss_dies()
     {
         var galaxy = DemoGalaxy(1);
+        GiveAntagonistABoss(galaxy);
         var exit = ZoneOf(galaxy, galaxy.Exit);
         var boss = Assert.Single(exit.Entities, entity => entity.IsBoss);
         Assert.True(RunGoal.BossAlive(exit));
@@ -266,6 +452,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void Boss_mark_survives_continue()
     {
+        GiveAntagonistABoss(DemoGalaxy(1));
         var (galaxy, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => 1));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         galaxy.Entrance.Contents = arena;
@@ -327,7 +514,7 @@ public sealed partial class RunStartTests
         // The shipped catalog has no Boss hull, so the main galaxy places no boss: give a faction one and a boss zone that is
         // not the exit, as the generator would for a faction that makes a Boss hull.
         var faction = galaxy.Factions.First();
-        MakeBoss("Gate Boss", 100, faction);
+        MakeBossLoadout(MakeBoss("Gate Boss", 100, faction), faction, "Gate Boss loadout");
         var bossZone = galaxy.Zones.First(zone => zone != galaxy.Exit);
         galaxy.BossZones[faction] = bossZone;
         var zone = ZoneOf(galaxy, bossZone);
@@ -339,11 +526,33 @@ public sealed partial class RunStartTests
         Assert.False(RunGoal.ExitOpen(zone));
     }
 
+    // A boss Loadout whose slot does not fit gives no boss: the log names the Loadout and the fit failure, and the gate stays sealed.
+    [Fact]
+    public void An_unbuildable_boss_loadout_spawns_no_boss()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var hull = MakeBoss("Boss A", 100, antagonist);
+        var loadout = MakeBossLoadout(hull, antagonist, "Unfittable loadout");
+        loadout.Slots[0].Position = new int2(999, 999);
+        _cache.Upsert(typeof(Loadout), loadout, Loadouts.KeyOf(loadout.Name));
+        Assert.Equal("Unfittable loadout", Loadouts.BossOf(_cache, antagonist, out _).Name);
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit, ambient: false);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        Assert.Contains(log, line => line.Contains("Unfittable loadout") && line.Contains("does not fit"));
+        Assert.False(RunGoal.ExitOpen(new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy)));
+    }
+
     // A boss killed before the save stays dead after it, and the gate stays open: the spawn fact travels with the zone.
     [Fact]
     public void Exit_open_after_save_of_a_slain_boss()
     {
         var galaxy = DemoGalaxy(1);
+        GiveAntagonistABoss(galaxy);
         var exit = ZoneOf(galaxy, galaxy.Exit);
         Assert.Single(exit.Entities, entity => entity.IsBoss).HeatstrokeDeath.OnNext(Unit.Default);
         var repacked = exit.PackZone();

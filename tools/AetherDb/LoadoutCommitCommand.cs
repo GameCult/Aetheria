@@ -20,20 +20,21 @@ public static class LoadoutCommitCommand
 {
     private const string Usage = "usage: loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace]";
 
-    public static int Run(string[] args, string root = null)
+    public static int Run(string[] args, string root = null, TextWriter output = null)
     {
+        output ??= Console.Out;
         try
         {
-            return Commit(args, root);
+            return Commit(args, root, output);
         }
         catch (Exception e) when (e is InvalidOperationException or ArgumentException or FormatException)
         {
-            Console.WriteLine($"refused: {e.Message}");
+            output.WriteLine($"refused: {e.Message}");
             return 1;
         }
     }
 
-    private static int Commit(string[] args, string root)
+    private static int Commit(string[] args, string root, TextWriter output)
     {
         var replace = false;
         var groups = new List<int[]>();
@@ -51,7 +52,7 @@ public static class LoadoutCommitCommand
 
         if (positional.Count < 2)
         {
-            Console.WriteLine(Usage);
+            output.WriteLine(Usage);
             return 1;
         }
 
@@ -72,7 +73,7 @@ public static class LoadoutCommitCommand
 
         if (!Loadouts.Commit(catalogPath, loadout, replace))
             throw new InvalidOperationException("the catalog changed since it was read; nothing was written");
-        Console.WriteLine($"{loadout.Name}: committed, hull {hull.Name} ({product.Name}), {slots} slots");
+        output.WriteLine($"{loadout.Name}: committed, hull {hull.Name} ({product.Name}), {slots} slots");
         return 0;
     }
 
