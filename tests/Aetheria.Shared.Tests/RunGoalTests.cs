@@ -98,9 +98,9 @@ public sealed partial class RunStartTests
             .Select(slot => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{items.ItemData.Get(slot.Design).Name},{(slot.Product.IsSet() ? items.ItemData.Get(slot.Product).Name : "-")}").ToArray();
     }
 
-    private static string[] LoadoutCells(CultCache cache, Loadout loadout) =>
+    private string[] LoadoutCells(Loadout loadout) =>
         loadout.Slots.OrderBy(slot => slot.Position.x).ThenBy(slot => slot.Position.y)
-            .Select(slot => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{cache.Get(slot.Design).Name},{(slot.Product.IsSet() ? cache.Get(slot.Product).Name : "-")}").ToArray();
+            .Select(slot => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{_cache.Get(slot.Design).Name},{(slot.Product.IsSet() ? _cache.Get(slot.Product).Name : "-")}").ToArray();
 
     private LoadoutGenerator GeneratorFor(Galaxy galaxy, ItemManager items, Faction faction, uint seed)
     {
@@ -183,7 +183,7 @@ public sealed partial class RunStartTests
         {
             var items = LoggingItems(new List<string>());
             var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit, seed: seed).Entities, entity => entity.Boss);
-            Assert.Equal(LoadoutCells(_cache, loadout), Cells(items, boss));
+            Assert.Equal(LoadoutCells(loadout), Cells(items, boss));
             Assert.All(boss.Equipment, entry => Assert.DoesNotContain(items.GetData(entry.item).Behaviors, behavior => behavior is PickupData));
             Assert.Empty(boss.CargoContents.SelectMany(bay => bay));
             Assert.Empty(boss.DockingBayContents.SelectMany(bay => bay));
