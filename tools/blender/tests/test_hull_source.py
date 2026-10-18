@@ -87,6 +87,10 @@ class ReadingTests(unittest.TestCase):
             hs.parse_off(f"OFF\n3 1 0\n0 0 0\n1 0 0\n0 1 0\n3 0 1 9 {SECRET}\n")
         self.assertNotIn(SECRET, str(caught.exception))
 
+    def test_a_face_naming_the_vertex_one_past_the_last_is_refused(self):
+        with self.assertRaises(hs.HullSourceError):
+            hs.parse_off("\n".join(["OFF", "3 1 0", "0 0 0", "1 0 0", "0 1 0", "3 0 1 3"]))
+
     def test_echoes_are_read_by_name_and_only_plain_values_are_accepted(self):
         text = echo("anchor", ["a", 1]) + echo("other", [2]) + echo("anchor", ["b", 2.5e-05])
         self.assertEqual(hs.parse_echoes(text, "anchor"), [["a", 1], ["b", 2.5e-05]])
@@ -121,6 +125,9 @@ class MirrorOverlapTests(unittest.TestCase):
     def test_a_centred_box_overlaps_its_reflection_completely(self):
         self.assertEqual(hs.mirror_overlap(self.top(box(-2, 2, 0, 4, 0, 1))), 1.0)
 
+    def test_nothing_overlaps_itself_completely(self):
+        self.assertEqual(hs.mirror_overlap([]), 1.0)
+
     def test_a_box_on_one_side_does_not_overlap_it_at_all(self):
         self.assertEqual(hs.mirror_overlap(self.top(box(1, 3, 0, 4, 0, 1))), 0.0)
 
@@ -154,6 +161,11 @@ class JudgementTests(unittest.TestCase):
         fixture.parts["secondary"] = (box(2, 6, -1, 1, 2, 3), "")
         self.assertEqual(fixture.failed(), ["the top view obeys the language's bilateral rule"])
 
+    def test_a_bilateral_bound_is_met_by_exactly_that_overlap(self):
+        fixture = Fixture()
+        fixture.parts["lang"] = ("", language(symmetry=("bilateral", 1.0)))
+        self.assertEqual(fixture.failed(), [])
+
     def test_an_asymmetric_language_refuses_a_symmetric_hull(self):
         fixture = Fixture()
         fixture.parts["lang"] = ("", language("zhestokost", symmetry=("asymmetric", 0.9)))
@@ -175,6 +187,12 @@ class JudgementTests(unittest.TestCase):
             fixture = Fixture()
             fixture.parts["brief"] = ("", brief(triangles=budget))
             self.assertEqual(fixture.failed(), ["the triangle count lies inside the brief's budget"], budget)
+
+    def test_the_budget_counts_the_triangles_of_the_emitter_meshes_too(self):
+        # 12 + 12 triangles of zones, 12 of the emitter: a budget of 30 holds without the emitter and not with it
+        fixture = Fixture()
+        fixture.parts["brief"] = ("", brief(triangles=(10, 30)))
+        self.assertEqual(fixture.failed(), ["the triangle count lies inside the brief's budget"])
 
     def test_the_length_is_a_range_with_two_ends(self):
         for length in ((1, 5), (30, 40)):
@@ -202,6 +220,12 @@ class JudgementTests(unittest.TestCase):
         fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""]))
         self.assertEqual(fixture.failed(), [self.MUZZLE])
         fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, -3, 3], 0, "Gun.A"]))
+        self.assertEqual(fixture.failed(), [self.MUZZLE])
+
+    def test_a_muzzle_whose_parent_is_not_a_weapon_mount_is_refused(self):
+        fixture = Fixture()
+        fixture.parts["anchors"] = ("", echo("anchor", ["Th.A", "thruster-emitter", [1, 5, 1], 180, ""])
+                                    + echo("anchor", ["Th.A.muzzle", "weapon-muzzle", [1, 2, 1], 0, "Th.A"]))
         self.assertEqual(fixture.failed(), [self.MUZZLE])
 
     def test_an_emitter_with_no_mesh_is_refused(self):
@@ -242,7 +266,10 @@ class DonorTests(unittest.TestCase):
         fixture = self.pirate()
         fixture.parts["rnd:secondary"] = ("", "")
         self.assertEqual(fixture.failed(), ["every zone of the language has geometry"])
-        self.assertEqual(fixture.build().colours["rnd:primary"], fixture.build().languages["rnd"].colour("primary"))
+        built = fixture.build()
+        for zone in ("primary", "secondary"):
+            self.assertEqual(built.colours[f"rnd:{zone}"], built.languages["rnd"].colour(zone))
+        self.assertNotEqual(built.colours["rnd:primary"], built.colours["rnd:secondary"])
 
     DONOR = "a donor is named exactly when the language has no proportions of its own"
 
@@ -267,6 +294,12 @@ class RefusalTests(unittest.TestCase):
     def test_a_source_that_includes_no_language_for_its_faction_is_refused(self):
         fixture = Fixture()
         fixture.parts["brief"] = ("", brief("nobody"))
+        with self.assertRaises(hs.HullSourceError):
+            fixture.build()
+
+    def test_a_named_donor_whose_language_the_source_does_not_include_is_refused(self):
+        fixture = Fixture()
+        fixture.parts["brief"] = ("", brief("zhestokost", "rnd"))
         with self.assertRaises(hs.HullSourceError):
             fixture.build()
 
