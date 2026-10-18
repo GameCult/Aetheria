@@ -79,11 +79,11 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
     private static Dictionary<CultRecordKey, float> BodyMass(Zone zone) =>
         zone.Planets.Values.Where(b => !(b is AsteroidBeltData)).GroupBy(b => b.Orbit.Key).ToDictionary(g => g.Key, g => g.First().Mass);
 
-    // The generated orbits: every body's and its ancestors', which leaves out stations, turrets and Lagrange copies.
+    // The generated orbits: every body's and its ancestors', which leaves out stations, turrets, Lagrange copies and swarm rails (a copy of the host's rail, like a Lagrange copy).
     private static HashSet<CultRecordKey> Placed(Zone zone)
     {
         var placed = new HashSet<CultRecordKey>();
-        foreach (var body in zone.Planets.Values)
+        foreach (var body in zone.Planets.Values.Where(b => !(b is AsteroidBeltData { RidesRail: true })))
             for (var key = body.Orbit.Key; placed.Add(key) && zone.Orbits[key].Data.Parent.IsSet();) key = zone.Orbits[key].Data.Parent.Key;
         return placed;
     }
@@ -332,7 +332,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         foreach (var (seed, zone) in _zones.All)
         {
             var mass = BodyMass(zone);
-            foreach (var (beltKey, belt) in zone.AsteroidBelts)
+            foreach (var (beltKey, belt) in zone.AsteroidBelts.Where(b => !b.Value.Data.RidesRail))
             {
                 belts++;
                 var orbit = zone.Planets[beltKey].Orbit.Key;
@@ -374,7 +374,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         {
             var mass = BodyMass(zone);
             var placed = Placed(zone);
-            var beltAt = zone.AsteroidBelts.ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Data.Asteroids);
+            var beltAt = zone.AsteroidBelts.Where(b => !b.Value.Data.RidesRail).ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Data.Asteroids);
             foreach (var (orbit, rocks) in beltAt)
             {
                 var parent = zone.Orbits[orbit].Data.Parent.Key;
@@ -424,7 +424,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
             { Exponent = authored.Exponent, Multiplier = authored.Multiplier * .02f, Constant = authored.Constant * .02f });
         int belts = 0, filled = 0;
         foreach (var (seed, zone) in narrow.All)
-            foreach (var (key, belt) in zone.AsteroidBelts)
+            foreach (var (key, belt) in zone.AsteroidBelts.Where(b => !b.Value.Data.RidesRail))
             {
                 var rocks = belt.Data.Asteroids;
                 if (rocks.Length < 2) continue;

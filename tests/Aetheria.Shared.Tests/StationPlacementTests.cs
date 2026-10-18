@@ -81,6 +81,10 @@ public sealed class StationPlacementTests : IDisposable
 
     private static float Turns(float turns) => turns - (float) Math.Floor(turns);
 
+    // A Trojan swarm's rail is a copy of its host's, not a station's source.
+    private static bool SwarmRail(Zone zone, CultRecordKey orbit) =>
+        zone.Planets.Values.Any(b => b is AsteroidBeltData { RidesRail: true } && b.Orbit.Key.Equals(orbit));
+
     [Fact]
     public void AStationSitsAtItsPlanetsL4OrL5()
     {
@@ -96,7 +100,7 @@ public sealed class StationPlacementTests : IDisposable
             foreach (var station in zone.Entities.OfType<OrbitalEntity>().Where(e => TypeOf(built.Items, e) == HullType.Station))
             {
                 var orbit = zone.Orbits[station.OrbitData];
-                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit)).ToList();
+                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && !SwarmRail(zone, o.Key) && SameRing(o.Value, orbit)).ToList();
                 if (sources.Count == 0)
                 {
                     // The tutorial entrance's one exception: a station on its own orbit round a root node, beyond the node's ring
@@ -156,7 +160,7 @@ public sealed class StationPlacementTests : IDisposable
             foreach (var station in Orbitals(built).Where(e => TypeOf(built.Items, e) == HullType.Station))
             {
                 var orbit = zone.Orbits[station.OrbitData];
-                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit)).ToList();
+                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && !SwarmRail(zone, o.Key) && SameRing(o.Value, orbit)).ToList();
                 if (sources.Count == 0) continue; // the tutorial entrance's own orbit round a root
                 stations++;
                 Assert.Contains(bodyOrbits, key => key.Equals(sources[0].Key));
@@ -173,12 +177,12 @@ public sealed class StationPlacementTests : IDisposable
         var placed = new HashSet<CultRecordKey>();
         foreach (var body in zone.Planets.Values)
             for (var key = body.Orbit.Key; placed.Add(key) && zone.Orbits[key].Data.Parent.IsSet();) key = zone.Orbits[key].Data.Parent.Key;
-        var beltExtent = zone.AsteroidBelts.ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Data.Asteroids.Select(a => a.Distance).DefaultIfEmpty(0f).Max());
+        var beltExtent = zone.AsteroidBelts.ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Extent(zone.Orbits[zone.Planets[b.Key].Orbit.Key].Data.Distance));
         var nodes = placed.Select(k =>
         {
             var d = zone.Orbits[k].Data;
             return new WellNode(k, d.Parent.Key, d.Distance, d.Phase, mass.TryGetValue(k, out var m) ? m : 0f,
-                beltExtent.TryGetValue(k, out var e) ? Math.Max(e, d.Distance) : d.Distance, d.FixedPosition + OrbitData.Evaluate(frac(d.Phase)) * d.Distance);
+                beltExtent.TryGetValue(k, out var e) ? e : d.Distance, d.FixedPosition + OrbitData.Evaluate(frac(d.Phase)) * d.Distance);
         }).ToList();
         var wells = WellTree.Build(nodes, zone.Settings, zone.Pack.Radius);
         return Math.Max(wells.Support(orbit), 1.5f * zone.Settings.RocheLimit.Evaluate(mass[orbit]));
@@ -353,7 +357,7 @@ public sealed class StationPlacementTests : IDisposable
             foreach (var station in Orbitals(built).Where(e => TypeOf(built.Items, e) == HullType.Station))
             {
                 var orbit = zone.Orbits[station.OrbitData];
-                var strays = zone.Orbits.Count(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit));
+                var strays = zone.Orbits.Count(o => !ridden.Contains(o.Key) && !SwarmRail(zone, o.Key) && SameRing(o.Value, orbit));
                 Assert.True(strays == 1, $"seed {built.Seed}: a station's ring holds {strays} orbits no entity rides, not just its source's");
                 stations++;
             }

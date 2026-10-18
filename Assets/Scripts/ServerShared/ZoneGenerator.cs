@@ -49,7 +49,8 @@ public static class ZoneGenerator
 		var pack = new ZonePack();
 		var cache = itemManager.ItemData;
 
-		var random = new Random(galaxyZone.Name.StableHash() ^ (uint) pcg3d(galaxyZone.Position).x);
+		var seed = galaxyZone.Name.StableHash() ^ (uint) pcg3d(galaxyZone.Position).x;
+		var random = new Random(seed);
 
 		var density = saturate(galaxy.Background.CloudDensity(galaxyZone.Position)/2);
 		pack.Radius = zoneSettings.ZoneRadius.Evaluate(density);
@@ -213,6 +214,29 @@ public static class ZoneGenerator
             if (planetData is AsteroidBeltData generatedBelt) FieldKinds.Ensure(bodyKey, generatedBelt, cache);
             return cache.Upsert(planetData);
         }).ToList();
+
+        // Trojan swarms (rulings trojans-first, trojans-ride-host-period-with-stations): a belt on a copy of its host's rail, its
+        // rocks round both L4 and L5. Drawn from a stream of its own, so no other draw in the zone moves; not a GeneratorPlanet,
+        // so it takes no slot and no station candidacy sees it.
+        var swarmRandom = new Random(seed ^ TrojanStream);
+        foreach (var host in planets.Where(p => p.Parent != null && !p.Parent.Empty && !p.Empty && !p.Belt && p.Distance > 0
+                     && p.Mass > zoneSettings.PlanetMass && p.Mass <= zoneSettings.SunMass))
+        {
+            if (swarmRandom.NextFloat() >= zoneSettings.TrojanProbability) continue;
+            var hostOrbit = orbitMap[host];
+            var rail = new OrbitData { Parent = hostOrbit.Parent, Distance = hostOrbit.Distance, Phase = hostOrbit.Phase };
+            pack.Orbits.Add(cache.Upsert(rail));
+            var swarm = new AsteroidBeltData
+            {
+                Orbit = cache.RefOf(rail), RidesRail = true,
+                Asteroids = TrojanRocks(zoneSettings, ref swarmRandom, rail.Distance, rail.Phase)
+            };
+            BodyData swarmBody = swarm;
+            var swarmKey = cache.Upsert(swarmBody).Key;
+            swarm.Name = swarmKey.Value.Substring(0, 8);
+            FieldKinds.Ensure(swarmKey, swarm, cache);
+            pack.Planets.Add(cache.Upsert(swarmBody));
+        }
 
         // The generator's own well tree, for clearance only (the Zone builds its own): what a rail must stay out of is the body's
         // support, or its Roche margin if more.
@@ -577,6 +601,24 @@ public static class ZoneGenerator
 	// limits out; a massive child of a body also far enough that its own pull peak beats CuspMargin times its parent's pull there;
 	// siblings sit SiblingSpacing of a reach apart. Every other number is a GravityField constant.
 	public const float RocheMargin = 1.5f;
+
+	private const uint TrojanStream = 0x9E3779B9u;
+
+	// A swarm's rocks: alternately round L4 and L5 of the rail at `distance` and `phase`, each within half an arc of its point
+	// along the orbit and a half-width of the rail across it, thickest at the point.
+	public static Asteroid[] TrojanRocks(ZoneGenerationSettings settings, ref Random random, float distance, float phase)
+	{
+		var rocks = new Asteroid[2 * (int) settings.TrojanCount.Evaluate(distance)];
+		for (var i = 0; i < rocks.Length; i++)
+			rocks[i] = new Asteroid
+			{
+				Distance = distance * (1 + random.NextFloat() * (random.NextFloat() - .5f) * 2 * settings.TrojanHalfWidth),
+				Phase = frac(phase + (i % 2 == 0 ? 1f : -1f) / 6f + random.NextFloat() * (random.NextFloat() - .5f) * settings.TrojanArc),
+				Size = random.NextFloat(),
+				RotationSpeed = settings.AsteroidRotationSpeed.Evaluate(random.NextFloat())
+			};
+		return rocks;
+	}
 	public const float CuspMargin = 1.5f;
 	public const float SiblingSpacing = .5f;
 

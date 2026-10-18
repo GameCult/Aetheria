@@ -212,13 +212,11 @@ public class Zone
         foreach (var body in PlanetInstances)
             if (body.Value.WellStrength > 0)
                 wellMass.TryAdd(Planets[body.Key].Orbit.Key, body.Value.BodyData.Mass);
-        // A belt's rail carries its asteroids, which spread beyond the rail's own distance: its extent is the outermost.
         var beltExtent = new Dictionary<CultRecordKey, float>();
         foreach (var belt in AsteroidBelts)
         {
-            var extent = 0f;
-            foreach (var asteroid in belt.Value.Data.Asteroids) extent = Math.Max(extent, asteroid.Distance);
-            beltExtent[Planets[belt.Key].Orbit.Key] = extent;
+            var rail = Planets[belt.Key].Orbit.Key;
+            beltExtent[rail] = belt.Value.Extent(Orbits[rail].Data.Distance);
         }
         var wellNodes = new List<WellNode>();
         foreach (var orbit in Orbits)
@@ -226,7 +224,7 @@ public class Zone
             var data = orbit.Value.Data;
             wellNodes.Add(new WellNode(orbit.Key, data.Parent.Key, data.Distance, data.Phase,
                 wellMass.TryGetValue(orbit.Key, out var mass) ? mass : 0f,
-                beltExtent.TryGetValue(orbit.Key, out var reach) ? Math.Max(reach, data.Distance) : data.Distance,
+                beltExtent.TryGetValue(orbit.Key, out var reach) ? reach : data.Distance,
                     data.FixedPosition + OrbitData.Evaluate(frac(data.Phase)) * data.Distance)); // a root's stationary place: Offset at an infinite period
         }
         Wells = WellTree.Build(wellNodes, settings, pack.Radius);
@@ -239,7 +237,9 @@ public class Zone
             var beltOrbit = Planets[belt.Key].Orbit.Key;
             var beltParent = Orbits[beltOrbit].Data.Parent.Key;
             for (var i = 0; i < belt.Value.Periods.Length; i++)
-                belt.Value.Periods[i] = PeriodAround(beltParent, belt.Value.Data.Asteroids[i].Distance, beltOrbit);
+                belt.Value.Periods[i] = belt.Value.Data.RidesRail
+                    ? Orbits[beltOrbit].Period // a swarm's rocks ride their rail (trojans-ride-host-period-with-stations)
+                    : PeriodAround(beltParent, belt.Value.Data.Asteroids[i].Distance, beltOrbit);
         }
 
         PopulatedRadius = ComputePopulatedRadius();
@@ -881,6 +881,10 @@ public class AsteroidBelt
         Periods = new float[data.Asteroids.Length];
         Radius = data.Asteroids.Max(a => a.Distance);
     }
+
+    // What the belt's rail adds to its parent's L_F (WellTree): an annulus reaches its outermost rock, whose period reads the
+    // field there; a swarm riding its rail reaches only the rail, whose period every rock shares.
+    public float Extent(float railDistance) => Data.RidesRail ? railDistance : Math.Max(Radius, railDistance);
 
     // Cut 1 (docs/mining-cut.md): the formula of Zone.cs:269-271 verbatim, `time` in double as `_time` was used.
     // The only place a chunk pose is computed; no per-tick copy survives it. Cut 2: size is no longer read from
