@@ -272,6 +272,8 @@ public sealed class ProductChoiceTests : IDisposable
         Assert.Equal(.2514f * preference, generator.ProductWeight(quarter.Product("lamp-a bin")), 3);
         Assert.Equal(.7486f * preference, generator.ProductWeight(quarter.Product("lamp-a")), 3);
         Assert.Equal(preference, generator.ProductWeight(quarter.Product("lamp-a bin")) + generator.ProductWeight(quarter.Product("lamp-a")), 3);
+        // Another maker's product, whose line has no bin, weighs what it did without any bin in the catalog.
+        Assert.Equal(alone.Outfitter(alone.OutEven, 1, 0).ProductWeight(alone.Product("lamp-z")), generator.ProductWeight(quarter.Product("lamp-z")), 3);
 
         var half = Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" });
         generator = half.Outfitter(half.OutEven, 1, 0);
