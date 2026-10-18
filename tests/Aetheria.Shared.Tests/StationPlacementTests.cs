@@ -133,13 +133,21 @@ public sealed class StationPlacementTests : IDisposable
         Assert.True(ahead > 0 && behind > 0, $"the seeds put stations on one side only (ahead {ahead}, behind {behind})");
     }
 
-            // A binary is a bodyless node under its parent; the station's source is never such a node, however many binaries there are.
+    // A binary under a body is a bodyless node; the station's source is never such a node, however many there are. The authored
+    // settings leave none standing (every binary's ring folds into its node), so the zones are wide and light enough for rings to stand,
+    // with every satellite a binary: that is the sample in which the candidate rule's exclusion of a bodyless node does any work.
     [Fact]
     public void AStationNeverSitsOnABinarysBodylessNode()
     {
         var binaries = 0;
         var stations = 0;
-        foreach (var built in GeneratedZones(null, 0, 4, int.MaxValue, z => { z.SatelliteCreationProbability = 1; z.BinaryCreationProbability = 1; }))
+        foreach (var built in GeneratedZones(null, 0, 4, int.MaxValue, z =>
+        {
+            z.SatelliteCreationProbability = 1;
+            z.BinaryCreationProbability = 1;
+            z.ZoneRadius.Minimum *= 3; z.ZoneRadius.Maximum *= 3;
+            z.ZoneMass.Minimum *= .1f; z.ZoneMass.Maximum *= .1f;
+        }))
         {
             var zone = built.Zone;
             var bodyOrbits = zone.Planets.Values.Select(b => b.Orbit.Key).ToHashSet();
