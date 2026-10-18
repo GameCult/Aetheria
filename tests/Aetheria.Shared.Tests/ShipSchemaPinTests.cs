@@ -105,6 +105,27 @@ public sealed class ShipSchemaPinTests
         }
     }
 
+    // A faction language file echoes its Faction's record key as the last element of its lang (hull_source.Language.maker); Package
+    // compares it to each product's Manufacturer. The catalog owns the key, so a regenerated record fails here, not at Package.
+    [Theory]
+    [InlineData("zhestokost.scad", "Zhestokost")]
+    [InlineData("pirate.scad", "Pirates")]
+    [InlineData("rnd.scad", "Rossum & Douglas")]
+    public void FactionLanguageFilesNameTheirFactionsRecordKeyInTheCatalog(string file, string faction)
+    {
+        var scad = File.ReadAllText(Locate("tools", "blender", "aetheria_ships", "factions", file));
+        var literal = Regex.Match(scad, @"^[A-Z]+_LANG = \[[^;]*""([^""]+)""\];", RegexOptions.Multiline);
+?$", RegexOptions.Multiline);
+        Assert.True(literal.Success, $"{file} has no *_LANG with a maker as its last element");
+        var db = AetherDb.Open(root: AetherDb.FindRoot());
+        try
+        {
+            var record = Assert.Single(db.Cache.GetAll<Faction>().Where(f => f.Name == faction));
+            Assert.Equal(db.Cache.RefOf(record).Key.ToString(), literal.Groups[1].Value);
+        }
+        finally { db.Cache.Dispose(); }
+    }
+
     private static bool Accepts(string id)
     {
         try { ShipAuthoringStore.RequireShipId(id); return true; }

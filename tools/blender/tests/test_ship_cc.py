@@ -235,11 +235,16 @@ class ProductMakerTests(ShipFileCase):
                                                                   "maker-slot", "roles-slot"])
         self.assertEqual(["maker-slot"], ship_cc.product_makers(self.path, PACKAGES))
 
+    def test_manufacturer_keys_are_compared_as_written_not_case_folded(self):
+        self.push_product("mod-product:mod.skiff:faction:a", [None, "A", None, None, "Acme-Key"])
+        self.push_product("mod-product:mod.skiff:faction:b", [None, "B", None, None, "acme-key"])
+        self.assertEqual(["Acme-Key", "acme-key"], ship_cc.product_makers(self.path, PACKAGES))
+
     def test_a_product_with_no_manufacturer_is_refused_naming_no_input(self):
         canary = "canary-product-name"
         for body in ([None, canary, "Reliable."], [None, canary, None, None], [None, canary, None, None, None],
                      [None, canary, None, None, ""],
-                     [None, canary, None, None, 7]):
+                     [None, canary, None, None, 7], "a bare string body is no list of slots, whatever its fifth character"):
             with self.subTest(body=body):
                 self.setUp()
                 self.push_product("mod-product:mod.skiff:faction:" + canary, body)
