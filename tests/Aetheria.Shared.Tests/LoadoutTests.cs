@@ -490,7 +490,7 @@ public sealed class LoadoutTests : IDisposable
     }
 
     // A Lamp lot with Quality .2 and one role fill (lens .15, under the assembly): a stat reading that role gets .15, one
-    // reading none gets .2, and GetTier reads .2.
+    // reading none gets the effective quality .15, and GetTier reads .2.
     [Fact]
     public void StatsReadTheLot()
     {
@@ -525,7 +525,7 @@ public sealed class LoadoutTests : IDisposable
         var withRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1, Role = "lens" } } };
         var noRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1 } } };
         Assert.Equal(.15f, items.Evaluate(withRole, instance), 3);
-        Assert.Equal(.2f, items.Evaluate(noRole, instance), 3);
+        Assert.Equal(.15f, items.Evaluate(noRole, instance), 3);
         Assert.Equal(.2f, items.GetTier(instance).tier.Quality, 3);
         Assert.Equal(.5f, items.GetTier(rareInstance).tier.Quality, 3);
 

@@ -184,15 +184,41 @@ public sealed class AssemblyFromMakerTests : IDisposable
         Assert.All(Mint(tight, 50), q => Assert.Equal(.5f, q, 3));
     }
 
-    // The fallbacks still read the assembly: an unnamed role, an unrolled role, and a lot with no roles.
+    // The fallbacks read the item's effective quality: an unnamed role and an unfilled role on a lot whose fills sit below and
+    // above its assembly (lens .3 -> .3, frame .9 -> .6, mean .45), and a lot with no roles reading its assembly. A found
+    // fill still reads its own capped part.
     [Fact]
-    public void FallbacksReadTheAssembly()
+    public void FallbacksReadEffectiveQuality()
     {
-        var lot = new Lot { Quality = .4f, Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .9f } } };
-        Assert.Equal(.4f, lot.QualityForRole(null), 3);
-        Assert.Equal(.4f, lot.QualityForRole(""), 3);
-        Assert.Equal(.4f, lot.QualityForRole("ghost"), 3);
+        var lot = new Lot
+        {
+            Quality = .6f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .3f }, new RoleFill { Role = "frame", Quality = .9f } }
+        };
+        Assert.Equal(.45f, lot.QualityForRole(null), 3);
+        Assert.Equal(.45f, lot.QualityForRole(""), 3);
+        Assert.Equal(.45f, lot.QualityForRole("ghost"), 3);
+        Assert.Equal(.3f, lot.QualityForRole("lens"), 3);
         Assert.Equal(.4f, new Lot { Quality = .4f }.QualityForRole("lens"), 3);
+        Assert.Equal(.4f, new Lot { Quality = .4f, Roles = new List<RoleFill>() }.QualityForRole("lens"), 3);
+    }
+
+    // The effective quality is the mean over the fills of min(part, assembly): assembly .6 with parts .9, .3, .5 reads
+    // (.6 + .3 + .5) / 3, not the raw mean .5667, the min .3, the assembly .6 or the max. A lot with no fills reads its assembly.
+    [Fact]
+    public void EffectiveQualityIsTheMeanOfCappedFills()
+    {
+        var lot = new Lot
+        {
+            Quality = .6f,
+            Roles = new List<RoleFill>
+            {
+                new RoleFill { Role = "a", Quality = .9f }, new RoleFill { Role = "b", Quality = .3f }, new RoleFill { Role = "c", Quality = .5f }
+            }
+        };
+        Assert.Equal(.4667f, lot.EffectiveQuality(), 3);
+        Assert.Equal(.6f, new Lot { Quality = .6f }.EffectiveQuality(), 3);
+        Assert.Equal(.6f, new Lot { Quality = .6f, Roles = new List<RoleFill>() }.EffectiveQuality(), 3);
     }
 
     // A Quality term on a role with part .9 and assembly .4 evaluates as if quality were .4, on a real minted instance.

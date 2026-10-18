@@ -58,7 +58,7 @@ public class ProvenanceLedger
     }
 }
 
-// One lot: the design it built, who made it and from what, its rolled workmanship, how well each design role
+// One lot: the design it built, who made it and from what, its final assembly quality, how well each design role
 // was filled, and the branded product it was made as. Immutable once minted; instances carry a LotId, never a copy.
 [MessagePackObject]
 public class Lot
@@ -74,18 +74,28 @@ public class Lot
 
     // The quality a stat reads for one of the design's roles: the part's, capped by the lot's own final assembly
     // (quality-lean-assembly-hard-ceiling), so a part better than its assembly is worth the assembly. An unnamed role, a
-    // design without roles, and a lot minted before roles existed all fall back to the lot's own workmanship.
+    // design without roles, and a role without a fill read the item's effective quality.
     public float QualityForRole(string role)
     {
-        if (string.IsNullOrEmpty(role) || Roles == null) return Quality;
+        if (string.IsNullOrEmpty(role) || Roles == null) return EffectiveQuality();
         foreach (var fill in Roles)
             if (fill.Role == role) return Math.Min(fill.Quality, Quality);
-        return Quality;
+        return EffectiveQuality();
+    }
+
+    // The item's one quality (effective-quality-mean-of-roles): the mean over its role fills of the part capped by the final
+    // assembly. Price, tier, heat, durability and wear all read it; a roleless lot reads its assembly.
+    public float EffectiveQuality()
+    {
+        if (Roles == null || Roles.Count == 0) return Quality;
+        var sum = 0f;
+        foreach (var fill in Roles) sum += Math.Min(fill.Quality, Quality);
+        return sum / Roles.Count;
     }
 }
 
 // One filled slot: the design's role name and how good the part that went into it turned out to be. Stats read it through
-// Lot.QualityForRole, capped by the lot's assembly; the raw value is kept for disassembly (named-components-after-demo).
+// Lot.QualityForRole and Lot.EffectiveQuality, capped by the lot's assembly; the raw value is kept for disassembly (named-components-after-demo).
 [MessagePackObject]
 public class RoleFill
 {
