@@ -100,7 +100,7 @@ public sealed class ConsumableAiTests : IDisposable
 
     private Scene Build(bool carryVent = false, bool carryOverdrive = false, bool carryDecoy = false, int stackableVents = 0, float effective = 500f, uint? runSeed = null, int orbits = 1)
     {
-        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), Path.Combine(_root, Guid.NewGuid().ToString("N") + ".run.cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
