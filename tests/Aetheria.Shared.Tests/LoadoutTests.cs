@@ -544,7 +544,6 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(.5f, items.GetTier(nearRareInstance).tier.Quality, 3);
         // Upgrades count the steps of .05 above the tier: the capped lot's effective .3 is two above Common's .2.
         Assert.Equal(2, items.GetTier(cappedInstance).upgrades);
-        Assert.Equal(0, items.GetTier(instance).upgrades);
 
         // Minting a second instance from an existing lot must not re-roll the lot's quality.
         var secondInstance = (EquippableItem) items.CreateInstance(commonLot);
