@@ -125,19 +125,21 @@ public sealed class LoadoutCommitCommandTests : IDisposable
         var fit = Fit();
         var canary = "Canary9c1e";
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
-        T Copy<T>(T document) => MessagePack.MessagePackSerializer.Deserialize<T>(MessagePack.MessagePackSerializer.Serialize(document, options), options);
+        object Copy(object document) => MessagePack.MessagePackSerializer.Deserialize(document.GetType(), MessagePack.MessagePackSerializer.Serialize(document.GetType(), document, options), options);
         using (var cache = Open())
         {
+            // Under a key of its own, so the copy is a second record of the same name, not the first overwritten.
+            void Add(object document) => Assert.True(cache.Commit(batch => batch.Upsert(document.GetType(), document, new CultRecordKey("duplicate:" + Guid.NewGuid().ToString("N")))));
             switch (refusal)
             {
                 case "ambiguous-hull-product":
-                    cache.Upsert(Copy(cache.GetAll<FactionProductData>().Single(p => p.Name == fit.hullProduct)));
+                    Add(Copy(cache.GetAll<FactionProductData>().Single(p => p.Name == fit.hullProduct)));
                     break;
                 case "ambiguous-design":
-                    cache.Upsert(Copy(cache.GetAll<EquippableItemData>().Single(d => d.Name == fit.designName)));
+                    Add(Copy(cache.GetAll<EquippableItemData>().Single(d => d.Name == fit.designName)));
                     break;
                 case "mod-design":
-                    var mod = Copy(cache.GetAll<EquippableItemData>().Single(d => d.Name == fit.designName));
+                    var mod = (EquippableItemData) Copy(cache.GetAll<EquippableItemData>().Single(d => d.Name == fit.designName));
                     mod.Name = "Mod gadget";
                     Assert.True(cache.Commit(batch => batch.Upsert(mod.GetType(), mod, new CultRecordKey("mod-ship:mod.gadget"))));
                     break;

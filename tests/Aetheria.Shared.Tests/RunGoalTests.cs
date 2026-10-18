@@ -37,7 +37,7 @@ public sealed partial class RunStartTests
     private HullData[] SoldShipHulls() => _cache.GetAll<FactionProductData>()
         .Where(product => product.Manufacturer.IsSet())
         .Select(product => _cache.Get(product.Design) as HullData)
-        .Where(hull => hull != null && hull.HullType == HullType.Ship && hull.Price > 0)
+        .Where(hull => hull != null && hull.HullType == HullType.Ship && hull.Price > 0 && !hull.Boss)
         .Distinct().ToArray();
 
     // A Boss hull a faction makes, by the production path: a copy of a sold ship hull (so it builds into a real ship) flagged
