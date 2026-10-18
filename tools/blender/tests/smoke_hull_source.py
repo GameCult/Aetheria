@@ -23,8 +23,9 @@ the hull.scad into the package and runs the panel's operators:
   or a generated zone or mount that was edited in place.
   Package accepts the built ship (the C# validator), writes ship.glb with a node per anchor, and leaves hull.scad; a
   Build after Package still works.
-  The author replaces the zone meshes with her art and keeps Build's anchors and collider: Package deletes hull.scad in
-  that one act and says so, and Build then refuses.
+  The author replaces the zone meshes with her art and keeps Build's anchors and collider: Package retires Build's
+  records, and deletes hull.scad if it is still there (the second hull has had it removed by hand), in that one act and
+  says so, and Build then refuses. Build's maker record alone decides that a hull is Build-made and under the guard.
   A hull that was never built keeps its hull.scad through the same deletion rule, and Package refuses it (no maker was
   judged).
   Package refuses an agent-built hull before it writes anything (ship.glb is not made) when the package holds no product,
@@ -35,6 +36,7 @@ the hull.scad into the package and runs the panel's operators:
   Package moves no row and turns no mount: every layout row is as authored after it, and a hand-turned mount keeps its yaw.
 """
 
+import dataclasses
 import json
 import math
 import os
@@ -47,6 +49,7 @@ from pathlib import Path
 import addon_utils
 import bmesh
 import bpy
+import msgpack
 
 REPO = Path(__file__).resolve().parents[3]
 PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
@@ -75,15 +78,21 @@ HULLS = (
 
 
 # per fixture: the variable the hull's language is in, a value that redefines it (every rule loosened), the language file a
-# copy of which beside hull.scad would shadow the include, and a colour in it
+# copy of which beside hull.scad would shadow the include, and a colour in it. %MAKER% is the maker key the faction's own
+# language file names, read by the production reader (language_maker), so a language edited alone cannot leave it stale
 ATTACKS = {
-    "zh-ammo-tender": ("ZH_LANG", '["zhestokost", ZH_ZONES, "primary", ZH_GLOW, ZH_RADIATOR, [[0, 9], [0, 9]], ["asymmetric", 0.0], "16bad4f9-7fb5-41c5-8da0-dc76709eb7d3"]',
+    "zh-ammo-tender": ("ZH_LANG", '["zhestokost", ZH_ZONES, "primary", ZH_GLOW, ZH_RADIATOR, [[0, 9], [0, 9]], ["asymmetric", 0.0], "%MAKER%"]',
                        "zhestokost.scad", "[0.42, 0.43, 0.45]"),
-    "pi-fighter": ("PI_LANG", '["pirate", PI_ZONES, "", PI_GLOW, PI_RADIATOR, [], ["bilateral", 0.0], "1d8a168def994a76a1ce7cb18f59c038"]',
+    "pi-fighter": ("PI_LANG", '["pirate", PI_ZONES, "", PI_GLOW, PI_RADIATOR, [], ["bilateral", 0.0], "%MAKER%"]',
                    "pirate.scad", "[0.48, 0.27, 0.22]"),
 }
 EXECUTABLE = None  # the OpenSCAD the add-on preference names, set by main
 hull_source = None  # aetheria_ships.hull_source, set by main
+
+
+def language_maker(faction):
+    """The maker key the faction's own language file names, as Build reads it."""
+    return hull_source.read_languages(hull_source.language_library(EXECUTABLE)(faction))[0].maker
 
 
 def require(condition, message):
@@ -184,6 +193,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     rows_before = layout_rows(scene)
     source = package / "hull.scad"
     lang_var, lang_value, shadowed, shadow_colour = ATTACKS[fixture]
+    lang_value = lang_value.replace("%MAKER%", language_maker(shadowed[:-len(".scad")]))
     runner = hull_source.openscad_runner(EXECUTABLE, source)
     require(source.is_file(), "The fixture hull.scad was not copied")
     require("Build From Hull Source" == bpy.ops.aetheria.build_hull_source.get_rna_type().name, "Build is not registered")
@@ -301,6 +311,32 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     root.location.x = off_centre
     require(aetherdb(ship_cc, "product", ship_cc, other, "--remove") == 0, "AetherDb could not remove the other maker's product")
 
+    # Record keys compare exactly: a Manufacturer that differs from the language's maker only in case names no Faction.
+    # AetherDb cannot write one, but a hand-edited ship.cc or a cultcache-py push can, and the guard alone refuses it.
+    def manufacturer_as(change):
+        ship_module = sys.modules["aetheria_ships.ship_cc"]
+        store = ship_module.read(ship_cc, PACKAGES).store
+        seen = []
+        for envelope in store.pull_all():
+            if envelope.type == ship_module.PRODUCT_SCHEMA:
+                values = msgpack.unpackb(envelope.payload, raw=False)
+                seen.append(values[ship_module.PRODUCT_MANUFACTURER_SLOT])
+                values[ship_module.PRODUCT_MANUFACTURER_SLOT] = change(seen[-1])
+                store.push(dataclasses.replace(envelope, payload=msgpack.packb(values, use_bin_type=True)))
+        return seen
+
+    written = manufacturer_as(str.upper)
+    require(written and all(key.upper() != key for key in written), "The package holds no product with a cased key to rewrite")
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    report = scene.aetheria_package_report
+    require(result == {"CANCELLED"} and "not by the maker of the hull's faction language" in report,
+            f"Package took a product whose Manufacturer differs from the maker in case: {report!r} {message!r}")
+    require(not (package / "ship.glb").exists(), "Package wrote ship.glb for a case-variant Manufacturer")
+    for echoed in (ship_id, str(GAME), maker, collection["aetheria.hull_maker"], collection["aetheria.hull_maker"].upper()):
+        require(echoed not in report, f"The refusal echoes an input ({echoed})")
+    manufacturer_as(lambda _: written.pop(0))
+
     # Package: the validator accepts the built ship and the GLB holds a node per anchor.
     mount = bpy.data.objects[roles["weapon-mount"][0]]
     straight = mount.rotation_euler.z
@@ -413,10 +449,13 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     art.parent = root
     require(any(o.get("aetheria.role") for o in generated(collection).values()), "The scene kept no anchor of Build's")
     require(aetherdb(ship_cc, "product", ship_cc, maker, "--remove") == 0, "AetherDb could not remove the product")  # her art needs none
+    if number % 2 == 0:  # the second hull: she (or git) removed hull.scad herself first; Build's record outlives it
+        source.unlink()
+        require(collection.get("aetheria.hull_maker"), "Build's maker record is gone before Package")
     select(box)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
-    require(result == {"FINISHED"} and "deleted hull.scad" in report, f"Package did not retire the hull source: {report!r} {message!r}")
+    require(result == {"FINISHED"} and "retired Build's hull records" in report, f"Package did not retire the hull source: {report!r} {message!r}")
     require(not source.exists(), "hull.scad is still there after the author's art was packaged")
     require("aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection,
             "The record of Build's objects or its maker outlived hull.scad")
@@ -424,7 +463,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     select(box)
     result, message = run(bpy.ops.aetheria.build_hull_source)
     require(result == {"CANCELLED"} and bpy.data.objects.get("author hull") is art, f"Build ran after takeover: {message!r}")
-    print(f"PASS {number}.9 her art with Build's anchors kept retires hull.scad, with a report; Build then refuses")
+    print(f"PASS {number}.9 her art with Build's anchors kept retires Build's records and any hull.scad, with a report; Build then refuses")
     return collection
 
 

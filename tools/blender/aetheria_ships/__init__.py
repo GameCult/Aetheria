@@ -1625,10 +1625,11 @@ def _build_hull_source(context, collection):
 
 
 def _art_takes_over(collection):
-    """Whether the body is the operator's: a hull.scad and a Ship Root exist, the collection holds render meshes that
-    Build did not make as they stand, and no zone mesh of Build's is left."""
+    """Whether the body is the operator's: Build's maker record and a Ship Root exist, the collection holds render meshes
+    that Build did not make as they stand, and no zone mesh of Build's is left. The record alone says the hull was
+    Build-made; hull.scad is not consulted."""
     root = _ship_root(collection)
-    if _hull_source_file(collection) is None or root is None:
+    if HULL_MAKER not in collection or root is None:
         return False
     untouched, _ = _hull_built(collection)
     zones = [obj for obj in untouched if obj.type == "MESH" and "aetheria.role" not in obj]
@@ -1636,12 +1637,14 @@ def _art_takes_over(collection):
 
 
 def _retire_hull_source(collection):
-    """Deletes the package's hull.scad when the body is the operator's (_art_takes_over). The anchors and collider she
-    kept are hers from then on. A hull never built, or built and packaged as it stands, keeps its source. Returns whether
-    the file was deleted."""
+    """Deletes Build's records, and the package's hull.scad if it is still there, when the body is the operator's
+    (_art_takes_over). The anchors and collider she kept are hers from then on. A hull never built, or built and
+    packaged as it stands, keeps its source. Returns whether art took over."""
     if not _art_takes_over(collection):
         return False
-    _hull_source_file(collection).unlink()
+    source = _hull_source_file(collection)
+    if source is not None:
+        source.unlink()
     for record in (HULL_BUILT, HULL_MAKER):
         if record in collection:
             del collection[record]
@@ -1738,7 +1741,7 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             return {"CANCELLED"}
         scene.aetheria_package_report = f"Packaged {len(anchors)} anchors; the validator accepted the ship"
         if _retire_hull_source(collection):
-            scene.aetheria_package_report += "; deleted hull.scad: this package ships your art"
+            scene.aetheria_package_report += "; retired Build's hull records: this package ships your art"
         self.report({"INFO"}, scene.aetheria_package_report)
         return {"FINISHED"}
 
