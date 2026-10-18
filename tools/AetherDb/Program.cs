@@ -129,23 +129,31 @@ public static class Program
         // or a product added after roles landed), so every sold, role-bearing design is checked against every
         // product that actually sells it, not only the ones this run's roles-migrate happened to touch.
         var roleGaps = 0;
-        foreach (var item in items.Where(i => i.Roles != null && i.Roles.Count > 0))
+        foreach (var (product, item, missing) in RoleGaps(db.Cache, items, products))
         {
-            var design = db.Cache.RefOf(item).Key;
-            // A bin authors no spread: it reads its line's (ProductBin).
-            var sellers = products.Where(p => p.Bin == null && p.Design.Key.Equals(design)).ToArray();
-            foreach (var product in sellers)
-            {
-                var covered = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
-                var missing = item.Roles.Select(r => r.Name).Where(r => !covered.Contains(r)).ToArray();
-                if (missing.Length == 0) continue;
-                roleGaps++;
-                Console.WriteLine($"  GAP: {product.Name} sells {item.Name} but authors no spread for: {string.Join(", ", missing)}" +
-                    " -- a newly minted lot rolls the ProductRole default (mean .5) for these, not this maker's own quality");
-            }
+            roleGaps++;
+            Console.WriteLine($"  GAP: {product.Name} sells {item.Name} but authors no spread for: {string.Join(", ", missing)}" +
+                " -- a newly minted lot rolls the ProductRole default (mean .5) for these, not this maker's own quality");
         }
         Console.WriteLine($"\n{roleGaps} (product, role) pairs where a sold, role-bearing design's product authors no matching spread");
         return 0;
+    }
+
+    // Every seller of a role-bearing design that authors no spread for one of its roles. A bin authors no spread: it reads its
+    // line's (ProductBin), so it is never a gap.
+    internal static IEnumerable<(FactionProductData Product, EquippableItemData Design, string[] Missing)> RoleGaps(
+        GameCult.Caching.CultCache cache, IEnumerable<EquippableItemData> items, IEnumerable<FactionProductData> products)
+    {
+        foreach (var item in items.Where(i => i.Roles != null && i.Roles.Count > 0))
+        {
+            var design = cache.RefOf(item).Key;
+            foreach (var product in products.Where(p => p.Bin == null && p.Design.Key.Equals(design)))
+            {
+                var covered = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
+                var missing = item.Roles.Select(r => r.Name).Where(r => !covered.Contains(r)).ToArray();
+                if (missing.Length > 0) yield return (product, item, missing);
+            }
+        }
     }
 
     // Cut 7 (docs/stats-and-power-cut.md): "products author quality, designs author roles." Zero designs

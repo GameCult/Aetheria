@@ -239,6 +239,36 @@ public sealed class RolesBackfillCommandTests : IDisposable
         finally { db.Cache.Dispose(); }
     }
 
+    // The census reports a seller that authors no spread for a role of its design as a gap, and never a bin: a bin reads its line's.
+    [Fact]
+    public void The_census_reports_a_roleless_seller_and_never_a_bin()
+    {
+        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
+        var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Design.Key.Equals(db.Cache.RefOf(autocannon).Key));
+        var sellerName = seller.Name;
+        seller.Roles = new List<ProductRole>();
+        db.Cache.Commit(batch =>
+        {
+            batch.Upsert(typeof(FactionProductData), seller, db.Cache.RefOf(seller).Key);
+            batch.Upsert(typeof(FactionProductData), new FactionProductData
+            {
+                Name = "Binned " + sellerName, Design = seller.Design, Manufacturer = seller.Manufacturer,
+                Bin = new ProductBin { Line = db.Cache.RefOf(seller), Floor = 0f }
+            });
+        });
+        db.Cache.Dispose();
+
+        db = AetherDb.Open(root: _root);
+        try
+        {
+            var gaps = Program.RoleGaps(db.Cache, db.Cache.GetAll<EquippableItemData>().ToArray(), db.Cache.GetAll<FactionProductData>().ToArray()).ToArray();
+            Assert.Contains(gaps, gap => gap.Product.Name == sellerName && gap.Missing.Length == 2);
+            Assert.DoesNotContain(gaps, gap => gap.Product.Name == "Binned " + sellerName);
+        }
+        finally { db.Cache.Dispose(); }
+    }
+
     // roles-migrate authors a role on every product that sells a design lacking one; a bin sells none of its own.
     [Fact]
     public void A_binned_seller_gains_no_roles_from_roles_migrate()

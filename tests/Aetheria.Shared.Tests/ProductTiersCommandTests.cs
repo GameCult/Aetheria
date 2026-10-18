@@ -127,6 +127,13 @@ public sealed class ProductTiersCommandTests : IDisposable
     }
 
     [Fact]
+    public void A_bin_already_authored_on_another_line_is_refused()
+    {
+        Assert.Equal(0, ProductLinesCommand.Run(Apply, _root));
+        Refused(new ProductLinesCommand.TierRow("Spotlight", "Goldcrest", .67f, "x"), "already belongs");
+    }
+
+    [Fact]
     public void A_line_the_catalog_does_not_hold_is_refused()
     {
         Refused(new ProductLinesCommand.TierRow("No Such Line", "Fresh Bin", 0f, "x"), "found 0");
