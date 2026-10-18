@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using CultMath;
+using GameCult.Caching;
 using UniRx;
 using Xunit;
 
