@@ -290,6 +290,27 @@ public sealed class RolesBackfillCommandTests : IDisposable
         finally { db.Cache.Dispose(); }
     }
 
+    // sensor-stat-set authors an emission-discipline role on every product of a sensor design; a bin of one authors none.
+    [Fact]
+    public void A_binned_seller_gains_no_roles_from_sensor_stat_set()
+    {
+        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var sensor = db.Cache.GetAll<EquippableItemData>().Where(d => d.Behaviors != null && d.Behaviors.OfType<SensorData>().Any()).OrderBy(d => d.Name, StringComparer.Ordinal).First();
+        var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Bin == null && p.Design.Key.Equals(db.Cache.RefOf(sensor).Key));
+        var bin = new FactionProductData
+        {
+            Name = "Binned " + seller.Name, Design = seller.Design, Manufacturer = seller.Manufacturer,
+            Bin = new ProductBin { Line = db.Cache.RefOf(seller), Floor = 0f }
+        };
+        db.Cache.Commit(batch => batch.Upsert(typeof(FactionProductData), bin));
+        db.Cache.Dispose();
+
+        Assert.Equal(0, Program.SensorStatSet(apply: true, root: _root));
+        db = AetherDb.Open(root: _root);
+        try { Assert.Empty(db.Cache.GetAll<FactionProductData>().Single(p => p.Name == "Binned " + seller.Name).Roles); }
+        finally { db.Cache.Dispose(); }
+    }
+
     [Fact]
     public void A_design_the_catalog_does_not_hold_refuses_and_lands_nothing()
     {

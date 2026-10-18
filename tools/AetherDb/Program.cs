@@ -1719,9 +1719,9 @@ public static class Program
     // product of such a design authors that role, and the Passive Array (a generic listener gear, ListenerData) is
     // authored with two products from the stealth makers. Prints the sensor census first. Dry run unless passed
     // "apply"; idempotent, so a second apply writes nothing and a catalog another cut changed is rerun, never merged.
-    private static int SensorStatSet(bool apply)
+    internal static int SensorStatSet(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
         var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         Faction MakerOf(FactionProductData p) => db.Cache.Get(p.Manufacturer);
@@ -1760,7 +1760,7 @@ public static class Program
             design.Roles ??= new List<ItemRole>();
             if (!design.Roles.Any(r => r.Name == EmissionDiscipline)) { design.Roles.Add(new ItemRole { Name = EmissionDiscipline }); designChanged = true; }
             if (designChanged) changedDesigns.Add((design, key));
-            foreach (var product in products.Where(p => p.Design.Key.Equals(key)))
+            foreach (var product in products.Where(p => p.Bin == null && p.Design.Key.Equals(key)))
             {
                 var maker = MakerOf(product) ?? throw new InvalidOperationException($"Product \"{product.Name}\" has no maker.");
                 product.Roles ??= new List<ProductRole>();
