@@ -2189,16 +2189,17 @@ public class EquippedItem : IStatContext
         Hardpoint = hardpoint;
         EquippableItem = item;
         Lot = ItemManager.GetLot(item);
+        var quality = Lot.EffectiveQuality();
         Position = position;
         Conductivity = Data.Conductivity;
         ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
-            pow(Lot.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
+            pow(quality, ItemManager.GameplaySettings.ThermalQualityExponent));
         DurabilityExponent = lerp(
             ItemManager.GameplaySettings.DurabilityQualityMin,
             ItemManager.GameplaySettings.DurabilityQualityMax,
-            pow(Lot.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
+            pow(quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
         var hullData = itemManager.GetData(entity.Hull);
         InsetShape = hullData.Shape.Inset(Data.Shape, position, item.Rotation);
         if (Entity.Temperature != null) oldTemperature = Temperature;
@@ -2369,7 +2370,7 @@ public class EquippedItem : IStatContext
         Entity.Resolver.InvalidateSource(this, StatSource.Durability);
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
         Wear = (1 - pow(ThermalPerformance,
-                (1 - pow(Lot.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
+                (1 - pow(Lot.EffectiveQuality(), ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
                 deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent
             ) * Data.Durability / Data.ThermalResilience;

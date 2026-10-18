@@ -38,17 +38,49 @@ public sealed partial class RunStartTests
         return degrees(SignedTurn(before, ship.Direction));
     }
 
+    // The two Large Drives, refitted with lots staged at the low and high end of the makers' assembly range (.55 and .85, each
+    // with its parts at its assembly), so their effective qualities differ by construction. The lots are fitted through the
+    // ship's own unequip and equip (an active entity refuses both, so it is deactivated for the refit and reactivated), so
+    // heat, thrust and the allocator stay the production path.
+    private void StageDriveLots(Ship ship)
+    {
+        ship.Deactivate();
+        var drives = AllocDrives(ship).OrderBy(d => d.Item.Position.x).ToArray();
+        Assert.Equal(2, drives.Length);
+        var assemblies = new[] { .55f, .85f };
+        for (var i = 0; i < drives.Length; i++)
+        {
+            var fitted = drives[i].Item;
+            var unit = fitted.EquippableItem;
+            var lot = _items.GetLot(unit);
+            Assert.NotNull(ship.TryUnequip(fitted));
+            var staged = new EquippableItem
+            {
+                Data = unit.Data, Durability = unit.Durability, Rotation = unit.Rotation,
+                Lot = _items.Lots.Add(new Lot
+                {
+                    Design = lot.Design, Origin = lot.Origin, Product = lot.Product, Quality = assemblies[i],
+                    Roles = (lot.Roles ?? new List<RoleFill>()).Select(r => new RoleFill { Role = r.Role, Quality = assemblies[i] }).ToList()
+                })
+            };
+            Assert.True(ship.TryEquip(staged, fitted.Position));
+        }
+        ship.Activate();
+    }
+
     [Fact]
     public void MismatchedDrivesHoldHeading()
     {
         var (_, player) = AllocDuel();
+        StageDriveLots(player);
         var drives = AllocDrives(player);
         player.MovementDirection = float2(0, 1);
         player.Turn = 0;
-        Assert.True(abs(AllocFly(player, 120)) < .1f);
+        var heading = AllocFly(player, 120);
         // The drives start alike and heat apart as they fire: by now they are mismatched and both pushing.
-        Assert.True(drives.Length >= 2 && drives[^1].NominalThrust > drives[0].NominalThrust * 1.05f, "fixture: the drives are mismatched");
-        Assert.All(drives, d => Assert.True(d.Axis > .5f, "fixture: the drives are pushing"));
+        Assert.True(drives.Length >= 2 && drives[^1].NominalThrust > drives[0].NominalThrust * 1.05f, "premise: the drives' NominalThrust spread reaches 5 percent");
+        Assert.All(drives, d => Assert.True(d.Axis > .5f, "premise: the drives are pushing"));
+        Assert.True(abs(heading) < .1f);
     }
 
     [Theory]

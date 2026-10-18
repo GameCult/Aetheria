@@ -26,14 +26,14 @@ public sealed class HeatResponseTests : IDisposable
 
     // A hull plus one thermal gear design, equipped and settled at the given start temperature (two
     // UpdatePerformance calls so deltaTemp reads 0 before the test drives its own change).
-    private EquippedItem BuildEquippedAt(CultCache cache, ItemManager items, float startTemperature, out Ship ship)
+    private EquippedItem BuildEquippedAt(CultCache cache, ItemManager items, float startTemperature, out Ship ship, Lot gearLot = null)
     {
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
         var hullData = cache.GetByName<HullData>("Skiff");
         var thermalData = cache.GetByName<GearData>("Thermal");
         var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
         ship = new Ship(items, null, hullItem, new EntitySettings());
-        var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(thermalData, maker, .5f));
+        var gearItem = (EquippableItem) items.CreateInstance(gearLot != null ? items.Lots.Add(gearLot) : items.CreateLot(thermalData, maker, .5f));
         Assert.True(ship.TryEquip(gearItem, HardpointCell));
         var equipped = ship.Equipment.Single(e => e.Data is GearData);
         foreach (var cell in equipped.InsetShape.Coordinates) ship.Temperature[cell.x, cell.y] = startTemperature;
@@ -247,6 +247,27 @@ public sealed class HeatResponseTests : IDisposable
         var equipped = BuildEquippedAt(cache, items, 10f, out var ship); // outside 40-60, inside 0-100
         Assert.True(equipped.ThermalPerformance < 1f);
         Assert.True(equipped.Wear > 0f);
+    }
+
+    // Wear's quality term reads the lot's effective quality: a .9 lot whose one part is .1 wears as a roleless .1 lot, and not
+    // as a roleless .9 lot, which wears less (better quality wears less).
+    [Fact]
+    public void HeldOutsidePlateauWearReadsEffectiveQuality()
+    {
+        using var cache = OpenCatalogWithThermalGear();
+        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var thermal = cache.RefOf<ItemData>(cache.GetByName<GearData>("Thermal"));
+        Lot Gear(float assembly, params float[] parts) => new Lot
+        {
+            Design = thermal, Origin = new Attributed(), Quality = assembly,
+            Roles = parts.Select(p => new RoleFill { Role = "core", Quality = p }).ToList()
+        };
+        float WearAt10(Lot lot) => BuildEquippedAt(cache, items, 10f, out _, lot).Wear;
+
+        var sleeper = WearAt10(Gear(.9f, .1f));
+        Assert.Equal(WearAt10(Gear(.1f)), sleeper, 5);
+        Assert.NotEqual(WearAt10(Gear(.9f)), sleeper, 5);
+        Assert.True(WearAt10(Gear(.9f)) < sleeper);
     }
 
     [Fact]

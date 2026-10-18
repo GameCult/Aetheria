@@ -688,7 +688,7 @@ public class StatTerm
 {
     [JsonProperty("source"), Key(0)] public StatSource Source;
     [JsonProperty("exponent"), Key(1)] public float Exponent;
-    // The design role whose part quality this term reads; unset reads the item's own workmanship quality.
+    // The design role whose part quality this term reads; unset reads the item's effective quality (Lot.EffectiveQuality).
     // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
     [Inspectable, JsonProperty("role"), Key(2)] public string Role;
 }
@@ -888,7 +888,7 @@ public static class StatValidation
     }
 
     // Cut 7 (docs/stats-and-power-cut.md): "a stat naming a role its design lacks" must be refused, not silently
-    // fall back to the lot's own workmanship (Lot.QualityForRole already falls back for a role a lot never rolled
+    // fall back to the lot's effective quality (Lot.QualityForRole already falls back for a role a lot never rolled
     // -- that is the intended forward-compat path for an old lot meeting a newly-authored role. This is the other
     // direction: a StatTerm naming a role the design itself never declared is an authoring mistake, not a lot
     // predating the role, and must fail loudly rather than silently reading generic quality). Every PerformanceStat

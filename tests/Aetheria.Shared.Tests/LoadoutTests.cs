@@ -490,7 +490,8 @@ public sealed class LoadoutTests : IDisposable
     }
 
     // A Lamp lot with Quality .2 and one role fill (lens .15, under the assembly): a stat reading that role gets .15, one
-    // reading none gets .2, and GetTier reads .2.
+    // reading none gets the effective quality .15, and GetTier reads .2. A lot of
+    // assembly .6 with a lens of .3 is Common, not Rare: the tier follows its effective quality.
     [Fact]
     public void StatsReadTheLot()
     {
@@ -519,20 +520,108 @@ public sealed class LoadoutTests : IDisposable
             Quality = .6f,
             Roles = new List<RoleFill>()
         });
+        var cappedLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp),
+            Origin = new Attributed(),
+            Quality = .6f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .3f } }
+        });
+        // Just under the Rare threshold, inside GetTier's .001 tolerance.
+        var nearRareLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .4995f, Roles = new List<RoleFill>() });
         var instance = (EquippableItem) items.CreateInstance(commonLot);
         var rareInstance = (EquippableItem) items.CreateInstance(rareLot);
+        var cappedInstance = (EquippableItem) items.CreateInstance(cappedLot);
+        var nearRareInstance = (EquippableItem) items.CreateInstance(nearRareLot);
 
         var withRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1, Role = "lens" } } };
         var noRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1 } } };
         Assert.Equal(.15f, items.Evaluate(withRole, instance), 3);
-        Assert.Equal(.2f, items.Evaluate(noRole, instance), 3);
+        Assert.Equal(.15f, items.Evaluate(noRole, instance), 3);
         Assert.Equal(.2f, items.GetTier(instance).tier.Quality, 3);
         Assert.Equal(.5f, items.GetTier(rareInstance).tier.Quality, 3);
+        Assert.Equal(.2f, items.GetTier(cappedInstance).tier.Quality, 3);
+        Assert.Equal(.5f, items.GetTier(nearRareInstance).tier.Quality, 3);
+        // Upgrades count the steps of .05 above the tier: the capped lot's effective .3 is two above Common's .2.
+        Assert.Equal(2, items.GetTier(cappedInstance).upgrades);
 
         // Minting a second instance from an existing lot must not re-roll the lot's quality.
         var secondInstance = (EquippableItem) items.CreateInstance(commonLot);
         Assert.Equal(.2f, items.Lots[commonLot].Quality, 3);
         Assert.Equal(.2f, items.GetTier(secondInstance).tier.Quality, 3);
+    }
+
+    // The shipped tiers (Settings.asset) band a lot's effective quality, so the tier hides a sleeper whose part sits above
+    // its assembly (price-follows-effective-quality). Assembly at the fourth threshold, parts at the top and bottom
+    // thresholds: the capped mean falls in the second band, where the uncapped part mean reaches the third, the assembly
+    // alone the fourth and the best part the fifth.
+    [Fact]
+    public void GetTierHidesAnOverSpecPart()
+    {
+        using var cache = Open();
+        var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+        var tiers = settings.Tiers;
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        var assembly = tiers[3].Quality;
+        var sleeperLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp),
+            Origin = new Attributed(),
+            Quality = assembly,
+            Roles = new List<RoleFill>
+            {
+                new RoleFill { Role = "lens", Quality = tiers[4].Quality },
+                new RoleFill { Role = "frame", Quality = tiers[0].Quality }
+            }
+        });
+        var cappedMean = (assembly + tiers[0].Quality) / 2f;
+        var rolelessLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = cappedMean, Roles = new List<RoleFill>() });
+
+        var sleeper = items.GetTier((CraftedItemInstance) items.CreateInstance(sleeperLot));
+        var roleless = items.GetTier((CraftedItemInstance) items.CreateInstance(rolelessLot));
+        Assert.Equal(tiers[1].Name, sleeper.tier.Name);
+        Assert.Equal(roleless.tier.Name, sleeper.tier.Name);
+        Assert.Equal(roleless.upgrades, sleeper.upgrades);
+    }
+
+    // The tolerance is open: a quality a full .001 under a threshold stays in the tier below, one inside it reaches the
+    // threshold's tier. Upgrades count steps of .0499 above the tier's threshold. Every value comes from the shipped tiers.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void GetTierToleranceIsOpenAtEveryShippedThreshold(int index)
+    {
+        using var cache = Open();
+        var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+        var tiers = settings.Tiers;
+        Assert.True(tiers.Length > index, "premise: the shipped asset carries this tier");
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        string TierAt(float quality) => items.GetTier((CraftedItemInstance) items.CreateInstance(items.Lots.Add(
+            new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = quality, Roles = new List<RoleFill>() }))).tier.Name;
+
+        var threshold = tiers[index].Quality;
+        Assert.Equal(tiers[index - 1].Name, TierAt(threshold - .001f));
+        Assert.Equal(tiers[index].Name, TierAt(threshold - .0005f));
+        Assert.Equal(tiers[index].Name, TierAt(threshold));
+    }
+
+    [Fact]
+    public void GetTierUpgradesAreStepsOfFortyNineNinetyNinePerTenThousand()
+    {
+        using var cache = Open();
+        var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        // Two steps and a hair above the lowest threshold: the step width decides whether that counts as two or one.
+        var quality = settings.Tiers[0].Quality + 2 * .0499f + .0001f;
+        var lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = quality, Roles = new List<RoleFill>() });
+        var result = items.GetTier((CraftedItemInstance) items.CreateInstance(lot));
+        Assert.Equal(settings.Tiers[0].Name, result.tier.Name);
+        Assert.Equal(2, result.upgrades);
     }
 
     // S7 (docs/stats-and-power-cut.md Cut 1 findings): a Quality term must raise the lot's quality to its own
@@ -553,9 +642,11 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(.25f, items.Evaluate(squared, instance), 3);
     }
 
-    // F4: GetPrice reads the lot's quality through GameplaySettings.QualityPriceModifier.
+    // F4: GetPrice reads the lot's effective quality through GameplaySettings.QualityPriceModifier: a lot of assembly .8 whose
+    // one part is .2 prices exactly as a roleless .2 lot (price-follows-effective-quality), and a lot of assembly .6 with
+    // parts .9 and .2 (capped to .6 and .2) prices as a roleless .4 lot: the mean of the capped parts, not the best part.
     [Fact]
-    public void GetPriceReadsLotQuality()
+    public void GetPriceReadsEffectiveQuality()
     {
         using var cache = Open();
         var settings = RunSaveTests.TestSettings();
@@ -564,16 +655,34 @@ public sealed class LoadoutTests : IDisposable
         var lamp = cache.GetByName<GearData>("Lamp");
         var lowLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .2f, Roles = new List<RoleFill>() });
         var highLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .8f, Roles = new List<RoleFill>() });
+        var sleeperLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .8f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .2f } }
+        });
+        var middleLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .4f, Roles = new List<RoleFill>() });
+        var mixedLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .6f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .9f }, new RoleFill { Role = "frame", Quality = .2f } }
+        });
         var low = (EquippableItem) items.CreateInstance(lowLot);
         var high = (EquippableItem) items.CreateInstance(highLot);
+        var sleeper = (EquippableItem) items.CreateInstance(sleeperLot);
+        var middle = (EquippableItem) items.CreateInstance(middleLot);
+        var mixed = (EquippableItem) items.CreateInstance(mixedLot);
         Assert.True(items.GetPrice(high) > items.GetPrice(low));
+        Assert.Equal(items.GetPrice(low), items.GetPrice(sleeper));
+        Assert.Equal(items.GetPrice(middle), items.GetPrice(mixed));
+        Assert.True(items.GetPrice(middle) > items.GetPrice(low));
+        Assert.True(items.GetPrice(sleeper) < items.GetPrice(high));
     }
 
-    // F4: the durability exponent path in ItemManager.Evaluate reads the lot's quality (GameplaySettings.
+    // F4: the durability exponent path in ItemManager.Evaluate reads the lot's effective quality (GameplaySettings.
     // DurabilityQuality{Min,Max,Exponent}), independently of the quality-for-role term (absent here -- the
-    // stat declares only a Durability term).
+    // stat declares only a Durability term): a .9 lot whose one part is .1 evaluates as a roleless .1 lot.
     [Fact]
-    public void EvaluateDurabilityExponentReadsLotQuality()
+    public void EvaluateDurabilityExponentReadsEffectiveQuality()
     {
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         var durable = cache.Upsert(new GearData { Name = "Durable", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10, Durability = 100 });
@@ -582,19 +691,29 @@ public sealed class LoadoutTests : IDisposable
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var lowLot = items.Lots.Add(new Lot { Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .1f, Roles = new List<RoleFill>() });
         var highLot = items.Lots.Add(new Lot { Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .9f, Roles = new List<RoleFill>() });
+        var sleeperLot = items.Lots.Add(new Lot
+        {
+            Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .9f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .1f } }
+        });
         var low = (EquippableItem) items.CreateInstance(lowLot);
         var high = (EquippableItem) items.CreateInstance(highLot);
+        var sleeper = (EquippableItem) items.CreateInstance(sleeperLot);
         low.Durability = items.GetData(low).Durability / 2;
         high.Durability = items.GetData(high).Durability / 2;
+        sleeper.Durability = items.GetData(sleeper).Durability / 2;
 
         var stat = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Durability, Exponent = 1 } } };
         Assert.NotEqual(items.Evaluate(stat, low), items.Evaluate(stat, high));
+        Assert.Equal(items.Evaluate(stat, low), items.Evaluate(stat, sleeper), 3);
+        Assert.NotEqual(items.Evaluate(stat, high), items.Evaluate(stat, sleeper), 3);
     }
 
-    // F4: EquippedItem's thermal exponent (Entity.cs's EquippedItem constructor) reads the lot's quality
-    // (GameplaySettings.ThermalQuality{Min,Max,Exponent}), through a real equip on a live entity.
+    // F4: EquippedItem's thermal and durability exponents (Entity.cs's EquippedItem constructor) read the lot's effective
+    // quality (GameplaySettings.{Thermal,Durability}Quality{Min,Max,Exponent}), through a real equip on a live entity: a .9
+    // lot whose one part is .1 equips as a roleless .1 lot.
     [Fact]
-    public void EquippedItemThermalExponentReadsLotQuality()
+    public void EquippedItemExponentsReadEffectiveQuality()
     {
         using var cache = Open();
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
@@ -604,18 +723,31 @@ public sealed class LoadoutTests : IDisposable
 
         // TestSettings has one tier, so materializing through a Loadout always rolls the same quality; mint the
         // gear's lot directly at a chosen quality and equip it onto a bare ship instead.
-        Ship BuildWithGearQuality(float quality)
+        Ship BuildWithGear(Func<int> mintGear)
         {
             var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
             var ship = new Ship(items, null, hullItem, new EntitySettings());
-            var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(lampData, maker, quality));
+            var gearItem = (EquippableItem) items.CreateInstance(mintGear());
             Assert.True(ship.TryEquip(gearItem, HardpointCell));
             return ship;
         }
+        Ship BuildWithGearQuality(float quality) => BuildWithGear(() => items.CreateLot(lampData, maker, quality));
+        // The gear is a lot added directly: assembly .9, one part at .1.
+        Ship BuildWithSleeperGear() => BuildWithGear(() => items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lampData), Origin = new Attributed(), Quality = .9f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .1f } }
+        }));
 
         var lowEquipped = BuildWithGearQuality(.1f).Equipment.Single(e => e.Data is GearData);
         var highEquipped = BuildWithGearQuality(.9f).Equipment.Single(e => e.Data is GearData);
+        var sleeperEquipped = BuildWithSleeperGear().Equipment.Single(e => e.Data is GearData);
         Assert.NotEqual(lowEquipped.ThermalExponent, highEquipped.ThermalExponent);
+        Assert.NotEqual(lowEquipped.DurabilityExponent, highEquipped.DurabilityExponent);
+        Assert.Equal(lowEquipped.ThermalExponent, sleeperEquipped.ThermalExponent, 5);
+        Assert.Equal(lowEquipped.DurabilityExponent, sleeperEquipped.DurabilityExponent, 5);
+        Assert.NotEqual(highEquipped.ThermalExponent, sleeperEquipped.ThermalExponent, 5);
+        Assert.NotEqual(highEquipped.DurabilityExponent, sleeperEquipped.DurabilityExponent, 5);
     }
 
     // Cut 0 (docs/stats-and-power-cut.md): the collapsed evaluation path (PerformanceStat.Evaluate(IStatContext))
