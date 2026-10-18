@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using MessagePack;
 using Xunit;
 
 // The weapon product lines the shipped catalog holds (campaign aetheria-release, cut product-lines-weapons; rulings
@@ -98,5 +100,62 @@ public sealed class ProductLinesCatalogTests
                 Assert.Equal(dev, role.StandardDeviation, 4);
             }
         }
+    }
+    // Cut product-tiers: the six bins of the command's tier table are in the catalog, each a single product that names its line.
+    [Fact]
+    public void TierRowsAreShipped()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var table = ProductLinesCommand.TierTable();
+        Assert.Equal(6, table.Count);
+        foreach (var row in table)
+        {
+            var bin = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Name == row.Name);
+            var line = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Name == row.Line);
+            Assert.Equal(cache.RefOf(line).Key, bin.Bin.Line.Key);
+            Assert.Equal(line.Design.Key, bin.Design.Key);
+            Assert.Equal(line.Manufacturer.Key, bin.Manufacturer.Key);
+            Assert.Equal(row.Floor, bin.Bin.Floor);
+            Assert.Equal(row.Description, bin.Description);
+            Assert.Empty(bin.Roles);
+            Assert.Null(bin.Assembly);
+        }
+    }
+
+    // A bin bins an unbinned line of its own design and maker, and the catalog holds no bin the table does not author.
+    [Fact]
+    public void BinsBinAnUnbinnedLineOfTheirOwnDesignAndMaker()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var bins = cache.GetAll<FactionProductData>().Where(p => p.Bin != null).ToArray();
+        Assert.Equal(ProductLinesCommand.TierTable().Select(r => r.Name).OrderBy(n => n, StringComparer.Ordinal), bins.Select(b => b.Name).OrderBy(n => n, StringComparer.Ordinal));
+        foreach (var bin in bins)
+        {
+            var line = cache.Get(bin.Bin.Line);
+            Assert.NotNull(line);
+            Assert.Null(line.Bin);
+            Assert.Equal(line.Design.Key, bin.Design.Key);
+            Assert.Equal(line.Manufacturer.Key, bin.Manufacturer.Key);
+            Assert.True(bin.Bin.Floor >= 0 && float.IsFinite(bin.Bin.Floor));
+        }
+    }
+
+    // FactionProductData slot 7 is additive under the same schema id: a bin round-trips, and a record written before the slot
+    // existed (an array one element shorter) reads no bin.
+    [Fact]
+    public void BinIsSlotSevenAndACatalogWithoutItReadsNoBin()
+    {
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(FactionProductData).Assembly);
+        var binned = MessagePackSerializer.Deserialize<FactionProductData>(
+            MessagePackSerializer.Serialize(new FactionProductData { Name = "Binned", Bin = new ProductBin { Floor = .67f } }, options), options);
+        Assert.Equal(.67f, binned.Bin.Floor);
+
+        var bytes = MessagePackSerializer.Serialize(new FactionProductData { Name = "Old", Description = "d" }, options);
+        Assert.Equal(0x98, bytes[0]);
+        Assert.Equal(0xC0, bytes[^1]);
+        var before = new byte[] { 0x97 }.Concat(bytes.Skip(1).Take(bytes.Length - 2)).ToArray();
+        var old = MessagePackSerializer.Deserialize<FactionProductData>(before, options);
+        Assert.Equal("Old", old.Name);
+        Assert.Null(old.Bin);
     }
 }
