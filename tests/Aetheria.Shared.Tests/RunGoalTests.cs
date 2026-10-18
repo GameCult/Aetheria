@@ -440,8 +440,10 @@ public sealed partial class RunStartTests
         SetBoss(faction, MakeBossLoadout(hull, "Gate Boss"));
         var bossZone = galaxy.Zones.First(zone => zone != galaxy.Exit);
         galaxy.BossZones[faction] = bossZone;
-        var zone = ZoneOf(galaxy, bossZone);
-        Assert.True(zone.Pack.BossSpawned);
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var zone = new Zone(items, _planetSettings, BossZonePack(galaxy, items, bossZone), bossZone, galaxy);
+        Assert.True(zone.Pack.BossSpawned, string.Join("; ", log));
         Assert.NotEmpty(zone.Entities.Where(entity => entity.IsBoss));
         foreach (var boss in zone.Entities.Where(entity => entity.IsBoss).ToArray())
             boss.HeatstrokeDeath.OnNext(Unit.Default);
