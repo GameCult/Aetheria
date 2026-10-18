@@ -112,3 +112,7 @@ All sources accessed 2026-10-18. Facts and evidence only; no recommendation. Mos
 - Binning as an explicit game-design term: not found; Wikipedia and hardware-review sources are non-game.
 - Cost-of-quality and PM-triangle attributions rest on secondary and encyclopedic sources; Juran, Feigenbaum, Crosby primary texts not read.
 - Factorio loop/exploit discussion is forum sentiment, not developer statement beyond the speed-module cancellation post.
+
+## Addendum (operator, 2026-10-18): budgets in a value currency
+
+The finding "no checked game prices NPC outfitting against a money budget" is narrower than it reads. Where wargames do budget a force, the budget is usually a combat-value currency kept apart from price: BattleTech's Battle Value (BV) sits beside a unit's C-bill cost, and force building is balanced on BV, not C-bills. Starsector's fleet and deployment points (listed under gaps above) are the same family, as are tabletop points costs. So when outfitters get a budget (ruling aetheria-release:ruling:outfitting-affordability-waits-for-budget), the first question is which currency: money (price follows effective quality) or a combat value derived from stats. Not yet checked against a source: how BV is computed from a unit's stats and gear, and how it diverges from C-bill cost.
