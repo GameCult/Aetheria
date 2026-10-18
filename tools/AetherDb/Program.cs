@@ -132,7 +132,8 @@ public static class Program
         foreach (var item in items.Where(i => i.Roles != null && i.Roles.Count > 0))
         {
             var design = db.Cache.RefOf(item).Key;
-            var sellers = products.Where(p => p.Design.Key.Equals(design)).ToArray();
+            // A bin authors no spread: it reads its line's (ProductBin).
+            var sellers = products.Where(p => p.Bin == null && p.Design.Key.Equals(design)).ToArray();
             foreach (var product in sellers)
             {
                 var covered = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
@@ -309,9 +310,9 @@ public static class Program
     // Dry run unless passed "apply", which alone opens the catalog writable; every record must derive cleanly or
     // nothing is written, the same all-or-nothing contract ShieldMigrate and BrownoutMigrate already use. Prints
     // the operator review table (grouped by item kind) either way.
-    private static int RolesMigrate(bool apply)
+    public static int RolesMigrate(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
         var items = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         var changedDesigns = new List<(object Document, CultRecordKey Key)>();
@@ -366,6 +367,7 @@ public static class Program
         var byDesign = items.ToDictionary(i => db.Cache.RefOf(i).Key, i => i);
         foreach (var product in products.OrderBy(p => p.Name, StringComparer.Ordinal))
         {
+            if (product.Bin != null) continue; // a bin authors no roles; the mint reads its line's
             if (!byDesign.TryGetValue(product.Design.Key, out var design) || design.Roles == null || design.Roles.Count == 0)
                 continue;
             var existing = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
@@ -2218,7 +2220,7 @@ public static class Program
 
         var changedProducts = new List<(FactionProductData Document, CultRecordKey Key)>();
         foreach (var design in targets)
-            foreach (var product in products.Where(p => p.Design.Key.Equals(db.Cache.RefOf(design).Key)).OrderBy(p => p.Name, StringComparer.Ordinal))
+            foreach (var product in products.Where(p => p.Bin == null && p.Design.Key.Equals(db.Cache.RefOf(design).Key)).OrderBy(p => p.Name, StringComparer.Ordinal))
             {
                 var maker = db.Cache.Get(product.Manufacturer);
                 var profile = maker?.Name == "Pirates" ? PirateProfile

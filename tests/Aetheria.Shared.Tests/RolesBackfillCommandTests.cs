@@ -207,6 +207,59 @@ public sealed class RolesBackfillCommandTests : IDisposable
         finally { db.Cache.Dispose(); }
     }
 
+    // A bin authors no roles (ProductBin): the backfill that restores its line's missing roles leaves the bin's list empty.
+    [Fact]
+    public void A_binned_seller_gains_no_roles()
+    {
+        Reset(flattened: false, unnamed: false);
+        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
+        var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Design.Key.Equals(db.Cache.RefOf(autocannon).Key) && p.Roles.Count == 2);
+        var sellerName = seller.Name;
+        seller.Roles = new List<ProductRole> { seller.Roles.OrderBy(r => r.Role, StringComparer.Ordinal).First() };
+        var bin = new FactionProductData
+        {
+            Name = "Binned " + sellerName, Design = seller.Design, Manufacturer = seller.Manufacturer,
+            Bin = new ProductBin { Line = db.Cache.RefOf(seller), Floor = 0f }
+        };
+        db.Cache.Commit(batch =>
+        {
+            batch.Upsert(typeof(FactionProductData), seller, db.Cache.RefOf(seller).Key);
+            batch.Upsert(typeof(FactionProductData), bin);
+        });
+        db.Cache.Dispose();
+
+        Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
+        db = AetherDb.Open(root: _root);
+        try
+        {
+            Assert.Equal(2, db.Cache.GetAll<FactionProductData>().Single(p => p.Name == sellerName).Roles.Count);
+            Assert.Empty(db.Cache.GetAll<FactionProductData>().Single(p => p.Name == "Binned " + sellerName).Roles);
+        }
+        finally { db.Cache.Dispose(); }
+    }
+
+    // roles-migrate authors a role on every product that sells a design lacking one; a bin sells none of its own.
+    [Fact]
+    public void A_binned_seller_gains_no_roles_from_roles_migrate()
+    {
+        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
+        var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Design.Key.Equals(db.Cache.RefOf(autocannon).Key));
+        var bin = new FactionProductData
+        {
+            Name = "Binned " + seller.Name, Design = seller.Design, Manufacturer = seller.Manufacturer,
+            Bin = new ProductBin { Line = db.Cache.RefOf(seller), Floor = 0f }
+        };
+        db.Cache.Commit(batch => batch.Upsert(typeof(FactionProductData), bin));
+        db.Cache.Dispose();
+
+        Assert.Equal(0, Program.RolesMigrate(apply: true, root: _root));
+        db = AetherDb.Open(root: _root);
+        try { Assert.Empty(db.Cache.GetAll<FactionProductData>().Single(p => p.Name == "Binned " + seller.Name).Roles); }
+        finally { db.Cache.Dispose(); }
+    }
+
     [Fact]
     public void A_design_the_catalog_does_not_hold_refuses_and_lands_nothing()
     {
