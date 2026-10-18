@@ -53,9 +53,10 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - gear-lines (spec cut-gear-lines.r1, remaps withdrawn product-lines-gear): 22 second-maker gear products as 'product-lines gear' in ProductLinesCommand. The follow-up's rows less its two Compact Sensor rows, plus Medium Drive, Large Drive and Industrial Thermostatic Heater, so every role-bearing ship gear design that is sold has two makers (Muon Fusion and the four station reactors exempt). The command's no-roles refusal exempts cargo bays. Waits on: nothing; runs now. Replay: 'product-lines gear apply', either side of minor-power-factions, before assembly-from-maker. Body facts: Products PL3, PL10-PL12.
-- product-tiers: spec cut-product-tiers.r1 (map section Product tiers). A binned product names its maker's line of one
-  design and a floor in deviations; the mint draws its parts and its final test from the line above that floor. Six
-  binned products, no hull tiers. Blocked on question tier-stock-share.
+- product-tiers: spec cut-product-tiers.r2 (map section Product tiers). A binned product names its maker's line of one
+  design and a floor in deviations, and the mint draws its parts and its final test from the line above that floor. A
+  bin takes its pass fraction of the maker's preference and the line takes the rest (ruling bin-share-by-floor). Six
+  binned products, no hull tiers.
 - product-tiers-hulls (later, one line): ship hulls stay one product per maker per hull
   (`ShipModCatalog.ProductKey(id, maker)`). A binned hull needs that key widened and its package's product record to
   carry a Bin. Not mapped.
@@ -10961,9 +10962,10 @@ never shows below its floor tier: Spotlight Premiere is always Rare or better, a
 price (x2.87 against x1.61). Goldcrest is Epic or Legendary at about 2.75 times Sparrow's price. The properties panel
 reads, for example, "Spotlight Premiere (Rare++)". How much a bin buys follows the maker's quality control. Finch's
 loose QC (±.20) leaves a lot to bin, so its bins jump two tiers. Zhestokost's tight drives (±.08) bin only to a better
-Uncommon: Juggernaut Guards costs about 1.4 times Juggernaut and still looks Uncommon. How often a binned product
-appears beside its line is question tier-stock-share. Under the recommended split-evenly, the maker is as present as
-before and its stock divides evenly between line and bin.
+Uncommon: Juggernaut Guards costs about 1.4 times Juggernaut and still looks Uncommon. A bin is as scarce as its floor says
+(ruling bin-share-by-floor). In Lucent's stock of Light Lasers, half are Spotlight Premieres and half plain Spotlights.
+A top-quarter bin such as Goldcrest or PowerHour 2.0 VIP is about one in four of its maker's units. The maker's
+presence for the design does not change when it bins a line.
 
 ### Authority map
 
@@ -10975,8 +10977,9 @@ before and its stock divides evenly between line and bin.
 - Outputs: a Lot whose Product is the binned product (so Title and Brand read it), with every fill and the assembly
   drawn at or above the floor. Price and tier follow from EffectiveQuality, unchanged.
 - Derived state: a binned product's quality distributions are derived and never stored. Its Roles stay empty and its
-  Assembly null. It has no per-product Price. Its draw weight is derived from its maker's preference (question
-  tier-stock-share).
+  Assembly null. It has no per-product Price. Its draw weight is derived: the bin weighs `1 - Phi(Floor)` of its
+  maker's preference and its line weighs the rest (ruling bin-share-by-floor). Phi is computed through CultMath's
+  `math.erf`, present at the pinned CultMath 9c1b06cd (`packages/cultmath/src/CultMath/math.cs:534`).
 - Forbidden writers: ProductLinesCommand never writes Roles or Assembly onto a binned product. roles-migrate and
   roles-backfill never backfill one. The census never reports its empty Roles as a gap. Studio edits to a line's roles
   or a maker's AssemblyMean reach its bins through the derivation, with no copy to resync.
@@ -11005,16 +11008,17 @@ before and its stock divides evenly between line and bin.
   draw and then mints at the cutoff, so the draw always ends and stays deterministic per seed. Unbinned products
   consume the stream exactly as before.
 - Why the floor is in deviations. A floor in deviations needs no inverse normal: z 0 is the top half and z .67 the top
-  quarter. Its fraction (1 - Phi(z) per stage) is only needed for the bin-share option of question tier-stock-share.
+  quarter. The draw weight needs only the forward CDF, `1 - Phi(z) = (1 - erf(z / sqrt 2)) / 2`, from CultMath's erf.
+  It is .5 at z 0 and .2514 at z .67.
 - Why the line is not sorted. In real binning the base SKU is what is left after sorting. Here the line keeps its full
   distribution, so a plain Spotlight can still roll Epic. Sorting the line would re-author every binned line and add a
-  ceiling, and sorting a facility's own output is the crafting work that quality-triangle-is-per-facility defers. That
-  choice is option sorted-line of tier-stock-share, not built here.
+  ceiling, and sorting a facility's own output is the crafting work that quality-triangle-is-per-facility defers. Sorting
+  was option sorted-line of tier-stock-share, which the operator did not pick (ruling bin-share-by-floor).
 - Prior art (from general knowledge, confidence high on the shape and low on numbers). Semiconductor speed binning:
   one die design is sold as several SKUs sorted by tested frequency and voltage, and the premium SKU is a guaranteed
   floor, not a better average. Die harvesting: partly defective dies sell as lower SKUs. Makers also down-bin good
-  parts to meet demand, so a SKU's supply share is a commercial choice and not only yield, which is why split-evenly
-  is defensible for the demo.
+  parts to meet demand, so a SKU's supply share is a commercial choice and not only yield, The operator chose
+  shares that follow the floor (ruling bin-share-by-floor), so a bin's scarcity reads as yield.
 - Hulls are out. `ShipModCatalog.ProductKey(id, maker)` keys one product per maker per hull, and hull products live
   in packages that the Python writer leaves untouched (`ship_cc.py:5`). Widening that key is its own cut.
 
@@ -11026,8 +11030,10 @@ before and its stock divides evenly between line and bin.
   its own. Invariant: a Bin's Line has the same Design and Manufacturer and is not itself binned.
 - Lot (unchanged schema): a binned lot records the binned product, and its fills and assembly sit at or above the
   floor of the line's distributions.
-- ProductWeight: the maker's preference, divided evenly among the maker's products of that design (pending
-  tier-stock-share). It is still the one weight of RandomProducts and ChooseProduct.
+- ProductWeight: the maker's preference times a share. A bin's share is its pass fraction `1 - Phi(Bin.Floor)`. A line's
+  share is 1 minus the sum of the pass fractions of its bins, floored at 0. Any other product's share is 1. Two
+  unbinned lines of one design and maker each weigh the full preference, as before. ProductWeight is still the one
+  weight of RandomProducts and ChooseProduct.
 
 ## Run seed" section at the end of docs/aetheria-release-map.md (or beside "Mines in the sim").
 2. Remove the "- run-seed: ..." line from the first "## Cut sequence" (spec cut-run-seed.r1 now carries it).
