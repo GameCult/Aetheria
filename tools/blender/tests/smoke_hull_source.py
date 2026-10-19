@@ -28,6 +28,8 @@ the hull.scad into the package and runs the panel's operators:
   says so, and Build then refuses. The hull's state (plain, unbuilt, agent, art) is decided by one owner,
   _hull_state (map HS). Build's zones deleted
   with nothing in their place stay under the guard. Her art over a hull.scad that was never built ships and retires it.
+  A hull collider alone is not her art. Package refuses a built hull whose maker record is gone, and an untouched
+  Build zone beside her mesh with hull.scad gone by hand; an edit of every Build zone is her art.
   A plain hull with her art ships and retires nothing. A hull.scad with nothing built and none of her art keeps its
   hull.scad, and Package refuses it (no maker was judged).
   Package refuses an agent-built hull before it writes anything (ship.glb is not made) when the package holds no product,
@@ -577,9 +579,28 @@ def never_built(scene):
     select(box)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
-    require(result == {"CANCELLED"} and "Build From Hull Source first" in report and not (package / "ship.glb").exists(),
-            f"Package took a hull that was never built: {report!r}")
-    print("PASS 3 a hull that was never built keeps its hull.scad, and Package refuses it")
+    unbuilt_text = ("Build From Hull Source first, or put your own meshes under Ship Root: Package needs the maker "
+                    "Build judged the hull against")
+    require(result == {"CANCELLED"} and unbuilt_text in report and not (package / "ship.glb").exists(),
+            f"Package took a hull that was never built, or its refusal names no exit: {report!r}")
+    print("PASS 3 a hull that was never built keeps its hull.scad, and Package refuses it naming the exit")
+    # Her hull collider alone is not her art: it carries a role, so the hull is still unbuilt and keeps its hull.scad.
+    root = api._ship_root(collection)
+    collider_mesh = bpy.data.meshes.new("author collider")
+    collider_mesh.from_pydata([(0, 0, 0), (1, 0, 0), (0, 1, 0)], [], [(0, 1, 2)])
+    lone = bpy.data.objects.new("Hull Collider", collider_mesh)
+    lone["aetheria.role"], lone["aetheria.id"] = "hull-collider", "collider"
+    collection.objects.link(lone)
+    lone.parent = root
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    report = scene.aetheria_package_report
+    require(result == {"CANCELLED"} and unbuilt_text in report and (package / "hull.scad").is_file()
+            and not (package / "ship.glb").exists(),
+            f"A hull collider alone was taken for her art: {report!r}")
+    bpy.data.objects.remove(lone)
+    bpy.data.meshes.remove(collider_mesh)
+    print("PASS 3.0 a hull collider alone is not her art: Package still refuses and keeps hull.scad")
     # Her art over a hull.scad Build never ran is hers: it ships and the hull source is retired (H4).
     art_mesh = bpy.data.meshes.new("author unbuilt hull")
     bm = bmesh.new()
@@ -608,6 +629,73 @@ def never_built(scene):
     report = scene.aetheria_package_report
     require(result == {"FINISHED"} and "retired" not in report and not (package / "hull.scad").exists(), f"A plain hull with her art did not ship alone: {report!r}")
     print("PASS 3.2 a plain hull with her art ships and retires nothing")
+
+
+def agent_guards(scene):
+    """Rows of the state table (map HS) that only a fresh built hull with no product can reach: the guard needs the
+    maker record, a hull.scad gone by hand does not lift it (H10), and her edit of every Build zone is her art (H6)."""
+    fixture, _, extent, length, rows, *_ = HULLS[1]
+    ship_id = "smoke.hull.guards"
+    collection, box, package = make_ship(scene, fixture, ship_id, extent, length, rows)
+    api = sys.modules["aetheria_ships"]
+    root = api._ship_root(collection)
+    source = package / "hull.scad"
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"FINISHED"}, f"Build was refused: {message!r}")
+
+    def refused(text, label):
+        select(box)
+        result, message = run(bpy.ops.aetheria.package_ship)
+        report = scene.aetheria_package_report
+        require(result == {"CANCELLED"} and text in report and not (package / "ship.glb").exists(),
+                f"Package took {label}: {report!r} {message!r}")
+        require("aetheria.hull_built" in collection and "aetheria.hull_maker" in collection,
+                f"A refused Package changed Build's records ({label})")
+
+    # Build's zones intact but the maker record gone: nothing to compare the products with, so Package refuses.
+    maker = collection["aetheria.hull_maker"]
+    del collection["aetheria.hull_maker"]
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    report = scene.aetheria_package_report
+    require(result == {"CANCELLED"} and "Build From Hull Source first: Package needs the maker it judged the hull against" in report
+            and source.is_file() and "aetheria.hull_built" in collection and not (package / "ship.glb").exists(),
+            f"Package took a built hull whose maker record is gone: {report!r} {message!r}")
+    collection["aetheria.hull_maker"] = maker
+    print("PASS 4.1 Build's zones with no maker record: Package refuses and keeps everything")
+
+    # H10: one of Build's zones untouched beside her mesh, hull.scad gone by hand: still the agent's, still guarded.
+    art_mesh = bpy.data.meshes.new("author hull")
+    art_mesh.from_pydata([(0, 0, 0), (1, 0, 0), (0, 1, 0)], [], [(0, 1, 2)])
+    art = bpy.data.objects.new("author hull", art_mesh)
+    collection.objects.link(art)
+    art.parent = root
+    away = source.with_name("hull.scad.away")
+    source.rename(away)
+    refused("The package has no product: add one for the hull's maker before packaging",
+            "a hull with an untouched Build zone, her mesh and no hull.scad")
+    away.rename(source)
+    bpy.data.objects.remove(art)
+    bpy.data.meshes.remove(art_mesh)
+    require(source.is_file(), "hull.scad was not put back")
+    print("PASS 4.2 an untouched Build zone beside her mesh stays guarded with hull.scad gone")
+
+    # H6: she edited every Build zone and made nothing else: the zones are her art, Package ships with no product and
+    # retires Build's records and hull.scad.
+    zones = [o for o in generated(collection).values() if o.type == "MESH" and "aetheria.role" not in o]
+    require(len(zones) >= 2, "The hull has too few zones to edit them all")
+    for zone in zones:
+        zone.data.vertices[0].co.z += 5.0
+        zone.data.update()
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    report = scene.aetheria_package_report
+    require(result == {"FINISHED"} and "retired the agent hull source" in report, f"Package refused a hull whose every zone she edited: {report!r} {message!r}")
+    require(not source.exists() and "aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection,
+            "Her edit of every zone left Build's source or records")
+    print("PASS 4.3 an edit of every Build zone is her art: Package ships it with no product and retires Build's records")
+    return collection
 
 
 def main():
@@ -644,6 +732,7 @@ def main():
         clear(previous)
         previous = one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palette, maker, other)
     clear(previous)
+    clear(agent_guards(scene))
     never_built(scene)
 
 
@@ -661,7 +750,7 @@ else:
     print("SMOKE_HULL_SOURCE_OK", flush=True)
     code = 0
 finally:
-    for _, ship_id, *_ in HULLS + ((None, "smoke.hull.unbuilt"),):
+    for _, ship_id, *_ in HULLS + ((None, "smoke.hull.unbuilt"), (None, "smoke.hull.guards")):
         shutil.rmtree(MODS / ship_id, ignore_errors=True)
     if created:
         shutil.rmtree(MODS, ignore_errors=True)
