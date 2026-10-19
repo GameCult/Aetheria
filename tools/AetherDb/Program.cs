@@ -63,7 +63,7 @@ public static class Program
                 return PlaceNamesCommand.Run(args.Skip(1).ToArray());
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear [apply], doctrine-catalog [apply], assembly-from-maker [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], assembly-from-maker [apply]");
                 return 1;
         }
     }
@@ -129,22 +129,31 @@ public static class Program
         // or a product added after roles landed), so every sold, role-bearing design is checked against every
         // product that actually sells it, not only the ones this run's roles-migrate happened to touch.
         var roleGaps = 0;
-        foreach (var item in items.Where(i => i.Roles != null && i.Roles.Count > 0))
+        foreach (var (product, item, missing) in RoleGaps(db.Cache, items, products))
         {
-            var design = db.Cache.RefOf(item).Key;
-            var sellers = products.Where(p => p.Design.Key.Equals(design)).ToArray();
-            foreach (var product in sellers)
-            {
-                var covered = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
-                var missing = item.Roles.Select(r => r.Name).Where(r => !covered.Contains(r)).ToArray();
-                if (missing.Length == 0) continue;
-                roleGaps++;
-                Console.WriteLine($"  GAP: {product.Name} sells {item.Name} but authors no spread for: {string.Join(", ", missing)}" +
-                    " -- a newly minted lot rolls the ProductRole default (mean .5) for these, not this maker's own quality");
-            }
+            roleGaps++;
+            Console.WriteLine($"  GAP: {product.Name} sells {item.Name} but authors no spread for: {string.Join(", ", missing)}" +
+                " -- a newly minted lot rolls the ProductRole default (mean .5) for these, not this maker's own quality");
         }
         Console.WriteLine($"\n{roleGaps} (product, role) pairs where a sold, role-bearing design's product authors no matching spread");
         return 0;
+    }
+
+    // Every seller of a role-bearing design that authors no spread for one of its roles. A bin authors no spread: it reads its
+    // line's (ProductBin), so it is never a gap.
+    internal static IEnumerable<(FactionProductData Product, EquippableItemData Design, string[] Missing)> RoleGaps(
+        GameCult.Caching.CultCache cache, IEnumerable<EquippableItemData> items, IEnumerable<FactionProductData> products)
+    {
+        foreach (var item in items.Where(i => i.Roles != null && i.Roles.Count > 0))
+        {
+            var design = cache.RefOf(item).Key;
+            foreach (var product in products.Where(p => p.Bin == null && p.Design.Key.Equals(design)))
+            {
+                var covered = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
+                var missing = item.Roles.Select(r => r.Name).Where(r => !covered.Contains(r)).ToArray();
+                if (missing.Length > 0) yield return (product, item, missing);
+            }
+        }
     }
 
     // Cut 7 (docs/stats-and-power-cut.md): "products author quality, designs author roles." Zero designs
@@ -309,9 +318,9 @@ public static class Program
     // Dry run unless passed "apply", which alone opens the catalog writable; every record must derive cleanly or
     // nothing is written, the same all-or-nothing contract ShieldMigrate and BrownoutMigrate already use. Prints
     // the operator review table (grouped by item kind) either way.
-    private static int RolesMigrate(bool apply)
+    public static int RolesMigrate(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
         var items = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         var changedDesigns = new List<(object Document, CultRecordKey Key)>();
@@ -366,6 +375,7 @@ public static class Program
         var byDesign = items.ToDictionary(i => db.Cache.RefOf(i).Key, i => i);
         foreach (var product in products.OrderBy(p => p.Name, StringComparer.Ordinal))
         {
+            if (product.Bin != null) continue; // a bin authors no roles; the mint reads its line's
             if (!byDesign.TryGetValue(product.Design.Key, out var design) || design.Roles == null || design.Roles.Count == 0)
                 continue;
             var existing = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
@@ -1708,9 +1718,9 @@ public static class Program
     // product of such a design authors that role, and the Passive Array (a generic listener gear, ListenerData) is
     // authored with two products from the stealth makers. Prints the sensor census first. Dry run unless passed
     // "apply"; idempotent, so a second apply writes nothing and a catalog another cut changed is rerun, never merged.
-    private static int SensorStatSet(bool apply)
+    internal static int SensorStatSet(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
         var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         Faction MakerOf(FactionProductData p) => db.Cache.Get(p.Manufacturer);
@@ -1749,7 +1759,7 @@ public static class Program
             design.Roles ??= new List<ItemRole>();
             if (!design.Roles.Any(r => r.Name == EmissionDiscipline)) { design.Roles.Add(new ItemRole { Name = EmissionDiscipline }); designChanged = true; }
             if (designChanged) changedDesigns.Add((design, key));
-            foreach (var product in products.Where(p => p.Design.Key.Equals(key)))
+            foreach (var product in products.Where(p => p.Bin == null && p.Design.Key.Equals(key)))
             {
                 var maker = MakerOf(product) ?? throw new InvalidOperationException($"Product \"{product.Name}\" has no maker.");
                 product.Roles ??= new List<ProductRole>();
@@ -2217,7 +2227,7 @@ public static class Program
 
         var changedProducts = new List<(FactionProductData Document, CultRecordKey Key)>();
         foreach (var design in targets)
-            foreach (var product in products.Where(p => p.Design.Key.Equals(db.Cache.RefOf(design).Key)).OrderBy(p => p.Name, StringComparer.Ordinal))
+            foreach (var product in products.Where(p => p.Bin == null && p.Design.Key.Equals(db.Cache.RefOf(design).Key)).OrderBy(p => p.Name, StringComparer.Ordinal))
             {
                 var maker = db.Cache.Get(product.Manufacturer);
                 var profile = maker?.Name == "Pirates" ? PirateProfile

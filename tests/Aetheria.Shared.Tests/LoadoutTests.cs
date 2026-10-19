@@ -622,6 +622,13 @@ public sealed class LoadoutTests : IDisposable
         var result = items.GetTier((CraftedItemInstance) items.CreateInstance(lot));
         Assert.Equal(settings.Tiers[0].Name, result.tier.Name);
         Assert.Equal(2, result.upgrades);
+
+        // The same width from the other side (follow-up tier-upgrade-step-two-sided): two steps less a hair is one upgrade, so a
+        // step narrower than .0499 reads two and a wider one reads none.
+        var under = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = settings.Tiers[0].Quality + 2 * .0499f - .0001f, Roles = new List<RoleFill>() });
+        var below = items.GetTier((CraftedItemInstance) items.CreateInstance(under));
+        Assert.Equal(settings.Tiers[0].Name, below.tier.Name);
+        Assert.Equal(1, below.upgrades);
     }
 
     // S7 (docs/stats-and-power-cut.md Cut 1 findings): a Quality term must raise the lot's quality to its own

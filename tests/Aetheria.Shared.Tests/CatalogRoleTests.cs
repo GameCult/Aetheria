@@ -36,7 +36,7 @@ public sealed class CatalogRoleTests
     }
 
     // The whole of CB-R1 over every design in the catalog: each non-flat stat reads exactly one declared role, every
-    // declared role is read, and every seller authors each role once. Weapons, and designs of a kind the tool keeps a role
+    // declared role is read, and every seller authors each role once (a bin authors none: it reads its line's). Weapons, and designs of a kind the tool keeps a role
     // map for, must also carry a non-flat stat (a design with no stat at all has nothing for quality to vary).
     [Fact]
     public void ShippedCatalogRolesAreLive()
@@ -59,13 +59,15 @@ public sealed class CatalogRoleTests
                 broken.Add($"{design.Name}: declares [{string.Join(", ", declared)}] but non-flat stats read [{string.Join(", ", read)}]");
             if (varying.Length == 0 && stats.Length > 0 && (design is WeaponItemData || Program.HasRoleMap(design)))
                 broken.Add($"{design.Name}: every stat is flat");
-            foreach (var product in products.Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)))
+            foreach (var product in products.Where(p => p.Bin == null && p.Design.Key.Equals(cache.RefOf(design).Key)))
             {
                 var authored = (product.Roles ?? new List<ProductRole>()).Select(r => r.Role).OrderBy(r => r, StringComparer.Ordinal).ToArray();
                 if (!authored.SequenceEqual(declared))
                     broken.Add($"{design.Name}: product \"{product.Name}\" authors [{string.Join(", ", authored)}], not each of [{string.Join(", ", declared)}] once");
             }
         }
+        foreach (var bin in products.Where(p => p.Bin != null))
+            if (bin.Roles?.Count > 0 || bin.Assembly != null) broken.Add($"bin \"{bin.Name}\" authors roles or an assembly of its own");
         Assert.True(broken.Count == 0, string.Join("\n", broken));
     }
 
@@ -264,7 +266,7 @@ public sealed class CatalogRoleTests
         var profiles = new Dictionary<string, (float Mean, float Dev)>(Program.MakerProfiles) { ["Pirates"] = (.45f, .22f) };
         foreach (var design in new[] { autocannon, lrm, srm, mine, drive })
         {
-            var sellers = cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)).ToArray();
+            var sellers = cache.GetAll<FactionProductData>().Where(p => p.Bin == null && p.Design.Key.Equals(cache.RefOf(design).Key)).ToArray();
             Assert.NotEmpty(sellers);
             foreach (var product in sellers)
             {

@@ -176,8 +176,9 @@ public class LoadoutGenerator
     public (FactionProductData product, T design)[] RandomProducts<T>(int count, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : CraftedItemData
     {
         var (available, preferManufacturers) = AvailableProducts(filter, required);
+        var shares = BinShares();
         return available.WeightedRandomElements(ref Random, entry =>
-                (preferManufacturers ? ProductWeight(entry.product) : 1) *
+                Weight(entry.product, shares, preferManufacturers) *
                 pow(entry.design.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
                 pow(entry.design.Price, PriceExponent), // Penalize item price to a controllable degree
             count);
@@ -234,12 +235,34 @@ public class LoadoutGenerator
         Galaxy == null || Faction == null ||
         ItemManager.ItemData.Get(product.Manufacturer) == Faction || Faction.Allegiance.ContainsKey(product.Manufacturer);
 
-    // How much this outfitter favors a product: its maker's preference. The one weight of generation and of ChooseProduct.
-    public float ProductWeight(FactionProductData product) => ManufacturerPreference(product.Manufacturer);
+    // How much this outfitter favors a product: its maker's preference times the product's share of it. The one weight of
+    // generation and of ChooseProduct. A bin takes the share of its maker's stock that would pass its floor and its line takes
+    // the rest (ruling bin-share-by-floor), so binning never changes a maker's presence for the design.
+    public float ProductWeight(FactionProductData product) => Weight(product, BinShares(), true);
+
+    // The one weight, with the share of the stock computed from shares (BinShares, once per weighting pass). A draw that has
+    // fallen back to any manufacturer weighs by share alone: the maker's preference no longer applies, its bins' shares still do.
+    private float Weight(FactionProductData product, Dictionary<string, float> shares, bool preferManufacturers) =>
+        (preferManufacturers ? ManufacturerPreference(product.Manufacturer) : 1) * Share(product, shares);
+
+    // 1 - Phi(floor): the fraction of a normal draw that lies at least floor deviations above its mean.
+    private static float PassFraction(float floor) => .5f * (1 - erf(floor / sqrt(2f)));
+
+    // Each line's key to the sum of its bins' pass fractions: read from the catalog once per weighting pass, never kept.
+    private Dictionary<string, float> BinShares() => ItemManager.ItemData.GetAll<FactionProductData>()
+        .Where(product => product.Bin != null)
+        .GroupBy(product => product.Bin.Line.Key.Value)
+        .ToDictionary(group => group.Key, group => group.Sum(bin => PassFraction(bin.Bin.Floor)));
+
+    private float Share(FactionProductData product, Dictionary<string, float> shares)
+    {
+        if (product.Bin != null) return PassFraction(product.Bin.Floor);
+        return max(0f, 1 - shares.GetValueOrDefault(ItemManager.ItemData.RefOf(product).Key.Value));
+    }
 
     // The product a design named without one is built as (ruling loadout-product-optional-context-chooses): among the
     // products of the design this outfitter can get, one draw from the run's seeded Random weighted by ProductWeight;
-    // null when none, and uniform over them when every weight is 0. Candidates are ordered by name so the draw's
+    // null when none, and by share alone when every weight is 0. Candidates are ordered by name so the draw's
     // enumeration, and so its result, never depends on record keys. All of the policy is this body.
     public FactionProductData ChooseProduct(CraftedItemData design)
     {
@@ -249,8 +272,9 @@ public class LoadoutGenerator
             .OrderBy(product => product.Name, StringComparer.Ordinal)
             .ToArray();
         if (candidates.Length == 0) return null;
-        var uniform = candidates.All(product => ProductWeight(product) <= 0);
-        return candidates.WeightedRandomElements(ref Random, product => uniform ? 1 : ProductWeight(product), 1)[0];
+        var shares = BinShares();
+        var uniform = candidates.All(product => Weight(product, shares, true) <= 0);
+        return candidates.WeightedRandomElements(ref Random, product => Weight(product, shares, !uniform), 1)[0];
     }
 
     // Prioritize products from the zone faction and its allies, penalizing distance to the manufacturer's headquarters.

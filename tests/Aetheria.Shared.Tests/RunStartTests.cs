@@ -115,6 +115,28 @@ public sealed partial class RunStartTests : IDisposable
 
     private const float Freezing = 273.15f;
 
+    // One minter: a generated galaxy never reads the clock, so seed 0 is refused by both generation constructors, naming
+    // the field and echoing no input (no ActualValue). The settings are the authored ones: a galaxy that stops refusing must be able to
+    // finish generating, so the test fails by assertion rather than wedging in the generator.
+    [Fact]
+    public void AGeneratedGalaxyRefusesSeedZero()
+    {
+        var authored = AuthoredSettings.Load(FindRepoRoot());
+        var background = authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings");
+        var sector = authored.Read<SectorGenerationSettings>("SectorGenerationSettings");
+        sector.ZoneCount = 8;
+        var tutorial = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
+
+        var main = Assert.Throws<ArgumentOutOfRangeException>(() => new Galaxy(sector, background, _cache, _ => { }, null, 0));
+        var prelude = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new Galaxy(tutorial, background, _cache, new PlayerSettings(), new DirectoryInfo(_root), _ => { }, null, 0));
+        foreach (var refusal in new[] { main, prelude })
+        {
+            Assert.Equal("seed", refusal.ParamName);
+            Assert.Null(refusal.ActualValue);
+        }
+    }
+
     // A main-sector galaxy: each station's gear must come from manufacturers its faction can reach, the makers its
     // allegiance names, present in the galaxy or not.
     private Galaxy MainSectorGalaxy()

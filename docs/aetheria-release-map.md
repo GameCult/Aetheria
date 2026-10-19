@@ -888,8 +888,8 @@ name. Per ruling `no-save-compatibility-before-players` nothing reads key 11.
 |---|---|---|---|
 | Pirates `Faction` | Catalog record, name `Pirates` | Authored once by `AetherDb pirates-faction apply`; doctrine is added by faction-play r2 | Ruling `pirates-record-content`; the operator sees the dry run |
 | Package product | `mod-product:<id>:<maker key>` in the package's `ship.cc` | Written by `AetherDb ship-authoring product`; copied verbatim by compose; Blender never edits it | The package author |
-| Boss hull | `HullData.Boss` (key 33) | Set by `ship-authoring boss`; a faction's boss hulls are derived per generation from the products it makes | The package author; `BossHullsOf` derives |
-| `Faction.BossHull` (key 10) | Retired | Deleted by `boss-hull-derived` | none |
+| Boss loadout | `Faction.BossLoadout` (key 22), a reference to one Loadout; the Loadout names its hull by design | Set by an agent-authored catalog write (follow-up `zhestokost-boss-loadout`); resolved by `Loadouts.BossOf`, which refuses Unset or Missing | Agents write it, the operator tweaks in Studio (rulings `faction-boss-is-a-loadout-reference`, `boss-loadouts-agent-authored`) |
+| `Faction.BossHull` (key 10) | Retired, never reused | Deleted by `boss-loadout` (the derived-boss design with `HullData.Boss` was withdrawn unmerged) | none |
 | Pirates products | 8 `FactionProductData`, emoji names, over other makers' designs | Authored with the faction in one commit | Ruling `pirates-record-content` |
 | Package hull price | `HullData.Price` | Written by `ship-authoring price` (or `create --like`) | The package author |
 | Emoji font file | `Assets/Fonts/Emoji/<set>.ttf` + `emoji-font.lock` | Rebuilt only by `tools/emoji` at a new pinned version | The operator's `emoji-art-set` ruling |
@@ -10784,194 +10784,115 @@ worktree C:\aeth-wt\ag6-quality-readers at 70c7a497. Catalog: GameData/Aetheria.
   quality-layers-combine, not in the spec, so the spec does not wait on it. context-pack: 14
   anchors SAME.
 
-## Boss hull derived
+## Boss loadout
 
-r3's probes and source reads were made by imagination-ag6-boss-hull (session self-2026-10-18-ag6),
-2026-10-18, in the detached worktree `C:\aeth-wt\ag6-boss-hull` at `origin/master` `eb27ced1`
-(BH1-BH11). r4's probes were made by imagination-ag6-boss-hull-r4 in the same worktree at the
-branch head `095baf2f`, which is r3's h1 (BH12-BH17). Read by `cut-boss-hull-derived.r4`. This
-section supersedes the anchors of "Demo hulls, the Pirates and the boss" H7 (`@2a5fc00b`) and of
-Products PL6. Under Rationale below, r4 replaces r3's boss-loadout path. Ruling
-`boss-gear-is-a-loadout` revokes that path; it replaced `boss-gear-is-fixed`.
+This section replaces "Boss hull derived" (the `cut-boss-hull-derived` r1-r4 design: `HullData.Boss`,
+`BossHullsOf`, a Loadout found by hull product). Ruling `faction-boss-is-a-loadout-reference` replaced that
+design; r4 is withdrawn. Branch `eureka/aetheria-release-boss-hull-derived` (head `90f977bf`, reports h1, h2)
+is unmerged evidence only. Probes and source reads by imagination-ag6-boss-loadout (session
+self-2026-10-18-ag6), 2026-10-18, in the detached worktree `C:\aeth-wt\ag6-boss-loadout` at `origin/master`
+`a40072d9`, then `d28ce42d` (that commit adds one research doc only; every anchor below is the same at both).
+Read by `cut-boss-loadout.r1`. The model-page row `Faction.BossHull (key 10)` (about line 892) and the r4
+table row (about line 10958) now say: retired by `boss-loadout`, never reuse; add the row
+`Faction.BossLoadout (key 22) | CultRecordRef<Loadout> | the one owner of which Loadout is a faction's boss`.
 
 ### Body facts
 
-- **BH1. What the cut waits on is on master.** boss-gate is merged at `39c7508e`
-  (cut-boss-gate r2, verdict s3). faction-play-1 is merged at `d7f30ed1` (r3, h6), and its catalog
-  replay is at `aa12cbac`. minor-power-factions is merged at `c486b06d`. pirates-record is merged
-  at `2c065937` and package-product at `3535660c`.
-- **BH2. Faction keys at `eb27ced1`** (`Corporations.cs`): 1-5, 7, 8, a retired-key comment for 9
-  (`:39`), `BossHull` Key(10) at `:42-43`, then 11-15, 17 (Doctrine), 19 (Assembly) and 21
-  (Places). h1 deleted `BossHull` and retired key 10.
-- **BH3. HullData keys** (`ItemData.cs:531-556` at `eb27ced1`): 23, 24, 25, retired 26, 27, 28,
-  29 and 32 (`Visual`). h1 added `Boss` at Key(33) (`ItemData.cs:557-560` at `095baf2f`).
-- **BH4. Every BossHull reader at `eb27ced1`** was `Galaxy.cs:293`,
-  `LoadoutGenerator.cs:212-230`, `tools/AetherDb/Program.cs:586` and `:709-712`, and
-  `RunGoalTests.cs:74-115` and `:199-202`. h1 removed every one.
-- **BH5. Retiring a key with stored values needs no catalog rewrite.** Precedents: `1d689adf`
-  (Faction key 9) and `be7f2b07` (HullData key 26).
-- **BH6. Every generation hull draw goes through one availability rule**, `AvailableProducts`
-  (`LoadoutGenerator.cs:196-219` at `095baf2f`). Its candidate filter carries h1's
-  `!(entry.design is HullData { Boss: true })` (`:204`) ahead of the any-manufacturer fallback.
-  `ChooseProduct` (`:278-289`) has its own `Where` and does not exclude Boss hulls. r4 never asks
-  it for a hull, because `BossOf` returns only a Loadout whose `HullProduct` is set.
-- **BH7. Explicit hull draws.** `ScenarioStage.Generated` (`ScenarioStage.cs:93`) and AetherDb
-  `loadout` reach `AvailableProducts`. Many tests call `GenerateShipLoadout(h => h == hull)` on
-  shipped hulls, and none of those hulls is a Boss hull.
-- **BH8. The boss path at `095baf2f`.** `ZoneGenerator.cs:401-411` calls
-  `GetLoadoutGenerator(bossFaction).GenerateBossLoadout()` for every `BossZones` entry in the zone.
-  It logs "No boss could be generated" on null and otherwise marks the pack `Boss` and the zone
-  `BossSpawned`. `:414-415` logs exit-without-boss. `GetLoadoutGenerator` (`:282-287`) caches one
-  generator per faction over the zone's `random`. `GenerateBossLoadout` (`LoadoutGenerator.cs:221-233`)
-  builds `BossHullsOf[0]` through `ShipLoadout(product)` (`:55-66`: instance, Ship,
-  `OutfitEntity`, `EquipPickup`, `StockConsumables`, Pack). Otherwise it logs "makes no boss
-  hull" and generates the priciest ship hull on offer. Its readers are only `ZoneGenerator.cs:403`
-  and AetherDb `loadout` (`Program.cs:815`).
-- **BH9. The package writer.** `ShipAuthoringCommands.cs`: `Usage` at `:11`; h1 added `boss
-  <ship.cc> on|off`. Compose copies a package's HullData verbatim.
-  `ShipProductTests.ABossPackageIsItsMakersBossAfterCompose` passes at `095baf2f`.
-- **BH10. Zhestokost makes no ship hull, and the shipped catalog has no Boss hull.** Products PL6
-  still holds. Today's demo boss is the generated fallback: the priciest ordinary ship hull
-  Zhestokost can be offered. Under r4 there is no fallback, so the demo exit has no boss until a
-  Zhestokost Boss hull and its Loadout exist (question `demo-boss-before-its-hull`).
-- **BH11. Which hulls can be bosses.** Ruling `hull-programmer-art-reads-as-stand-in` (it
-  supersedes `hull-programmer-art-stopgap`) leaves the stopgap mechanism open. The Eyes facts file
-  at `ac835a8a` places stopgap art on the package path. Nothing in either derivation reads
-  `Prefab`, `Visual` or a model.
-- **BH12. The three failures in h1 are a fixture defect.** Probe p1 ran ygg-verify at `095baf2f`
-  with the filter of the three tests and the detailed console logger. All three throw
-  `InvalidOperationException: Sequence contains no matching element` at
-  `RunStartTests.FactionNamed` (`RunGoalTests.cs:75`), called with `"Lucent"` at `:130`, `:149`
-  and `:185`. The shipped faction is `"Lucent Media"`, and `"Lucent"` is its ShortName
-  (`DemoTerminusTests.cs:23`, `CatalogRoleTests.cs:368`). Probes p2 and p3 used a scratch clone
-  with only that string changed (`f683baa4`). All three passed: `Passed
-  A_boss_hull_two_makers_sell_is_a_boss_of_each`, `Passed Boss_hulls_are_never_stock_or_traffic`
-  and `Passed Another_factions_boss_hull_is_never_used`. The h1 job hid the messages because its
-  grep kept only `Assert|Expected|Actual` lines. Verdicts:
-  - `Boss_hulls_are_never_stock_or_traffic` is a real fixture defect. Its rule (ruling
-    `boss-hulls-exclusive`) holds once the name is fixed, and the test survives unchanged
-    otherwise.
-  - `Another_factions_boss_hull_is_never_used` is a real fixture defect. Its fallback assertions
-    die with the revoked path. Its rule, that another maker's Boss hull is not this faction's,
-    survives as a `NoBossHull` refusal.
-  - `A_boss_hull_two_makers_sell_is_a_boss_of_each` is a real fixture defect. Its `BossHullsOf`
-    rule survives. Its last assertion (the boss flies "Shared Boss") becomes "flies its Loadout".
-- **BH13. The Loadout record already carries the key from a boss hull to its gear.** `Loadout`
-  (`Loadout.cs:14-22`, schema `aetheria.loadout` v1) has `Name` (Key 0), `Hull` (Key 1),
-  `Slots` (Key 2: `Position`, `Rotation`, `Design`, optional `Product`), `WeaponGroups` (Key 3)
-  and `HullProduct` (Key 4, optional). `HullProduct` names the product, and therefore the maker,
-  of the hull. So "the Loadout whose `HullProduct` is the faction's boss hull product" needs no new
-  field on `Loadout`, `Faction`, `FactionProductData` or `HullData`. It also tells apart two makers
-  of one shared Boss hull.
-- **BH14. `Loadouts.Materialize` is already the builder a fixed boss needs.** It is all or
-  nothing, pins a set product as named, and builds a design-only slot through the passed chooser.
-  Its doc says a game spawner passes `LoadoutGenerator.ChooseProduct`. It builds a Ship from a ship
-  hull with the given zone, null included, as `ShipLoadout` did, and pads to `WeaponGroupCount`.
-  It adds no pickup, consumables or outfit. Its callers today are `ScenarioStage.cs:179` (fits)
-  and the capture round trip in tests.
-- **BH15. A catalog Loadout cannot name a package hull.** `Loadouts.Commit` (`Loadout.cs:78-98`)
-  is the only writer of Loadout records, through the in-game capture command
-  (`ActionGameManager.cs:643`). It refuses any loadout whose hull or slot design is a mod key.
-  Package hulls and products are keyed `mod-hull:`, `mod-product:` and `mod-ship:`
-  (`ShipModCatalog.cs:23-30`), and "the shipped catalog ... never reference[s] one". A package
-  carries only its HullData, its ShipAuthoring and its products (`ShipModCatalog.Package`,
-  `:13-21`). So a boss Loadout for a package Boss hull has to ride in the package. That is the
-  next cut line below, not r4.
-- **BH16. Boss-dependent tests.** `RunGoalTests.cs` holds 18 tests. Those that read the demo's
-  fallback boss are `Boss_spawns_once_in_boss_zone`, `Boss_spawns_in_a_zone_that_is_not_ambient`,
-  `Exit_sealed_until_boss_dies`, `Boss_mark_survives_continue` and
-  `Exit_open_after_save_of_a_slain_boss`. `Exit_sealed_when_no_ship_hull_is_on_offer` pins the
-  fallback's null branch. No other test file references `IsBoss`, `BossSpawned` or `ExitOpen`.
-- **BH17. CultCache variants are not available to Aetheria yet.** CultLib `src` has variant
-  records (`CultCache.cs:59-60`, `CultVariantDelta`, "a variant record (slot 4): its base and
-  overrides"). Aetheria pins CultLib `45c2f4006f5f` (`Directory.Build.props:6`), and
-  `git grep CultVariantDelta 45c2f40` finds nothing. An interim Boss hull copied from a shipped
-  hull would be a plain copy until the pin moves. "Variant" is that record kind, never a loadout
-  (ruling `boss-gear-is-a-loadout`).
+- **BL1. What decides the boss today.** `ZoneGenerator.GenerateZone`'s boss block (`ZoneGenerator.cs:423-439`)
+  calls `LoadoutGenerator.GenerateBossLoadout` (`LoadoutGenerator.cs:212-230`). That method flies
+  `Faction.BossHull` (`Corporations.cs:42-43`, key 10) through `GenerateShipLoadout`. When that is unset or
+  unsold it flies the dearest ship hull on offer. So every demo boss today is the generated fallback. The
+  main galaxy picks boss factions by `BossHull.IsSet()` (`Galaxy.cs:291-295`). AetherDb `factions` prints the
+  hull (`Program.cs:700-718`), and the `dangling` comment names it (`:586`).
+- **BL2. Catalog state (probe: msgpack decode of `GameData/Aetheria.cc`, 186,037 bytes).** There are 15 Faction
+  rows, each a 22-element array (keys 0-21). Index 10 is `''` (unset) on all 15, so deleting `BossHull`
+  loses no data. Index 20 is nil on all; it was `assemblyDeviation`, retired by `30597b0e`, with no
+  never-reuse note in the source. The catalog holds no `aetheria.loadout` records. The new reference
+  therefore takes key **22**.
+- **BL3. A Loadout names its hull by design.** `Loadout.Hull` (key 1) is the design and `HullProduct` (key 4)
+  the optional brand (`Loadout.cs:14-22`). `Loadouts.Materialize` (`:113-167`) builds hull and slots through
+  `Resolve` (`:174-214`). A pinned product is built as named whatever the chooser says. A design with no
+  product at all is built unbranded, with no maker, at `UnbrandedQuality` .95. Otherwise the chooser picks.
+  So a boss Loadout needs no format change, and the boss is built by the same builder as scenario fits and
+  capture. Header and comments still say "preset (a variant)", which ruling `boss-gear-is-a-loadout`
+  corrects. `ActionGameManager.cs:645-647` prints "Preset '...'".
+- **BL4. What is on the market today (probe: every enumeration of designs and products).** Every generated
+  draw goes through `LoadoutGenerator.AvailableProducts` (`:188-210`): hulls, gear, station stock and
+  consumables. It enumerates `FactionProductData` and filters by `IsAvailable` (`:251-253`), the design's
+  price > 0 and a gear home. `ChooseProduct` (`:262-272`) is the chooser for design-only slots. It
+  enumerates products and filters by the same `IsAvailable`. `SoldHulls` (`:237-238`), the hulls that
+  give gear a home, enumerates products. No game path offers a design except through a product. The design
+  enumerations found are `ShipModShips.cs:44` (visual prototypes), `ShipAuthoring.cs:181` (package load),
+  `ShipModCatalog.cs:139`, `ZoneGenerator.cs:274` (station reach), console `give` (`ActionGameManager.cs:539`)
+  and AetherDb reports. None of them stocks, spawns or sells. So **an item is on the market iff some product
+  of it is on offer** is already the rule, and its one owner is the product set read through
+  `AvailableProducts`, `ChooseProduct` and `SoldHulls`. The price-0 filter in `AvailableProducts` is a
+  second, partial gate. `ChooseProduct` and `SoldHulls` ignore it, and package validation refuses price 0
+  for a hull with products (`ShipAuthoring.cs:220-229`). It is value, not market membership, and is not a
+  candidate mechanism.
+- **BL5. "No product" already has a meaning.** Scenarios ruling Q3 (`docs/scenarios-cut.md:20`, `:155`) says
+  "a design no product sells is a scenario test design and nothing else". `ScenarioTests.cs:576-610`
+  (`EveryUnsoldDesignIsAScenarioTestDesign`) and `ProductLinesCatalogTests.cs:14-34` (weapon designs: Smoke
+  only) pin it. A package hull may ship with no products (`ShipAuthoring.cs:222`, `if (products.Length == 0)
+  return;`).
+- **BL6. Brand rulings.** `designs-are-tech-nodes`: flavour names belong to products.
+  `catalog-grows-generic-designs-branded-products`: branding lives in products. With no product, a boss
+  hull's only name is its design's, and its quality is .95 rather than drawn from its maker's
+  `Faction.Assembly` (key 19).
+- **BL7. Boss consumers that stay.** `Galaxy.PlaceGate` (`Galaxy.cs:148-151`) maps the demo antagonist's home
+  to `BossZones` and `Exit` whatever the antagonist flies. `RunGoal` (`RunGoal.cs:10-17`) opens the gate only
+  when the exit zone spawned a boss and it is dead (it fails closed). `EntityPack.Boss` and
+  `EntitySerializer` (`:31`, `:85`) are unchanged. `ActionGameManager.cs:365` says "Its guardian holds it
+  shut" when no boss is present.
+- **BL8. Tests on the old path.** `RunGoalTests.cs` (329 lines): `Boss_hull_from_BossHull_else_fallback`
+  (`:73-97`), `Boss_hull_nobody_sells_falls_back` (`:99-115`) and `Exit_sealed_when_no_ship_hull_is_on_offer`
+  (`:214-228`) pin the fallback. `Exit_open_only_in_the_exit_zone` (`:193-212`) sets `BossHull`. Five tests
+  rely on a demo boss existing on the bare catalog (`:41-71`, `:116-160`, `:230-240`). No other test reads
+  `BossHull` or `GenerateBossLoadout` (grep). Other tests touch `BossZones` only as saved-game fields.
+- **BL9. Reusable from `90f977bf`.** The Loadout.cs header rewrite (`git show 90f977bf:Assets/Scripts/ServerShared/Loadout.cs`,
+  lines 9-13). The ZoneGenerator boss block shape (Materialize with `liveZone: null` and
+  `GetLoadoutGenerator(bossFaction).ChooseProduct`; green in h2's full run at `d912cf44`, 2431 passed).
+  The fixture pattern `MakeBossLoadout` (capture a generated fit, keep its weapon slots, renumber groups) and
+  `StoreLoadout` through `_cache.Commit(batch => batch.Upsert(typeof(Loadout), ...))` (`fc992f5a`).
+  h2's diagnosis that three r3 failures were the fixture name "Lucent" for "Lucent Media". h2's
+  `LoadoutCommitCommand` (125 lines, plus 210 lines of tests) takes a hull *product*. It is for the next
+  cut and must accept a hull design.
 
-### Rationale (r4)
+### Rationale (r1)
 
-- **One owner of what a boss flies:** `Loadouts.BossOf(CultCache, Faction, out BossRefusal)`, in
-  `Loadout.cs` beside the other owners of Loadout records. It takes `BossHullsOf(items, faction)[0]`
-  and returns the Loadout whose `HullProduct` key is that product's key, first by Name ordinal.
-  When there is none, it returns null with `NoBossHull` or `NoLoadout`. It reads no `Random`, no
-  model and no availability rule. `ZoneGenerator`'s boss block, `Galaxy.PlaceFactionsMain` and
-  AetherDb `factions` all call it. `LoadoutGenerator.BossHullsOf` stays the one owner of which hull
-  is a boss.
-- **Keyed on the product, not the hull** (BH13). A Boss hull two makers sell is a boss of each,
-  and each maker's boss is the Loadout on its own product. No field on Faction or the product
-  points at a Loadout, so no second record can disagree with the Loadout.
-- **No generator on the boss path.** `GenerateBossLoadout`, its priciest-hull fallback and
-  `ShipLoadout(product)` are deleted. `GenerateShipLoadout` gets back its single body, because the
-  boss was `ShipLoadout`'s only other caller. The boss is built by `Loadouts.Materialize`, the one
-  builder from a Loadout (BH14). It carries exactly its cells: no tractor pickup, no consumables
-  and no outfit pass.
-- **The chooser is not a draw of gear.** Materialize needs a chooser only for a design-only slot.
-  Ruling `loadout-product-optional-context-chooses` says that slot's product is chosen by context,
-  and `ChooseProduct` is that rule's owner. It never picks a design, a cell or the hull. The
-  negative check forbids every generator draw on the boss path (`GenerateShipLoadout`,
-  `RandomHull`, `RandomProduct(s)`, `OutfitEntity`, `EquipPickup`, `StockConsumables`). An agent
-  who wants the brand fixed pins the slot's product.
-- **A typed refusal, never a fallback.** `BossRefusal { None, NoBossHull, NoLoadout }`.
-  `Loadouts.Describe` names the missing field (`HullData.Boss`, `Loadout.HullProduct`) and echoes
-  no product name or record key. The zone logs `<faction> has no boss: it <describe>.`, spawns
-  nothing and leaves `BossSpawned` false, so the exit gate fails closed through boss-gate's
-  existing rule. A Loadout that does not fit is logged with Materialize's failures and also spawns
-  nothing.
-- **Galaxy picks factions that have a boss to fly.** In the main galaxy, a faction with a Boss
-  hull but no Loadout gets no boss zone. That keeps a placed boss zone from being empty by
-  construction.
-- **Authoring** (ruling `boss-loadouts-agent-authored`). AetherDb `loadout-commit <name> <hull
-  product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group i,j]... [--replace]` writes one
-  Loadout through `Loadouts.Commit`, which stays the only writer. The command first resolves every
-  name exactly and test-materializes the Loadout, so a typo or a misfit refuses before anything is
-  written. The operator adjusts the record in Studio afterwards. The command is argument-driven,
-  not a coded table like `product-lines tiers`. A coded table replayed at merges would fight her
-  Studio edits. The record in the catalog is the authority, and the commit message records the
-  command line for a merge replay.
-- **Vocabulary.** `Loadout.cs` says "Loadout" throughout. "Preset" and "variant" go from its
-  comments and messages. The wider sweep (the `capturepreset` console command, `ScenarioStage`,
-  `Provenance`, `LoadoutGenerator` and `ActionGameManager` comments) is follow-up
-  `loadout-vocabulary-sweep`.
-- **Kept from r3 (h1, landed):** Faction.BossHull is deleted with key 10 retired, `HullData.Boss`
-  Key(33) stays, `BossHullsOf` stays, the exclusive clause in `AvailableProducts` stays (ruling
-  `boss-hulls-exclusive`), and `ship-authoring boss`, the compose test and the no-authored-model
-  test stay (ruling `hull-programmer-art-reads-as-stand-in`).
-- **Revoked from r3:** `GenerateBossLoadout` through `BossHullsOf` and `ShipLoadout(product)`, the
-  AetherDb `loadout` boss branch, `Boss_without_a_boss_hull_falls_back`, and the "makes no boss
-  hull" log.
-- **Prior art (from memory, medium confidence; no Eyes pass this round):** Starsector's unique
-  bosses (for example the Ziggurat and the Omega flagships) fly hand-authored variant files
-  attached to a scripted fleet, never the faction's autofit. EVE's officer and faction-commander
-  spawns have fixed fittings per NPC type. Both match a fixed record keyed to the boss, with no
-  generator.
+- **Which Loadout is a faction's boss.** One owner: the field `Faction.BossLoadout` (key 22), authored in
+  Studio or by an agent command (ruling `boss-loadouts-agent-authored`). `Loadouts.BossOf(items, faction, out
+  BossRefusal)` is its one resolver (Unset, Missing). ZoneGenerator, Galaxy's main-galaxy pick and AetherDb
+  `factions` call it. Nothing derives a boss from hulls, products or flags.
+- **What a boss flies.** Its Loadout, through `Loadouts.Materialize`, whose chooser
+  (`ChooseProduct`) only brands a design-only slot (ruling `loadout-product-optional-context-chooses`). No
+  generator draw sits on the boss path, and nothing is outfitted, picked up or stocked.
+- **What is on the market.** BL4: on the market iff a product of the item is on offer, owned by the product
+  set through `AvailableProducts`, `ChooseProduct` and `SoldHulls`. A boss hull reaches a ship only through a
+  Loadout, which names it by design (`Loadout.Hull`) or pins its product. This cut adds no off-market code. No
+  boss hull exists yet (ruling `demo-boss-hull-invented`), so nothing in this cut depends on how an
+  off-market item is marked. Question `off-market-items-keep-a-maker` asks whether an off-market item keeps a
+  maker, a brand and a drawn quality. If it does, its product carries one general not-offered field read by
+  `IsAvailable` and `SoldHulls`. If it does not, it has no product, and the Q3 census accepts a design a
+  Loadout names. The recommendation is the field (BL5, BL6). The answer lands with the boss-hull authoring
+  cut.
+- **The demo exit meanwhile.** After this cut and until a Zhestokost boss Loadout is authored, the demo exit
+  zone logs "Zhestokost has no boss: it sets no Faction.BossLoadout." and the exit-without-boss line. No boss
+  spawns, `BossSpawned` stays false, and the gate stays sealed (RunGoal fails closed). **The demo cannot be
+  won.** The sealed-gate dialog says "Its guardian holds it shut", which is wrong while no guardian exists.
+  That stands until the boss lands; it is not reworded here.
+- **Rejected.** A boss flag on hulls (operator, ruling `faction-boss-is-a-loadout-reference`). Excluding
+  hulls named by any boss Loadout from `AvailableProducts`: a boss-specific clause, barred by ruling
+  `off-market-is-general`. Price 0 as the off-market mark (BL4). Keeping a generated fallback: barred by
+  rulings `boss-gear-is-a-loadout` and `demo-boss-hull-invented`.
 
-### Model page rows
+### Cut sequence (boss strand)
 
-Replace the rows in "Demo scope, Model page rows" (`Boss hull`, `Faction.BossHull`), and add the
-boss Loadout row:
-
-| Kind | Identity | Lifecycle | Authority |
-|---|---|---|---|
-| Boss hull | `HullData.Boss` (key 33, bool) on any HullData: shipped, package, or agent-built stopgap | Set by `ship-authoring boss <ship.cc> on\|off` on packages, or in Studio's inspector on catalog hulls. Derived per generation; stored nowhere | The hull's author sets the flag. `LoadoutGenerator.BossHullsOf` derives the faction from the product's maker |
-| Boss Loadout | A `Loadout` record (`aetheria.loadout` v1) whose `HullProduct` is a faction's Boss hull product, at `Loadouts.KeyOf(name)` | Written by AetherDb `loadout-commit` (agents) or the in-game capture, both through `Loadouts.Commit`. Studio edits after that. Read at zone generation by `Loadouts.BossOf` | `Loadouts.BossOf` alone decides what a boss flies, and `Loadouts.Materialize` builds it. No generator draw |
-| `Faction.BossHull` (key 10) | Retired; never reuse | Deleted by `boss-hull-derived`. The shipped records keep `''` in the slot (BH5) | none |
-
-### Cut sequence
-
-- `boss-hull-derived` (spec `cut-boss-hull-derived.r4`, branch at `095baf2f`). Its merge waits on
-  question `demo-boss-before-its-hull`.
-- If `interim-catalog-boss` is chosen: `zhestokost-interim-boss`, a sibling content cut that lands
-  with r4. Through AetherDb it writes a catalog Boss hull copied from the hull today's demo boss
-  flies (BH10), plus its Zhestokost product and its Loadout (`loadout-commit`). It is replayed at
-  merges and replaced when the real Zhestokost Boss hull lands.
-- `package-boss-loadout`: a package carries its boss Loadout, as it carries its product (ruling
-  `package-carries-product`, BH15). `ship.cc` gains Loadout records, Compose writes them under a
-  `mod-loadout:` key that `IsModKey` knows, and `ship-authoring loadout` writes them. It is needed
-  before the first package Boss hull can be a boss. `BossOf` already matches it unchanged, by
-  `HullProduct` key in the composed cache.
-- `demo-cast-hulls`'s "Waits on" reads "boss-hull-derived (spec cut-boss-hull-derived.r4)" until it
-  merges.
+- `boss-loadout` (spec `cut-boss-loadout.r1`): `Faction.BossLoadout` replaces `BossHull`;
+  `GenerateBossLoadout` is deleted; the boss refuses typed.
+- Next: boss Loadout authoring. AetherDb `loadout-commit` (from h2, taking a hull design with an optional
+  `@product`) and a way to set `Faction.BossLoadout`. It lands with the answer to
+  `off-market-items-keep-a-maker` and the invented Zhestokost hull (follow-up `zhestokost-boss-loadout`).
 
 ## Product tiers
 
@@ -11269,197 +11190,384 @@ with the wider scope taken when the FusedRounds premise is fixed.
 `no-save-compatibility-before-players` the cut may refuse it, but a refusal gate would be code
 written for nobody.
 
-## Stand-in hulls (SI)
+## Agent-built hulls
 
-**Superseded 2026-10-18 by ruling `hull-art-communicates-form`:** the placeholder-look goal and the schematic-generated body below are set aside; agent-built hulls are low-poly models that communicate each ship's form and faction, beside hero assets. The probe's package path, anchors and replace-by-real-art lifecycle are evidence for the re-map; its visual grammar and cut sequence are not live.
+Replaces section "Stand-in hulls (SI)". Imagination pass `imagination-ag6-hull-art2`, session `self-2026-10-18-ag6`,
+2026-10-18, pinned to Aetheria `origin/master` d28ce42d (worktree `C:\aeth-wt\ag6-hull-art2`). Serves ruling
+`hull-art-communicates-form`. It supersedes `hull-programmer-art-reads-as-stand-in`. The ruling asks for agent-built
+low-poly hulls that communicate each ship's intended form and its faction ("A Zhestokost ammo tender shouldn't look the
+same as a Pirate fighter"). It also asks for a couple of fully produced hero assets to compare them with, so that hull
+variety is not gated on the operator's manual throughput. Research:
+`docs/research/2026-10-18-agent-built-hull-art-prior-art.md` and `docs/research/2026-10-18-faction-form-language-prior-art.md`.
 
-Imagination pass `imagination-ag6-hull-art`, session `self-2026-10-18-ag6`, 2026-10-18. Pinned to Aetheria
-`origin/master` 6d10331c (worktree `C:\aeth-wt\ag6-hull-art`). Serves ruling
-`hull-programmer-art-reads-as-stand-in`, which supersedes `hull-programmer-art-stopgap`.
-Research input: `docs/research/2026-10-18-agent-built-hull-art-prior-art.md`. That file surveys making agent-built
-art look good or deliberate. This ruling asks for the opposite, so the research's §B3 (low poly that reads as
-deliberate) is evidence about what to avoid. The greybox "dev texture" convention below comes from general practice,
-not from that file (one of the gaps listed at the end).
+Kept from SI: the package path, the anchor rules (SI-B1 to SI-B3), and replace-by-real-art as one act by one owner.
+Dropped from SI: the body generated from the schematic, the grey grid mark, and glyphs by mount kind.
 
-Scratch root `S` = `C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-CultLib\1b477360-19e3-41e2-bde4-8932ace0b8fd\scratchpad\imagination-ag6-hull-art`.
+Scratch root `S` = `C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-CultLib\1b477360-19e3-41e2-bde4-8932ace0b8fd\scratchpad\imagination-ag6-hull-art2`.
 
 ### Renders for the operator
 
-- `S\probe\out\longinus_top_standin_vs_existing.png`: top view, stand-in (left) and the shipped `Longinus.fbx` (right), each at its own scale.
-- `S\probe\out\longinus_iso_standin_vs_existing.png`: three-quarter view, same pair.
-- `S\probe\out\longinus_combat_zoom_proxy.png`: both top views at ship lengths of 48, 80 and 128 px.
-- `S\probe\out\longinus_top_same_metres.png`: both in one 40 m frame. The stand-in uses 2 m cells and the shipped mesh about 1 m per cell (SI-B5).
+- `S\out\sheets\1_pair_same_scale.png`: the two probe hulls in three views (three-quarter, top, port side). Both use
+  the same camera, light and metres per pixel. On the left is the Zhestokost ammo tender "Podvoz", 23 m. On the right
+  is the Pirate fighter "Markdown", 15 m, built on a stolen Rossum & Douglas wedge.
+- `S\out\sheets\3_pirate_vs_djinni_hero.png`: the Pirate fighter beside `Djinni.fbx`, the shipped Rossum & Douglas
+  hull. Djinni is grey because its materials are not read.
+- `S\out\sheets\4_zhestokost_vs_operator_art.png`: the tender beside the operator's Zhestokost faction sheet
+  (`Asset Sources/Zhestokost.png`, cropped) and the shipped `Turret.fbx`.
+- `S\out\sheets\5_combat_zoom_proxy.png`: both top views at ship lengths of 48, 80 and 128 px.
+- `S\out\sheets\2_pair_own_framing.png`: each hull framed to its own size.
 
-All four come from one scratch rasterizer (`S\probe\render.py`) with the same camera and light. The stand-in side is
-read back from the `ship.glb` the package path accepted, so it is not a separate preview.
+All renders come from one scratch flat-shaded rasterizer (`S\render.py`). They are read back from the `ship.glb`
+files that the package path accepted.
 
-### What the game reads (body facts)
+### Probe (AH-P)
 
-- **SI-B1. Package shape.** A mod hull is `GameData/Mods/<id>/ship.cc` plus `ship.glb`. The `.cc` holds `HullData`
-  (`mod-hull:<id>`) and `ShipAuthoring` (`mod-ship:<id>`; `ModelAsset`, `Anchors`, `SchematicLines`, `Joints`).
-  Source: `ShipAuthoring.cs:12-21`, `docs/moddable-ship-authoring.md:160-200`.
-- **SI-B2. Anchors the game needs.** Exactly one each of `map-icon`, `hull-collider`, `shield` and `tractor`
-  (`ShipAuthoring.cs:288-290`). Each visible hardpoint has a mount anchor whose id is its mount id: `thruster-emitter`,
-  `radiator-mesh` or `weapon-mount`. Each weapon needs at least one `weapon-muzzle` whose ParentId is the mount
-  (`:325-356`). These nodes must carry a mesh: thruster-emitter, radiator-mesh, map-icon and hull-collider. The
-  shield node needs three positive scale radii (`ShipModCatalog.cs:256-262`). Weapon mounts and the tractor may be
-  empties. Internal hardpoints have no anchor. Every hardpoint needs a non-empty mount id.
-- **SI-B3. Frame.** Blender Ship Root has the nose toward -Y, starboard toward -X and Z up. Cell (x, y) is centred at
-  `origin - 2(x, y)`, schematic +x is starboard and +y is forward, so row 0 is the stern
-  (`tools/blender/aetheria_ships/hull_grid.py:3-20`). Package exports with `export_yup` (`__init__.py:791`), so the
-  glTF nose is +Z. Hardpoint `Rotation` gives the facing: 0 nose, 1 port, 2 aft, 3 starboard
-  (`hull_grid.py:141-145`). A footprint shape is stored as placed, and validation reads it at `Position` without
-  rotating it (`ShipAuthoring.cs:310-320`).
-- **SI-B4. Longinus HullData** (decoded from `GameData/Aetheria.cc` with cultcache-py, `S\grid.py`). It is 6 x 17
-  cells, symmetric, with 13 hardpoints. Visible: Th.L and Th.R (2x2, rows 0-1, aft), Th.CW and Th.CCW (1x2, row 14,
-  port and starboard), En.L and En.R (1x2, row 8), La.L and La.R (1x3, flanks, rows 5-7), Ra.L and Ra.R (1x2,
-  row 2). Internal: Reactor, ControlModule, and Sensors, which has a **null mount id**. Because of that null id, a
-  package copy of the shipped Longinus is refused until the Sensors hardpoint is given an id (`ship_cc.replace_layout`
-  raised "needs 7 typed fields and a stable mount ID"). The probe gave it the id `Sensors`.
-- **SI-B5. Scale.** The add-on authors at 2 m per cell (`hull_grid.py:11`, "Settings.SchematicCellSize"; New Ship
-  sizes "this many 2 m cells"). The shipped `Longinus.fbx` body is 5.2 x 16.8 m for 6 x 17 cells, about 1 m per cell
-  (`S\fbx.py`, mesh `Cube.043`). Ruling `schematic-and-model-are-separate-spaces` already allows the two to differ.
-  The stand-in uses the add-on's 2 m.
-- **SI-B6. Materials today.** `ShipModVisual` imports the GLB with glTFast and keeps its glTF materials. The only
-  material it adds is the schematic line material (`ShipModVisual.cs:55-64`). `Aetheria/Hull` and the UV0 livery mask
-  belong to `ships-hull-material`, which has a spec but has not landed. So a stand-in's look today is whatever its
-  glTF materials say.
-- **SI-B7. `ship-authoring create --like`** copies a shipped hull's stats with an empty shape and no hardpoints
-  (`ShipAuthoringCommands.cs:57-75`, `HullLike` clears `Shape` and `Hardpoints`). The layout comes from Blender or
-  from `ship_cc.replace_layout`.
-- **SI-B8. OpenSCAD over LevelDsl, decided from source.** The Geometry.Csg `LevelDsl` has box, cut box, oriented box,
-  cylinder_z, dome_cap_z and floret_arm, with no hull or free-axis cone (research, Internal fit), and it needs a
-  cargo build. OpenSCAD nightly with Manifold is installed, and brush-tree's `openscad-target` already rules
-  OpenSCAD-shaped text. LevelDsl was not probed.
+The probe has three layers, each a separate file:
+- **Faction languages**, in `S\lang\`. `zhestokost.kit.scad`, `rnd.kit.scad` and `pirate.kit.scad` hold the shape
+  vocabulary as OpenSCAD modules. `*.lang.json` holds the identity and forbidden lines quoted from the lore, the
+  proportion ranges, the symmetry rule and the palette zones. The target folds each faction's JSON into its `.scad`;
+  see cut `agent-hull-source`.
+- **Role briefs**, in `S\hulls\*.brief.json`. Each gives the faction, donor, role, the play line from
+  `Faction Play.md`, the reads the hull must show, the size class, the triangle budget and the mounts.
+- **Hull sources**, in `S\hulls\*.scad`, written by the agent. They are about 40 lines each, compose only kit modules,
+  are split by colour zone, and echo their anchors.
 
-### The probe (Longinus)
+`S\build.py` renders each part through `openscad.com --backend Manifold --render all`, one process at a time. All 28
+PIDs are in `S\out\pids.log`, the first 3404 and the last 20348. It then writes `ship.glb` and runs the checks.
 
-The stand-in source has three files (`S\probe\`):
-- `standin.scad`: the vocabulary. Glyph per kind, kind colours, cell frame, part dispatch.
-- `longinus.layout.scad`: generated from HullData by `gen_layout.py`, and never edited by hand. It holds the visible
-  mounts: id, kind, position, placed footprint and rotation.
-- `longinus.standin.scad`: agent-authored, 25 lines. Four `hull()` segments make the body (stern block, flared
-  weapons section, spine, nose), plus a `deck()` height function.
+- **AH-P1. Checks.** All pass (`S\out\<id>\checks.json`).
+  - Tender: 3468 triangles. The bbox is 10.5 x 23.4 x 5.9 m, inside its 18-28 m size class. Body h/w is 0.42 and w/l
+    is 0.61, inside Zhestokost's ranges [0.25, 0.6] and [0.35, 0.75]. Bilateral symmetry has a worst mirror miss of
+    0.0000 m. It has five mount anchors, and every weapon has a muzzle nose-ward of its mount.
+  - Fighter: 1466 triangles and 15 m long. The donor body's h/w is 0.20 and w/l 0.69, inside the R&D ranges. The
+    asymmetry rule holds.
+  - The vertex-based asymmetry figure (0.91 unmirrored) is too lenient, because tessellation alone breaks vertex
+    pairs. The silhouette measure below is the one to keep.
+- **AH-P2. Package path, on Yggdrasil, GREEN** (`S\ygg-agenthull-2.log`). The run used the scratch clone
+  `...\imagination-ag6-hull-art\vclone` at a10b5d64. That is 6d10331c plus throwaway commits, never pushed;
+  `git diff 6d10331c d28ce42d` touches no ship code. The job:
+  1. `ship-authoring create --like Longinus` for `agent.zhammotender` and `agent.pifighter`.
+  2. A gameplay layout authored separately, with mount ids matching the hull source's anchors.
+  3. `ship_cc.replace_visual` with the anchors.
+  4. `validate`: "7 hardpoints, 10 anchors" and "5 hardpoints, 8 anchors (records and model)".
+  5. `compose`: "Composed 2 mod ships".
 
-`build.py` renders each part separately with `openscad.com --backend Manifold --render all -D part="…"` (one process
-at a time, about 22 runs). It then writes `ship.glb`: a flat-faceted mesh per part, UV0 as a top-down projection in
-cell units, and nodes tagged `extras.aetheria.id`. It also writes `anchors.json`.
+  Run 1 was red because it had no `/pins` or `/lfs` mounts (the `DOCKER_ARGS` recipe in briefs.md).
+- **AH-P3. Silhouettes** (`S\out\sheets\metrics.json`). The silhouettes are scaled to their own bounding box, so the
+  comparison is of shape, not size. Tender against fighter: IoU 0.69 from the top and 0.52 from the side. Mirror IoU
+  from the top: tender 1.00, fighter 0.80, Djinni 1.00. These numbers are guardrails, not the judge.
+- **AH-P4. What the renders show.**
+  - The two read as different ships at every size, including 48 px. The tender is a dark, broad stepped block with
+    twin handling booms and eight oxide-red magazines hung outboard. A top-down camera sees those magazines; the
+    first version hung them under the booms, where they were hidden from above, and was moved. The fighter is a pale
+    wedge with a gun as long as the hull on the port side, a mismatched bell drive on the starboard quarter, a teal
+    crew slash and primer plates.
+  - The faction read holds without labels:
+    - Zhestokost shows stepped masses, deep seams, plates, tow lugs, recessed machinery and a low broad body.
+    - The Pirate fighter shows the donor wedge plus additions, each with a mount: a saddle under the gun, struts on
+      the drive, a strut under the sensor pod. A cable run joins the gun to the drive.
+  - Weaknesses:
+    - The charcoal Zhestokost body is low-contrast on dark space at 48 px.
+    - The fighter's thin side profile carries little.
+    - Nothing yet has the operator's one-segment-bevel and weighted-normal finish. Box chamfers stand in for it.
+      Blender's Bevel and Weighted Normal at Package would supply the real finish (`shippable-part-bar`, brush-tree).
+- **AH-P5. Not proven.**
+  - Unity: the ships were not flown, and `ShipModPlaySmoke` was not run.
+  - Blender was not in the loop.
+  - The real combat camera was not used.
+  - Only one agent authored both hulls. No second hull per faction tests whether the language holds a family
+    together; that is the next probe line.
 
-- **SI-P1. Measurements** (`S\probe\build.py` output):
-  - The body has 104 triangles. 0 of its 60 vertices lie outside the hull cells, and the worst miss of the mirror
-    test is 0.0000 m (the body is symmetric).
-  - The GLB is 84 KB, with 28 nodes and 18 anchors.
-  - All 10 visible mounts project into their own footprint: weapons and radiators at the footprint centre, thrusters
-    on the footprint edge they face.
-  - The probe checked vertices, not edges, against the cells. Each segment is convex inside a rectangular run of
-    cells, which is why the vertex check suffices here; a stepped outline needs an edge check.
-- **SI-P2. Package path, on Yggdrasil.** `ygg-verify` ran on a scratch clone at `2329782244d3`. That clone is
-  6d10331c plus `standin-probe/`; its commits are throwaway and were never pushed to origin. Image
-  `mcr.microsoft.com/dotnet/sdk:10.0`, with pins `/pins/cultlib-git-45c2f40` and `/pins/cultlib-9c1b06cd` and the
-  `/lfs` catalog. Log: `S\ygg-standin-6.log`, GREEN. The steps were:
-  1. `ship-authoring create … --like Longinus`.
-  2. `ship_cc.replace_layout` with Longinus' shape and hardpoints, then `ship_cc.replace_visual` with the 18 anchors
-     (the add-on's own Python).
-  3. `validate`, which reported "13 hardpoints, 18 anchors, 0 lines (records and model)", meaning
-     `ShipModCatalog.ReadPackage` judged the GLB.
-  4. `compose`, which reported "Composed 1 mod ships", with no exclusions.
+### Body facts found on the way (AH-B)
 
-  Runs 1-5 were red on job plumbing: LFS pointer, CultLib pins, empty layout from `--like`, and the null Sensors id.
-- **SI-P3. Not proven.** The Unity side was not run: `ShipModPreview.Smoke -assemble` and `ShipModPlaySmoke.Run`
-  (thrusters, weapons with muzzles, collider, map icon). The probe's GLB writer is scratch Python, not the add-on's
-  Package Ship. Blender was not in the loop, because no current Blender is on Starfire (only 2.77 and 2.78 under
-  `D:\Applications`). Glyph proportions were checked only in the proxy renders, never at the real combat camera.
-- **SI-P4. What the renders show.**
-  - From above, the stand-in states where every gun, launcher, engine and radiator is, by colour. At 48 px the
-    shipped mesh reads only as a silhouette.
-  - The body reads as an unfinished blockout: slab facets, a cell grid, no surface detail. Nobody would take it for
-    the shipped hull.
-  - The grid is texture noise at 48 px. In engine, mips average it away at distance.
-  - The first radiator fins were edge-on from above and vanished. They became panels tilted 30° outward. Energy
-    barrels were thickened from 0.14 to 0.28 m for the same reason.
+- **AH-B1. A current Blender is installed.** `C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe`
+  exists. Follow-up `blender-pin-operator` records it as Steam's 5.2.2 LTS. The brief's premise ("only 2.77/2.78")
+  came from `D:\Applications` and is wrong, so no install question is raised.
+- **AH-B2. Package already derives map-icon, shield and tractor** (`_regenerate_anchors`, `__init__.py:1009`). A
+  hull source therefore emits only mounts and mesh anchors. That subtracts four anchors from what the probe built.
+- **AH-B3. The add-on derives schematic Positions from the placement of model mounts.** `_plan_mounts`
+  (`__init__.py:409`) writes the HullData Position from where a weapon-mount empty sits. This conflicts with
+  `schematic-and-model-are-separate-spaces`, under which nothing is derived from model geometry, and it is pre-existing.
+  Cut `agent-hull-source` measures it first and reports it as a fork rather than bypassing it. Its owner is the
+  hardpoint walkthrough (`hardpoint-work-held-for-walkthrough`).
+- **AH-B4. No shipped ship embodies a current faction language.**
+  - Djinni (R&D) is a rounded, bulbous body, not the lore's flying wedge.
+  - The operator said of Longinus (Alakrita) that she would be happy never to see it again.
+  - Turret is a Zhestokost turret, not a ship.
 
-### Visual grammar (proposal; the look is question `standin-visual-mark`)
+  So the heroes are a real fork (question `agent-hull-hero-assets`).
+- **AH-B5. The two Zhestokost sources disagree.**
+  - The lore page gives charcoal, iron and oxide, a low broad hull, and identity "without relying on red paint".
+  - The operator's faction sheet shows a tan body with dark breakup, orange-red stripes, a tall stepped tower, and a
+    forward boom with hanging magazines.
 
-1. **Body.** A few convex `hull()` segments that follow the hull's outline and its concept (Concept Mill image or
-   description). Flat facets at `$fn = 8`. No bevels, panel lines, greebles or invented surface detail. One neutral
-   grey, carrying a dark line every 2 m cell on UV0, which is projected top-down in cell units. The grid is the
-   greybox mark, and because the cells are the schematic's, it also states size class.
-2. **Mount glyphs by kind,** each in one saturated colour, on its footprint, facing its Rotation:
-   - energy: a puck and one long barrel;
-   - ballistic: a puck and two short thick barrels;
-   - launcher: a box with tube mouths on its facing face;
-   - thruster: a bell opening toward its facing, whose mouth disc is the `thruster-emitter` mesh;
-   - radiator: a panel tilted outward, which is itself the `radiator-mesh`.
+  The probe took its palette from the lore and the boom and magazines from the sheet (question
+  `zhestokost-language-source`).
+- **AH-B6. A Pirate language is a composition.** The lore makes the Pirate body another faction's hull ("an
+  identifiable donor hull"). Bench 3 names donors: an AU miner, an R&D wedge. So the Pirate language is an additions
+  kit plus a donor language, never a body of its own. The checker reads the donor's proportions and the Pirates'
+  asymmetry rule.
+- **AH-B7. The prompt-lab leak finding does not carry over to meshes.** For image models, shape motifs in a faction
+  block leak onto every hull (prompt-lab rule 3). For meshes nothing applies itself: a kit module appears only where a
+  hull source calls it. The language file can therefore hold shape vocabulary, and the role decides which pieces a
+  hull uses.
 
-   Internal hardpoints are not drawn, because the schematic UI owns them.
-3. **Size.** Model metres are cells x 2 m (the add-on's rule).
-4. **Faction.** None in the mesh. Once `ships-hull-material` lands, the body's UV0 is where the livery mask goes
-   (primary channel on the body). Until then the body is neutral grey.
+### Pipeline (target)
 
-### Model (SKILL step 0b): rows for the persistent kinds this adds
+1. **Faction language** `tools/blender/aetheria_ships/factions/<faction>.scad`. One file holds the kit modules and a
+   header of constants: zone palette, symmetry rule, proportion ranges (a Pirate hull uses its donor's). The lore
+   sources are cited in comments. The operator owns it; agents draft it.
+2. **Hull source** `GameData/Mods/<id>/hull.scad`. Its brief header gives faction, donor, role, length range, budget
+   and reads. It has one part per zone, and its anchors are echoed. An agent owns it.
+3. **Build From Hull Source**, a new add-on operator. It runs OpenSCAD per part, one process at a time, and checks
+   against the language. It then makes the zone meshes (one material per zone) and the anchor objects under Ship Root.
+4. **Save Layout** (the gameplay schematic, authored separately) and **Package Ship**, both existing:
+   - Package writes `ship.glb`, derives the map icon, shield and tractor, writes the anchors and runs validate.
+   - Zones become livery mask channels when `ships-hull-material` lands (`hull-paint-mask-texture`).
+5. **Render and compare.** A contact sheet puts the hull beside its faction's hero and beside a different-faction
+   hull, at one scale and at combat size. A model reads the sheet and judges whether the hull reads as its faction and
+   role. No rule decides that, because it is a question of meaning. The operator rules on the first few.
+
+### Model (SKILL step 0b)
 
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
-| Stand-in source, `GameData/Mods/<id>/standin.scad` | The package directory, which equals `ShipAuthoring.Id`, names it. One per package, at a fixed name. Injective because package ids are. | Created by an agent pass for a hull with no operator art. Revised by agents. Deleted in the same change that lands operator art for that package. | The agent pass (Imagination for content, Hands for the cut) authors the body. The operator decides when it dies, by packaging her art. Forbidden writer: nothing hand-edits the layout. |
-| Layout, generated | Derived from that package's HullData. | Regenerated on every build. Not committed, never edited. | HullData. Owner only under `standin-layout-follows-schematic` = follow-schematic. Under free-like-real-art this row disappears and the source holds mount placement. |
-| Shared vocabulary, `tools/blender/aetheria_ships/standin/standin.scad` | Single file. | Revised by cuts; a revision re-renders every stand-in at its next build. | The ship add-on (Aetheria). |
-| `ship.glb` | `ShipAuthoring.ModelAsset`: one slot per package. | While `standin.scad` exists, a build output of it. Afterwards, the output of the operator's Package. | Exactly one writer at a time. The slot holds one mesh, so two meshes can never both decide. |
-| "This hull is a stand-in" | The presence of `standin.scad` in the package. **No new field.** | Ends when the file is deleted. | Derived. Build Stand-in refuses a package without the file, so it can never overwrite operator art. Any "which hulls are still stand-ins" view is a directory listing. |
-| Anchors | `ShipAuthoring.Anchors`, ids = mount ids. | Rewritten by Package on each build, stand-in or art. Ids are stable across the swap. | Package Ship (`ship_cc.replace_visual`). The same anchor ids keep loadouts and saves valid across the swap. |
+| Faction language, `factions/<faction>.scad` | The faction slug. One file per faction. A Pirate hull includes its donor's file as well. | Drafted by an agent from the lore and the operator's art, marked draft, then approved by an operator ruling. A revision rebuilds every hull of that faction at its next Build. | The operator decides the language (`zhestokost-language-source` is the first). Agents propose; nothing else edits it. |
+| Hull source, `GameData/Mods/<id>/hull.scad` | The package id, equal to `ShipAuthoring.Id`. One per package. | Created by an agent pass for a hull with no operator art and revised by agents. Deleted by Package in the same act that packages operator art into that package. | Agents (Imagination designs, Hands lands). The operator decides when it dies, by packaging her art. |
+| "Agent-built" status | Derived by `_hull_state` from hull.scad, Build's maker record, its untouched zones and her meshes (section HS). No field. | Ends when the state leaves agent and unbuilt: Package retiring hull.scad for her art. | Derived. The state table is in section HS. |
+| Zone meshes and anchor objects in Blender | Marked `aetheria.hull_source`, with ids `aetheria.id`. | Replaced on every Build. Never hand-edited. | Build From Hull Source. Build refuses a collection holding meshes it did not make. |
+| `ship.glb` and ShipAuthoring anchors | `ShipAuthoring.ModelAsset`, with anchor ids equal to mount ids. | Rewritten by every Package, whether from an agent hull or operator art. The ids are stable across the swap, so loadouts and saves survive it. | Package Ship, the only writer. |
+| HullData layout (schematic) | `mod-hull:<id>`. | Authored through Save Layout. Linked to the model by mount name only. | The schematic author: agents for agent hulls, the operator for hers. Never Build. AH-B3 is closed by cut `package-agent-hull-guards` (section PG). |
+| Hero asset | A package with no `hull.scad` that is named as its faction's hero. | Set by an operator ruling (`agent-hull-hero-assets`). | The operator. |
 
-Replacement when real art arrives: the operator packages her collection into the same package. Package writes
-`ship.glb` and the anchors, and the same change deletes `standin.scad`. That is one act and one owner.
-Open choice inside the cut, not an operator fork: whether Package deletes `standin.scad` itself or refuses until it is
-deleted. Recommendation: Package deletes it when the bound collection was not built by Build Stand-in, and says so.
+### Questions admitted
 
-`standin.scad` ships inside the mod directory, so it may reach player builds. That is harmless, and it doubles as an
-example for modders. The alternative is `tools/standin/hulls/<id>.scad`, which breaks "presence in the package is the
-status".
+- `aetheria-release:question:agent-hull-hero-assets`: which meshes are the heroes. Recommended: `keepers-finished`.
+- `aetheria-release:question:zhestokost-language-source`: whether Zhestokost follows the lore text, the faction sheet,
+  or both. Recommended: `sheet-palette-both-shapes`.
 
-### Rationale
+Neither blocks the first cut.
 
-- **Why not Tripo or "deliberate low poly".** The ruling's test is "never mistaken for final art". Every element of
-  the grammar is chosen to fail the polish test on purpose: the grid, flat facets, kind colours, and no surface
-  detail. Each element also carries information (scale, mount kind, facing), so the look is utility.
-- **Why the layout is generated.**
-  - Readability: the mounts the player sees agree with the schematic UI.
-  - Upkeep: a schematic edit re-renders the stand-in with no agent pass.
-  - Opus's weak spot: spatial placement is the failure mode the prior art documents most (LL3M §5; CAD
-    valid-but-wrong), and generation leaves only the body to judgment.
+### Cut sequence
 
-  This is model geometry derived from cells, against `schematic-and-model-are-separate-spaces`, hence question
-  `standin-layout-follows-schematic`.
-- **Why Blender for the target, not the probe's Python.** Package Ship already writes `ship.glb` and the anchors,
-  and runs validate. A second GLB writer would be a second authority over the same file. The cut imports OpenSCAD
-  part meshes into the bound collection with role tags, then calls Package. Brush-tree's `bake-only` and
-  `lowered-hull-through-package` point the same way.
-
-### Cut sequence (one line each; no spec admitted, because `standin-build` waits on both questions)
-
-1. `standin-build`. Add-on operator Build Stand-in (headless-capable): checks that `standin.scad` exists, generates
-   the layout from the bound `ship.cc`, runs `openscad.com` per part, imports the parts into the bound collection with
-   `aetheria.role`/`aetheria.id` tags, and calls Package Ship. It carries the vocabulary file and Longinus as its test
-   hull, gives the shipped Longinus Sensors hardpoint a mount id (SI-B4), and adds a `smoke_standin.py` beside
-   `smoke_package.py`. Verification:
-   - `ShipModPreview.Smoke -assemble` and `ShipModPlaySmoke.Run` on the package;
-   - the in-cells, mirror and in-footprint checks from SI-P1 (the last only under follow-schematic).
-
-   Deploy owner: OpenSCAD in whatever image runs Blender smokes on Yggdrasil. Not established, because the Blender
-   smoke's host was not found.
-2. `standin-package-retire`. Package Ship, on a package that still has `standin.scad`, deletes the file when the
-   collection is the operator's (model row above). It can fold into cut 1 if small.
-3. `standin-role-hulls` (content). Stand-ins for the demo role hulls as their HullData land (follow-up
-   `demo-role-hulls`), and for the cast flyables until her art arrives. Each body is authored from the hull's
-   Concept Mill keeper or description (follow-up `hulls-through-concept-mill`).
-4. After `ships-hull-material`: the stand-in mask, with primary channel = body, so faction liveries colour stand-ins.
-   A line in that spec's next revision, not a cut of its own.
+- `agent-hull-source` (spec `aetheria-release:cut_spec:cut-agent-hull-source.r1`): the factions folder,
+  `hull_source.py`, Build From Hull Source, and Package deleting `hull.scad` when it packages operator art. The two
+  probe hulls become fixtures. Its first step measures AH-B3.
+- `agent-hull-family-probe`: one more hull for each of the two factions (a Zhestokost gunboat, a Pirate tender on an
+  AU miner donor). It tests whether a language holds a family together, judged on a sheet beside the hero. Waits on
+  agent-hull-source.
+- `agent-hulls-demo-roles`: hull sources for the demo's role hulls (follow-up `demo-role-hulls`) and the invented
+  Zhestokost boss hull (`demo-boss-hull-invented`), as packages through Package. Waits on agent-hull-family-probe,
+  `mods-in-tree` and `zhestokost-language-source`.
+- `agent-hull-finish`: Bevel and Weighted Normal on agent hulls at Package, and zones into the livery mask. Waits on
+  `ships-hull-material`.
 
 ### Gaps
 
-- Combat camera distance and angle were not read, so the zoom panel is a proxy.
-- The greybox dev-texture convention is general practice, not evidence in the Eyes file.
-- Where a current Blender runs headless for agents is not established on Starfire. The Package smoke's host was
-  not checked.
-- Settings.SchematicCellSize = 2 m is cited from `hull_grid.py`, not read from `Settings.asset`.
-- Scope reading, not a ruling: stand-ins are for hulls without operator art (demo role hulls; cast flyables until
-  hers land). Shipped legacy hulls keep their meshes.
+- No Unity flight of either hull.
+- No real combat camera.
+- The model read was one agent judging its own sheets.
+- Lucent and AU languages are not drafted.
+- The hero comparison is weak until the heroes exist.
+
+## Package on agent hulls (PG)
+
+Imagination pass `imag-ag7-hull-guards`, session `self-2026-10-19-ag7`, 2026-10-19, pinned to Aetheria `origin/master`
+5acbaa1b (worktree `C:\aeth-wt\ag7-hull-guards-imag`). It maps cut `package-agent-hull-guards` (spec
+`aetheria-release:cut_spec:cut-package-agent-hull-guards.r1`) for follow-ups `package-agent-hull-guards` and
+`hull-copy-refusals` and finding `cut-agent-hull-source.s2.hull-names-its-own-faction`. It rests on rulings
+`remove-package-schematic-derivation`, `hull-faction-is-product-maker`, `schematic-and-model-are-separate-spaces` and
+`package-carries-product`.
+
+### Body facts (source reads and one probe at 5acbaa1b)
+
+- **PG-B1. The derivation has three writers.** `_derived_position` (`__init__.py:253`) maps a model point to a cell
+  through `hull_grid.cell_at` and `mounted_position`. Add Weapon (`_add_mount`, :302) and Mirror Mount (:359) call it.
+  Package calls `_plan_mounts` (:409), which plans every weapon row's Position, and then `_apply_mounts` (:432), which
+  writes those Positions, sets each mount object's yaw from its row's Rotation, and saves the layout. So Package writes
+  each space from the other: the schematic from the model, and the model's yaw from the schematic. Package would turn
+  a hull source's turned mount (smoke step 1.10, yaw 90) back to its row's facing.
+- **PG-B2. After the delete, `cell_at`, `mounted_position`, `mounted_cell` and `_centre_offset` have no caller** outside
+  `tests/test_hull_grid.py` (grep of `tools/blender`). `cell_centre`, `mirror_position`, `mirror_footprint`,
+  `mirror_rotation` and `facing_yaw` keep callers (Rasterise, the grid drawing, `_frame_ship`, Mirror Mount, Add
+  Weapon).
+- **PG-B3. A product names its maker by an opaque Faction record key.** `FactionProductData.Manufacturer` is
+  `CultRecordRef<Faction>` at `[Key(4)]` (`Assets/Scripts/ServerShared/FactionProduct.cs:26`), and
+  `CultRecordRefFormatter` writes it as the key string. Probe `probe_factions.py` (cultcache-py from
+  `F:\Projects\CultLib\packages\cultcache-py\src`, read of `GameData/Aetheria.cc`) listed 16 `aetheria.faction`
+  records. Among them are Zhestokost `16bad4f9-7fb5-41c5-8da0-dc76709eb7d3`, Pirates
+  `1d8a168def994a76a1ce7cb18f59c038` and Rossum & Douglas `adfb9b08-aabc-45c6-9586-915698a9c4b0`. Product makers are
+  these keys: Juggernaut's, for example, is Zhestokost's. The language files are named by slug (`zhestokost`, `pirate`,
+  `rnd`), and nothing maps a slug to a Faction key today.
+- **PG-B4. New Ship makes no product.** `AetherDb ship-authoring create` writes only a HullData and a ShipAuthoring
+  (`tools/AetherDb/ShipAuthoringCommands.cs:56`). `ship-authoring product <ship.cc> <maker> --name <name>` (:94)
+  writes a product, resolving the maker by Faction `Name` or `ShortName` (:136). The agent-hull smoke packages ships
+  that have no product (Soul s2 noted it).
+- **PG-B5. The duplicate-id refusal names nothing.** `ship_cc.replace_visual` raises "An anchor ID is used twice"
+  (`ship_cc.py:171`), and it does so after Package has framed the ship and written `ship.glb`. Build never looks at
+  ids, because `_own_meshes` skips every object that carries `aetheria.role`. The add-on already has a way to point at
+  offenders without echoing input: `_refuse_selecting` (`__init__.py:1139`), which `_refuse_loose_meshes` uses.
+- **PG-B6. The tests split by host.** `tools/blender/tests/test_*.py` import `ship_cc`, `hull_grid` and `hull_source`
+  by path with no bpy (`CULTLIB_PACKAGES=<CultLib>/packages python -m unittest discover -s tools/blender/tests`), so
+  they run on Yggdrasil in a python image with msgpack. The `smoke_*.py` files need Blender 5.2's bpy and run
+  headless (`blender --background --factory-startup --python-use-system-env --python ...`). They run on Starfire, one
+  process at a time, as Soul ran them for agent-hull-source. `ShipSchemaPinTests` is C# and pins the slot constants of
+  `ship_cc.py` by regex.
+
+### Rationale
+
+- **The language file names its maker.** The ruling needs a comparison between the brief's faction (a language slug)
+  and the product's maker (a Faction key). Matching names (`Pirates` against `pirate`, `Rossum & Douglas` against `rnd`)
+  would be a fuzzy rule. A table in `hull_source.py` would be a second owner of a fact the language file already
+  stands for. So each `factions/<faction>.scad` gains its Faction record key as an eighth element of its `lang` echo.
+  The file that owns the language then also says whose language it is, and the existing "includes its language
+  unchanged" check covers that element too.
+- **Build records the maker it judged by, and Package compares that record.** Re-reading `hull.scad` at Package would
+  compare the brief as it is now, which may differ from the brief Build judged: an author could edit the brief after
+  Build and then Package. Build already records what it made (`aetheria.hull_built`), so it also records
+  `aetheria.hull_maker`, the maker key of the language it judged against. Package then refuses unless the package
+  holds at least one product and every product's Manufacturer is that key. The check runs whenever the package still
+  ships Build's zones. When her art takes over (the same predicate `_retire_hull_source` uses), the brief no longer
+  governs and no check runs. An operator could edit the record by hand, since it is a custom property; that is the same
+  trust as the fingerprint record, and a hull source cannot reach it.
+- **This cut fixes the finding.** After it, the faction a shipped hull was judged by is its product's maker. Drafting
+  under another faction stays possible, as the ruling allows. A separate cut would only repeat the Package edit.
+- **Mirror Mount mirrors each space within itself.** The twin row's Position is `mirror_position` of the row's own
+  Position and footprint on the layout's width. The twin object stands at the reflection of the mount's model point
+  across Ship Root's X = 0. Mirror Mount refuses when either twin would coincide with its source: the same Position,
+  or a model point within 1 mm of X = 0. `CENTRELINE` (half a schematic cell, measured in model metres) was a
+  cross-space constant, so it goes.
+- **Add Weapon's yaw stays a creation default.** One Rotation choice sets both the new row and the new empty's facing,
+  once. Nothing re-derives either afterwards. The ruling took only the Position derivation out of Add Weapon, so the
+  yaw stays.
+- **Copies are refused by id, in Build and Package alike.** One helper refuses while two role-bearing objects share an
+  `aetheria.id`. It selects them and names a count, never an object. That covers the collider, emitter, radiator and
+  mount copies Soul built (s2 probes A2 and A5 to A7). The duplicate check in `ship_cc` stays, as the file writer's
+  invariant.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| A language's maker: the eighth element of `lang` in `factions/<faction>.scad` | The Faction record key in `GameData/Aetheria.cc`. | Written when the language is drafted. Changes only if the language is reassigned to another faction. | The language file, operator-approved like the rest of it. |
+| `aetheria.hull_maker` on a ship collection | The maker key of the language Build judged against. | Set by every Build. Deleted with `aetheria.hull_built` when Package retires `hull.scad`. | Build From Hull Source writes it; Package reads it. |
+| HullData layout Position | As before. | Authored in the layout panel only. Add Weapon creates a row at the default Position. | The schematic author. Package and the mount helpers no longer write it (this cut closes AH-B3). |
+
+### Admitted
+
+- `aetheria-release:cut_spec:cut-package-agent-hull-guards.r1`.
+
+## Hull collection states (HS)
+
+Imagination pass `imag-ag7-hull-states`, session `self-2026-10-19-ag7`, 2026-10-19, pinned to Aetheria f121b464 (head
+of `eureka/aetheria-release-package-agent-hull-guards`, worktree `C:\aeth-wt\ag7-hull-states-f121`). Three Soul passes
+(verdicts `cut-package-agent-hull-guards.s1` to `.s3`) each found the one decision "is this hull Build's, hers, or
+neither" answered by two readers that disagreed. This section is the model that gives that decision one owner. It
+revises spec `cut-package-agent-hull-guards` to r2 for findings `.s3.never-built-art-deadlock` and
+`.s3.art-requirement-unpinned`, and admits question `art-over-unbuilt-hull-source`.
+
+### Body facts (source reads and one probe at f121b464)
+
+- **HS-B1. Four inputs name the state, and each has one writer.** `hull.scad` in the package (`_hull_source_file`,
+  `__init__.py:1499`): written by agents, deleted by `_retire_hull_source` (:1645) or by hand. `aetheria.hull_maker`
+  and `aetheria.hull_built` on the collection (:1494-1495): written together by Build (:1622-1623), deleted together by
+  `_retire_hull_source` (:1648). Build's untouched zone meshes: derived by `_hull_built` (:1518) from the record and each
+  object's fingerprint. Her meshes: `_own_meshes` (:789) minus Build's untouched objects, so a Build zone she edited
+  counts as hers.
+- **HS-B2. The regime has two readers today.** `_art_takes_over` (:1627) reads the maker record, Ship Root, the
+  untouched zones and her meshes. `_refuse_wrong_maker` (:1654) calls it, then reads `hull.scad` again on its own
+  (:1663) when the record is absent. `_retire_hull_source` (:1639) reads only `_art_takes_over`. The panel reads
+  `hull.scad` to show the Build button (:1789). Build (:1556) reads `hull.scad` as its input file and refuses her
+  meshes and edited objects of its own (:1562-1568), which is its write-safety rule, not the regime.
+- **HS-B3. Fourteen states are reachable, and the two readers disagree in exactly one.** Probe
+  `probe_states.py` (scratchpad `imag-ag7-hull-states`) transcribes the f121b464 conditions and enumerates every
+  combination of hull.scad (S), the maker record (M), an untouched Build zone (Z), her meshes (A) and Ship Root (R),
+  with Z implying M and R, A implying R, and M without R (a hand-deleted Ship Root) left out. Of 14 states, one is a
+  deadlock: S, no M, no Z, A, R (an agent's hull.scad Build never ran, with her art under Ship Root). Package refuses
+  "Build From Hull Source first" and Build refuses her meshes. That is Soul's s3 case A. The proposed classifier below
+  gives the same Package and retirement outcome as f121b464 in the other 13 states.
+- **HS-B4. One state is pinned by nothing.** M, no Z, no A (Build's zones deleted, nothing put in their place): the
+  smoke has no step for it, so the art test inside `_art_takes_over` can be replaced with True and the smoke stays
+  green (Soul s3 mutation `mut.art-needs-no-art`).
+- **HS-B5. Products matter only in the agent state.** `product_makers` (`ship_cc.py`) is read only by
+  `_refuse_wrong_maker`, after the regime says the hull is Build's. Her art and a plain hull ship with any product or
+  none (smoke step 1.9 removes the product before her art is packaged).
+
+### The state table
+
+S is hull.scad in the package, M is Build's maker record, Z is an untouched zone mesh of Build's, and A is her meshes
+under Ship Root. "Check" means that Package refuses unless the package holds a product and every product's
+Manufacturer is the recorded maker: no product gives "no product", and a wrong or mixed maker gives "not by the
+maker". Every Package outcome holds only when the validator accepts. Retirement deletes hull.scad (if present), M and
+`aetheria.hull_built`, after the validator has accepted.
+
+| # | S | M | Z | A | State | Build | Package | Retired | How it is reached |
+|---|---|---|---|---|---|---|---|---|---|
+| H1 | - | - | - | - | plain | refuses: no hull.scad | no check | nothing | New Ship, no agent hull |
+| H2 | - | - | - | yes | plain | refuses: no hull.scad | no check | nothing | Her hero or hand-made hull. It is also H6 or H11 after the Package that retires |
+| H3 | yes | - | - | - | unbuilt | builds | refuses: "Build From Hull Source first, or put your own meshes under Ship Root" | nothing | An agent's hull.scad dropped in. Smoke PASS 3 |
+| H4 | yes | - | - | yes | **art** (question `art-over-unbuilt-hull-source`) | refuses: not its meshes | no check | hull.scad | Her art over a hull.scad Build never ran. **The f121b464 deadlock** |
+| H5 | yes | yes | yes | - | agent | builds (replaces its own) | check | nothing | After Build. Smoke 1.1 to 1.5 |
+| H6 | yes | yes | - | yes | art | refuses: not its meshes | no check | hull.scad, M | Her art replaced every Build zone, or she edited them all. Smoke 1.9, odd hull |
+| H7 | yes | yes | yes | yes | agent | refuses: not its meshes | check | nothing | Her mesh beside Build's zones, or one zone edited. Smoke 1.8 |
+| H8 | yes | yes | - | - | agent | builds | check | nothing | Build's zones deleted, nothing in their place. **Unpinned (s3 art-requirement)** |
+| H9 | - | yes | yes | - | agent | refuses: no hull.scad | check | nothing | hull.scad deleted by hand after Build. Smoke 1.5's hull.scad-gone row |
+| H10 | - | yes | yes | yes | agent | refuses: no hull.scad | check | nothing | H7 with hull.scad deleted by hand |
+| H11 | - | yes | - | yes | art | refuses: no hull.scad | no check | M | H6 with hull.scad deleted by hand. Smoke 1.9, even hull |
+| H12 | - | yes | - | - | agent | refuses: no hull.scad | check | nothing | H8 with hull.scad deleted by hand |
+
+Ship Root absent (states H1 and H3 before New Ship's root, or after a hand deletion) changes nothing in the table:
+`_own_meshes` needs a root, so with no root A is false and the row is H1 or H3. A maker record with no root (hand
+deletion) is agent.
+
+### Authority
+
+- **Owner of the state: `_hull_state(collection)`**, one classifier in `__init__.py`, evaluated in this order. Build's
+  untouched zone present gives agent. Otherwise her meshes present together with Build's record or hull.scad gives art.
+  Otherwise Build's record present gives agent. Otherwise hull.scad present gives unbuilt. Otherwise plain. It reads
+  `_hull_built`, `_own_meshes`, `HULL_MAKER in collection` and `_hull_source_file`, and nothing else does so to decide
+  the regime.
+- **Owner of the maker of a shipped agent hull: its products** (ruling `hull-faction-is-product-maker`).
+  `aetheria.hull_maker` is a record of what Build judged against, read only as the value to compare in the agent state.
+- **Owner of when hull.scad dies: Package**, through `_retire_hull_source` in the art state after the validator
+  accepts, or the operator by hand. Ruling `hull-art-communicates-form` keeps agent hulls until her art replaces them.
+  The model row of section "Agent-built hulls" names Package's packaging of her art as that act.
+- **Owner of whether Build may write: Build** (`_build_hull_source`), on its own rule that it never replaces a mesh it
+  did not make or an object of its own that was changed. This is a separate decision from the regime, and it reads
+  hull.scad as its input.
+- **Display-only:** the panel's read of hull.scad (:1789), which shows the Build button. In H4 the button shows and
+  Build refuses. It decides nothing.
+- **Forbidden readers of the regime:** `_refuse_wrong_maker` reading `hull.scad` or deciding by the presence of the
+  maker record; `_retire_hull_source` testing anything but `_hull_state`; any reader of `aetheria.hull_built` other
+  than `_hull_built`; the smoke asserting the classifier's return value as its only proof.
+- **Deletion line:** `_art_takes_over` (:1627-1636) and the hull.scad branch of `_refuse_wrong_maker` (:1661-1665) go
+  before `_hull_state` is added.
+
+### Rationale
+
+- **The body decides, not a file or a record alone.** The guard exists so that a hull shipping Build's judged body
+  ships under Build's judged maker. Whether Build's untouched zones are in the collection is the fact that says so.
+  hull.scad (keyed by r1, s1 `guard-keyed-on-hull-scad`) and the maker record (keyed by h3, s3 `never-built-art-deadlock`)
+  each stand in for that fact in only some states, which is why each fix moved the hole somewhere else.
+- **Order is the model.** Z before A keeps H7 and H10 under the guard: one of Build's zones still ships. A with M or S
+  before M alone makes her art win once no Build zone is left (H4, H6, H11). A must be required (H8 and H12 stay agent),
+  and M or S must be required (H2 stays plain and retires nothing).
+- **H4 is the operator's call.** Two readings are coherent. Under the first, her art over a hull.scad is hers and
+  Package retires the file, which is what 70c366b5 did and what the "Agent-built hulls" model row says. Under the
+  second, Package never deletes an agent's hull.scad that Build never ran, and refuses with text naming the exit
+  (delete hull.scad). The recommendation is the first, in question `art-over-unbuilt-hull-source`. Either answer
+  changes one condition in `_hull_state` and one message, and both remove the deadlock.
+- **The "Agent-built" status row above is superseded.** It said the status is the presence of hull.scad. That holds
+  only for H3 to H8. The status is `_hull_state` being agent or unbuilt.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Hull state (plain, unbuilt, agent, art) of a ship collection | Derived per call from hull.scad, `aetheria.hull_maker`, Build's untouched zones and her meshes. No field. | Recomputed at every Package and retirement. It changes when Build runs, when she adds or removes meshes, at retirement, and when hull.scad or a record is deleted by hand. | `_hull_state`, alone. |
+
+### Admitted
+
+- `aetheria-release:question:art-over-unbuilt-hull-source` (recommended `art-takes-over`, raised in the spec, which it
+  blocks).
+- `aetheria-release:cut_spec:cut-package-agent-hull-guards.r2`, superseding r1.

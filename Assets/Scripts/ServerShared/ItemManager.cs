@@ -121,6 +121,9 @@ public class ItemManager
     // Builds one of a manufacturer's branded products (quality-is-assembly-over-supply-chain): the unit's own quality is its
     // final assembly, drawn from the product's assembly distribution, else its maker's, else AssemblyDistribution's defaults,
     // and each of the design's roles is filled with a part whose quality is drawn from the product's distribution for it.
+    // A binned product (maker-design-tiers-allowed) has no distributions of its own: it is its line's, derived here on every
+    // mint, with each draw (the assembly and every fill) truncated below the line's mean + Bin.Floor deviations. The lot is
+    // still the bin's: its Product, its title and so its brand.
     public int CreateLot(FactionProductData product) => Mint(product, null);
 
     // The same lot at a stated quality: the assembly and every role fill are that quality and nothing is drawn, so a staged
@@ -130,28 +133,36 @@ public class ItemManager
     private int Mint(FactionProductData product, float? stated)
     {
         var design = ItemData.Get(product.Design);
-        var assembly = product.Assembly ?? ItemData.Get(product.Manufacturer)?.Assembly ?? new AssemblyDistribution();
+        var line = product.Bin != null ? ItemData.Get(product.Bin.Line) : null;
+        if (product.Bin != null && line == null)
+            Log("A binned product names a line the catalog does not hold; it mints as a product with no roles of its own.");
+        var source = line ?? product;
+        var floor = line != null ? product.Bin.Floor : (float?) null;
+        var assembly = source.Assembly ?? ItemData.Get(product.Manufacturer)?.Assembly ?? new AssemblyDistribution();
         var lot = new Lot
         {
             Design = ItemData.RefOf<ItemData>(design),
             Origin = new Attributed { Faction = product.Manufacturer },
             Product = ItemData.RefOf(product),
-            Quality = stated ?? clamp(Random.NextGaussian(assembly.Mean, assembly.StandardDeviation), .01f, 1),
+            Quality = stated ?? clamp(Draw(assembly.Mean, assembly.StandardDeviation, floor), .01f, 1),
             Roles = new List<RoleFill>()
         };
         if (design.Roles != null)
             foreach (var role in design.Roles)
             {
-                var build = product.Roles?.FirstOrDefault(b => b.Role == role.Name) ?? new ProductRole();
+                var build = source.Roles?.FirstOrDefault(b => b.Role == role.Name) ?? new ProductRole();
                 lot.Roles.Add(new RoleFill
                 {
                     Role = role.Name,
-                    Quality = stated ?? clamp(Random.NextGaussian(build.Mean, build.StandardDeviation), .01f, 1)
+                    Quality = stated ?? clamp(Draw(build.Mean, build.StandardDeviation, floor), .01f, 1)
                 });
             }
 
         return Lots.Add(lot);
     }
+
+    private float Draw(float mean, float deviation, float? floorDeviations) =>
+        floorDeviations is { } floor ? Random.NextGaussianAbove(mean, deviation, floor) : Random.NextGaussian(mean, deviation);
 
     // No branded product: a lot attributed to maker (which may be unset) with no role fills, e.g. console `give`.
     public int CreateLot(CraftedItemData design, CultRecordRef<Faction> maker, float quality)

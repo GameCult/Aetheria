@@ -63,7 +63,10 @@ public sealed class ProductChoiceTests : IDisposable
         }
     }
 
-    private Rig Build(params string[] lampOrder)
+    private Rig Build(params string[] lampOrder) => Build(new float[0], lampOrder);
+
+    // binFloors adds one bin of lamp-a's line per floor, named "lamp-a bin" and "lamp-a bin 2"..., by the same maker.
+    private Rig Build(float[] binFloors, string[] lampOrder)
     {
         var root = Path.Combine(_root, "rig" + _catalogs++);
         Directory.CreateDirectory(root);
@@ -97,6 +100,12 @@ public sealed class ProductChoiceTests : IDisposable
             // lampOrder holds product names; the record key of the i-th inserted is "k" + i, so keys and insertion order
             // both follow the permutation.
             for (var i = 0; i < lampOrder.Length; i++) Sell(lampOrder[i], lamp.Key, makers[lampOrder[i]], "k" + i);
+            for (var i = 0; i < binFloors.Length; i++)
+                seed.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = i == 0 ? "lamp-a bin" : "lamp-a bin " + (i + 1), Design = new CultRecordRef<CraftedItemData>(lamp.Key), Manufacturer = alpha,
+                    Bin = new ProductBin { Line = new CultRecordRef<FactionProductData>(new CultRecordKey("k" + Array.IndexOf(lampOrder, "lamp-a"))), Floor = binFloors[i] }
+                }, new CultRecordKey("bin" + i)));
             seed.FlushAsync().Wait();
         }
 
@@ -247,6 +256,90 @@ public sealed class ProductChoiceTests : IDisposable
         var rig = Build("lamp-z", "lamp-a");
         Assert.InRange(MakerDraws(rig, rig.OutEven, 0, "lamp-a", 300), 180, 220);
         Assert.InRange(MakerDraws(rig, rig.OutEven, 1, "lamp-a", 300), 80, 120);
+    }
+
+    // Ruling bin-share-by-floor: a bin of lamp-a's line takes the fraction of lamp-a's stock that would pass its floor, 1 - Phi(Floor),
+    // of lamp-a's preference, and the line keeps the rest, so the maker's presence for the design is what it was without the bin.
+    [Fact]
+    public void ABinTakesItsPassFractionOfItsMakersPreference()
+    {
+        var alone = Build("lamp-z", "lamp-a");
+        var preference = alone.Outfitter(alone.OutEven, 1, 0).ProductWeight(alone.Product("lamp-a"));
+        Assert.True(preference > 0);
+
+        var quarter = Build(new[] { .67f }, new[] { "lamp-z", "lamp-a" });
+        var generator = quarter.Outfitter(quarter.OutEven, 1, 0);
+        Assert.Equal(.2514f * preference, generator.ProductWeight(quarter.Product("lamp-a bin")), 3);
+        Assert.Equal(.7486f * preference, generator.ProductWeight(quarter.Product("lamp-a")), 3);
+        Assert.Equal(preference, generator.ProductWeight(quarter.Product("lamp-a bin")) + generator.ProductWeight(quarter.Product("lamp-a")), 3);
+        // Another maker's product, whose line has no bin, weighs what it did without any bin in the catalog.
+        Assert.Equal(alone.Outfitter(alone.OutEven, 1, 0).ProductWeight(alone.Product("lamp-z")), generator.ProductWeight(quarter.Product("lamp-z")), 3);
+
+        var half = Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" });
+        generator = half.Outfitter(half.OutEven, 1, 0);
+        Assert.Equal(.5f * preference, generator.ProductWeight(half.Product("lamp-a bin")), 3);
+        Assert.Equal(.5f * preference, generator.ProductWeight(half.Product("lamp-a")), 3);
+
+        // The maker keeps its presence: Alpha's line and bin together draw as lamp-a alone did.
+        var lamp = quarter.Cache.GetByName<GearData>("Lamp");
+        var alpha = Enumerable.Range(1, 300).Count(i => quarter.Cache.Get(quarter.Outfitter(quarter.OutEven, Seed(i), 0).ChooseProduct(lamp).Manufacturer).Name == "Alpha");
+        Assert.InRange(alpha, 180, 220);
+    }
+
+    // A line gives up the sum of its bins' pass fractions and no more: two top-half bins leave it nothing, and a third does not
+    // take it below nothing.
+    [Fact]
+    public void ALineKeepsWhatItsBinsLeaveAndNeverLessThanNothing()
+    {
+        var two = Build(new[] { 0f, .67f }, new[] { "lamp-z", "lamp-a" });
+        var alone = Build("lamp-z", "lamp-a");
+        var preference = alone.Outfitter(alone.OutEven, 1, 0).ProductWeight(alone.Product("lamp-a"));
+        Assert.Equal((1 - .5f - .2514f) * preference, two.Outfitter(two.OutEven, 1, 0).ProductWeight(two.Product("lamp-a")), 3);
+
+        var three = Build(new[] { 0f, 0f, 0f }, new[] { "lamp-z", "lamp-a" });
+        Assert.Equal(0f, three.Outfitter(three.OutEven, 1, 0).ProductWeight(three.Product("lamp-a")));
+    }
+
+    // Ruling bin-share-by-floor holds on every draw of a design, not only the preference-weighted one. When every reachable maker
+    // weighs 0 the ChooseProduct draw is by share alone, and Alpha's line and bin together keep the half they held as one product.
+    [Fact]
+    public void ABinLeavesItsMakersShareOfTheAllZeroWeightDrawUnchanged()
+    {
+        int AlphaDraws(Rig rig)
+        {
+            var lamp = rig.Cache.GetByName<GearData>("Lamp");
+            var zero = rig.Cache.GetByName<Faction>("OutZero");
+            return Enumerable.Range(1, 1000).Count(i => rig.Cache.Get(rig.Outfitter(zero, Seed(i), 0).ChooseProduct(lamp).Manufacturer).Name == "Alpha");
+        }
+
+        Assert.InRange(AlphaDraws(Build("lamp-z", "lamp-a")), 440, 560);
+        Assert.InRange(AlphaDraws(Build(new[] { .67f }, new[] { "lamp-z", "lamp-a" })), 440, 560);
+        Assert.InRange(AlphaDraws(Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" })), 440, 560);
+    }
+
+    // The same for a required item that has fallen back to any manufacturer (OutNone is allied to nobody, so no product is on offer
+    // and the fallback weighs every product alike, but for the bins' shares).
+    [Fact]
+    public void ABinLeavesItsMakersShareOfTheRequiredFallbackDrawUnchanged()
+    {
+        int AlphaDraws(Rig rig)
+        {
+            var log = new List<string>();
+            var items = new ItemManager(rig.Cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), log.Add);
+            var lamp = rig.Cache.GetByName<GearData>("Lamp");
+            var alpha = Enumerable.Range(1, 1000).Count(i =>
+            {
+                var random = new Random(Seed(i));
+                var generator = new LoadoutGenerator(ref random, items, rig.Galaxy, null, rig.OutNone, .5f);
+                return rig.Cache.Get(generator.RandomProduct<EquippableItemData>(0, design => design == lamp, required: true).product.Manufacturer).Name == "Alpha";
+            });
+            Assert.NotEmpty(log);
+            return alpha;
+        }
+
+        Assert.InRange(AlphaDraws(Build("lamp-z", "lamp-a")), 440, 560);
+        Assert.InRange(AlphaDraws(Build(new[] { .67f }, new[] { "lamp-z", "lamp-a" })), 440, 560);
+        Assert.InRange(AlphaDraws(Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" })), 440, 560);
     }
 
     // A weight that read the allegiance alone would give 1 : .25 here, an 80% draw; the zone and allegiance together
