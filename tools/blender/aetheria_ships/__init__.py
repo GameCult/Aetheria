@@ -1493,6 +1493,10 @@ def _frame_ship(context, collection, root, path, saved_shape):
 
 HULL_MAKER = "aetheria.hull_maker"  # on the collection: the Faction key of the language Build judged the hull against
 HULL_BUILT = "aetheria.hull_built"  # on the collection: {object name: fingerprint} of what Build From Hull Source made
+HULL_AGENT = "agent"  # HS rows H5, H7-H10, H12: Build's judged body or record governs; Package checks the maker
+HULL_ART = "art"  # HS rows H4, H6, H11: her meshes replace Build's; Package ships them and retires the hull source
+HULL_UNBUILT = "unbuilt"  # HS row H3: an agent's hull.scad with nothing built and none of her art
+HULL_PLAIN = "plain"  # HS rows H1, H2: no agent hull; Package checks nothing and retires nothing
 HULL_COLLIDER = ("hull-collider", "collider", "Hull Collider")
 
 
@@ -1624,23 +1628,29 @@ def _build_hull_source(context, collection):
     return hull
 
 
-def _art_takes_over(collection):
-    """Whether the body is the operator's: Build's maker record and a Ship Root exist, the collection holds render meshes
-    that Build did not make as they stand, and no zone mesh of Build's is left. The record alone says the hull was
-    Build-made; hull.scad is not consulted."""
-    root = _ship_root(collection)
-    if HULL_MAKER not in collection or root is None:
-        return False
+def _hull_state(collection):
+    """The one owner of a ship collection's hull state (map HS), decided in this order: an untouched Build zone mesh
+    keeps the hull agent's; her meshes beside Build's record or hull.scad make it art; then Build's record is agent,
+    hull.scad alone is unbuilt, and nothing is plain. _refuse_wrong_maker and _retire_hull_source read this and nothing
+    else to decide the regime; Build's own write-safety rule is a separate decision."""
     untouched, _ = _hull_built(collection)
-    zones = [obj for obj in untouched if obj.type == "MESH" and "aetheria.role" not in obj]
-    return not zones and bool([obj for obj in _own_meshes(collection) if obj not in untouched])
+    if any(obj.type == "MESH" and "aetheria.role" not in obj for obj in untouched):
+        return HULL_AGENT
+    built = HULL_MAKER in collection
+    source = _hull_source_file(collection) is not None
+    if _ship_root(collection) is not None and (built or source) and [
+            obj for obj in _own_meshes(collection) if obj not in untouched]:
+        return HULL_ART
+    if built:
+        return HULL_AGENT
+    return HULL_UNBUILT if source else HULL_PLAIN
 
 
 def _retire_hull_source(collection):
-    """Deletes Build's records, and the package's hull.scad if it is still there, when the body is the operator's
-    (_art_takes_over). The anchors and collider she kept are hers from then on. A hull never built, or built and
-    packaged as it stands, keeps its source. Returns whether art took over."""
-    if not _art_takes_over(collection):
+    """Deletes Build's records, and the package's hull.scad if it is still there, when the hull is in the art state
+    (_hull_state: H4, H6, H11). The anchors and collider she kept are hers from then on. A hull never built and without
+    her art, or built and packaged as it stands, keeps its source. Returns whether art took over."""
+    if _hull_state(collection) != HULL_ART:
         return False
     source = _hull_source_file(collection)
     if source is not None:
@@ -1652,16 +1662,18 @@ def _retire_hull_source(collection):
 
 
 def _refuse_wrong_maker(collection, path, cultlib):
-    """Refuses, before Package writes anything, an agent-built hull (one Build left a maker record on, or whose hull.scad
-    is still in the package) unless the package holds a product and every product is by the maker of the language Build
-    judged the hull against (ruling hull-faction-is-product-maker). Her art retires hull.scad and the record together and
-    needs no product. The product owns the maker; Build's record is only what it judged."""
-    if _art_takes_over(collection):
+    """Refuses, before Package writes anything, a hull in the agent state unless the package holds a product and every
+    product is by the maker of the language Build judged the hull against (ruling hull-faction-is-product-maker), and
+    refuses an unbuilt hull.scad. _hull_state is the owner of which state this is; this function reads neither hull.scad
+    nor the record's presence to decide it. Her art and a plain hull need no product."""
+    state = _hull_state(collection)
+    if state == HULL_UNBUILT:
+        raise ValueError("Build From Hull Source first, or put your own meshes under Ship Root: Package needs the maker "
+                         "Build judged the hull against")
+    if state != HULL_AGENT:
         return
     maker = collection.get(HULL_MAKER)
     if maker is None:
-        if _hull_source_file(collection) is None:
-            return
         raise ValueError("Build From Hull Source first: Package needs the maker it judged the hull against")
     makers = product_makers(path, cultlib)
     if not makers:
@@ -1741,7 +1753,7 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             return {"CANCELLED"}
         scene.aetheria_package_report = f"Packaged {len(anchors)} anchors; the validator accepted the ship"
         if _retire_hull_source(collection):
-            scene.aetheria_package_report += "; retired Build's hull records: this package ships your art"
+            scene.aetheria_package_report += "; retired the agent hull source: this package ships your art"
         self.report({"INFO"}, scene.aetheria_package_report)
         return {"FINISHED"}
 

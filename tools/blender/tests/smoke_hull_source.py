@@ -455,7 +455,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     select(box)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
-    require(result == {"FINISHED"} and "retired Build's hull records" in report, f"Package did not retire the hull source: {report!r} {message!r}")
+    require(result == {"FINISHED"} and "retired the agent hull source" in report, f"Package did not retire the hull source: {report!r} {message!r}")
     require(not source.exists(), "hull.scad is still there after the author's art was packaged")
     require("aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection,
             "The record of Build's objects or its maker outlived hull.scad")
