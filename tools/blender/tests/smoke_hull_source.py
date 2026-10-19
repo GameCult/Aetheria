@@ -25,12 +25,14 @@ the hull.scad into the package and runs the panel's operators:
   Build after Package still works.
   The author replaces the zone meshes with her art and keeps Build's anchors and collider: Package retires Build's
   records, and deletes hull.scad if it is still there (the second hull has had it removed by hand), in that one act and
-  says so, and Build then refuses. Build's maker record alone decides that a hull is Build-made and under the guard.
-  A hull that was never built keeps its hull.scad through the same deletion rule, and Package refuses it (no maker was
-  judged).
+  says so, and Build then refuses. The hull's state (plain, unbuilt, agent, art) is decided by one owner,
+  _hull_state (map HS). Build's zones deleted
+  with nothing in their place stay under the guard. Her art over a hull.scad that was never built ships and retires it.
+  A plain hull with her art ships and retires nothing. A hull.scad with nothing built and none of her art keeps its
+  hull.scad, and Package refuses it (no maker was judged).
   Package refuses an agent-built hull before it writes anything (ship.glb is not made) when the package holds no product,
   or a product by another maker than the language Build judged it against (hull-names-its-own-faction); with a product by
-  that maker it accepts, with hull.scad in the package or not (the guard keys on Build's record), and a refused Package
+  that maker it accepts, with hull.scad in the package or not (the guard keys on the hull's state), and a refused Package
   changes nothing in the scene. Her art needs no product.
   Build and Package refuse copies that share an aetheria.id, selecting the original and the copies, and delete nothing.
   Package moves no row and turns no mount: every layout row is as authored after it, and a hand-turned mount keeps its yaw.
@@ -439,6 +441,20 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
         obj = generated(collection)[name]
         if obj.type == "MESH" and "aetheria.role" not in obj:
             bpy.data.objects.remove(obj)
+    # Build's zones deleted with nothing in their place: the hull stays agent's and the maker guard refuses it (H8, H12).
+    require(aetherdb(ship_cc, "product", ship_cc, maker, "--remove") == 0, "AetherDb could not remove the product")  # her art needs none
+    if number % 2 == 0:  # the second hull: she (or git) removed hull.scad herself first; Build's record outlives it
+        source.unlink()
+        require(collection.get("aetheria.hull_maker"), "Build's maker record is gone before Package")
+    glb_before = (package / "ship.glb").read_bytes()
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    report = scene.aetheria_package_report
+    require(result == {"CANCELLED"} and "The package has no product" in report, f"Package took a hull with no zones and no art: {report!r} {message!r}")
+    require((package / "ship.glb").read_bytes() == glb_before, "A refused Package changed ship.glb")
+    require("aetheria.hull_maker" in collection and "aetheria.hull_built" in collection and source.is_file() == (number % 2 == 1),
+            "A refused Package changed Build's records or hull.scad")
+    print(f"PASS {number}.9a Build's zones deleted with nothing in their place stay under the guard")
     art_mesh = bpy.data.meshes.new("author hull")
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
@@ -448,10 +464,6 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     collection.objects.link(art)
     art.parent = root
     require(any(o.get("aetheria.role") for o in generated(collection).values()), "The scene kept no anchor of Build's")
-    require(aetherdb(ship_cc, "product", ship_cc, maker, "--remove") == 0, "AetherDb could not remove the product")  # her art needs none
-    if number % 2 == 0:  # the second hull: she (or git) removed hull.scad herself first; Build's record outlives it
-        source.unlink()
-        require(collection.get("aetheria.hull_maker"), "Build's maker record is gone before Package")
     select(box)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
@@ -568,6 +580,34 @@ def never_built(scene):
     require(result == {"CANCELLED"} and "Build From Hull Source first" in report and not (package / "ship.glb").exists(),
             f"Package took a hull that was never built: {report!r}")
     print("PASS 3 a hull that was never built keeps its hull.scad, and Package refuses it")
+    # Her art over a hull.scad Build never ran is hers: it ships and the hull source is retired (H4).
+    art_mesh = bpy.data.meshes.new("author unbuilt hull")
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bm.to_mesh(art_mesh)
+    bm.free()
+    art = bpy.data.objects.new("author unbuilt hull", art_mesh)
+    collection.objects.link(art)
+    art.parent = api._ship_root(collection)
+    collider = bpy.data.objects.new("Hull Collider", art_mesh)  # the validator wants exactly one hull-collider anchor
+    collider["aetheria.role"], collider["aetheria.id"] = "hull-collider", "collider"
+    collection.objects.link(collider)
+    collider.parent = art.parent
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    report = scene.aetheria_package_report
+    require(result == {"FINISHED"} and "retired the agent hull source" in report, f"Package refused her art over an unbuilt hull.scad: {report!r} {message!r}")
+    require(not (package / "hull.scad").exists() and "aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection,
+            "Her art over an unbuilt hull.scad left Build's source or records")
+    select(box)
+    result, message = run(bpy.ops.aetheria.build_hull_source)
+    require(result == {"CANCELLED"}, f"Build ran over her art: {message!r}")
+    print("PASS 3.1 her art over a hull.scad Build never ran ships and retires it")
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    report = scene.aetheria_package_report
+    require(result == {"FINISHED"} and "retired" not in report and not (package / "hull.scad").exists(), f"A plain hull with her art did not ship alone: {report!r}")
+    print("PASS 3.2 a plain hull with her art ships and retires nothing")
 
 
 def main():
