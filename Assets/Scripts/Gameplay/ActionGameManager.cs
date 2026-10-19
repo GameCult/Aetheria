@@ -642,9 +642,9 @@ public class ActionGameManager : MonoBehaviour
                 {
                     var written = Loadouts.Commit(CatalogPath, Loadouts.Capture(ItemManager, ship, name), replace);
                     console.AppendLogLine(written
-                        ? $"Preset '{name}' written to {CatalogPath}. This session sees it after the catalog reloads (next launch). " +
-                          "Reopen CultCache Studio before saving there: a Studio session opened earlier overwrites captured presets."
-                        : $"Preset '{name}' changed on disk since load; nothing written");
+                        ? $"Loadout '{name}' written to {CatalogPath}. This session sees it after the catalog reloads (next launch). " +
+                          "Reopen CultCache Studio before saving there: a Studio session opened earlier overwrites captured loadouts."
+                        : $"Loadout '{name}' changed on disk since load; nothing written");
                 }
                 catch (InvalidOperationException e)
                 {

@@ -11334,10 +11334,10 @@ PIDs are in `S\out\pids.log`, the first 3404 and the last 20348. It then writes 
 |---|---|---|---|
 | Faction language, `factions/<faction>.scad` | The faction slug. One file per faction. A Pirate hull includes its donor's file as well. | Drafted by an agent from the lore and the operator's art, marked draft, then approved by an operator ruling. A revision rebuilds every hull of that faction at its next Build. | The operator decides the language (`zhestokost-language-source` is the first). Agents propose; nothing else edits it. |
 | Hull source, `GameData/Mods/<id>/hull.scad` | The package id, equal to `ShipAuthoring.Id`. One per package. | Created by an agent pass for a hull with no operator art and revised by agents. Deleted by Package in the same act that packages operator art into that package. | Agents (Imagination designs, Hands lands). The operator decides when it dies, by packaging her art. |
-| "Agent-built" status | Presence of `hull.scad`. No field. | Ends when the file is deleted. | Derived. "Which hulls are agent-built" is a directory listing. |
+| "Agent-built" status | Derived by `_hull_state` from hull.scad, Build's maker record, its untouched zones and her meshes (section HS). No field. | Ends when the state leaves agent and unbuilt: Package retiring hull.scad for her art. | Derived. The state table is in section HS. |
 | Zone meshes and anchor objects in Blender | Marked `aetheria.hull_source`, with ids `aetheria.id`. | Replaced on every Build. Never hand-edited. | Build From Hull Source. Build refuses a collection holding meshes it did not make. |
 | `ship.glb` and ShipAuthoring anchors | `ShipAuthoring.ModelAsset`, with anchor ids equal to mount ids. | Rewritten by every Package, whether from an agent hull or operator art. The ids are stable across the swap, so loadouts and saves survive it. | Package Ship, the only writer. |
-| HullData layout (schematic) | `mod-hull:<id>`. | Authored through Save Layout. Linked to the model by mount name only. | The schematic author: agents for agent hulls, the operator for hers. Never Build. AH-B3 is the open conflict. |
+| HullData layout (schematic) | `mod-hull:<id>`. | Authored through Save Layout. Linked to the model by mount name only. | The schematic author: agents for agent hulls, the operator for hers. Never Build. AH-B3 is closed by cut `package-agent-hull-guards` (section PG). |
 | Hero asset | A package with no `hull.scad` that is named as its faction's hero. | Set by an operator ruling (`agent-hull-hero-assets`). | The operator. |
 
 ### Questions admitted
@@ -11369,3 +11369,205 @@ Neither blocks the first cut.
 - The model read was one agent judging its own sheets.
 - Lucent and AU languages are not drafted.
 - The hero comparison is weak until the heroes exist.
+
+## Package on agent hulls (PG)
+
+Imagination pass `imag-ag7-hull-guards`, session `self-2026-10-19-ag7`, 2026-10-19, pinned to Aetheria `origin/master`
+5acbaa1b (worktree `C:\aeth-wt\ag7-hull-guards-imag`). It maps cut `package-agent-hull-guards` (spec
+`aetheria-release:cut_spec:cut-package-agent-hull-guards.r1`) for follow-ups `package-agent-hull-guards` and
+`hull-copy-refusals` and finding `cut-agent-hull-source.s2.hull-names-its-own-faction`. It rests on rulings
+`remove-package-schematic-derivation`, `hull-faction-is-product-maker`, `schematic-and-model-are-separate-spaces` and
+`package-carries-product`.
+
+### Body facts (source reads and one probe at 5acbaa1b)
+
+- **PG-B1. The derivation has three writers.** `_derived_position` (`__init__.py:253`) maps a model point to a cell
+  through `hull_grid.cell_at` and `mounted_position`. Add Weapon (`_add_mount`, :302) and Mirror Mount (:359) call it.
+  Package calls `_plan_mounts` (:409), which plans every weapon row's Position, and then `_apply_mounts` (:432), which
+  writes those Positions, sets each mount object's yaw from its row's Rotation, and saves the layout. So Package writes
+  each space from the other: the schematic from the model, and the model's yaw from the schematic. Package would turn
+  a hull source's turned mount (smoke step 1.10, yaw 90) back to its row's facing.
+- **PG-B2. After the delete, `cell_at`, `mounted_position`, `mounted_cell` and `_centre_offset` have no caller** outside
+  `tests/test_hull_grid.py` (grep of `tools/blender`). `cell_centre`, `mirror_position`, `mirror_footprint`,
+  `mirror_rotation` and `facing_yaw` keep callers (Rasterise, the grid drawing, `_frame_ship`, Mirror Mount, Add
+  Weapon).
+- **PG-B3. A product names its maker by an opaque Faction record key.** `FactionProductData.Manufacturer` is
+  `CultRecordRef<Faction>` at `[Key(4)]` (`Assets/Scripts/ServerShared/FactionProduct.cs:26`), and
+  `CultRecordRefFormatter` writes it as the key string. Probe `probe_factions.py` (cultcache-py from
+  `F:\Projects\CultLib\packages\cultcache-py\src`, read of `GameData/Aetheria.cc`) listed 16 `aetheria.faction`
+  records. Among them are Zhestokost `16bad4f9-7fb5-41c5-8da0-dc76709eb7d3`, Pirates
+  `1d8a168def994a76a1ce7cb18f59c038` and Rossum & Douglas `adfb9b08-aabc-45c6-9586-915698a9c4b0`. Product makers are
+  these keys: Juggernaut's, for example, is Zhestokost's. The language files are named by slug (`zhestokost`, `pirate`,
+  `rnd`), and nothing maps a slug to a Faction key today.
+- **PG-B4. New Ship makes no product.** `AetherDb ship-authoring create` writes only a HullData and a ShipAuthoring
+  (`tools/AetherDb/ShipAuthoringCommands.cs:56`). `ship-authoring product <ship.cc> <maker> --name <name>` (:94)
+  writes a product, resolving the maker by Faction `Name` or `ShortName` (:136). The agent-hull smoke packages ships
+  that have no product (Soul s2 noted it).
+- **PG-B5. The duplicate-id refusal names nothing.** `ship_cc.replace_visual` raises "An anchor ID is used twice"
+  (`ship_cc.py:171`), and it does so after Package has framed the ship and written `ship.glb`. Build never looks at
+  ids, because `_own_meshes` skips every object that carries `aetheria.role`. The add-on already has a way to point at
+  offenders without echoing input: `_refuse_selecting` (`__init__.py:1139`), which `_refuse_loose_meshes` uses.
+- **PG-B6. The tests split by host.** `tools/blender/tests/test_*.py` import `ship_cc`, `hull_grid` and `hull_source`
+  by path with no bpy (`CULTLIB_PACKAGES=<CultLib>/packages python -m unittest discover -s tools/blender/tests`), so
+  they run on Yggdrasil in a python image with msgpack. The `smoke_*.py` files need Blender 5.2's bpy and run
+  headless (`blender --background --factory-startup --python-use-system-env --python ...`). They run on Starfire, one
+  process at a time, as Soul ran them for agent-hull-source. `ShipSchemaPinTests` is C# and pins the slot constants of
+  `ship_cc.py` by regex.
+
+### Rationale
+
+- **The language file names its maker.** The ruling needs a comparison between the brief's faction (a language slug)
+  and the product's maker (a Faction key). Matching names (`Pirates` against `pirate`, `Rossum & Douglas` against `rnd`)
+  would be a fuzzy rule. A table in `hull_source.py` would be a second owner of a fact the language file already
+  stands for. So each `factions/<faction>.scad` gains its Faction record key as an eighth element of its `lang` echo.
+  The file that owns the language then also says whose language it is, and the existing "includes its language
+  unchanged" check covers that element too.
+- **Build records the maker it judged by, and Package compares that record.** Re-reading `hull.scad` at Package would
+  compare the brief as it is now, which may differ from the brief Build judged: an author could edit the brief after
+  Build and then Package. Build already records what it made (`aetheria.hull_built`), so it also records
+  `aetheria.hull_maker`, the maker key of the language it judged against. Package then refuses unless the package
+  holds at least one product and every product's Manufacturer is that key. The check runs whenever the package still
+  ships Build's zones. When her art takes over (the same predicate `_retire_hull_source` uses), the brief no longer
+  governs and no check runs. An operator could edit the record by hand, since it is a custom property; that is the same
+  trust as the fingerprint record, and a hull source cannot reach it.
+- **This cut fixes the finding.** After it, the faction a shipped hull was judged by is its product's maker. Drafting
+  under another faction stays possible, as the ruling allows. A separate cut would only repeat the Package edit.
+- **Mirror Mount mirrors each space within itself.** The twin row's Position is `mirror_position` of the row's own
+  Position and footprint on the layout's width. The twin object stands at the reflection of the mount's model point
+  across Ship Root's X = 0. Mirror Mount refuses when either twin would coincide with its source: the same Position,
+  or a model point within 1 mm of X = 0. `CENTRELINE` (half a schematic cell, measured in model metres) was a
+  cross-space constant, so it goes.
+- **Add Weapon's yaw stays a creation default.** One Rotation choice sets both the new row and the new empty's facing,
+  once. Nothing re-derives either afterwards. The ruling took only the Position derivation out of Add Weapon, so the
+  yaw stays.
+- **Copies are refused by id, in Build and Package alike.** One helper refuses while two role-bearing objects share an
+  `aetheria.id`. It selects them and names a count, never an object. That covers the collider, emitter, radiator and
+  mount copies Soul built (s2 probes A2 and A5 to A7). The duplicate check in `ship_cc` stays, as the file writer's
+  invariant.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| A language's maker: the eighth element of `lang` in `factions/<faction>.scad` | The Faction record key in `GameData/Aetheria.cc`. | Written when the language is drafted. Changes only if the language is reassigned to another faction. | The language file, operator-approved like the rest of it. |
+| `aetheria.hull_maker` on a ship collection | The maker key of the language Build judged against. | Set by every Build. Deleted with `aetheria.hull_built` when Package retires `hull.scad`. | Build From Hull Source writes it; Package reads it. |
+| HullData layout Position | As before. | Authored in the layout panel only. Add Weapon creates a row at the default Position. | The schematic author. Package and the mount helpers no longer write it (this cut closes AH-B3). |
+
+### Admitted
+
+- `aetheria-release:cut_spec:cut-package-agent-hull-guards.r1`.
+
+## Hull collection states (HS)
+
+Imagination pass `imag-ag7-hull-states`, session `self-2026-10-19-ag7`, 2026-10-19, pinned to Aetheria f121b464 (head
+of `eureka/aetheria-release-package-agent-hull-guards`, worktree `C:\aeth-wt\ag7-hull-states-f121`). Three Soul passes
+(verdicts `cut-package-agent-hull-guards.s1` to `.s3`) each found the one decision "is this hull Build's, hers, or
+neither" answered by two readers that disagreed. This section is the model that gives that decision one owner. It
+revises spec `cut-package-agent-hull-guards` to r2 for findings `.s3.never-built-art-deadlock` and
+`.s3.art-requirement-unpinned`, and admits question `art-over-unbuilt-hull-source`.
+
+### Body facts (source reads and one probe at f121b464)
+
+- **HS-B1. Four inputs name the state, and each has one writer.** `hull.scad` in the package (`_hull_source_file`,
+  `__init__.py:1499`): written by agents, deleted by `_retire_hull_source` (:1645) or by hand. `aetheria.hull_maker`
+  and `aetheria.hull_built` on the collection (:1494-1495): written together by Build (:1622-1623), deleted together by
+  `_retire_hull_source` (:1648). Build's untouched zone meshes: derived by `_hull_built` (:1518) from the record and each
+  object's fingerprint. Her meshes: `_own_meshes` (:789) minus Build's untouched objects, so a Build zone she edited
+  counts as hers.
+- **HS-B2. The regime has two readers today.** `_art_takes_over` (:1627) reads the maker record, Ship Root, the
+  untouched zones and her meshes. `_refuse_wrong_maker` (:1654) calls it, then reads `hull.scad` again on its own
+  (:1663) when the record is absent. `_retire_hull_source` (:1639) reads only `_art_takes_over`. The panel reads
+  `hull.scad` to show the Build button (:1789). Build (:1556) reads `hull.scad` as its input file and refuses her
+  meshes and edited objects of its own (:1562-1568), which is its write-safety rule, not the regime.
+- **HS-B3. Fourteen states are reachable, and the two readers disagree in exactly one.** Probe
+  `probe_states.py` (scratchpad `imag-ag7-hull-states`) transcribes the f121b464 conditions and enumerates every
+  combination of hull.scad (S), the maker record (M), an untouched Build zone (Z), her meshes (A) and Ship Root (R),
+  with Z implying M and R, A implying R, and M without R (a hand-deleted Ship Root) left out. Of 14 states, one is a
+  deadlock: S, no M, no Z, A, R (an agent's hull.scad Build never ran, with her art under Ship Root). Package refuses
+  "Build From Hull Source first" and Build refuses her meshes. That is Soul's s3 case A. The proposed classifier below
+  gives the same Package and retirement outcome as f121b464 in the other 13 states.
+- **HS-B4. One state is pinned by nothing.** M, no Z, no A (Build's zones deleted, nothing put in their place): the
+  smoke has no step for it, so the art test inside `_art_takes_over` can be replaced with True and the smoke stays
+  green (Soul s3 mutation `mut.art-needs-no-art`).
+- **HS-B5. Products matter only in the agent state.** `product_makers` (`ship_cc.py`) is read only by
+  `_refuse_wrong_maker`, after the regime says the hull is Build's. Her art and a plain hull ship with any product or
+  none (smoke step 1.9 removes the product before her art is packaged).
+
+### The state table
+
+S is hull.scad in the package, M is Build's maker record, Z is an untouched zone mesh of Build's, and A is her meshes
+under Ship Root. "Check" means that Package refuses unless the package holds a product and every product's
+Manufacturer is the recorded maker: no product gives "no product", and a wrong or mixed maker gives "not by the
+maker". Every Package outcome holds only when the validator accepts. Retirement deletes hull.scad (if present), M and
+`aetheria.hull_built`, after the validator has accepted.
+
+| # | S | M | Z | A | State | Build | Package | Retired | How it is reached |
+|---|---|---|---|---|---|---|---|---|---|
+| H1 | - | - | - | - | plain | refuses: no hull.scad | no check | nothing | New Ship, no agent hull |
+| H2 | - | - | - | yes | plain | refuses: no hull.scad | no check | nothing | Her hero or hand-made hull. It is also H6 or H11 after the Package that retires |
+| H3 | yes | - | - | - | unbuilt | builds | refuses: "Build From Hull Source first, or put your own meshes under Ship Root" | nothing | An agent's hull.scad dropped in. Smoke PASS 3 |
+| H4 | yes | - | - | yes | **art** (question `art-over-unbuilt-hull-source`) | refuses: not its meshes | no check | hull.scad | Her art over a hull.scad Build never ran. **The f121b464 deadlock** |
+| H5 | yes | yes | yes | - | agent | builds (replaces its own) | check | nothing | After Build. Smoke 1.1 to 1.5 |
+| H6 | yes | yes | - | yes | art | refuses: not its meshes | no check | hull.scad, M | Her art replaced every Build zone, or she edited them all. Smoke 1.9, odd hull |
+| H7 | yes | yes | yes | yes | agent | refuses: not its meshes | check | nothing | Her mesh beside Build's zones, or one zone edited. Smoke 1.8 |
+| H8 | yes | yes | - | - | agent | builds | check | nothing | Build's zones deleted, nothing in their place. **Unpinned (s3 art-requirement)** |
+| H9 | - | yes | yes | - | agent | refuses: no hull.scad | check | nothing | hull.scad deleted by hand after Build. Smoke 1.5's hull.scad-gone row |
+| H10 | - | yes | yes | yes | agent | refuses: no hull.scad | check | nothing | H7 with hull.scad deleted by hand |
+| H11 | - | yes | - | yes | art | refuses: no hull.scad | no check | M | H6 with hull.scad deleted by hand. Smoke 1.9, even hull |
+| H12 | - | yes | - | - | agent | refuses: no hull.scad | check | nothing | H8 with hull.scad deleted by hand |
+
+Ship Root absent (states H1 and H3 before New Ship's root, or after a hand deletion) changes nothing in the table:
+`_own_meshes` needs a root, so with no root A is false and the row is H1 or H3. A maker record with no root (hand
+deletion) is agent.
+
+### Authority
+
+- **Owner of the state: `_hull_state(collection)`**, one classifier in `__init__.py`, evaluated in this order. Build's
+  untouched zone present gives agent. Otherwise her meshes present together with Build's record or hull.scad gives art.
+  Otherwise Build's record present gives agent. Otherwise hull.scad present gives unbuilt. Otherwise plain. It reads
+  `_hull_built`, `_own_meshes`, `HULL_MAKER in collection` and `_hull_source_file`, and nothing else does so to decide
+  the regime.
+- **Owner of the maker of a shipped agent hull: its products** (ruling `hull-faction-is-product-maker`).
+  `aetheria.hull_maker` is a record of what Build judged against, read only as the value to compare in the agent state.
+- **Owner of when hull.scad dies: Package**, through `_retire_hull_source` in the art state after the validator
+  accepts, or the operator by hand. Ruling `hull-art-communicates-form` keeps agent hulls until her art replaces them.
+  The model row of section "Agent-built hulls" names Package's packaging of her art as that act.
+- **Owner of whether Build may write: Build** (`_build_hull_source`), on its own rule that it never replaces a mesh it
+  did not make or an object of its own that was changed. This is a separate decision from the regime, and it reads
+  hull.scad as its input.
+- **Display-only:** the panel's read of hull.scad (:1789), which shows the Build button. In H4 the button shows and
+  Build refuses. It decides nothing.
+- **Forbidden readers of the regime:** `_refuse_wrong_maker` reading `hull.scad` or deciding by the presence of the
+  maker record; `_retire_hull_source` testing anything but `_hull_state`; any reader of `aetheria.hull_built` other
+  than `_hull_built`; the smoke asserting the classifier's return value as its only proof.
+- **Deletion line:** `_art_takes_over` (:1627-1636) and the hull.scad branch of `_refuse_wrong_maker` (:1661-1665) go
+  before `_hull_state` is added.
+
+### Rationale
+
+- **The body decides, not a file or a record alone.** The guard exists so that a hull shipping Build's judged body
+  ships under Build's judged maker. Whether Build's untouched zones are in the collection is the fact that says so.
+  hull.scad (keyed by r1, s1 `guard-keyed-on-hull-scad`) and the maker record (keyed by h3, s3 `never-built-art-deadlock`)
+  each stand in for that fact in only some states, which is why each fix moved the hole somewhere else.
+- **Order is the model.** Z before A keeps H7 and H10 under the guard: one of Build's zones still ships. A with M or S
+  before M alone makes her art win once no Build zone is left (H4, H6, H11). A must be required (H8 and H12 stay agent),
+  and M or S must be required (H2 stays plain and retires nothing).
+- **H4 is the operator's call.** Two readings are coherent. Under the first, her art over a hull.scad is hers and
+  Package retires the file, which is what 70c366b5 did and what the "Agent-built hulls" model row says. Under the
+  second, Package never deletes an agent's hull.scad that Build never ran, and refuses with text naming the exit
+  (delete hull.scad). The recommendation is the first, in question `art-over-unbuilt-hull-source`. Either answer
+  changes one condition in `_hull_state` and one message, and both remove the deadlock.
+- **The "Agent-built" status row above is superseded.** It said the status is the presence of hull.scad. That holds
+  only for H3 to H8. The status is `_hull_state` being agent or unbuilt.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Hull state (plain, unbuilt, agent, art) of a ship collection | Derived per call from hull.scad, `aetheria.hull_maker`, Build's untouched zones and her meshes. No field. | Recomputed at every Package and retirement. It changes when Build runs, when she adds or removes meshes, at retirement, and when hull.scad or a record is deleted by hand. | `_hull_state`, alone. |
+
+### Admitted
+
+- `aetheria-release:question:art-over-unbuilt-hull-source` (recommended `art-takes-over`, raised in the spec, which it
+  blocks).
+- `aetheria-release:cut_spec:cut-package-agent-hull-guards.r2`, superseding r1.

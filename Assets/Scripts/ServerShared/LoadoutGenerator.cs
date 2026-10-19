@@ -184,6 +184,8 @@ public class LoadoutGenerator
             count);
     }
 
+    // An item is on offer only through a product, so a design no product makes is never drawn, stocked or chosen; it reaches a ship
+    // only through a Loadout (ruling off-market-is-general).
     // The products this faction can be offered for a design kind (only gear needs a home), and whether manufacturer preference applies (it does
     // not once a required item has fallen back to any manufacturer). The one availability rule for every selection.
     private ((FactionProductData product, T design)[] available, bool preferManufacturers) AvailableProducts<T>(Predicate<T> filter, bool required) where T : CraftedItemData
@@ -208,26 +210,6 @@ public class LoadoutGenerator
         }
 
         return (available, preferManufacturers);
-    }
-
-    // A faction's boss: its BossHull when the faction sets one and a product sells it, else the most expensive ship hull
-    // the faction can be offered, with the gap logged. Null only when no ship hull is on offer at all.
-    public EntityPack GenerateBossLoadout()
-    {
-        var bossHull = Faction != null && Faction.BossHull.IsSet() ? ItemManager.ItemData.Get(Faction.BossHull) : null;
-        if (bossHull != null)
-        {
-            var boss = GenerateShipLoadout(hull => hull == bossHull);
-            if (boss != null) return boss;
-            ItemManager.Log($"{Faction.Name}'s BossHull {bossHull.Name} is not sold by any product; its boss flies the most expensive ship hull instead.");
-        }
-        else
-            ItemManager.Log($"{Faction?.Name ?? "This faction"} has no BossHull; its boss flies the most expensive ship hull instead.");
-
-        var (available, _) = AvailableProducts<HullData>(hull => hull.HullType == HullType.Ship, required: true);
-        if (available.Length == 0) return null;
-        var priciest = available.OrderByDescending(entry => entry.design.Price).ThenBy(entry => entry.design.Name, StringComparer.Ordinal).First().design;
-        return GenerateShipLoadout(hull => hull == priciest);
     }
 
     // Hardpoint gear that no hull in the catalog can mount has no home (operator, 2026-09-30: "we'll need to author a

@@ -39,8 +39,7 @@ public class Faction
 
     // Key 9 was the faction's name-file link, retired by ruling faction-curated-place-names; never reuse it.
 
-    [Inspectable, JsonProperty("bossHull"), Key(10)]
-    public CultRecordRef<HullData> BossHull;
+    // Key 10 was the faction's boss hull reference, retired by ruling faction-boss-is-a-loadout-reference; never reuse it.
 
     [Inspectable, JsonProperty("influence"), Key(11)]
     public int InfluenceDistance = 4;
@@ -66,7 +65,7 @@ public class Faction
     // The maker's final assembly: the distribution every lot of theirs draws its own quality from, and the hard ceiling on each
     // of its roles (quality-lean-assembly-hard-ceiling). Null is not authored: a lot of theirs assembles at AssemblyDistribution's
     // defaults. assembly-from-maker derives it once at the part mean plus a tolerance margin (quality-min-tolerance-binned-assembly);
-    // tune it in Studio after that. Key 16 is reserved for Relations and 18 for Livery.
+    // tune it in Studio after that. Key 16 is reserved for Relations and 18 for Livery. Key 20 was assemblyDeviation (retired); never reuse it.
     [Inspectable, JsonProperty("assembly"), Key(19)]
     public AssemblyDistribution Assembly;
 
@@ -74,6 +73,11 @@ public class Faction
     // Authored by AetherDb place-names, which restores the table on every apply.
     [Inspectable, JsonProperty("places"), Key(21)]
     public FactionPlace[] Places = Array.Empty<FactionPlace>();
+
+    // The Loadout this faction's boss flies; unset means the faction has no boss (ruling faction-boss-is-a-loadout-reference).
+    // The one owner of which Loadout is its boss, read through Loadouts.BossOf.
+    [Inspectable, JsonProperty("bossLoadout"), Key(22)]
+    public CultRecordRef<Loadout> BossLoadout;
 }
 
 // Historical, narrative and strategic intent join as keys 2+ when economics-driven placement lands (ruling faction-curated-place-names).
