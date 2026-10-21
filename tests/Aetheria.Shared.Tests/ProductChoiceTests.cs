@@ -111,11 +111,14 @@ public sealed class ProductChoiceTests : IDisposable
             // both follow the permutation.
             for (var i = 0; i < lampOrder.Length; i++) Sell(lampOrder[i], lamp.Key, makers[lampOrder[i]], "k" + i);
             for (var i = 0; i < binFloors.Length; i++)
+            {
+                var name = i == 0 ? "lamp-a bin" : "lamp-a bin " + (i + 1);
                 seed.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData
                 {
-                    Name = i == 0 ? "lamp-a bin" : "lamp-a bin " + (i + 1), Design = new CultRecordRef<CraftedItemData>(lamp.Key), Manufacturer = alpha,
+                    Name = name, Design = new CultRecordRef<CraftedItemData>(lamp.Key), Manufacturer = alpha, NotOffered = notOffered.Contains(name),
                     Bin = new ProductBin { Line = new CultRecordRef<FactionProductData>(new CultRecordKey("k" + Array.IndexOf(lampOrder, "lamp-a"))), Floor = binFloors[i] }
                 }, new CultRecordKey("bin" + i)));
+            }
             seed.FlushAsync().Wait();
         }
 
@@ -396,6 +399,44 @@ public sealed class ProductChoiceTests : IDisposable
         }
         Assert.False(rig.Outfitter(null, 1).IsAvailable(rig.Product("lamp-a")));
         Assert.True(rig.Outfitter(null, 1).IsAvailable(rig.Product("lamp-z")));
+    }
+
+    // An off-market bin leaves the share arithmetic (ruling bin-share-by-floor): its line keeps the whole of its maker's preference,
+    // so taking a bin off the market never shrinks the maker's presence for the design.
+    [Fact]
+    public void AnOffMarketBinLeavesItsLineTheWholeWeight()
+    {
+        var alone = Build("lamp-z", "lamp-a");
+        var off = Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" }, "lamp-a bin");
+        var preference = alone.Outfitter(alone.OutEven, 1, 0).ProductWeight(alone.Product("lamp-a"));
+        Assert.Equal(preference, off.Outfitter(off.OutEven, 1, 0).ProductWeight(off.Product("lamp-a")), 3);
+
+        var lamp = off.Cache.GetByName<GearData>("Lamp");
+        var draws = Enumerable.Range(1, 600).Select(i => off.Outfitter(off.OutEven, Seed(i)).ChooseProduct(lamp).Name).ToArray();
+        Assert.DoesNotContain("lamp-a bin", draws);
+        var aloneLamp = alone.Cache.GetByName<GearData>("Lamp");
+        var aloneDraws = Enumerable.Range(1, 600).Count(i => alone.Outfitter(alone.OutEven, Seed(i)).ChooseProduct(aloneLamp).Name == "lamp-a");
+        Assert.InRange(draws.Count(name => name == "lamp-a"), aloneDraws - 30, aloneDraws + 30);
+    }
+
+    // Ruling bin-inherits-line-offered: a bin is offered only if both it and its line are. A bin of an off-market line is never chosen,
+    // never drawn by generation, and never stocked, though the bin itself carries no NotOffered.
+    [Fact]
+    public void AnOffMarketLinesBinIsNeverDrawnOrSold()
+    {
+        var rig = Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" }, "lamp-a");
+        Assert.False(rig.Product("lamp-a bin").NotOffered);
+        var lamp = rig.Cache.GetByName<GearData>("Lamp");
+        for (var i = 1; i <= 64; i++)
+        {
+            // OutA reaches only Alpha, whose line and so its bin are off the market.
+            Assert.Null(rig.Outfitter(rig.OutA, Seed(i)).ChooseProduct(lamp));
+            Assert.Equal("lamp-z", rig.Outfitter(null, Seed(i)).ChooseProduct(lamp).Name);
+            Assert.Equal("lamp-z", rig.Outfitter(rig.OutA, Seed(i)).RandomProduct<EquippableItemData>(0, design => design == lamp, required: true).product.Name);
+            foreach (var faction in new[] { rig.OutA, rig.OutEven, rig.OutNone, null })
+                Assert.DoesNotContain(rig.Outfitter(faction, Seed(i)).RandomProducts<CraftedItemData>(16, 1, null, true), entry => entry.product.Name.StartsWith("lamp-a"));
+        }
+        Assert.False(rig.Outfitter(null, 1).IsAvailable(rig.Product("lamp-a bin")));
     }
 
     // The any-manufacturer fallback of a required draw is closed to off-market products: when every product of the design is
