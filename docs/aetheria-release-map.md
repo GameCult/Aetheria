@@ -11034,7 +11034,9 @@ presence for the design does not change when it bins a line.
 - Lot (unchanged schema): a binned lot records the binned product, and its fills and assembly sit at or above the
   floor of the line's distributions.
 - ProductWeight: the maker's preference times a share. A bin's share is its pass fraction `1 - Phi(Bin.Floor)`. A line's
-  share is 1 minus the sum of the pass fractions of its bins, floored at 0. Any other product's share is 1. Two
+  share is 1 minus the sum of the pass fractions of its offered bins, floored at 0, so an off-market bin takes nothing
+  from its line (cut product-not-offered; a bin of an off-market line is itself off-market, ruling
+  bin-inherits-line-offered). Any other product's share is 1. Two
   unbinned lines of one design and maker each weigh the full preference, as before. ProductWeight is still the one
   weight of RandomProducts and ChooseProduct.
 
