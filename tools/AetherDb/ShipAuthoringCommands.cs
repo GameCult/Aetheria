@@ -8,7 +8,9 @@ using System.Linq;
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | compose <shipped.cc> <derived.cc> <mods-dir>";
+
+    private static readonly string[] StatFlags = { "--mass", "--durability", "--armor", "--drag", "--top-speed" };
 
     public static int Run(string[] args)
     {
@@ -89,6 +91,40 @@ public static class ShipAuthoringCommands
                     cache.FlushAsync().Wait();
                 }
                 Console.WriteLine($"{ship.Id}: price {price}.");
+                return 0;
+            }
+            if (args[0] == "stats" && args.Length >= 2)
+            {
+                // Every flag is judged before the file is touched: a refusal leaves it byte-identical.
+                var stats = new Dictionary<string, float>(StringComparer.Ordinal);
+                for (var i = 2; i < args.Length; i += 2)
+                {
+                    if (Array.IndexOf(StatFlags, args[i]) < 0) throw new InvalidOperationException($"stats: unknown flag {args[i]}.");
+                    if (stats.ContainsKey(args[i])) throw new InvalidOperationException($"stats: {args[i]} is given twice.");
+                    if (i + 1 == args.Length) throw new InvalidOperationException($"stats: {args[i]} needs a value.");
+                    if (!float.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || !float.IsFinite(value) || value < 0)
+                        throw new InvalidOperationException($"stats: {args[i]} must be a finite, non-negative number.");
+                    stats[args[i]] = value;
+                }
+                if (stats.Count == 0) throw new InvalidOperationException("stats: name at least one stat.");
+                var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
+                if (stats.TryGetValue("--top-speed", out var topSpeed))
+                {
+                    var limits = (hull.Behaviors ?? new List<BehaviorData>()).OfType<VelocityLimitData>().ToArray();
+                    if (limits.Length != 1) throw new InvalidOperationException($"{ship.Id}: --top-speed needs exactly one VelocityLimit on the hull; it has {limits.Length}.");
+                    // A fixed top speed, as every shipped hull authors one (Min equal to Max); its terms are kept.
+                    limits[0].TopSpeed.Min = limits[0].TopSpeed.Max = topSpeed;
+                }
+                if (stats.TryGetValue("--mass", out var mass)) hull.Mass = mass;
+                if (stats.TryGetValue("--durability", out var durability)) hull.Durability = durability;
+                if (stats.TryGetValue("--armor", out var armor)) hull.Armor = armor;
+                if (stats.TryGetValue("--drag", out var drag)) hull.Drag = drag;
+                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
+                {
+                    ShipAuthoringStore.Write(cache, hull, ship);
+                    cache.FlushAsync().Wait();
+                }
+                Console.WriteLine($"{ship.Id}: " + string.Join(", ", stats.Select(stat => string.Create(CultureInfo.InvariantCulture, $"{stat.Key.Substring(2)} {stat.Value:R}"))) + ".");
                 return 0;
             }
             if (args[0] == "product" && args.Length >= 4)
