@@ -234,7 +234,7 @@ public class LoadoutGenerator
     // always reaches its own manufacturer's gear, and otherwise gear made by a manufacturer its allegiance names
     // (operator, 2026-09-30: allegiance lists only other factions). Whether that manufacturer is present in the galaxy
     // does not matter (operator, 2026-10-06: a faction need not be present for its gear to be available).
-    // A not-offered product is available to nobody, a scenario stage included (ruling boss-hulls-exclusive).
+    // A not-offered product is available to nobody, a stage with no faction included.
     public bool IsAvailable(FactionProductData product) =>
         IsOffered(product) && (
             Galaxy == null || Faction == null ||
