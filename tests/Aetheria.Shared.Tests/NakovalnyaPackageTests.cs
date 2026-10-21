@@ -71,9 +71,7 @@ public sealed class NakovalnyaPackageTests
         using var cache = Catalog();
         var hull = Hull(cache);
         var ship = cache.Get(new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey(Id)));
-        var rows = hull.Hardpoints.GroupBy(h => (h.Type, h.Shape.Width, h.Shape.Height)).ToDictionary(g => g.Key, g => g.Count());
-        Assert.Equal(3, rows.GetValueOrDefault((HardpointType.Ballistic, 2, 2)));
-        Assert.Equal(10, rows.GetValueOrDefault((HardpointType.Ballistic, 1, 2)));
+        Assert.Equal(13, hull.Hardpoints.Count(h => h.Type == HardpointType.Ballistic));
         Assert.Equal(8, hull.Hardpoints.Count(h => h.Type == HardpointType.Thruster));
         Assert.Equal(2, hull.Hardpoints.Count(h => h.Type == HardpointType.Radiator));
         foreach (var kind in new[] { HardpointType.Reactor, HardpointType.Shield, HardpointType.ControlModule, HardpointType.Sensors })
@@ -93,5 +91,33 @@ public sealed class NakovalnyaPackageTests
 
         Assert.InRange(hull.Shape.Width, 1, 32);
         Assert.InRange(hull.Shape.Height, 1, 32);
+
+        // Every row's cells lie inside the hull's shape, and no two rows share a cell.
+        var owners = new Dictionary<(int, int), string>();
+        foreach (var h in hull.Hardpoints)
+        foreach (var c in h.Shape.Coordinates)
+        {
+            var cell = h.Position + c;
+            Assert.True(hull.Shape[cell], $"{h.Transform} covers ({cell.x},{cell.y}), outside the hull's shape");
+            Assert.True(owners.TryAdd((cell.x, cell.y), h.Transform), $"{h.Transform} and {owners.GetValueOrDefault((cell.x, cell.y))} share ({cell.x},{cell.y})");
+        }
+    }
+
+    // Each mount takes the gear it was placed for, under the one fit rule (HardpointData.Takes): ruling nakovalnya-flak-1x2
+    // means the Flak Gun fits every flak mount at its facing, and a row's footprint is its gear's shape turned by Rotation.
+    [Fact]
+    public void EveryMountTakesItsGear()
+    {
+        using var cache = Catalog();
+        var hull = Hull(cache);
+        EquippableItemData Gear(string name) => cache.GetAll<EquippableItemData>().Single(design => design.Name == name);
+        var gear = Enumerable.Range(1, 10).Select(i => ($"Gun.F{i}", "Flak Gun"))
+            .Concat(Enumerable.Range(1, 3).Select(i => ($"Gun.H{i}", "Autocannon")))
+            .Concat(new[] { ("Th.L", "Large Drive"), ("Th.R", "Large Drive") })
+            .Concat(Enumerable.Range(1, 6).Select(i => ($"Th.T{i}", "Medium Drive")))
+            .Concat(new[] { ("Ra.L", "Radiator"), ("Ra.R", "Radiator") });
+        var refused = gear.Where(row => !hull.Hardpoints.Single(h => h.Transform == row.Item1).Takes(Gear(row.Item2)))
+            .Select(row => $"{row.Item1} refuses the {row.Item2}").ToArray();
+        Assert.Empty(refused);
     }
 }
