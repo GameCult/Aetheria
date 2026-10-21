@@ -334,6 +334,8 @@ public sealed class ShipProductTests : IDisposable
         Environment.CurrentDirectory = _root.Path;
         var path = Package("mod.skiff", "Skiffhull", 0);
         var bare = Path.Combine(ShipFixture.WritePackage(Mods, "mod.bare", "Barehull", tweak: ship => ship.Hull.Behaviors.Clear()), "ship.cc");
+        var twin = Path.Combine(ShipFixture.WritePackage(Mods, "mod.twin", "Twinhull",
+            tweak: ship => ship.Hull.Behaviors.Add(ship.Hull.Behaviors.OfType<VelocityLimitData>().First())), "ship.cc");
         void RefusedAndUntouched(string file, params string[] flags)
         {
             var before = File.ReadAllBytes(file);
@@ -353,6 +355,8 @@ public sealed class ShipProductTests : IDisposable
         RefusedAndUntouched(path, "--mass", "5", "--durability", "-2");
         RefusedAndUntouched(bare, "--top-speed", "50");
         RefusedAndUntouched(bare, "--mass", "5", "--top-speed", "50");
+        // Two VelocityLimits leave no one top speed to set.
+        RefusedAndUntouched(twin, "--top-speed", "50");
 
         // Each flag sets its own field and nothing else.
         var expected = ShipAuthoringStore.Load(path).Hull;
