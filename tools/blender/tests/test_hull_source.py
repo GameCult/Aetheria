@@ -185,6 +185,10 @@ class HullTypeTests(unittest.TestCase):
                 self.assertEqual(wide.failed(), [GRID])
                 self.assertEqual([c.detail for c in wide.build().checks if c.name == GRID],
                                  ["33 x 5 cells, at most 32 a side"])
+        long = self.fixture("Station", secondary=box(-1, 1, -32, 32, 2, 3))
+        long.parts["brief"] = ("", brief(length=(8, 70)))
+        self.assertEqual(long.failed(), [])
+        self.assertEqual([c.detail for c in long.build().checks if c.name == GRID], ["3 x 32 cells, at most 32 a side"])
         long = self.fixture("Station", secondary=box(-1, 1, -33, 33, 2, 3))
         long.parts["brief"] = ("", brief(length=(8, 70)))
         self.assertEqual(long.failed(), [GRID])
