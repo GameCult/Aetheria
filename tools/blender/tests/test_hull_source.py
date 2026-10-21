@@ -57,7 +57,7 @@ class Fixture:
     def __init__(self):
         self.library = {"zhestokost": language()}
         self.hull_lang = None
-        # Body 6 wide, 10 long, 2 high (h/w 0.33, w/l 0.6); a bilateral plate on top; one gun with a muzzle nose-ward.
+        # Body 6 wide, 10 long, 2 high (h/w 0.33, w/l 0.6); a bilateral plate on top; one gun with a muzzle.
         self.parts = {
             "brief": ("", brief()),
             "primary": (box(-3, 3, -5, 5, 0, 2), ""),
@@ -221,26 +221,28 @@ class JudgementTests(unittest.TestCase):
             fixture.parts["brief"] = ("", brief(length=length))
             self.assertEqual(fixture.failed(), ["the length lies inside the brief's range"], length)
 
-    MUZZLE = "every weapon-mount has a muzzle nose-ward of it and no muzzle is orphaned"
+    MUZZLE = "every weapon-mount has a muzzle and no muzzle is orphaned"
 
-    def test_a_muzzle_aft_of_its_mount_is_refused(self):
+    def test_a_muzzle_facing_any_way_is_accepted(self):
+        # Which way a gun points is HullData's hardpoint rotation; the hull source never judges it.
         fixture = Fixture()
         fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""])
                                     + echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, 1, 3], 0, "Gun.A"])
+                                    + echo("anchor", ["Gun.B", "weapon-mount", [0, 0, 3], 0, ""])
+                                    + echo("anchor", ["Gun.B.muzzle", "weapon-muzzle", [1, 0, 3], 0, "Gun.B"])
                                     + echo("anchor", ["Th.A", "thruster-emitter", [1, 5, 1], 180, ""]))
-        self.assertEqual(fixture.failed(), [self.MUZZLE])
-
-    def test_a_muzzle_level_with_its_mount_is_not_nose_ward(self):
-        fixture = Fixture()
-        fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""])
-                                    + echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [1, 0, 3], 0, "Gun.A"]))
-        self.assertEqual(fixture.failed(), [self.MUZZLE])
+        self.assertEqual(fixture.failed(), [])
 
     def test_a_mount_without_a_muzzle_and_a_muzzle_without_a_mount_are_refused(self):
         fixture = Fixture()
         fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""]))
         self.assertEqual(fixture.failed(), [self.MUZZLE])
         fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, -3, 3], 0, "Gun.A"]))
+        self.assertEqual(fixture.failed(), [self.MUZZLE])
+        # Another gun's muzzle does not pair this one.
+        fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""])
+                                    + echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, -3, 3], 0, "Gun.A"])
+                                    + echo("anchor", ["Gun.B", "weapon-mount", [2, 0, 3], 0, ""]))
         self.assertEqual(fixture.failed(), [self.MUZZLE])
 
     def test_a_muzzle_whose_parent_is_not_a_weapon_mount_is_refused(self):

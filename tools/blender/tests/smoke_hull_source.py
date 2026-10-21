@@ -215,7 +215,6 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     for muzzle in roles["weapon-muzzle"]:
         mount = first[muzzle].parent
         require(mount.get("aetheria.role") == "weapon-mount" and first[muzzle].get("aetheria.order") == 1, "A muzzle is not ordered under its mount")
-        require(first[muzzle].matrix_world.translation.y < mount.matrix_world.translation.y, "A muzzle is not nose-ward of its mount")
     require(layout_rows(scene) == rows_before, "Build changed the layout buffer")
     check_poses(collection, root, runner)
     if fixture == "zh-ammo-tender":

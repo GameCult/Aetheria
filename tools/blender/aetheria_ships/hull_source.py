@@ -344,13 +344,11 @@ def _checks(hull, own, judge):
     by_id = {a.id: a for a in hull.anchors}
     unmuzzled = [a.id for a in hull.anchors if a.role == "weapon-mount"
                  and not any(m.role == "weapon-muzzle" and m.parent == a.id for m in hull.anchors)]
-    forward = [m.id for m in hull.anchors if m.role == "weapon-muzzle" and m.parent in by_id
-               and by_id[m.parent].role == "weapon-mount" and m.position[1] >= by_id[m.parent].position[1]]
     orphans = [m.id for m in hull.anchors if m.role == "weapon-muzzle"
                and (m.parent not in by_id or by_id[m.parent].role != "weapon-mount")]
-    checks.append(Check("every weapon-mount has a muzzle nose-ward of it and no muzzle is orphaned",
-                        not (unmuzzled or forward or orphans),
-                        f"{len(unmuzzled)} without a muzzle, {len(forward)} not nose-ward, {len(orphans)} orphaned"))
+    checks.append(Check("every weapon-mount has a muzzle and no muzzle is orphaned",
+                        not (unmuzzled or orphans),
+                        f"{len(unmuzzled)} without a muzzle, {len(orphans)} orphaned"))
     return checks
 
 
