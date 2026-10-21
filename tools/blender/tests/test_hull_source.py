@@ -208,6 +208,23 @@ class HullTypeTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             hs.build(fixture.runner(), fixture.read_library)
 
+    def test_build_refuses_a_hull_type_that_is_not_a_hulltype_name_before_reading_the_source(self):
+        for hull_type in ("ship", "SHIP", "Ship ", "", None, "Stations", 0, SECRET):
+            with self.subTest(hull_type=hull_type):
+                fixture, read = Fixture(), []
+                runner = fixture.runner()
+                with self.assertRaises(hs.HullSourceError) as caught:
+                    hs.build(lambda part: read.append(part) or runner(part), fixture.read_library, hull_type)
+                self.assertEqual(read, [])
+                self.assertNotIn(SECRET, str(caught.exception))
+
+    def test_build_accepts_each_hulltype_name_and_only_a_ship_lists_the_proportion_check(self):
+        for hull_type in ("Ship", "Station", "Turret"):
+            with self.subTest(hull_type):
+                built = self.fixture(hull_type).build()
+                self.assertEqual([c.name for c in built.failed()], [])
+                self.assertEqual(PROPORTION in names(built), hull_type == "Ship")
+
 
 class MirrorOverlapTests(unittest.TestCase):
     @staticmethod

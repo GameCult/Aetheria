@@ -15,6 +15,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -542,6 +543,16 @@ class LayoutTests(ShipFileCase):
                 self.edit(revision, width=width, height=height, cells=[True] * (width * height), hardpoints=[])
                 revision = self.layout()[2]
         self.assertNotEqual(before, self.bytes())
+
+    def test_the_grid_limit_is_hull_grids_max_cells(self):
+        _, _, revision = self.layout()
+        before = self.bytes()
+        with self.assertRaisesRegex(ValueError, f"1..{ship_cc.hull_grid.MAX_CELLS} cells"):
+            self.edit(revision, width=33, height=1, cells=[True] * 33)
+        self.assertEqual(before, self.bytes())
+        with mock.patch.object(ship_cc.hull_grid, "MAX_CELLS", 33):
+            self.edit(revision, width=33, height=1, cells=[True] * 33, hardpoints=[])
+        self.assertEqual([33, 1, [True] * 33], self.layout()[0])
 
     def test_a_layout_save_refreshes_the_stored_at_of_the_hull_and_leaves_the_ships(self):
         stale = "2000-01-01T00:00:00+00:00"
