@@ -239,6 +239,11 @@ class JudgementTests(unittest.TestCase):
         self.assertEqual(fixture.failed(), [self.MUZZLE])
         fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, -3, 3], 0, "Gun.A"]))
         self.assertEqual(fixture.failed(), [self.MUZZLE])
+        # Another gun's muzzle does not pair this one.
+        fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""])
+                                    + echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, -3, 3], 0, "Gun.A"])
+                                    + echo("anchor", ["Gun.B", "weapon-mount", [2, 0, 3], 0, ""]))
+        self.assertEqual(fixture.failed(), [self.MUZZLE])
 
     def test_a_muzzle_whose_parent_is_not_a_weapon_mount_is_refused(self):
         fixture = Fixture()
