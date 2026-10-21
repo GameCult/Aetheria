@@ -221,7 +221,8 @@ public sealed partial class RunStartTests
     [Fact]
     public void AgentFiresWithTheCommandedAimItem()
     {
-        var (_, east, west) = SeamPair(false);
+        var (arena, east, west) = SeamPair(false);
+        for (var step = 0; step < 60; step++) arena.Update(SeamDt); // the guns come online and evaluate their stats
         var gun = SeamGun(east);
         var item = SeamGun(west).Item;
         east.EntityInfoGathered[west] = 1;
