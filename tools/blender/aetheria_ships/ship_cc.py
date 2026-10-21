@@ -16,6 +16,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NamedTuple
 
+if __package__:
+    from . import hull_grid
+else:  # loaded by path (tests, hull_source loaded by path): load the sibling the same way
+    import importlib.util
+    _grid_spec = importlib.util.spec_from_file_location("hull_grid", Path(__file__).with_name("hull_grid.py"))
+    hull_grid = importlib.util.module_from_spec(_grid_spec)
+    _grid_spec.loader.exec_module(hull_grid)
+
 # The cultcache-py this module's raw envelope writes were tested against. cultcache_py has no __version__ and is loaded
 # from source, so the guard reads [project].version of the checkout the imported module itself came from.
 TESTED_CULTCACHE_PY = "0.3.0"
@@ -235,8 +243,9 @@ def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_
     if layout_revision(hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT]) != expected_revision:
         raise ValueError("The .cc layout changed since Load; reload before saving")
     width, height, cells = shape
-    if not (1 <= width <= 32 and 1 <= height <= 32 and len(cells) == width * height):
-        raise ValueError("Hull grid must be 1..32 cells wide and high with one value per cell")
+    limit = hull_grid.MAX_CELLS
+    if not (1 <= width <= limit and 1 <= height <= limit and len(cells) == width * height):
+        raise ValueError(f"Hull grid must be 1..{limit} cells wide and high with one value per cell")
     if not all(type(cell) is bool for cell in cells):
         raise ValueError("Hull grid cells must be booleans")
     if not any(cells):
