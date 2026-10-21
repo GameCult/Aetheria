@@ -148,6 +148,45 @@ public sealed partial class RunStartTests
         Assert.True(east.Target.Value.IsNone);
     }
 
+    // A probe pilot state: it commands a turn rate and records what another ship's applied turn was when it decided.
+    private sealed class SeamProbeState : BaseState
+    {
+        private readonly float _rate;
+        private readonly Ship _watched;
+        public readonly List<float> Seen = new List<float>();
+        public SeamProbeState(Agent agent, float rate, Ship watched) : base(agent)
+        {
+            _rate = rate;
+            _watched = watched;
+        }
+
+        public override void Update(float delta)
+        {
+            if (_watched != null) Seen.Add(_watched.Turn);
+            _agent.Ship.Command.Turn = TurnCommand.OfRate(_rate);
+        }
+    }
+
+    // Each agent's command is applied right after it decides, so the next agent sees it applied, as it saw the direct
+    // writes this seam replaced. Breaks if the agents' commands are applied only after every agent has decided.
+    [Fact]
+    public void AnAgentsCommandLandsBeforeTheNextAgentDecides()
+    {
+        var (arena, east, west) = SeamPair(false);
+        var first = new Agent(east, FactionDoctrine.Default(east.ItemManager.GameplaySettings).Combatant);
+        var second = new Agent(west, FactionDoctrine.Default(west.ItemManager.GameplaySettings).Combatant);
+        first.Transition(new SeamProbeState(first, .7f, null));
+        var probe = new SeamProbeState(second, .1f, east);
+        second.Transition(probe);
+        arena.Agents.Add(first);
+        arena.Agents.Add(second);
+
+        arena.Update(SeamDt);
+
+        Assert.Equal(new[] { .7f }, probe.Seen);
+        Assert.Equal(.1f, west.Turn);
+    }
+
     [Fact]
     public void AnEmptyCommandWritesNothing()
     {
