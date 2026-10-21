@@ -166,11 +166,13 @@ public sealed class SteeringTests
         ship.Aim = aim;
 
         agent.Accelerate(Right(ship) * 100f);
+        PilotApplier.Apply(ship);
         Assert.True(ship.Turn > 0f);
         Assert.Equal(aim, ship.Aim);
 
-        ship.Turn = .37f;
+        ship.Command.Turn = TurnCommand.OfRate(.37f);
         agent.Accelerate(-Right(ship) * 100f, true);
+        PilotApplier.Apply(ship);
         Assert.Equal(.37f, ship.Turn);
         Assert.Equal(aim, ship.Aim);
     }
@@ -185,22 +187,26 @@ public sealed class SteeringTests
         var agent = new Agent(ship, FactionDoctrine.Default(ship.ItemManager.GameplaySettings).Combatant);
         Assert.Equal(float2(0, 1), ship.Direction); // starboard is +x
 
-        ship.Turn = .37f;
+        ship.Command.Turn = TurnCommand.OfRate(.37f);
         agent.Accelerate(float2(20, 0), false); // exactly the forward threshold: not above it
+        PilotApplier.Apply(ship);
         Assert.Equal(.37f, ship.Turn);
         Assert.Equal(float2(1, 0), ship.MovementDirection);
 
         agent.Accelerate(float2(21, 0), false);
+        PilotApplier.Apply(ship);
         Assert.True(ship.Turn > .5f);
         Assert.Equal(float2(0, 0), ship.MovementDirection);
 
-        ship.Turn = .37f;
-        ship.MovementDirection = float2(1, 1); // a stale command the hold branch must clear
+        ship.Command.Turn = TurnCommand.OfRate(.37f);
+        ship.Command.Movement = float2(1, 1); // a stale command the hold branch must clear
         agent.Accelerate(float2(1, 0), false); // exactly the thrust threshold: not above it
+        PilotApplier.Apply(ship);
         Assert.Equal(float2.zero, ship.MovementDirection);
         Assert.Equal(.37f, ship.Turn);
 
         agent.Accelerate(float2(5, 0), false);
+        PilotApplier.Apply(ship);
         Assert.Equal(float2(1, 0), ship.MovementDirection);
         Assert.Equal(.37f, ship.Turn);
     }
@@ -212,9 +218,10 @@ public sealed class SteeringTests
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
         var agent = new Agent(ship, FactionDoctrine.Default(ship.ItemManager.GameplaySettings).Combatant);
         ship.Velocity = float2(100, 0);
-        ship.Turn = .37f;
+        ship.Command.Turn = TurnCommand.OfRate(.37f);
 
         agent.Accelerate(float2(100, 0), false); // already at the wanted velocity: nothing to correct
+        PilotApplier.Apply(ship);
 
         Assert.Equal(.37f, ship.Turn);
         Assert.Equal(float2.zero, ship.MovementDirection);
@@ -316,7 +323,7 @@ public sealed class SteeringTests
     private sealed class SpinState : BaseState
     {
         public SpinState(Agent agent) : base(agent) { }
-        public override void Update(float delta) => _agent.Ship.Turn = .5f;
+        public override void Update(float delta) => _agent.Ship.Command.Turn = TurnCommand.OfRate(.5f);
     }
 
     // Turn is a rate, so a state that stops piloting must not leave the last state's rate behind: the agent's
@@ -333,6 +340,7 @@ public sealed class SteeringTests
         for (var i = 0; i < 10; i++)
         {
             agent.Update(1f / 60f);
+            PilotApplier.Apply(ship);
             ship.Update(1f / 60f);
         }
         Assert.True(Angle(start, ship.Direction) > radians(.05f), "the piloting state turns the hull");
@@ -340,11 +348,13 @@ public sealed class SteeringTests
 
         agent.Transition(new BaseState(agent));
         agent.Update(1f / 60f);
+        PilotApplier.Apply(ship);
         ship.Update(1f / 60f);
         var held = ship.Direction;
         for (var i = 0; i < 60; i++)
         {
             agent.Update(1f / 60f);
+            PilotApplier.Apply(ship);
             ship.Update(1f / 60f);
         }
 
@@ -377,6 +387,7 @@ public sealed class SteeringTests
         agent.Transition(state);
 
         agent.Update(1f / 60f);
+        PilotApplier.Apply(ship);
 
         Assert.True(dot(normalize(ship.Aim.xz), dir) > .9999f, $"aim {ship.Aim}");
         Assert.True(abs(ship.Aim.y) < 1e-6f);

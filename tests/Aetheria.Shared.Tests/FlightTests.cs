@@ -256,7 +256,9 @@ public sealed class FlightTests : IDisposable
             var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
                 { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
             minion.Update(.1f);
+            PilotApplier.Apply(minion.Ship);
             minion.Update(.1f);
+            PilotApplier.Apply(minion.Ship);
             return ship.Turn;
         }
 
@@ -279,6 +281,7 @@ public sealed class FlightTests : IDisposable
 
         minion.Task = new FollowTask { Anchor = anchor, Standoff = 50 };
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
 
         Assert.IsType<FollowState>(CurrentState(minion));
     }
@@ -293,6 +296,7 @@ public sealed class FlightTests : IDisposable
         for (var i = 0; i < 30; i++)
         {
             minion.Update(.1f);
+            PilotApplier.Apply(minion.Ship);
             if (i > 0) Assert.IsNotType<BaseState>(CurrentState(minion));
         }
     }
@@ -611,7 +615,9 @@ public sealed class FlightTests : IDisposable
             var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
                 { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
             minion.Update(.1f);
+            PilotApplier.Apply(minion.Ship);
             minion.Update(.1f);
+            PilotApplier.Apply(minion.Ship);
             return ship.Turn;
         }
 
@@ -631,19 +637,26 @@ public sealed class FlightTests : IDisposable
         var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
             { Task = new FollowTask { Anchor = anchor, Standoff = 50 } };
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         Assert.IsType<FollowState>(CurrentState(minion));
 
         minion.Task = new PatrolOrbitsTask { Circuit = new CultRecordKey[1] };
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         Assert.IsType<PatrolOrbitsState>(CurrentState(minion));
 
         minion.Task = new FollowTask { Anchor = anchor, Standoff = 50 };
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         minion.Task = null;
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         Assert.IsNotType<FollowState>(CurrentState(minion));
     }
 
@@ -788,6 +801,7 @@ public sealed class FlightTests : IDisposable
         for (var i = 0; i < 5; i++)
         {
             minion.Update(.1f);
+            PilotApplier.Apply(minion.Ship);
             Assert.IsType<CombatState>(CurrentState(minion));
         }
     }
@@ -800,6 +814,7 @@ public sealed class FlightTests : IDisposable
 
         minion.Task = null;
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
 
         Assert.IsType<BaseState>(CurrentState(minion));
     }
@@ -870,7 +885,9 @@ public sealed class FlightTests : IDisposable
         var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
             { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         minion.Update(.1f);
+        PilotApplier.Apply(minion.Ship);
         return (ship.Turn, ship.MovementDirection, minion.TopSpeed);
     }
 
