@@ -17,7 +17,7 @@ using float4 = CultMath.float4;
 
 public class ItemManager
 {
-    public Random Random = new Random((uint) (DateTime.Now.Ticks%uint.MaxValue));
+    public Random Random;
 
     private Action<string> _logger;
 

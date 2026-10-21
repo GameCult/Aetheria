@@ -271,9 +271,6 @@ public class Zone
             var entity = EntitySerializer.Unpack(_itemManager, this, entityPack);
             var ship = entity as Ship;
             Admit(entity, piloted: ship is {IsPlayerShip: false});
-            // Generation placement, not admission: a ship packed at the origin is scattered across the zone.
-            if (ship is {IsPlayerShip: false} && lengthsq(ship.Position) < 1)
-                ship.Position = _itemManager.Random.NextFloat3(float3(-pack.Radius * .5f), float3(pack.Radius * .5f));
         }
 
         // TODO: Associate planets with stored entities for planetary colonies
