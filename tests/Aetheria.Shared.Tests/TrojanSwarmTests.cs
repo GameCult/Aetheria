@@ -38,6 +38,37 @@ public class TrojanSwarmTests
     private static float Turn(float2 p) => frac((float) (Math.Atan2(p.y, p.x) / (2 * Math.PI)));
     private static float Wrap(float t) => t - (float) Math.Round(t);
 
+    // A standing binary leaves a bodyless node with a parent and its pair's mass, heavy enough to pass the host mass filter; a
+    // swarm round it would ride a rail no body is on (finding swarm-on-bodyless-node). StationPlacementTests' binary tuning with a
+    // swarm drawn for every eligible host: every swarm's rail copies a body's orbit.
+    [Fact]
+    public void NoSwarmRidesABinarysBodylessNode()
+    {
+        using var zones = new ChildrenWithinReachTests.Zones(First, Last, z =>
+        {
+            z.SatelliteCreationProbability = 1;
+            z.BinaryCreationProbability = 1;
+            z.ZoneRadius.Minimum *= 3; z.ZoneRadius.Maximum *= 3;
+            z.ZoneMass.Minimum *= .1f; z.ZoneMass.Maximum *= .1f;
+            z.TrojanProbability = 1;
+        });
+        int binaries = 0, swarms = 0, bodyless = 0;
+        foreach (var (seed, zone) in zones.All)
+        {
+            var bodyOrbits = zone.Planets.Values.Select(b => b.Orbit.Key).ToHashSet();
+            binaries += zone.Orbits.Count(o => o.Value.Data.Parent.IsSet() && !bodyOrbits.Contains(o.Key) && zone.Wells.Reach(o.Key) > 0f);
+            var bodies = zone.Planets.Values.Where(b => !(b is AsteroidBeltData)).Select(b => zone.Orbits[b.Orbit.Key].Data).ToList();
+            foreach (var rail in zone.AsteroidBelts.Where(b => b.Value.Data.RidesRail).Select(b => zone.Orbits[zone.Planets[b.Key].Orbit.Key].Data))
+            {
+                swarms++;
+                if (!bodies.Any(o => o.Parent.Key.Equals(rail.Parent.Key) && o.Distance == rail.Distance && o.Phase == rail.Phase)) bodyless++;
+            }
+        }
+        _out.WriteLine($"zones {zones.All.Count}, bodyless nodes {binaries}, swarms {swarms}, on a bodyless node {bodyless}");
+        Assert.True(binaries > 5 && swarms > 10, $"{binaries} bodyless nodes and {swarms} swarms: the seeds do not exercise the rule");
+        Assert.Equal(0, bodyless);
+    }
+
     [Fact]
     public void ASwarmKeepsItsShapeOverAnHour()
     {

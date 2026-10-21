@@ -17,11 +17,16 @@ public sealed class LanedBeltTests : IClassFixture<LanedBeltTests.Samples>
     {
         public readonly ChildrenWithinReachTests.Zones Authored = new ChildrenWithinReachTests.Zones(First, Last, null);
         public readonly ChildrenWithinReachTests.Zones Laneless = new ChildrenWithinReachTests.Zones(First, Last, z => z.LaneProbability = 0);
+        // Every candidate tried for a lane and every eligible host given a swarm, seeds 1-30: the authored sample holds no lane
+        // candidate that is a swarm host or shares a parent with another eligible host, so only this one reaches the swarm-host and
+        // one-shape-per-parent filters (finding lane-filters-unexercised).
+        public readonly ChildrenWithinReachTests.Zones Tuned = new ChildrenWithinReachTests.Zones(1, 30, z => { z.LaneProbability = 1; z.TrojanProbability = 1; });
 
         public void Dispose()
         {
             Authored.Dispose();
             Laneless.Dispose();
+            Tuned.Dispose();
         }
     }
 
@@ -112,13 +117,25 @@ public sealed class LanedBeltTests : IClassFixture<LanedBeltTests.Samples>
         Assert.True(lanes > 0, $"no lane in seeds {First}-{Last}");
     }
 
-    [Fact]
-    public void ALaneHostIsALightBodyWithNoOtherShape()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ALaneHostIsALightBodyWithNoOtherShape(bool tuned)
     {
-        var s = _samples.Authored.Settings;
-        var lanes = 0;
-        foreach (var (seed, zone) in _samples.Authored.All)
+        var sample = tuned ? _samples.Tuned : _samples.Authored;
+        var s = sample.Settings;
+        int lanes = 0, lightChildlessSwarmHosts = 0;
+        foreach (var (seed, zone) in sample.All)
         {
+            // A swarm host light enough and childless enough to be a lane host: the case the swarm-host filter refuses.
+            foreach (var rail in zone.AsteroidBelts.Where(b => b.Value.Data.RidesRail).Select(b => zone.Orbits[zone.Planets[b.Key].Orbit.Key].Data))
+            {
+                var hostBody = zone.Planets.Values.Where(b => !(b is AsteroidBeltData)).FirstOrDefault(b => zone.Orbits[b.Orbit.Key].Data is var o
+                    && o.Parent.Key.Equals(rail.Parent.Key) && o.Distance == rail.Distance && o.Phase == rail.Phase);
+                if (hostBody != null && hostBody.Mass < s.BeltMassCeiling
+                    && !zone.Orbits.Values.Any(o => o.Data.Parent.IsSet() && o.Data.Parent.Key.Equals(hostBody.Orbit.Key)))
+                    lightChildlessSwarmHosts++;
+            }
             var laned = BeltShapes.Lanes(zone).ToList();
             foreach (var (host, _, _) in laned)
             {
@@ -137,7 +154,38 @@ public sealed class LanedBeltTests : IClassFixture<LanedBeltTests.Samples>
             var doubled = annuli.Concat(laned.Select(l => l.Host.Data.Parent.Key)).GroupBy(p => p).Count(g => g.Count() > 1);
             Assert.True(doubled == 0, $"seed {seed}: {doubled} parents carry two belt shapes");
         }
-        Assert.True(lanes > 0, $"no lane in seeds {First}-{Last}");
+        _out.WriteLine($"zones {sample.All.Count}, lanes {lanes}, light childless swarm hosts {lightChildlessSwarmHosts}");
+        Assert.True(lanes > 0, "no lane in the sample");
+        if (tuned) Assert.True(lightChildlessSwarmHosts > 100, $"only {lightChildlessSwarmHosts} light childless swarm hosts: the swarm-host filter is not reached");
+    }
+
+    // LaneRocks puts each rock in a band by the band's area (ruling lanes-two-sided-visual-margin, map B60), not half and half and
+    // not by width (finding lane-split-unpinned). A lopsided slot, inner band [10, 18] (area 224) and outer [22, 24] (area 92):
+    // area share 0.709, width share 0.8, half 0.5. Over 4000 rocks one sigma of the share is 0.0072, so the area share sits within
+    // 4 sigma and the other two lie past 12.
+    [Fact]
+    public void ALaneSplitsItsRocksByBandArea()
+    {
+        const float inner = 10f, distance = 20f, lane = 2f, outer = 24f;
+        var settings = _samples.Authored.Settings;
+        var p = (18.0 * 18 - 10 * 10) / (18.0 * 18 - 10 * 10 + 24 * 24 - 22 * 22);
+        int n = 0, k = 0;
+        for (uint draw = 1; n < 4000; draw++)
+        {
+            var random = new CultMath.Random(draw);
+            var rocks = ZoneGenerator.LaneRocks(settings, ref random, 1f, distance, lane, inner, outer);
+            Assert.NotEmpty(rocks);
+            foreach (var rock in rocks)
+            {
+                Assert.True(rock.Distance >= inner && rock.Distance <= distance - lane || rock.Distance >= distance + lane && rock.Distance <= outer,
+                    $"a rock at {rock.Distance} sits outside both bands");
+                n++;
+                if (rock.Distance < distance) k++;
+            }
+        }
+        var z = (k - n * p) / Math.Sqrt(n * p * (1 - p));
+        _out.WriteLine($"rocks {n}, inner {k}, area share {p:F3}, measured {(double) k / n:F3}, z {z:F2}");
+        Assert.True(Math.Abs(z) < 4, $"{k} of {n} rocks in the inner band, {(double) k / n:F3} against an area share of {p:F3} (z {z:F2})");
     }
 
     // An only child is its parent's outermost (ruling lane-not-outermost): Place stretches nothing for it, so its slot runs out to
