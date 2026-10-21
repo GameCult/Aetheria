@@ -326,7 +326,7 @@ public sealed class ShipProductTests : IDisposable
     }
 
     // The hull as data, to compare everything stats did not name.
-    private static string HullJson(string path) => Newtonsoft.Json.JsonConvert.SerializeObject(ShipAuthoringStore.Load(path).Hull);
+    private static byte[] HullBytes(HullData hull) => MessagePack.MessagePackSerializer.Serialize(hull, CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly));
 
     [Fact]
     public void StatsWritesOnlyTheFieldsItNamesAndARefusalLeavesTheFileUntouched()
@@ -369,7 +369,7 @@ public sealed class ShipProductTests : IDisposable
             Assert.True(code == 0, error);
             Assert.Contains(flag.Substring(2), output);
             set(expected);
-            Assert.Equal(Newtonsoft.Json.JsonConvert.SerializeObject(expected), HullJson(path));
+            Assert.Equal(HullBytes(expected), HullBytes(ShipAuthoringStore.Load(path).Hull));
         }
         var written = ShipAuthoringStore.Load(path).Hull;
         Assert.Equal((60000f, 8000f, 40f, .35f), (written.Mass, written.Durability, written.Armor, written.Drag));
