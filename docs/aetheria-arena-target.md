@@ -171,8 +171,11 @@ No cell is empty. The Scenario row exposes a gap: `Name` is today's only identit
    `observation-fidelity` rules for it.
 4. **Replay.** The recorder writes inputs, commands and digests every N ticks as CultCache. The replayer reproduces
    them and names the first divergent tick. Replay tests read an existing match.
-5. **Runner.** `AetherDb arena`: a scenario, two brain ids and a seed range produce results and replays in a given
+5. **Sim rate** (ruling `lower-game-sim-rate`). Lower the game's own `SimClock` rate for game and arena alike. The rate is
+   set by the shortest catalog timer staying several steps long, an equivalence test of matchups at 60 Hz against the
+   candidate, and the operator's playtest of feel. Brains may decide at their own rate below the physics step.
+6. **Runner.** `AetherDb arena`: a scenario, two brain ids and a seed range produce results and replays in a given
    directory. It runs in Yggdrasil's dotnet container, with two-ship throughput measured and recorded.
-6. **First tournament.** Round-robin over two or more brains (`DoctrineBrain` plus one variant) and the combat
+7. **First tournament.** Round-robin over two or more brains (`DoctrineBrain` plus one variant) and the combat
    scenarios, with enough seeds per pairing. Ratings are derived with confidence intervals, and the results document
    is ready to feed `aetheria-matchups`.
