@@ -140,8 +140,8 @@ public sealed class ProductLinesCatalogTests
         }
     }
 
-    // FactionProductData slot 7 is additive under the same schema id: a bin round-trips, and a record written before the slot
-    // existed (an array one element shorter) reads no bin.
+    // FactionProductData slots 7 and 8 are additive under the same schema id: a bin and NotOffered round-trip, a record written
+    // before slot 8 existed (an array one element shorter) is on the market, and one written before slot 7 also reads no bin.
     [Fact]
     public void BinIsSlotSevenAndACatalogWithoutItReadsNoBin()
     {
@@ -150,12 +150,21 @@ public sealed class ProductLinesCatalogTests
             MessagePackSerializer.Serialize(new FactionProductData { Name = "Binned", Bin = new ProductBin { Floor = .67f } }, options), options);
         Assert.Equal(.67f, binned.Bin.Floor);
 
+        Assert.True(MessagePackSerializer.Deserialize<FactionProductData>(
+            MessagePackSerializer.Serialize(new FactionProductData { Name = "Unsold", NotOffered = true }, options), options).NotOffered);
+
         var bytes = MessagePackSerializer.Serialize(new FactionProductData { Name = "Old", Description = "d" }, options);
-        Assert.Equal(0x98, bytes[0]);
-        Assert.Equal(0xC0, bytes[^1]);
-        var before = new byte[] { 0x97 }.Concat(bytes.Skip(1).Take(bytes.Length - 2)).ToArray();
+        Assert.Equal(0x99, bytes[0]);
+        Assert.Equal(0xC0, bytes[^2]);
+        Assert.Equal(0xC2, bytes[^1]);
+        var beforeNotOffered = new byte[] { 0x98 }.Concat(bytes.Skip(1).Take(bytes.Length - 2)).ToArray();
+        var offered = MessagePackSerializer.Deserialize<FactionProductData>(beforeNotOffered, options);
+        Assert.Equal("Old", offered.Name);
+        Assert.False(offered.NotOffered);
+        var before = new byte[] { 0x97 }.Concat(bytes.Skip(1).Take(bytes.Length - 3)).ToArray();
         var old = MessagePackSerializer.Deserialize<FactionProductData>(before, options);
         Assert.Equal("Old", old.Name);
         Assert.Null(old.Bin);
+        Assert.False(old.NotOffered);
     }
 }
