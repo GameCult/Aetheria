@@ -223,6 +223,16 @@ class JudgementTests(unittest.TestCase):
 
     MUZZLE = "every weapon-mount has a muzzle and no muzzle is orphaned"
 
+    def test_a_muzzle_facing_any_way_is_accepted(self):
+        # Which way a gun points is HullData's hardpoint rotation; the hull source never judges it.
+        fixture = Fixture()
+        fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""])
+                                    + echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, 1, 3], 0, "Gun.A"])
+                                    + echo("anchor", ["Gun.B", "weapon-mount", [0, 0, 3], 0, ""])
+                                    + echo("anchor", ["Gun.B.muzzle", "weapon-muzzle", [1, 0, 3], 0, "Gun.B"])
+                                    + echo("anchor", ["Th.A", "thruster-emitter", [1, 5, 1], 180, ""]))
+        self.assertEqual(fixture.failed(), [])
+
     def test_a_mount_without_a_muzzle_and_a_muzzle_without_a_mount_are_refused(self):
         fixture = Fixture()
         fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""]))
