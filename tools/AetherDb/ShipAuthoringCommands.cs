@@ -8,7 +8,7 @@ using System.Linq;
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] | --remove) | price <ship.cc> <price> | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | compose <shipped.cc> <derived.cc> <mods-dir>";
 
     public static int Run(string[] args)
     {
@@ -93,8 +93,11 @@ public static class ShipAuthoringCommands
             }
             if (args[0] == "product" && args.Length >= 4)
             {
-                var remove = args.Length == 4 && args[3] == "--remove";
-                var named = args.Length >= 5 && args[3] == "--name" && (args.Length == 5 || args.Length == 7 && args[5] == "--description");
+                // A trailing --not-offered takes the product off the market (ruling off-market-is-unoffered-product); --remove takes none.
+                var notOffered = args[args.Length - 1] == "--not-offered";
+                var count = notOffered ? args.Length - 1 : args.Length;
+                var remove = !notOffered && count == 4 && args[3] == "--remove";
+                var named = count >= 5 && args[3] == "--name" && (count == 5 || count == 7 && args[5] == "--description");
                 if (!remove && !named) { Console.Error.WriteLine(Usage); return 1; }
                 var (hull, ship, products) = ShipAuthoringStore.Load(args[1]);
                 var (makerKey, makerName) = ShippedFaction(args[2]);
@@ -112,14 +115,15 @@ public static class ShipAuthoringCommands
                         ShipAuthoringStore.WriteProduct(cache, ship.Id, new FactionProductData
                         {
                             Name = args[4],
-                            Description = args.Length == 7 ? args[6] : null,
+                            Description = count == 7 ? args[6] : null,
                             Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey(ship.Id)),
                             Manufacturer = new CultRecordRef<Faction>(makerKey),
-                            Roles = hull.Roles.Select(role => new ProductRole { Role = role.Name }).ToList()
+                            Roles = hull.Roles.Select(role => new ProductRole { Role = role.Name }).ToList(),
+                            NotOffered = notOffered
                         });
                     cache.FlushAsync().Wait();
                 }
-                Console.WriteLine($"{ship.Id}: {(remove ? "removed" : "wrote")} the product by {makerName}.");
+                Console.WriteLine($"{ship.Id}: {(remove ? "removed" : "wrote")} the product by {makerName}{(notOffered ? ", not offered" : "")}.");
                 return 0;
             }
             Console.Error.WriteLine(Usage);

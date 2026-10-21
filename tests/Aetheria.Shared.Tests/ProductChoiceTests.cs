@@ -65,8 +65,10 @@ public sealed class ProductChoiceTests : IDisposable
 
     private Rig Build(params string[] lampOrder) => Build(new float[0], lampOrder);
 
-    // binFloors adds one bin of lamp-a's line per floor, named "lamp-a bin" and "lamp-a bin 2"..., by the same maker.
-    private Rig Build(float[] binFloors, string[] lampOrder)
+    // binFloors adds one bin of lamp-a's line per floor, named "lamp-a bin" and "lamp-a bin 2"..., by the same maker. Every rig also
+    // holds a Barge, the one hull with a ballistic hardpoint, and a Gun only it mounts, each sold by Alpha. notOffered names the
+    // products the rig takes off the market.
+    private Rig Build(float[] binFloors, string[] lampOrder, params string[] notOffered)
     {
         var root = Path.Combine(_root, "rig" + _catalogs++);
         Directory.CreateDirectory(root);
@@ -92,20 +94,31 @@ public sealed class ProductChoiceTests : IDisposable
                 Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = HardpointCell, Shape = new Shape() } }
             });
             var lamp = seed.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10 });
+            var barge = seed.Upsert(new HullData
+            {
+                Name = "Barge", HullType = HullType.Ship, Shape = shape, Price = 100,
+                Hardpoints = { new HardpointData { Type = HardpointType.Ballistic, Position = HardpointCell, Shape = new Shape() } }
+            });
+            var gun = seed.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Ballistic, Shape = new Shape(), Price = 10 });
             void Sell(string name, CultRecordKey design, CultRecordRef<Faction> maker, string key) =>
                 seed.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData
-                    { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker }, new CultRecordKey(key)));
+                    { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker, NotOffered = notOffered.Contains(name) }, new CultRecordKey(key)));
             Sell("Skiff by Alpha", skiff.Key, alpha, "skiff-a");
+            Sell("Barge by Alpha", barge.Key, alpha, "barge-a");
+            Sell("Gun by Alpha", gun.Key, alpha, "gun-a");
             var makers = new Dictionary<string, CultRecordRef<Faction>> { ["lamp-a"] = alpha, ["lamp-z"] = zeta, ["lamp-m"] = mu };
             // lampOrder holds product names; the record key of the i-th inserted is "k" + i, so keys and insertion order
             // both follow the permutation.
             for (var i = 0; i < lampOrder.Length; i++) Sell(lampOrder[i], lamp.Key, makers[lampOrder[i]], "k" + i);
             for (var i = 0; i < binFloors.Length; i++)
+            {
+                var name = i == 0 ? "lamp-a bin" : "lamp-a bin " + (i + 1);
                 seed.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData
                 {
-                    Name = i == 0 ? "lamp-a bin" : "lamp-a bin " + (i + 1), Design = new CultRecordRef<CraftedItemData>(lamp.Key), Manufacturer = alpha,
+                    Name = name, Design = new CultRecordRef<CraftedItemData>(lamp.Key), Manufacturer = alpha, NotOffered = notOffered.Contains(name),
                     Bin = new ProductBin { Line = new CultRecordRef<FactionProductData>(new CultRecordKey("k" + Array.IndexOf(lampOrder, "lamp-a"))), Floor = binFloors[i] }
                 }, new CultRecordKey("bin" + i)));
+            }
             seed.FlushAsync().Wait();
         }
 
@@ -367,5 +380,129 @@ public sealed class ProductChoiceTests : IDisposable
     {
         Assert.Equal(4, typeof(Loadout).GetField(nameof(Loadout.HullProduct)).GetCustomAttribute<KeyAttribute>().IntKey);
         Assert.Equal(3, typeof(LoadoutSlot).GetField(nameof(LoadoutSlot.Product)).GetCustomAttribute<KeyAttribute>().IntKey);
+        Assert.Equal(8, typeof(FactionProductData).GetField(nameof(FactionProductData.NotOffered)).GetCustomAttribute<KeyAttribute>().IntKey);
+    }
+
+    // Ruling off-market-is-unoffered-product: a not-offered product is never chosen, by a faction that reaches its maker or by a
+    // stage with no faction, which otherwise reaches every maker (ruling boss-hulls-exclusive).
+    [Fact]
+    public void ANotOfferedProductIsNeverChosen()
+    {
+        var rig = Build(new float[0], new[] { "lamp-z", "lamp-a" }, "lamp-a");
+        var lamp = rig.Cache.GetByName<GearData>("Lamp");
+        for (var i = 1; i <= 64; i++)
+        {
+            Assert.Equal("lamp-z", rig.Outfitter(null, Seed(i)).ChooseProduct(lamp).Name);
+            Assert.Equal("lamp-z", rig.Outfitter(rig.OutEven, Seed(i), 0).ChooseProduct(lamp).Name);
+            // OutA reaches only Alpha, whose lamp is off the market.
+            Assert.Null(rig.Outfitter(rig.OutA, Seed(i)).ChooseProduct(lamp));
+        }
+        Assert.False(rig.Outfitter(null, 1).IsAvailable(rig.Product("lamp-a")));
+        Assert.True(rig.Outfitter(null, 1).IsAvailable(rig.Product("lamp-z")));
+    }
+
+    // An off-market bin leaves the share arithmetic (ruling bin-share-by-floor): its line keeps the whole of its maker's preference,
+    // so taking a bin off the market never shrinks the maker's presence for the design.
+    [Fact]
+    public void AnOffMarketBinLeavesItsLineTheWholeWeight()
+    {
+        var alone = Build("lamp-z", "lamp-a");
+        var off = Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" }, "lamp-a bin");
+        var preference = alone.Outfitter(alone.OutEven, 1, 0).ProductWeight(alone.Product("lamp-a"));
+        Assert.Equal(preference, off.Outfitter(off.OutEven, 1, 0).ProductWeight(off.Product("lamp-a")), 3);
+
+        var lamp = off.Cache.GetByName<GearData>("Lamp");
+        var draws = Enumerable.Range(1, 600).Select(i => off.Outfitter(off.OutEven, Seed(i)).ChooseProduct(lamp).Name).ToArray();
+        Assert.DoesNotContain("lamp-a bin", draws);
+        var aloneLamp = alone.Cache.GetByName<GearData>("Lamp");
+        var aloneDraws = Enumerable.Range(1, 600).Count(i => alone.Outfitter(alone.OutEven, Seed(i)).ChooseProduct(aloneLamp).Name == "lamp-a");
+        Assert.InRange(draws.Count(name => name == "lamp-a"), aloneDraws - 30, aloneDraws + 30);
+    }
+
+    // Ruling bin-inherits-line-offered: a bin is offered only if both it and its line are. A bin of an off-market line is never chosen,
+    // never drawn by generation, and never stocked, though the bin itself carries no NotOffered.
+    [Fact]
+    public void AnOffMarketLinesBinIsNeverDrawnOrSold()
+    {
+        var rig = Build(new[] { 0f }, new[] { "lamp-z", "lamp-a" }, "lamp-a");
+        Assert.False(rig.Product("lamp-a bin").NotOffered);
+        var lamp = rig.Cache.GetByName<GearData>("Lamp");
+        for (var i = 1; i <= 64; i++)
+        {
+            // OutA reaches only Alpha, whose line and so its bin are off the market.
+            Assert.Null(rig.Outfitter(rig.OutA, Seed(i)).ChooseProduct(lamp));
+            Assert.Equal("lamp-z", rig.Outfitter(null, Seed(i)).ChooseProduct(lamp).Name);
+            Assert.Equal("lamp-z", rig.Outfitter(rig.OutA, Seed(i)).RandomProduct<EquippableItemData>(0, design => design == lamp, required: true).product.Name);
+            foreach (var faction in new[] { rig.OutA, rig.OutEven, rig.OutNone, null })
+                Assert.DoesNotContain(rig.Outfitter(faction, Seed(i)).RandomProducts<CraftedItemData>(16, 1, null, true), entry => entry.product.Name.StartsWith("lamp-a"));
+        }
+        Assert.False(rig.Outfitter(null, 1).IsAvailable(rig.Product("lamp-a bin")));
+    }
+
+    // The any-manufacturer fallback of a required draw is closed to off-market products: when every product of the design is
+    // not offered the draw yields nothing, for a faction that reaches the maker, one that reaches nobody, and no faction.
+    [Fact]
+    public void ARequiredDrawNeverFallsBackToANotOfferedProduct()
+    {
+        var rig = Build(new float[0], new[] { "lamp-z", "lamp-a" }, "lamp-z", "lamp-a");
+        var lamp = rig.Cache.GetByName<GearData>("Lamp");
+        foreach (var faction in new[] { rig.OutA, rig.OutNone, null })
+            for (var i = 1; i <= 16; i++)
+                Assert.Null(rig.Outfitter(faction, Seed(i)).RandomProduct<EquippableItemData>(0, design => design == lamp, required: true).product);
+
+        // With one product still offered, a faction that reaches only the other maker falls back to it: the empty draw above is
+        // the field's doing, not a closed fallback.
+        var one = Build(new float[0], new[] { "lamp-z", "lamp-a" }, "lamp-a");
+        var oneLamp = one.Cache.GetByName<GearData>("Lamp");
+        for (var i = 1; i <= 16; i++)
+            Assert.Equal("lamp-z", one.Outfitter(one.OutA, Seed(i)).RandomProduct<EquippableItemData>(0, design => design == oneLamp, required: true).product.Name);
+    }
+
+    // A hull sold only off the market is no gear's home: gear only it mounts is never drawn, so no station stocks it.
+    [Fact]
+    public void AnOffMarketHullGivesNoGearAHome()
+    {
+        var sold = Build("lamp-a");
+        var soldGun = sold.Cache.GetByName<GearData>("Gun");
+        Assert.Contains(sold.Cache.GetByName<HullData>("Barge"), LoadoutGenerator.SoldHulls(sold.Cache));
+        Assert.Equal("Gun by Alpha", sold.Outfitter(null, 1).RandomProduct<EquippableItemData>(0, design => design == soldGun, required: true).product.Name);
+
+        var off = Build(new float[0], new[] { "lamp-a" }, "Barge by Alpha");
+        var barge = off.Cache.GetByName<HullData>("Barge");
+        var gun = off.Cache.GetByName<GearData>("Gun");
+        var hulls = LoadoutGenerator.SoldHulls(off.Cache);
+        Assert.DoesNotContain(barge, hulls);
+        Assert.Contains(off.Cache.GetByName<HullData>("Skiff"), hulls);
+        Assert.False(LoadoutGenerator.HasHome(gun, hulls));
+        foreach (var faction in new[] { off.OutA, null })
+            for (var i = 1; i <= 16; i++)
+            {
+                var generator = off.Outfitter(faction, Seed(i));
+                Assert.Null(generator.RandomProduct<EquippableItemData>(0, design => design == gun, required: true).product);
+                Assert.Null(generator.RandomProduct<HullData>(0, design => design == barge, required: true).product);
+            }
+    }
+
+    // A Loadout that pins a not-offered hull product still builds it, under its brand: that is how a boss flies its hull.
+    [Fact]
+    public void APinnedNotOfferedHullStillMaterializes()
+    {
+        var rig = Build(new float[0], new[] { "lamp-a" }, "Barge by Alpha");
+        var fit = new Loadout
+        {
+            Name = "Boss barge",
+            Hull = rig.Cache.RefOf(rig.Cache.GetByName<HullData>("Barge")),
+            HullProduct = rig.ProductRef("Barge by Alpha"),
+            WeaponGroups = new int[0][]
+        };
+        var failures = new List<string>();
+        var ship = Materialize(rig, fit, rig.Outfitter(rig.OutA, 1).ChooseProduct, failures);
+        Assert.Empty(failures);
+        Assert.Equal("Barge by Alpha", rig.Items.Brand(ship.Hull).Product.Name);
+
+        // Unpinned, the same hull has no product to be built as.
+        fit.HullProduct = default;
+        Assert.Null(Materialize(rig, fit, rig.Outfitter(null, 1).ChooseProduct, failures));
+        Assert.NotEmpty(failures);
     }
 }

@@ -272,6 +272,11 @@ public sealed class ShipProductTests : IDisposable
         RefusedAndUntouched("product", path, "ACM");
         RefusedAndUntouched("product", path, "ACM", "--name", " ");
         RefusedAndUntouched("product", path, "ACM", "--remove");
+        RefusedAndUntouched("product", path, "ACM", "--not-offered");
+        RefusedAndUntouched("product", path, "ACM", "--name", "--not-offered");
+        RefusedAndUntouched("product", path, "ACM", "--title", "X");
+        RefusedAndUntouched("product", path, "ACM", "--name", "X", "--description");
+        RefusedAndUntouched("product", path, "ACM", "--name", "X", "--note", "Y");
 
         var (code, _, error) = Run("product", path, "ACM", "--name", "Acme Skiff", "--description", "Reliable.");
         Assert.True(code == 0, error);
@@ -283,10 +288,30 @@ public sealed class ShipProductTests : IDisposable
         Assert.Equal(ShipModCatalog.HullKey("mod.skiff"), product.Design.Key);
         Assert.Equal(hull.Roles.Select(role => role.Name), product.Roles.Select(role => role.Role));
         Assert.Equal("Reliable.", product.Description);
+        Assert.False(product.NotOffered);
+
+        // --not-offered writes the product off the market (ruling off-market-is-unoffered-product), with or without a description.
+        var (offCode, offOutput, offError) = Run("product", path, "ACM", "--name", "Acme Boss Skiff", "--not-offered");
+        Assert.True(offCode == 0, offError);
+        Assert.Contains("not offered", offOutput);
+        var off = Assert.Single(ShipAuthoringStore.Load(path).Products);
+        Assert.True(off.NotOffered);
+        Assert.Equal("Acme Boss Skiff", off.Name);
+        Assert.Null(off.Description);
+        Assert.Equal(0, Run("product", path, "ACM", "--name", "Acme Boss Skiff", "--description", "Unsold.", "--not-offered").Code);
+        off = Assert.Single(ShipAuthoringStore.Load(path).Products);
+        Assert.True(off.NotOffered);
+        Assert.Equal("Unsold.", off.Description);
 
         // The maker by name replaces the product by short name: a maker has one product of the hull.
-        Assert.Equal(0, Run("product", path, "Acme", "--name", "Renamed").Code);
-        Assert.Equal("Renamed", Assert.Single(ShipAuthoringStore.Load(path).Products).Name);
+        // Written again without the flag, it is back on the market.
+        var (renamedCode, renamedOutput, _) = Run("product", path, "Acme", "--name", "Renamed");
+        Assert.Equal(0, renamedCode);
+        Assert.DoesNotContain("not offered", renamedOutput);
+        Assert.Equal(offOutput.Replace(", not offered", ""), renamedOutput);
+        var renamed = Assert.Single(ShipAuthoringStore.Load(path).Products);
+        Assert.Equal("Renamed", renamed.Name);
+        Assert.False(renamed.NotOffered);
 
         RefusedAndUntouched("price", path, "-1");
         RefusedAndUntouched("price", path, "1.5");
@@ -294,6 +319,7 @@ public sealed class ShipProductTests : IDisposable
         Assert.Equal(0, Run("price", path, "250").Code);
         Assert.Equal(250, ShipAuthoringStore.Read(path).Hull.Price);
 
+        RefusedAndUntouched("product", path, "ACM", "--remove", "--not-offered");
         Assert.Equal(0, Run("product", path, "ACM", "--remove").Code);
         Assert.Empty(ShipAuthoringStore.Load(path).Products);
         RefusedAndUntouched("product", path, "ACM", "--remove");

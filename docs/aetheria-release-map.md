@@ -11034,7 +11034,9 @@ presence for the design does not change when it bins a line.
 - Lot (unchanged schema): a binned lot records the binned product, and its fills and assembly sit at or above the
   floor of the line's distributions.
 - ProductWeight: the maker's preference times a share. A bin's share is its pass fraction `1 - Phi(Bin.Floor)`. A line's
-  share is 1 minus the sum of the pass fractions of its bins, floored at 0. Any other product's share is 1. Two
+  share is 1 minus the sum of the pass fractions of its offered bins, floored at 0, so an off-market bin takes nothing
+  from its line (cut product-not-offered; a bin of an off-market line is itself off-market, ruling
+  bin-inherits-line-offered). Any other product's share is 1. Two
   unbinned lines of one design and maker each weigh the full preference, as before. ProductWeight is still the one
   weight of RandomProducts and ChooseProduct.
 
@@ -11238,7 +11240,7 @@ PIDs are in `S\out\pids.log`, the first 3404 and the last 20348. It then writes 
 - **AH-P1. Checks.** All pass (`S\out\<id>\checks.json`).
   - Tender: 3468 triangles. The bbox is 10.5 x 23.4 x 5.9 m, inside its 18-28 m size class. Body h/w is 0.42 and w/l
     is 0.61, inside Zhestokost's ranges [0.25, 0.6] and [0.35, 0.75]. Bilateral symmetry has a worst mirror miss of
-    0.0000 m. It has five mount anchors, and every weapon has a muzzle nose-ward of its mount.
+    0.0000 m. It has five mount anchors, and every weapon mount has its muzzle (gun facing is HullData's, ruling gun-facing-is-hulldata).
   - Fighter: 1466 triangles and 15 m long. The donor body's h/w is 0.20 and w/l 0.69, inside the R&D ranges. The
     asymmetry rule holds.
   - The vertex-based asymmetry figure (0.91 unmirrored) is too lenient, because tessellation alone breaks vertex
