@@ -31,7 +31,7 @@ public sealed class PotentialOwnerTests : IDisposable
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp()
         };
-        _items = new ItemManager(_cache, new ProvenanceLedger(), settings, _ => { });
+        _items = new ItemManager(1u, _cache, new ProvenanceLedger(), settings, _ => { });
     }
 
     public void Dispose()

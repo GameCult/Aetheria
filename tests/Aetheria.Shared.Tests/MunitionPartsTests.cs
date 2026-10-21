@@ -257,7 +257,7 @@ public sealed class MunitionPartsTests : IDisposable
         var ledger = new ProvenanceLedger();
         ledger.Lots[1] = new Lot { Origin = new Attributed(), Quality = .5f };
         ledger.Lots[2] = new Lot { Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill> { new RoleFill { Role = "thruster", Quality = thrusterQuality } } };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         ship = new Ship(items, zone, new EquippableItem { Data = cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 }, settings.DefaultEntitySettings);
         foreach (var (name, x, y) in ShipGear)

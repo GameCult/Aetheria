@@ -76,7 +76,7 @@ public sealed class ConsumableTests : IDisposable
         var otherRef = cache.Upsert(new ConsumableItemData { Name = "Flare", Duration = 1f, Shape = new Shape() });
         cache.FlushAsync().Wait();
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var makerRef = cache.RefOf(cache.GetByName<Faction>("Maker"));
         EquippableItem Gear(EquippableItemData design) => (EquippableItem) items.CreateInstance(items.CreateLot(design, makerRef, .5f));
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);

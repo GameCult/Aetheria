@@ -115,7 +115,7 @@ namespace Aetheria.EditorTools
             cache.Upsert(new SimpleCommodityData { Name = "Wiring Ore", Shape = oneCell, MaxStack = 100 });
             cache.FlushAsync().Wait();
             var ledger = new ProvenanceLedger();
-            var items = new ItemManager(cache, ledger, settings, _ => { });
+            var items = new ItemManager(1u, cache, ledger, settings, _ => { });
 
             // A sun and a planet on a moving rail round it, both near the bodies below: the field under a floater changes with the
             // drawn time, so a presenter that samples it at the step's time, drops it, or reads lead 0 for the height draws a different y.

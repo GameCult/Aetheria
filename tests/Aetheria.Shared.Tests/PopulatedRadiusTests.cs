@@ -61,7 +61,7 @@ public sealed class PopulatedRadiusTests : IDisposable
         var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
-        var items = new ItemManager(cache, new ProvenanceLedger(), new GameplaySettings
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), new GameplaySettings
         {
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },

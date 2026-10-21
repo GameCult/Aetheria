@@ -266,11 +266,18 @@ public class Zone
             foreach (var wear in pack.ChunkWear)
                 _wear[new ChunkId(wear.Field, wear.Index)] = new ChunkWear { Damage = wear.Damage, BrokenUntil = wear.BrokenUntil };
 
+        var ordinal = 0u;
         foreach (var entityPack in pack.Entities)
         {
+            ordinal++;
             var entity = EntitySerializer.Unpack(_itemManager, this, entityPack);
             var ship = entity as Ship;
             Admit(entity, piloted: ship is {IsPlayerShip: false});
+            // Generation placement, not admission: a ship packed at the origin is scattered across the zone, on the
+            // zone's own dice, so nothing drawn from the item stream can move it.
+            if (ship is {IsPlayerShip: false} && lengthsq(ship.Position) < 1)
+                ship.Position = SimulationDice.For(CombatSeed, SimulationDice.ScatterStream, ordinal)
+                    .NextFloat3(float3(-pack.Radius * .5f), float3(pack.Radius * .5f));
         }
 
         // TODO: Associate planets with stored entities for planetary colonies

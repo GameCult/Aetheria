@@ -71,7 +71,7 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
         var hull = new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = shape, Durability = 10, Mass = 1000 };
         cache.Upsert(hull);
-        var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
 
         var rootOrbit = cache.Upsert(new OrbitData { FixedPosition = RootAt }).Key;
         var planetOrbit = cache.Upsert(new OrbitData

@@ -294,7 +294,11 @@ public class ActionGameManager : MonoBehaviour
         ConsoleController.MessageReceiver = this;
         
         // A new run mints into an empty ledger; the saved run's stays in the store until the new run has started.
-        ItemManager = new ItemManager(CultCache, PendingScenario != null ? new ProvenanceLedger() : RunSave.Lots(CultCache),
+        // A new run is reseeded by RunStart; Continue's item draws come from the saved run's seed.
+        ItemManager = new ItemManager(
+            CurrentGalaxy == null ? RunStart.NoRunSeed
+                : RunStart.ItemSeed(CurrentGalaxy, PendingScenario != null ? RunStart.ArenaStep : RunStart.ContinueStep),
+            CultCache, PendingScenario != null ? new ProvenanceLedger() : RunSave.Lots(CultCache),
             Settings.GameplaySettings, Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
         

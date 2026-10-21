@@ -69,7 +69,7 @@ public sealed class MiningCut2Tests : IDisposable
         var dir = Path.Combine(_root, $"cat{_fixtureCount++}");
         Directory.CreateDirectory(dir);
         var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
-        var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
         var settings = Settings();
 
         var rootOrbit = new OrbitData { Distance = 3000f, Phase = 0.05f };

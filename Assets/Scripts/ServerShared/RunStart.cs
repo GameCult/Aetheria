@@ -25,7 +25,7 @@ public static class RunStart
 
     public static ZonePack GenerateArena(ItemManager itemManager, ZoneGenerationSettings zoneSettings, PlanetSettings planetSettings, Galaxy galaxy, Scenario scenario)
     {
-        SeedItems(itemManager, galaxy, 1);
+        SeedItems(itemManager, galaxy, ArenaStep);
         return galaxy.Entrance.PackedContents = ZoneGenerator.GenerateZone(
             itemManager, zoneSettings, planetSettings, galaxy, galaxy.Entrance, galaxy.IsPrelude, scenario.Ambient);
     }
@@ -36,7 +36,7 @@ public static class RunStart
     public static Staged Stage(ItemManager itemManager, Zone arena, Scenario scenario, string startingHull,
         TutorialGenerationSettings tutorialGenerationSettings, List<string> failures)
     {
-        SeedItems(itemManager, arena.Galaxy, 2);
+        SeedItems(itemManager, arena.Galaxy, StageStep);
         var stage = new ScenarioStage(itemManager, arena, startingHull, tutorialGenerationSettings);
         scenario.Stage(stage);
         var reported = failures.Count;
@@ -62,5 +62,22 @@ public static class RunStart
     // so a fixed seed fixes the arena's gear and the player's fit. Each step draws its own stream, so whatever runs
     // between them (populating the level) cannot shift it.
     private static void SeedItems(ItemManager itemManager, Galaxy galaxy, uint step) =>
-        itemManager.Random = new Random(galaxy.Seed * 0x9E3779B1u + step);
+        itemManager.Random = new Random(ItemSeed(galaxy, step));
+
+    // The steps of a run that draw items: generating its arena, staging its scenario, and continuing a saved run.
+    public const uint ArenaStep = 1;
+    public const uint StageStep = 2;
+    public const uint ContinueStep = 3;
+
+    // The item seed of an ActionGameManager scene opened with no galaxy. No run is loaded, so nothing a run decides
+    // draws from it.
+    public const uint NoRunSeed = 0x5EED0001u;
+
+    // The item stream's seed for one step of a run: the run's seed and the step. Never zero, which no stream accepts.
+    public static uint ItemSeed(Galaxy galaxy, uint step)
+    {
+        var seed = galaxy.Seed * 0x9E3779B1u + step;
+        if (seed == 0) throw new InvalidOperationException($"Item seed is zero for galaxy seed {galaxy.Seed} at step {step}.");
+        return seed;
+    }
 }

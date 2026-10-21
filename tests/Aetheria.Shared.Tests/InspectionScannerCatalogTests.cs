@@ -105,7 +105,7 @@ public sealed class InspectionScannerCatalogTests
                 Origin = new Attributed(), Quality = 1f,
                 Roles = product.Roles.Select(r => new RoleFill { Role = r.Role, Quality = r.Mean }).ToList(),
             };
-            var items = new ItemManager(Cache, ledger, settings, _ => { });
+            var items = new ItemManager(1u, Cache, ledger, settings, _ => { });
             var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
             var ship = new Ship(items, zone, new EquippableItem { Data = Cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 }, settings.DefaultEntitySettings);
             Assert.True(ship.TryEquip(new EquippableItem { Data = Cache.RefOf<ItemData>(design), Durability = design.Durability, Lot = 2 }));

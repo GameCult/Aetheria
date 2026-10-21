@@ -127,6 +127,9 @@ public static class Loadouts
     // The quality a design no manufacturer makes is built at: the console give's.
     public const float UnbrandedQuality = .95f;
 
+    // The seed of the scratch item manager a fit is tried on. It draws nothing, so any nonzero constant does.
+    private const uint ScratchSeed = 1u;
+
     // All-or-nothing: returns an entity only when every design resolved and fitted, the loadout has at most
     // WeaponGroupCount weapon groups, and every group index names a weapon slot. Every failure of a stage is listed; on any
     // failure nothing is returned and the zone and cache are unchanged. The stages run in the order that puts refusal
@@ -166,7 +169,7 @@ public static class Loadouts
 
         // The cells fit or they do not whatever brand a design-only slot takes: the shape is the design's. Tried on its own
         // item manager, so nothing is minted into the live ledger and nothing is drawn.
-        var scratch = new ItemManager(cache, new ProvenanceLedger(), itemManager.GameplaySettings, _ => { });
+        var scratch = new ItemManager(ScratchSeed, cache, new ProvenanceLedger(), itemManager.GameplaySettings, _ => { });
         Assemble(scratch, null, hullData, loadout, Unbranded(scratch, hullSettled), slotsSettled.Select(settled => Unbranded(scratch, settled)).ToArray(), failures, out _);
         if (failures.Count > reported) return null;
 

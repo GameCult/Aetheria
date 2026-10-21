@@ -84,7 +84,7 @@ public sealed class ThrottleLockTests : IDisposable
         cache.Upsert(lockData);
         cache.FlushAsync().Wait();
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var ship = new Ship(items, zone, Mint(cache, items, cache.GetByName<HullData>("Skiff")), new EntitySettings());
         var gear = cache.GetByName<GearData>("Thruster");

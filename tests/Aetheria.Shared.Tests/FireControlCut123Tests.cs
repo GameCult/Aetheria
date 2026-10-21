@@ -160,7 +160,7 @@ public sealed class FireControlCut123Tests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 500; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 }; // F8: shared-item fixtures equip more items (bars) than earlier cuts needed
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Cut123", Owner = null }, null);
 
         EquippableItem Make(string name, int lot, float durability) => new EquippableItem

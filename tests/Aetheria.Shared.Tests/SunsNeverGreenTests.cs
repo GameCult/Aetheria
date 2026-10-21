@@ -185,7 +185,7 @@ public sealed class SunsNeverGreenTests : IDisposable
             var galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
                 cache, new PlayerSettings(),
                 Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
-            var items = new ItemManager(cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
             var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
             adjust(zoneSettings);
             foreach (var zone in galaxy.Zones)

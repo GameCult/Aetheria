@@ -58,7 +58,7 @@ public sealed class LayerTests : IDisposable
         _cache.FlushAsync().Wait();
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 3; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(_cache, ledger, Settings(), _ => { });
+        var items = new ItemManager(1u, _cache, ledger, Settings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack { Radius = 0 }, new GalaxyZone { Name = "Layers", Owner = null }, null);
         return (items, zone);
     }

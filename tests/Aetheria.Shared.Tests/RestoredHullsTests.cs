@@ -147,7 +147,7 @@ public sealed class RestoredHullsTests
 
     private static (uint seed, string zoneName) ScanForNoLagrangeCandidateZone(CultCache cache)
     {
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         for (var seed = 1u; seed <= 64u; seed++)
         {
             var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
@@ -227,7 +227,7 @@ public sealed class RestoredHullsTests
         var settings = Settings();
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= hull.Hardpoints.Count + 1; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = .5f };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         var hullItem = new EquippableItem { Data = cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 };
         var ship = new Ship(items, zone, hullItem, settings.DefaultEntitySettings);
@@ -282,7 +282,7 @@ public sealed class RestoredHullsTests
         var settings = Settings();
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= hull.Hardpoints.Count + 1; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = .5f };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         var hullItem = new EquippableItem { Data = cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 };
         var ship = new Ship(items, zone, hullItem, settings.DefaultEntitySettings);
@@ -372,7 +372,7 @@ public sealed class RestoredHullsTests
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
                 var galaxy = new Galaxy(tutorialSettings, background, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
-                var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+                var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
                 var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
@@ -412,7 +412,7 @@ public sealed class RestoredHullsTests
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
                 var galaxy = new Galaxy(tutorialSettings, background, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
-                var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+                var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
                 var planetOrbits = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
@@ -449,7 +449,7 @@ public sealed class RestoredHullsTests
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
             var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
-            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
             var zoneSettings = TutorialZoneSettings();
             zoneSettings.RosetteProbability = 0;
@@ -484,7 +484,7 @@ public sealed class RestoredHullsTests
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
             var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
-            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
             var zoneSettings = TutorialZoneSettings();
             zoneSettings.RosetteProbability = 1;
@@ -535,7 +535,7 @@ public sealed class RestoredHullsTests
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
                 var galaxy = new Galaxy(tutorialSettings, background, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
-                var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+                var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
                 var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
@@ -596,7 +596,7 @@ public sealed class RestoredHullsTests
         using var cache = OpenCatalog();
         var hull = cache.GetByName<HullData>("Longinus");
         var settings = Settings();
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         // ItemManager.Random defaults to a DateTime.Now-seeded instance; without pinning it here, the item
         // qualities LoadoutGenerator/EntitySerializer roll through it (not through the `random` below, which
         // only drives which designs get picked) would make this test's own measured speed non-deterministic.
@@ -645,7 +645,7 @@ public sealed class RestoredHullsTests
 
         for (uint seed = 1; seed <= 10; seed++)
         {
-            var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
             var random = new Random(seed);
             var generator = new LoadoutGenerator(ref random, items, null, null, null, .5f);
             var pack = generator.GenerateShipLoadout(candidate => candidate == hull);
@@ -729,7 +729,7 @@ public sealed class RestoredHullsTests
             var (seed, zoneName) = NoLagrangeCandidateZone();
             var galaxy = BuildGalaxyWithForcedEntrance(cache, seed, zoneName);
 
-            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
             var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
             var station = pack.Entities.OfType<OrbitalEntityPack>()
@@ -780,7 +780,7 @@ public sealed class RestoredHullsTests
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
             var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
-            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
             int StationCount(GalaxyZone zone, bool isTutorial) =>
                 ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, isTutorial)
@@ -820,7 +820,7 @@ public sealed class RestoredHullsTests
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
             var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
-            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
             var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
             var stationCount = pack.Entities.OfType<OrbitalEntityPack>().Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
@@ -904,7 +904,7 @@ public sealed class RestoredHullsTests
             var zone = galaxy.Zones.Single(z => z.Name == zoneName);
             Assert.NotSame(galaxy.Entrance, zone);
 
-            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
             var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, isTutorial: true);
 
             // Confirms this fixture still has no genuine (non-rosette) Lagrange candidate -- a regression here

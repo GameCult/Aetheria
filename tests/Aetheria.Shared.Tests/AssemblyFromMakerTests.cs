@@ -25,7 +25,7 @@ public sealed class AssemblyFromMakerTests : IDisposable
             Roles = { new ItemRole { Name = "lens" } }
         });
         _lens = new CultRecordRef<CraftedItemData>(gear.Key);
-        _items = new ItemManager(_cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        _items = new ItemManager(1u, _cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
     }
 
     public void Dispose()

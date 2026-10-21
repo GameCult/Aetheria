@@ -154,7 +154,7 @@ namespace Aetheria.EditorTools
             var cache = AetheriaStores.Open(Path.Combine(work, "catalog.cc"), Path.Combine(work, "run.cc"), catalogWritable: true);
             cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.FlushAsync().Wait();
-            var items = new ItemManager(cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
             var positions = new List<Vector2> { new Vector2(-130f, 85f), new Vector2(610f, -240f), new Vector2(670f, -270f), new Vector2(1700f, 300f) };
             var masses = new List<float> { 14152f, 273.9f, 29.2f, 0f };
             var parents = new List<int> { -1, 0, 1, -1 };

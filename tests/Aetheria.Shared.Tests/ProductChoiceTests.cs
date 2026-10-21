@@ -133,7 +133,7 @@ public sealed class ProductChoiceTests : IDisposable
         return new Rig
         {
             Cache = cache, OutA = outA, OutZ = outZ, OutBoth = cache.GetByName<Faction>("OutBoth"), OutEven = cache.GetByName<Faction>("OutEven"), OutNone = cache.GetByName<Faction>("OutNone"),
-            Items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { }),
+            Items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { }),
             Galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { })
         };
     }
@@ -325,7 +325,7 @@ public sealed class ProductChoiceTests : IDisposable
         int AlphaDraws(Rig rig)
         {
             var log = new List<string>();
-            var items = new ItemManager(rig.Cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), log.Add);
+            var items = new ItemManager(1u, rig.Cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), log.Add);
             var lamp = rig.Cache.GetByName<GearData>("Lamp");
             var alpha = Enumerable.Range(1, 1000).Count(i =>
             {

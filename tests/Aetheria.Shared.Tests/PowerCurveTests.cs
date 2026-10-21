@@ -93,7 +93,7 @@ public sealed class PowerCurveTests : IDisposable
 
     private Ship BuildShip(CultCache cache, float reactorCharge)
     {
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var hull = Mint(cache, items, cache.GetByName<HullData>("Skiff"));
         var ship = new Ship(items, zone, hull, new EntitySettings());
@@ -401,7 +401,7 @@ public sealed class PowerCurveTests : IDisposable
         });
         cache.FlushAsync().Wait();
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var hullItem = Mint(cache, items, cache.GetByName<HullData>("Skiff"));
         var ship = new Ship(items, zone, hullItem, new EntitySettings());

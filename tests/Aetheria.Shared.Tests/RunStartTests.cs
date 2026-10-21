@@ -53,7 +53,7 @@ public sealed partial class RunStartTests : IDisposable
         _galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
             _cache, new PlayerSettings(),
             Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, GalaxySeed);
-        _items = new ItemManager(_cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
+        _items = new ItemManager(1u, _cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
         _protagonist = _galaxy.ResolveFaction(tutorial.ProtagonistFaction);
 
         // GameSettings.StartingHullName is a plain field of the Unity settings object, not a ServerShared subtree

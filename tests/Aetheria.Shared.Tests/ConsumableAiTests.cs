@@ -147,7 +147,7 @@ public sealed class ConsumableAiTests : IDisposable
         settings.UnaidedPrecision = 2f;
         settings.AgentMinHitProbability = 0f;
         settings.BeamResolveInterval = .1f;
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
         EquippableItem Make<T>(string name) where T : CraftedItemData =>
             (EquippableItem) items.CreateInstance(items.CreateLot(cache.GetByName<T>(name), maker, .5f));

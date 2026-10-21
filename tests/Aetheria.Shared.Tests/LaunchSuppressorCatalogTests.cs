@@ -116,7 +116,7 @@ public sealed class LaunchSuppressorCatalogTests
                 Origin = new Attributed(), Quality = 1f,
                 Roles = new List<RoleFill> { new RoleFill { Role = "baffles", Quality = baffles }, new RoleFill { Role = "heat sink", Quality = sink } },
             };
-            var items = new ItemManager(Cache, ledger, settings, _ => { });
+            var items = new ItemManager(1u, Cache, ledger, settings, _ => { });
             var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
             Ship = new Ship(items, zone, new EquippableItem { Data = Cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 }, settings.DefaultEntitySettings);
 

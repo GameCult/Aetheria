@@ -56,7 +56,7 @@ public sealed class StationPlacementTests : IDisposable
                 authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
                 cache, new PlayerSettings(),
                 Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
-            var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
             stock?.Invoke(items);
             foreach (var galaxyZone in entranceOnly ? new[] { galaxy.Entrance } : galaxy.Zones.Take(zonesPerSeed))
             {

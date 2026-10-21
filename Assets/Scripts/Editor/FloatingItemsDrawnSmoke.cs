@@ -124,7 +124,7 @@ public static class FloatingItemsDrawnSmoke
         cache.FlushAsync().Wait();
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 8; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), null, null);
         EquippableItem Make(string name, int lot) => new EquippableItem
         {

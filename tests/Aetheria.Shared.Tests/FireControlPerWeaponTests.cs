@@ -193,7 +193,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 100; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, TestSettings(minHit, targetLayerHeight), _ => { });
+        var items = new ItemManager(1u, cache, ledger, TestSettings(minHit, targetLayerHeight), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "PerWeapon", Owner = null }, null);
 
         EquippableItem Make(string name, int lot, float durability) => new EquippableItem

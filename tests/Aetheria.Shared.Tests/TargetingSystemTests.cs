@@ -104,7 +104,7 @@ public sealed class TargetingSystemTests : IDisposable
         ledger.Lots[3] = new Lot { Origin = new Attributed(), Quality = 1 }; // wide
         ledger.Lots[4] = new Lot { Origin = new Attributed(), Quality = 1 }; // narrow
         ledger.Lots[5] = new Lot { Origin = new Attributed(), Quality = 1 }; // targeting (unused unless authored above)
-        var items = new ItemManager(_openCache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, _openCache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
 
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("TestHull"));
@@ -368,7 +368,7 @@ public sealed class TargetingSystemTests : IDisposable
 
         Ship BuildShip(float reactorCharge, out ItemManager items)
         {
-            items = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            items = new ItemManager(1u, cache, new ProvenanceLedger(), TestSettings(), _ => { });
             var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
             var hullData = cache.GetByName<HullData>("Skiff");
             var hull = Mint(hullData);
@@ -439,7 +439,7 @@ public sealed class TargetingSystemTests : IDisposable
         for (var seed = 1; seed <= 10; seed++)
         {
             var random = new Random((uint) seed);
-            var items = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), TestSettings(), _ => { });
             var generator = new LoadoutGenerator(ref random, items, null, null, null, .5f);
             var pack = generator.GenerateShipLoadout(candidate => candidate.Name == "Armed");
             Assert.NotNull(pack);

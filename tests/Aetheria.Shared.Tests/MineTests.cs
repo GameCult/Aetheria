@@ -118,7 +118,7 @@ public sealed class MineTests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 500; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var planets = new PlanetSettings();
         var pack = new ZonePack { Radius = well ? 1000 : 0 };
         if (well) WellFixture.Dig(cache, pack, planets, 300, 100);

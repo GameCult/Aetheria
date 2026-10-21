@@ -52,7 +52,7 @@ public static class MapBeltPerf
             Planets = { new CultRecordRef<BodyData>(sunKey), new CultRecordRef<BodyData>(beltKey) },
             Radius = 5000f, Mass = 10000f, Time = 0
         };
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
         var zone = new Zone(items, new PlanetSettings
         {
             BodyRadius = new ExponentialCurve(), WellStrength = new ExponentialCurve { Multiplier = 1f, Exponent = 1f },

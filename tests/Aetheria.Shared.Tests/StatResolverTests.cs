@@ -93,7 +93,7 @@ public sealed class StatResolverTests : IDisposable
         cache.Upsert(new GearData { Name = "AutoGun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 10, Behaviors = { new AutoWeaponData { Damage = autoDamage } } });
         cache.Upsert(new GearData { Name = "ChargedGun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 10, Behaviors = { new ChargedWeaponData { Damage = chargedDamage } } });
         cache.FlushAsync().Wait();
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var ship = BuildActivatedShip(cache, items, withBooster: true);
         ship.Deactivate(); // TryEquip refuses while deployed
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("AutoGun")), FirstGunCell));
@@ -137,7 +137,7 @@ public sealed class StatResolverTests : IDisposable
     {
         var capacity = new PerformanceStat { Min = 1, Max = 1 };
         using var cache = OpenCatalog(new CapacitorData { Capacity = capacity });
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var shipA = BuildActivatedShip(cache, items, withBooster: false);
         var shipB = BuildActivatedShip(cache, items, withBooster: false);
 
@@ -159,7 +159,7 @@ public sealed class StatResolverTests : IDisposable
             Type = StatModifierType.Constant
         };
         using var cache = OpenCatalog(new CapacitorData { Capacity = capacity }, modifier);
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
         var boosted = BuildActivatedShip(cache, items, withBooster: true);
         var plain = BuildActivatedShip(cache, items, withBooster: false);
@@ -198,7 +198,7 @@ public sealed class StatResolverTests : IDisposable
             Type = StatModifierType.Constant
         };
         using var cache = OpenCatalog(new CapacitorData { Capacity = capacity }, modifier);
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
         var ship = BuildActivatedShip(cache, items, withBooster: true);
         var boosterEquipped = ship.Equipment.Single(e => e.Data.Name == "Booster");
@@ -234,7 +234,7 @@ public sealed class StatResolverTests : IDisposable
     {
         var capacity = new PerformanceStat { Min = 1, Max = 1 };
         using var cache = OpenCatalog(new CapacitorData { Capacity = capacity });
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
         WeakReference EquipEvaluateAndDrop()
         {
@@ -281,7 +281,7 @@ public sealed class StatResolverTests : IDisposable
         });
         cache.FlushAsync().Wait();
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var hullItem = Mint(cache, items, cache.GetByName<HullData>("Skiff"));
         var ship = new Ship(items, zone, hullItem, new EntitySettings());
@@ -387,7 +387,7 @@ public sealed class StatResolverTests : IDisposable
     {
         var capacity = new PerformanceStat { Min = 1, Max = 1 };
         using var cache = OpenCatalog(new CapacitorData { Capacity = capacity });
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var ship = BuildActivatedShip(cache, items, withBooster: false);
         var resolver = ship.Resolver;
 
@@ -424,7 +424,7 @@ public sealed class StatResolverTests : IDisposable
         cache.FlushAsync().Wait();
         var boosterData = cache.Get(boosterRef);
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var ship = BuildActivatedShip(cache, items, withBooster: false);
         var resolver = ship.Resolver;
 
@@ -498,7 +498,7 @@ public sealed class StatResolverTests : IDisposable
             cache.Upsert(new ConsumableItemData { Name = "Stim", Duration = 1f, Shape = new Shape(), Behaviors = { ThrustModifier(consumable.Value.Type, consumable.Value.Value) } });
         cache.FlushAsync().Wait();
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var ship = new Ship(items, zone, Mint(cache, items, cache.GetByName<HullData>("Skiff")), new EntitySettings());
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Engine")), cells[0]));
