@@ -60,7 +60,7 @@ public sealed class PaintModeTests : IDisposable
         _openCache = AetheriaStores.Open(Catalog, catalogWritable: true);
         var ledger = new ProvenanceLedger();
         for (var lot = 1; lot < 12; lot++) ledger.Lots[lot] = new Lot { Origin = new Attributed(), Quality = 1 };
-        _items = new ItemManager(_openCache, ledger, new GameplaySettings
+        _items = new ItemManager(1u, _openCache, ledger, new GameplaySettings
         {
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },

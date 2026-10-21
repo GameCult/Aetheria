@@ -119,7 +119,7 @@ public sealed class FireControlCut6dTests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 20; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
 
         // Durability high enough to survive thousands of direct 10-damage hits over a test's whole sample --

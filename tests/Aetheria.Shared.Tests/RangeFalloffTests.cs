@@ -57,7 +57,7 @@ public sealed class RangeFalloffTests
     public void AnUnequippedWeaponsUnauthoredStatsEvaluate(string design, bool unauthored)
     {
         using var cache = RestoredHullsTests.OpenCatalog();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var data = cache.GetAll<WeaponItemData>().Single(x => x.Name == design);
         var lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(data), Origin = new Attributed(), Quality = .5f, Roles = new System.Collections.Generic.List<RoleFill>() });
         var item = (EquippableItem) items.CreateInstance(lot);

@@ -233,7 +233,7 @@ public sealed class HeatResponseTests : IDisposable
     public void HeldInsidePlateauTakesNoThermalWear()
     {
         using var cache = OpenCatalogWithThermalGear();
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var equipped = BuildEquippedAt(cache, items, 50f, out var ship);
         Assert.Equal(1f, equipped.ThermalPerformance, 5);
         Assert.Equal(0f, equipped.Wear, 5); // no thermal term (Performance == 1) and no deltaTemp (settled)
@@ -243,7 +243,7 @@ public sealed class HeatResponseTests : IDisposable
     public void HeldOutsidePlateauTakesThermalWear()
     {
         using var cache = OpenCatalogWithThermalGear();
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var equipped = BuildEquippedAt(cache, items, 10f, out var ship); // outside 40-60, inside 0-100
         Assert.True(equipped.ThermalPerformance < 1f);
         Assert.True(equipped.Wear > 0f);
@@ -255,7 +255,7 @@ public sealed class HeatResponseTests : IDisposable
     public void HeldOutsidePlateauWearReadsEffectiveQuality()
     {
         using var cache = OpenCatalogWithThermalGear();
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var thermal = cache.RefOf<ItemData>(cache.GetByName<GearData>("Thermal"));
         Lot Gear(float assembly, params float[] parts) => new Lot
         {
@@ -274,7 +274,7 @@ public sealed class HeatResponseTests : IDisposable
     public void AFastSwingAcrossThePlateauStillWears()
     {
         using var cache = OpenCatalogWithThermalGear();
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var equipped = BuildEquippedAt(cache, items, 10f, out var ship);
         // Jump straight into the plateau in one tick: ThermalPerformance ends at 1 (no thermal term), but the
         // swing itself (deltaTemp) still costs.

@@ -42,7 +42,7 @@ public sealed class ItemTitleTests : IDisposable
         _cache.Commit(batch => batch.Upsert(typeof(FactionProductData), _clapBack, new CultRecordKey("array-lucent")));
         _spiceBlend = new FactionProductData { Name = "Finch Reserve", Design = _cache.RefOf<CraftedItemData>(_spice), Manufacturer = finch };
         _cache.Commit(batch => batch.Upsert(typeof(FactionProductData), _spiceBlend, new CultRecordKey("spice-finch")));
-        _items = new ItemManager(_cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        _items = new ItemManager(1u, _cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
     }
 
     public void Dispose()

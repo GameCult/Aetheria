@@ -126,7 +126,7 @@ public sealed class FireControlCut6Tests : IDisposable
         ledger.Lots[3] = new Lot { Origin = new Attributed(), Quality = 1 };
         ledger.Lots[4] = new Lot { Origin = new Attributed(), Quality = 1 };
         ledger.Lots[5] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
 
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Hull"));

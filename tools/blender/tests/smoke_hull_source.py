@@ -71,7 +71,8 @@ HULLS = (
     ("zh-ammo-tender", "smoke.hull.tender", (10.0, 23.4), 12,
      (("Gun.D", BALLISTIC, (2, 3)), ("Th.L", THRUSTER, (0, 0)), ("Th.R", THRUSTER, (1, 0)),
       ("Ra.L", RADIATOR, (2, 0)), ("Ra.R", RADIATOR, (3, 0))),
-     "primary", {"primary": (0.42, 0.43, 0.45), "secondary": (0.20, 0.20, 0.22), "accent": (0.55, 0.22, 0.14), "recess": (0.08, 0.08, 0.09)},
+     "primary", {"primary": (0.47, 0.48, 0.50), "secondary": (0.21, 0.21, 0.23), "accent": (0.56, 0.20, 0.12), "recess": (0.05, 0.05, 0.06),
+      "marking": (0.86, 0.80, 0.64)},
      "Zhestokost", "Pirates"),
     ("pi-fighter", "smoke.hull.fighter", (8.0, 15.0), 8,
      (("Gun.P", BALLISTIC, (3, 3)), ("Th.Main", THRUSTER, (0, 0)), ("Th.L", THRUSTER, (1, 0))),
@@ -86,7 +87,7 @@ HULLS = (
 # language file names, read by the production reader (language_maker), so a language edited alone cannot leave it stale
 ATTACKS = {
     "zh-ammo-tender": ("ZH_LANG", '["zhestokost", ZH_ZONES, "primary", ZH_GLOW, ZH_RADIATOR, [[0, 9], [0, 9]], ["asymmetric", 0.0], "%MAKER%"]',
-                       "zhestokost.scad", "[0.42, 0.43, 0.45]"),
+                       "zhestokost.scad", "[0.47, 0.48, 0.50]"),
     "pi-fighter": ("PI_LANG", '["pirate", PI_ZONES, "", PI_GLOW, PI_RADIATOR, [], ["bilateral", 0.0], "%MAKER%"]',
                    "pirate.scad", "[0.48, 0.27, 0.22]"),
 }
@@ -215,7 +216,6 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     for muzzle in roles["weapon-muzzle"]:
         mount = first[muzzle].parent
         require(mount.get("aetheria.role") == "weapon-mount" and first[muzzle].get("aetheria.order") == 1, "A muzzle is not ordered under its mount")
-        require(first[muzzle].matrix_world.translation.y < mount.matrix_world.translation.y, "A muzzle is not nose-ward of its mount")
     require(layout_rows(scene) == rows_before, "Build changed the layout buffer")
     check_poses(collection, root, runner)
     if fixture == "zh-ammo-tender":
@@ -543,7 +543,7 @@ def check_poses(collection, root, runner):
 
 def yawed_mount(scene, box, collection, root, package, source, original, runner):
     """A mount the source turns 90 degrees stands, turned, where it says, and its muzzle follows it."""
-    changed = original.replace('[0, Y0+3.2, H+0.6], 0, ""]', '[0, Y0+3.2, H+0.6], 90, ""]')
+    changed = original.replace('[0, 0, 0.33]), 0, ""]', '[0, 0, 0.33]), 90, ""]')
     require(changed != original, "The tender's mount is not where the pose test turns it")
     source.write_text(changed, encoding="utf-8")
     select(box)

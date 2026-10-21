@@ -29,7 +29,7 @@ public sealed class GravitySubtractTests : IDisposable
             TargetDetectionInfoThreshold = .1f, TargetGearInfoThreshold = .8f,
             FiringArc = 170, CommitHorizon = .5f, SchematicCellSize = 2f
         };
-        _items = new ItemManager(_cache, new ProvenanceLedger(), settings, _ => { });
+        _items = new ItemManager(1u, _cache, new ProvenanceLedger(), settings, _ => { });
     }
 
     public void Dispose()

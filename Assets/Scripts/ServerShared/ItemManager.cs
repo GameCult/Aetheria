@@ -17,7 +17,9 @@ using float4 = CultMath.float4;
 
 public class ItemManager
 {
-    public Random Random = new Random((uint) (DateTime.Now.Ticks%uint.MaxValue));
+    // The item stream: each lot's quality and each generated fit. Seeded by whoever constructs the manager and reseeded
+    // by RunStart at each step of a new run, never by the clock.
+    public Random Random;
 
     private Action<string> _logger;
 
@@ -25,8 +27,10 @@ public class ItemManager
     public ProvenanceLedger Lots { get; }
     public GameplaySettings GameplaySettings { get; }
 
-    public ItemManager(CultCache itemData, ProvenanceLedger lots, GameplaySettings settings, Action<string> logger)
+    public ItemManager(uint seed, CultCache itemData, ProvenanceLedger lots, GameplaySettings settings, Action<string> logger)
     {
+        if (seed == 0) throw new ArgumentOutOfRangeException(nameof(seed), "an item stream needs a nonzero seed");
+        Random = new Random(seed);
         ItemData = itemData;
         Lots = lots;
         GameplaySettings = settings;

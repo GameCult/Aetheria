@@ -80,6 +80,6 @@ internal sealed class ZoneWorlds : IDisposable
         Directory.CreateDirectory(dir);
         var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
         Caches.Add(cache);
-        return new World { Cache = cache, Items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { }) };
+        return new World { Cache = cache, Items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { }) };
     }
 }

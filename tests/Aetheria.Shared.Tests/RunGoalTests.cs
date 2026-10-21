@@ -30,7 +30,7 @@ public sealed partial class RunStartTests
     private static Faction Zhestokost(Galaxy galaxy) => galaxy.Factions.Single(faction => faction.Name == "Zhestokost");
 
     private ItemManager LoggingItems(List<string> log) =>
-        new ItemManager(_cache, new ProvenanceLedger(), AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings"), log.Add);
+        new ItemManager(1u, _cache, new ProvenanceLedger(), AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings"), log.Add);
 
     private static string HullName(ItemManager items, EntityPack pack) => items.GetData(pack.Hull).Name;
 

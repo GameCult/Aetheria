@@ -84,7 +84,7 @@ public sealed class DrawnPoseTests : IDisposable
         _caches.Add(cache);
         var ledger = new ProvenanceLedger();
         ledger.Lots[1] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, new GameplaySettings
+        var items = new ItemManager(1u, cache, ledger, new GameplaySettings
         {
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },

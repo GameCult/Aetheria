@@ -132,7 +132,7 @@ public sealed class SignatureTests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 100; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, Settings(visibilityDecay), _ => { });
+        var items = new ItemManager(1u, cache, ledger, Settings(visibilityDecay), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Signatures", Owner = null }, null);
         var lot = 1;
         EquippableItem Make(string name) => new EquippableItem

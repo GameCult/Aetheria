@@ -37,7 +37,7 @@ public sealed class StationServicesTests : IDisposable
         _cache.FlushAsync().Wait();
 
         var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
-        _items = new ItemManager(_cache, new ProvenanceLedger(), settings, _ => { });
+        _items = new ItemManager(1u, _cache, new ProvenanceLedger(), settings, _ => { });
         _zone = new Zone(_items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
     }
 

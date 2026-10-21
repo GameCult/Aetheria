@@ -90,7 +90,7 @@ public sealed class LoadoutTests : IDisposable
         Loadout hand;
         using (var cache = Open())
         {
-            var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
             hand = Armed(cache);
             var failures = new List<string>();
             var ship = Build(items, hand, failures);
@@ -108,7 +108,7 @@ public sealed class LoadoutTests : IDisposable
             Assert.Equal(hand.Slots.Select(Describe), loaded.Slots.Select(Describe));
             Assert.Equal(hand.WeaponGroups, loaded.WeaponGroups);
 
-            var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
             var failures = new List<string>();
             var ship = Build(items, loaded, failures);
             Assert.Empty(failures);
@@ -279,7 +279,7 @@ public sealed class LoadoutTests : IDisposable
 
         using (var cache = Open())
         {
-            var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
             var missing = HandBuilt(cache);
             missing.Slots[1].Design = new CultRecordRef<EquippableItemData>(new CultRecordKey("absent-design"));
             var failures = new List<string>();
@@ -304,7 +304,7 @@ public sealed class LoadoutTests : IDisposable
     public void FailedFitBuildsNothing()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var clash = HandBuilt(cache);
         clash.Slots[1].Position = HardpointCell;
         var failures = new List<string>();
@@ -319,7 +319,7 @@ public sealed class LoadoutTests : IDisposable
     public void ADesignWithNoProductBuildsUnbranded()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var failures = new List<string>();
         var ship = Build(items, WithDesign(HandBuilt(cache), 0, cache, "Orphan"), failures);
         Assert.Empty(failures);
@@ -335,7 +335,7 @@ public sealed class LoadoutTests : IDisposable
     public void ADesignWhoseOnlyProductIsUnavailableStillFails()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var failures = new List<string>();
         var soleProduct = SoleProduct(cache);
         Assert.Null(Loadouts.Materialize(items, null, HandBuilt(cache), design => design.Name == "Lamp" ? null : soleProduct(design), failures));
@@ -365,7 +365,7 @@ public sealed class LoadoutTests : IDisposable
             var gun = cache.GetAll<FactionProductData>().Single(p => p.Name == "Gun by Maker");
             var bay = cache.GetAll<FactionProductData>().Single(p => p.Name == "Bay by Maker");
 
-            var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
 
             EquippableItem Mint(FactionProductData product) => (EquippableItem) items.CreateInstance(product);
 
@@ -477,7 +477,7 @@ public sealed class LoadoutTests : IDisposable
         cache.FlushAsync().Wait();
 
         var random = new Random(1);
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var generator = new LoadoutGenerator(ref random, items, null, null, null, .5f);
         var pack = generator.GenerateShipLoadout(candidate => candidate.Name == "Twin");
         Assert.NotNull(pack);
@@ -504,7 +504,7 @@ public sealed class LoadoutTests : IDisposable
             new RarityTier { Name = "Common", Quality = .2f, Color = new float3(1, 1, 1) },
             new RarityTier { Name = "Rare", Quality = .5f, Color = new float3(1, 1, 1) }
         };
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
         var commonLot = items.Lots.Add(new Lot
         {
@@ -561,7 +561,7 @@ public sealed class LoadoutTests : IDisposable
         using var cache = Open();
         var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
         var tiers = settings.Tiers;
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
         var assembly = tiers[3].Quality;
         var sleeperLot = items.Lots.Add(new Lot
@@ -598,7 +598,7 @@ public sealed class LoadoutTests : IDisposable
         var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
         var tiers = settings.Tiers;
         Assert.True(tiers.Length > index, "premise: the shipped asset carries this tier");
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
         string TierAt(float quality) => items.GetTier((CraftedItemInstance) items.CreateInstance(items.Lots.Add(
             new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = quality, Roles = new List<RoleFill>() }))).tier.Name;
@@ -614,7 +614,7 @@ public sealed class LoadoutTests : IDisposable
     {
         using var cache = Open();
         var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
         // Two steps and a hair above the lowest threshold: the step width decides whether that counts as two or one.
         var quality = settings.Tiers[0].Quality + 2 * .0499f + .0001f;
@@ -640,7 +640,7 @@ public sealed class LoadoutTests : IDisposable
     public void QualityTermAppliesItsOwnExponent()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
         var lotId = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() });
         var instance = (EquippableItem) items.CreateInstance(lotId);
@@ -658,7 +658,7 @@ public sealed class LoadoutTests : IDisposable
         using var cache = Open();
         var settings = RunSaveTests.TestSettings();
         settings.QualityPriceModifier = new ExponentialLerp { Minimum = 0, Maximum = 1, Exponent = 1 };
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
         var lowLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .2f, Roles = new List<RoleFill>() });
         var highLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .8f, Roles = new List<RoleFill>() });
@@ -695,7 +695,7 @@ public sealed class LoadoutTests : IDisposable
         var durable = cache.Upsert(new GearData { Name = "Durable", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10, Durability = 100 });
         cache.FlushAsync().Wait();
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var lowLot = items.Lots.Add(new Lot { Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .1f, Roles = new List<RoleFill>() });
         var highLot = items.Lots.Add(new Lot { Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .9f, Roles = new List<RoleFill>() });
         var sleeperLot = items.Lots.Add(new Lot
@@ -723,7 +723,7 @@ public sealed class LoadoutTests : IDisposable
     public void EquippedItemExponentsReadEffectiveQuality()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
         var hullData = cache.GetByName<HullData>("Skiff");
         var lampData = cache.GetByName<GearData>("Lamp");
@@ -785,7 +785,7 @@ public sealed class LoadoutTests : IDisposable
         cache.FlushAsync().Wait();
         var thermalData = cache.Get(thermalGear);
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
         var ship = new Ship(items, null, hullItem, new EntitySettings());
         var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(thermalData, maker, .5f));
@@ -831,7 +831,7 @@ public sealed class LoadoutTests : IDisposable
         cache.FlushAsync().Wait();
         var thermalData = cache.Get(thermalGear);
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
         var ship = new Ship(items, null, hullItem, new EntitySettings());
         var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(thermalData, maker, .5f));
@@ -867,7 +867,7 @@ public sealed class LoadoutTests : IDisposable
         cache.FlushAsync().Wait();
         var consumableData = cache.Get(consumableRef);
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
         var ship = new Ship(items, null, hullItem, new EntitySettings());
         var consumableItem = (ConsumableItem) items.CreateInstance(items.CreateLot(consumableData, maker, .5f));
@@ -902,7 +902,7 @@ public sealed class LoadoutTests : IDisposable
         cache.FlushAsync().Wait();
 
         var product = cache.GetAll<FactionProductData>().Single(p => p.Name == "Lensed by Maker");
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var lotId = items.CreateLot(product);
         var roleFill = items.Lots[lotId].Roles.Single(r => r.Role == "lens");
         Assert.Equal(.9f, roleFill.Quality, 3);
@@ -914,7 +914,7 @@ public sealed class LoadoutTests : IDisposable
     {
         using var cache = Open();
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
         var lotId = items.Lots.Add(new Lot
         {
@@ -932,7 +932,7 @@ public sealed class LoadoutTests : IDisposable
     public void OutOfRangeWeaponGroupIndexBuildsNothing()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var stale = Armed(cache);
         stale.WeaponGroups = new[] { new[] { 0, 2 }, new[] { -1 } };
         var failures = new List<string>();
@@ -944,7 +944,7 @@ public sealed class LoadoutTests : IDisposable
     public void UnequippingAGroupedWeaponRemovesItFromItsGroups()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var ship = Build(items, Armed(cache), new List<string>());
         var item = Assert.Single(ship.WeaponGroups[0].items);
         Assert.NotNull(item.GetBehavior<Weapon>());
@@ -959,7 +959,7 @@ public sealed class LoadoutTests : IDisposable
     public void NonWeaponGroupIndexBuildsNothing()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var lampGrouped = WithDesign(Armed(cache), 0, cache, "Lamp");
         var failures = new List<string>();
         Assert.Null(Build(items, lampGrouped, failures));
@@ -970,7 +970,7 @@ public sealed class LoadoutTests : IDisposable
     public void MoreWeaponGroupsThanTheGameHasBuildsNothing()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var wide = Armed(cache);
         wide.WeaponGroups = wide.WeaponGroups.Append(new[] { 0 }).ToArray();
         var failures = new List<string>();
@@ -984,7 +984,7 @@ public sealed class LoadoutTests : IDisposable
     public void FewerWeaponGroupsArePaddedToTheGameCount()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var armed = Armed(cache);
         armed.WeaponGroups = new[] { new[] { 0 } };
         foreach (var groups in new[] { armed.WeaponGroups, null })
@@ -1008,7 +1008,7 @@ public sealed class LoadoutTests : IDisposable
     public void EntitiesDoNotShareDefaultEntitySettings()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
         var hullData = cache.GetByName<HullData>("Skiff");
         var template = items.GameplaySettings.DefaultEntitySettings;

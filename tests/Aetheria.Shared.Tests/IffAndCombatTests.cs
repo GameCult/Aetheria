@@ -55,7 +55,7 @@ public sealed class IffAndCombatTests : IDisposable
         var ledger = new ProvenanceLedger();
         ledger.Lots[1] = new Lot { Origin = new Attributed(), Quality = 1 }; // hull
         ledger.Lots[2] = new Lot { Origin = new Attributed(), Quality = 1 }; // gun
-        var items = new ItemManager(_openCache, ledger, TestSettings(), _ => { });
+        var items = new ItemManager(1u, _openCache, ledger, TestSettings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         return (items, zone);
     }

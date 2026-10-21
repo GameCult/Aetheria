@@ -102,7 +102,7 @@ public sealed class RunSaveTests : IDisposable
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
             var ledger = new ProvenanceLedger();
             for (var i = 1; i <= 2; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-            var items = new ItemManager(cache, ledger, TestSettings(), _ => { });
+            var items = new ItemManager(1u, cache, ledger, TestSettings(), _ => { });
             var zone = new Zone(items, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
             galaxy.Zones[0].Contents = zone;
             Ship Make(string hull, int lot) => new Ship(items, zone, new EquippableItem
@@ -135,7 +135,7 @@ public sealed class RunSaveTests : IDisposable
         using (var cache = Open())
         {
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
-            var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            var itemManager = new ItemManager(1u, cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
             var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0], 0);
             RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
@@ -160,7 +160,7 @@ public sealed class RunSaveTests : IDisposable
         using (var cache = Open())
         {
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
-            var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            var itemManager = new ItemManager(1u, cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
             var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0], 4242);
             RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
@@ -186,7 +186,7 @@ public sealed class RunSaveTests : IDisposable
         {
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
             Assert.Equal(0xC0FFEE42u, galaxy.Seed);
-            var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            var itemManager = new ItemManager(1u, cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
             // The zone's drop dice are its name's seed mixed with the run's.
             Assert.Equal("Zone 0".StableHash() ^ SimulationDice.Mix(0xC0FFEE42u), galaxy.Zones[0].Contents.DropSeed);
@@ -207,7 +207,7 @@ public sealed class RunSaveTests : IDisposable
             Assert.Equal(0u, cache.GetGlobal<SavedGame>().Seed);
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
             Assert.Equal(0u, galaxy.Seed);
-            var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            var itemManager = new ItemManager(1u, cache, new ProvenanceLedger(), TestSettings(), _ => { });
             var zone = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
             Assert.Equal("Zone 0".StableHash(), zone.CombatSeed);
             Assert.Equal(zone.CombatSeed, zone.DropSeed);
@@ -408,7 +408,7 @@ public sealed class RunSaveTests : IDisposable
         using (var cache = Open())
         {
             var random = new Random(7);
-            var items = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), TestSettings(), _ => { });
             var generator = new LoadoutGenerator(ref random, items, null, null, null, .5f);
             pack = generator.GenerateShipLoadout(candidate => candidate.Name == "Runabout");
             Assert.NotNull(pack);

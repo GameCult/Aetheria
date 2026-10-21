@@ -5,6 +5,7 @@ using static ItemRotation;
 public sealed class Belt : Scenario
 {
     public override string Name => "Belt";
+    public override string Id => "belt";
     public override string Brief => "The biggest asteroid belt the generator made, with the Longinus parked 100 m outside its ring, facing along it, " +
                                     "and nothing else in the arena. Verify: next and previous target step through the rocks and the reticle sweeps " +
                                     "across the belt without a hitch; Previous with nothing targeted takes the farthest rock; the target indicator " +

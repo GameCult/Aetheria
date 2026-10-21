@@ -131,7 +131,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         });
         cache.Upsert(dimEye);
         foreach (var kind in kinds ?? new FieldKindData[0]) cache.Upsert(kind);
-        var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
 
         var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = sunAt }).Key;
         var sun = cache.Upsert(new SunData { Orbit = new CultRecordRef<OrbitData>(sunOrbit), Mass = 1f }).Key;
@@ -679,7 +679,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         // Kept: a new, overwhelmingly weighted kind now wins the pick for this belt, yet loading it again leaves it.
         reopened.Upsert(Kind("Overwhelming", 9f, 1e6f));
         Assert.False(FieldKinds.Assign(beltKey, reopened).Key.Equals(assigned));
-        var items = new ItemManager(reopened, new ProvenanceLedger(), GameSettings(), _ => { });
+        var items = new ItemManager(1u, reopened, new ProvenanceLedger(), GameSettings(), _ => { });
         var reloaded = new Zone(items, PlanetSettings(), s.Pack, new GalaxyZone { Name = "MiningCut3Reload", Owner = null }, null);
         Assert.True(((AsteroidBeltData) reloaded.Planets[beltKey]).Kind.Key.Equals(assigned));
     }
@@ -817,7 +817,7 @@ public sealed partial class MiningCut3Tests : IDisposable
                     cache, new PlayerSettings(), new DirectoryInfo(dir), _ => { }, null, seed);
             }
             catch (Exception) { continue; } // Galaxy's own seed-dependent flakiness (RestoredHullsTests)
-            var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
             foreach (var zone in galaxy.Zones.Take(4))
             {
                 var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, isTutorial: zone == galaxy.Entrance);
@@ -924,7 +924,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         _caches.Add(clean);
         Assert.False(clean.IsDirty);
         Assert.False(((AsteroidBeltData) clean.Get(beltKey)).Kind.IsSet());
-        var zone = new Zone(new ItemManager(clean, new ProvenanceLedger(), GameSettings(), _ => { }), PlanetSettings(), s.Pack,
+        var zone = new Zone(new ItemManager(1u, clean, new ProvenanceLedger(), GameSettings(), _ => { }), PlanetSettings(), s.Pack,
             new GalaxyZone { Name = "Clean", Owner = null }, null);
         var assigned = ((AsteroidBeltData) zone.Planets[beltKey]).Kind;
         Assert.True(assigned.IsSet());
@@ -1026,7 +1026,7 @@ public sealed partial class MiningCut3Tests : IDisposable
             PingEnergy = Constant(0f), PingRange = Constant(300f), PingCooldown = Constant(4f)
         });
         cache.Upsert(eye);
-        var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
         var s = new Scene
         {
             Cache = cache, Items = items, Hull = hull, Eye = eye,

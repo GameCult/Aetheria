@@ -4,6 +4,7 @@ using static ItemRotation;
 public sealed class Arcs : Scenario
 {
     public override string Name => "Arcs";
+    public override string Id => "arcs";
     public override string Brief => "The Smoke Test Hull with forward mounts and a side mount on each flank; a bare hull off the bow, one off " +
                                     "the stern, one abeam to port, one abeam to starboard, and a hostile turret. Verify: the hull keeps its " +
                                     "heading while you aim at the stern hull, and the forward guns hold. Designate the bow hull and fire with the " +

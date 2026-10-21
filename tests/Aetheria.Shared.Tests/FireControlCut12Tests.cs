@@ -192,7 +192,7 @@ public sealed class FireControlCut12Tests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 24; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         // Cut 6.1's own convention (FireControlCut6Tests.cs:62-63): every engagement shares one fixed
         // GalaxyZone name, so every Zone this fixture builds shares one CombatSeed and every statistical test
         // is replayable byte-for-byte across runs. A GUID-suffixed name here (this file's own earlier defect)

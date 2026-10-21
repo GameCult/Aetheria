@@ -44,7 +44,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
                     authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
                     cache, new PlayerSettings(),
                     Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
-                var items = new ItemManager(cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
+                var items = new ItemManager(1u, cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
                 var planetSettings = authored.Read<PlanetSettings>("PlanetSettings");
                 foreach (var galaxyZone in galaxy.Zones)
                 {

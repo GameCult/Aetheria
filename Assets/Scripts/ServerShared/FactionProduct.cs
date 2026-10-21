@@ -38,6 +38,12 @@ public class FactionProductData
     // no Assembly; the mint derives both from the line.
     [Inspectable, JsonProperty("bin"), Key(7)]
     public ProductBin Bin;
+
+    // Off the market (ruling off-market-is-unoffered-product): the product keeps its maker, brand, quality and price, but no
+    // station stocks it, no generation or chooser draws it, and its hull gives no gear a home. It reaches a ship only through a
+    // Loadout that pins it. LoadoutGenerator.IsOffered is its one reader.
+    [Inspectable, JsonProperty("notOffered"), Key(8)]
+    public bool NotOffered;
 }
 
 // How good this product's part is in one of its design's roles: a pseudo-gaussian distribution whose mean is

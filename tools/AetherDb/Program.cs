@@ -807,7 +807,8 @@ public static class Program
         };
 
         var log = new List<string>();
-        var itemManager = new ItemManager(db.Cache, new ProvenanceLedger(), settings, log.Add);
+        // A fixed seed: the catalog command's output must not depend on the clock.
+        var itemManager = new ItemManager(1u, db.Cache, new ProvenanceLedger(), settings, log.Add);
         var failures = 0;
         var targetingGaps = 0;
 

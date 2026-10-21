@@ -106,7 +106,7 @@ namespace Aetheria.EditorTools
             var cache = AetheriaStores.Open(Path.Combine(work, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
             cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.FlushAsync().Wait();
-            var items = new ItemManager(cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
             return new Zone(items, new PlanetSettings { Flow = flow }, new ZonePack { Time = time }, new GalaxyZone { Name = "Parity", Owner = null }, null);
         }
 

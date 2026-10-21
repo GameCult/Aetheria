@@ -102,7 +102,7 @@ public sealed class RoleAuthoringTests : IDisposable
         });
         cache.FlushAsync().Wait();
 
-        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
         var cheapLot = items.CreateLot(cache.GetAll<FactionProductData>().Single(p => p.Name == "Lensed Economy"));
         var premiumLot = items.CreateLot(cache.GetAll<FactionProductData>().Single(p => p.Name == "Lensed Premium"));
         var cheapInstance = (EquippableItem) items.CreateInstance(cheapLot);

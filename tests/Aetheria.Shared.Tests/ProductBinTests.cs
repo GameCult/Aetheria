@@ -26,7 +26,7 @@ public sealed class ProductBinTests : IDisposable
             Roles = { new ItemRole { Name = "lens" } }
         });
         _lens = new CultRecordRef<CraftedItemData>(gear.Key);
-        _items = new ItemManager(_cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _log.Add) { Random = new CultMath.Random(7u) };
+        _items = new ItemManager(1u, _cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _log.Add) { Random = new CultMath.Random(7u) };
     }
 
     public void Dispose()

@@ -104,7 +104,7 @@ public sealed class FireControlCut7Tests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 10; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
 
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Hull"));
@@ -214,7 +214,7 @@ public sealed class FireControlCut7Tests : IDisposable
             QualityPriceModifier = new ExponentialLerp()
         };
         var log = new List<string>();
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, log.Add);
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, log.Add);
         var random = new Random(1u);
         var generator = new LoadoutGenerator(ref random, items, null, null, null, .5f);
         var pack = generator.GenerateShipLoadout(candidate => candidate == hull);

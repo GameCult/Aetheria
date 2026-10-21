@@ -122,7 +122,7 @@ namespace Aetheria.EditorTools
             var cache = AetheriaStores.Open(Path.Combine(_work, "belts.cc"), Path.Combine(_work, "belts-run.cc"), catalogWritable: true);
             cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.FlushAsync().Wait();
-            var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
 
             CultRecordKey Orbit(CultRecordKey parent, float distance, float phase, float2 fixedPosition = default)
             {

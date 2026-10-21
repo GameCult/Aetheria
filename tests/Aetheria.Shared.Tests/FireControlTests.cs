@@ -88,7 +88,7 @@ public sealed class FireControlTests : IDisposable
         ledger.Lots[1] = new Lot { Origin = new Attributed(), Quality = 1 }; // hull
         for (var i = 0; i < hardpoints.Length; i++)
             ledger.Lots[2 + i] = new Lot { Origin = new Attributed(), Quality = 1 }; // guns
-        var items = new ItemManager(_openCache, ledger, TestSettings(shipLayerHeight), _ => { });
+        var items = new ItemManager(1u, _openCache, ledger, TestSettings(shipLayerHeight), _ => { });
         var planets = new PlanetSettings();
         var pack = new ZonePack();
         if (well) WellFixture.Dig(_openCache, pack, planets, 300f, 100f);

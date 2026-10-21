@@ -4,6 +4,7 @@ using static ItemRotation;
 public sealed class WeaponFeel : Scenario
 {
     public override string Name => "Weapon Feel";
+    public override string Id => "weapon-feel";
     public override string Brief => "The Smoke Test Hull with a Charged Scatter Blaster, an Autocannon and a Cell Blaster burst weapon; a bare Longinus dead ahead. " +
                                     "Verify: Charged Scatter Blaster and Autocannon fire with effects, particles and action-bar icons; the burst weapon's " +
                                     "cadence is as before; a fast release-and-press on the Charged Scatter Blaster starts no second charge.";

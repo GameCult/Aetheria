@@ -106,7 +106,7 @@ public sealed class PickupTests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 9000; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var pack = new ZonePack { Radius = 0 };
         var curves = new PlanetSettings();
         if (wells)

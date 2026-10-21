@@ -107,7 +107,7 @@ public sealed class FireControlCut9Tests : IDisposable
         ledger.Lots[2] = new Lot { Origin = new Attributed(), Quality = 1 };
         ledger.Lots[3] = new Lot { Origin = new Attributed(), Quality = 1 };
         ledger.Lots[4] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = zoneName, Owner = null }, null);
 
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Hull"));
@@ -312,7 +312,7 @@ public sealed class FireControlCut9Tests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 5; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Cut9-Kernel", Owner = null }, null);
 
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Hull"));
@@ -543,7 +543,7 @@ public sealed class FireControlCut9Tests : IDisposable
         ledger.Lots[2] = new Lot { Origin = new Attributed(), Quality = 1 };
         ledger.Lots[3] = new Lot { Origin = new Attributed(), Quality = 1 };
         ledger.Lots[4] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Cut9-Lock", Owner = null }, null);
 
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Hull"));

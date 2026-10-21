@@ -40,7 +40,7 @@ public sealed class FloatingBodyTests : IDisposable
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp()
         };
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         return new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
     }
 
@@ -206,7 +206,7 @@ public sealed class FloatingBodyTests : IDisposable
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp()
         };
-        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
         var planets = new PlanetSettings { HeightExaggeration = 10f }; // the tilt reads force / K, which K = 1 would hide
         var pack = new ZonePack { Radius = 1000 };
         WellFixture.Dig(cache, pack, planets, 300, 100);

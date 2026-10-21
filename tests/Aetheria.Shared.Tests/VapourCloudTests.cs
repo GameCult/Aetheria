@@ -104,7 +104,7 @@ public sealed class VapourCloudTests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 50; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack { Radius = 5000 }, new GalaxyZone { Name = "Vapour", Owner = null }, null);
         var lab = new Lab { Items = items, Zone = zone };
 

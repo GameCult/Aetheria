@@ -115,7 +115,7 @@ public static class MapPresenterSmoke
         };
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 8; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, settings.GameplaySettings, _ => { });
+        var items = new ItemManager(1u, cache, ledger, settings.GameplaySettings, _ => { });
         var zone = new Zone(items, planetSettings, pack, new GalaxyZone { Name = "Smoke", Owner = null }, null);
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Smoke Hull"));
         var ship = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000, Lot = 1 }, new EntitySettings());

@@ -153,7 +153,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         return new Rig
         {
             Cache = cache,
-            Items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { }),
+            Items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { }),
             Galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { }),
             Maker = cache.GetByName<Faction>("Maker")
         };
@@ -281,7 +281,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         var authored = AuthoredSettings.Load(repo);
         var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
             authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), cache, new PlayerSettings(), Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, 1);
-        var items = new ItemManager(cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
 
         int stations = 0, ships = 0;
         for (var i = 0; i < Seeds; i++)

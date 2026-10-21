@@ -14,6 +14,10 @@ public static class SimulationDice
     // never rides ItemManager.Random, so minting items cannot change how a pilot fights.
     public const uint CombatSampleStream = 3;
     public const uint PatrolStream = 4;
+    // Generation placement of an unpacked ship packed at the origin, ordinal its 1-based index in the pack, on the zone's
+    // seed (CombatSeed): the run seed feeds drops and mines only (ruling run-seed-drops-only), and placement never rides
+    // ItemManager.Random.
+    public const uint ScatterStream = 5;
 
     // 9.1 (docs/fire-control-cut.md): fmix32, MurmurHash3's 32-bit finalizer -- xor-shift, multiply,
     // xor-shift, multiply, xor-shift. Diffuses a structured seed (a zone seed XORed with a small,

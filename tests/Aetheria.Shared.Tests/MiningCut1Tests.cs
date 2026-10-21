@@ -66,7 +66,7 @@ public sealed class MiningCut1Tests : IDisposable
         // OrbitData and BodyData (AsteroidBeltData) are run types (AetheriaStores.RunTypes), not catalog types:
         // they need a run store to write into.
         var cache = AetheriaStores.Open(catalog, run, catalogWritable: true);
-        var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
         var settings = Settings();
 
         var sunOrbitKey = cache.Upsert(new OrbitData()).Key;
