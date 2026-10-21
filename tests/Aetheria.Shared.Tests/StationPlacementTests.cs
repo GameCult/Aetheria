@@ -81,10 +81,6 @@ public sealed class StationPlacementTests : IDisposable
 
     private static float Turns(float turns) => turns - (float) Math.Floor(turns);
 
-    // A Trojan swarm's rail is a copy of its host's, not a station's source.
-    private static bool SwarmRail(Zone zone, CultRecordKey orbit) =>
-        zone.Planets.Values.Any(b => b is AsteroidBeltData { RidesRail: true } && b.Orbit.Key.Equals(orbit));
-
     [Fact]
     public void AStationSitsAtItsPlanetsL4OrL5()
     {
@@ -100,7 +96,7 @@ public sealed class StationPlacementTests : IDisposable
             foreach (var station in zone.Entities.OfType<OrbitalEntity>().Where(e => TypeOf(built.Items, e) == HullType.Station))
             {
                 var orbit = zone.Orbits[station.OrbitData];
-                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && !SwarmRail(zone, o.Key) && SameRing(o.Value, orbit)).ToList();
+                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && !BeltShapes.CopiedRail(zone, o.Key) && SameRing(o.Value, orbit)).ToList();
                 if (sources.Count == 0)
                 {
                     // The tutorial entrance's one exception: a station on its own orbit round a root node, beyond the node's ring
@@ -160,7 +156,7 @@ public sealed class StationPlacementTests : IDisposable
             foreach (var station in Orbitals(built).Where(e => TypeOf(built.Items, e) == HullType.Station))
             {
                 var orbit = zone.Orbits[station.OrbitData];
-                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && !SwarmRail(zone, o.Key) && SameRing(o.Value, orbit)).ToList();
+                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && !BeltShapes.CopiedRail(zone, o.Key) && SameRing(o.Value, orbit)).ToList();
                 if (sources.Count == 0) continue; // the tutorial entrance's own orbit round a root
                 stations++;
                 Assert.Contains(bodyOrbits, key => key.Equals(sources[0].Key));
@@ -357,7 +353,7 @@ public sealed class StationPlacementTests : IDisposable
             foreach (var station in Orbitals(built).Where(e => TypeOf(built.Items, e) == HullType.Station))
             {
                 var orbit = zone.Orbits[station.OrbitData];
-                var strays = zone.Orbits.Count(o => !ridden.Contains(o.Key) && !SwarmRail(zone, o.Key) && SameRing(o.Value, orbit));
+                var strays = zone.Orbits.Count(o => !ridden.Contains(o.Key) && !BeltShapes.CopiedRail(zone, o.Key) && SameRing(o.Value, orbit));
                 Assert.True(strays == 1, $"seed {built.Seed}: a station's ring holds {strays} orbits no entity rides, not just its source's");
                 stations++;
             }

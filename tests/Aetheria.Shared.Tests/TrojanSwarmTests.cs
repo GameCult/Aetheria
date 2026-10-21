@@ -97,17 +97,17 @@ public class TrojanSwarmTests
         Assert.True(onSwarmHost > 0, "no station or turret sits on a swarm host's rail");
     }
 
-    // The digests were computed at 67517f40, before cut trojan-swarms, over the zones of each seed with the authored settings;
-    // seeds 3-6 were repinned at cut laned-belts C1, whose one belt extent rule moves stations in them. A zone with no swarm is
-    // the base zone, and a zone with swarms is the base zone plus them.
+    // The widened digests (ZoneFingerprint with PopulatedRadius) were computed on Yggdrasil over the generator of cut laned-belts
+    // C1 (one belt extent rule) with swarms off, over the zones of each seed: a zone with no swarm is the base zone, and a zone with
+    // swarms is the base zone plus them. The per-zone comparison leaves PopulatedRadius out, since a swarm's outer rock may grow it.
     private static readonly Dictionary<uint, string> BaseDigest = new Dictionary<uint, string>
     {
-        [1] = "02a2bef42b5d4aeaf1e7004d0ab26620ee570ced95115abf98226ab4e0db23eb",
-        [2] = "de231f392e5724ecdce7e746957633bef2724252147ecbb5830db047b635aead",
-        [3] = "0377471bf1a73b4e00ee2d18a9e90960fdf7011d35e7c648f103f3538750501f",
-        [4] = "195c6647ff921a12cd5ee71f94610f245e64c15fc1d38bc708846cd04e3ddeb5",
-        [5] = "ae0d57e84456767d35a699941238e7574e815da663b0354e5e1676063910e8a5",
-        [6] = "8ad70edd5d41e942ba9067930e0f148e3da6c054bf1d9d7cdd26be93e12017c6",
+        [1] = "1873400d50d11b27913a67daca460f0829629aa21dacabac2cfc97a66537a700",
+        [2] = "5872680ee91c2019b345925f54c2113303cc2817ee9ea28d26ba839e43d1944e",
+        [3] = "e92cc32010f01b7962a2a58b6ea91c9c39ee3d915301164f176d0ebad218837c",
+        [4] = "61db9bdae2ca8704a7946debb4fe63ae3e649112fcda19d293ba2fddcaf45674",
+        [5] = "69ca46ebfae646b3a09faf9d636f3c706e5f6b7146f111a0ea06196332ae58b9",
+        [6] = "307dc4b38ff341670a5b5179ab977b6c7c59ba682d529d80dcaf9c4852c21fe2",
     };
 
     [Fact]
@@ -122,11 +122,11 @@ public class TrojanSwarmTests
             var a = swarmless.All.Where(x => x.Seed == seed).Select(x => x.Zone).ToList();
             var b = live.All.Where(x => x.Seed == seed).Select(x => x.Zone).ToList();
             Assert.Empty(a.SelectMany(z => z.AsteroidBelts.Where(x => x.Value.Data.RidesRail)));
-            Assert.Equal(BaseDigest[seed], ZoneFingerprint.Of(a, _ => false, _ => false));
-            string Swarmed(Zone z) => ZoneFingerprint.Of(new[] { z }, SwarmRails(z).Contains, IsSwarm);
+            Assert.Equal(BaseDigest[seed], ZoneFingerprint.Of(a, _ => false, _ => false, true));
+            string Swarmed(Zone z) => ZoneFingerprint.Of(new[] { z }, SwarmRails(z).Contains, IsSwarm, false);
             for (var n = 0; n < a.Count; n++)
             {
-                Assert.Equal(ZoneFingerprint.Of(new[] { a[n] }, _ => false, _ => false), Swarmed(b[n]));
+                Assert.Equal(ZoneFingerprint.Of(new[] { a[n] }, _ => false, _ => false, false), Swarmed(b[n]));
                 swarms += SwarmRails(b[n]).Count;
                 Assert.True(b[n].PopulatedRadius >= a[n].PopulatedRadius, $"seed {seed}: a swarm shrank the populated radius");
                 if (b[n].PopulatedRadius > a[n].PopulatedRadius) grew++;

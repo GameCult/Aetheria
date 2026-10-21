@@ -19,6 +19,8 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         private readonly ZoneWorlds _worlds = new ZoneWorlds();
         public readonly List<(uint Seed, Zone Zone)> All = new List<(uint, Zone)>();
         public ZoneGenerationSettings Settings;
+        // Every belt the generator wrote, and those it wrote with no field kind, counted before Zone's own FieldKinds.Ensure runs.
+        public int Belts, UnkindedAtGeneration;
 
         // Seeds 7, 11 and 12 held rings inside their heavy member's Roche margin (ring-roche-final-heavy), and seeds 10, 13, 21 and 30
         // held a bodyless ring member whose own bodies sat at their node's centre (bodyless-node-places-children); seeds 1-6 show neither.
@@ -50,6 +52,11 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
                     tune?.Invoke(Settings);
                     var pack = ZoneGenerator.GenerateZone(items, Settings, planetSettings, galaxy, galaxyZone,
                         galaxyZone == galaxy.Entrance && galaxy.IsPrelude, false);
+                    foreach (var belt in pack.Planets.Select(cache.Get).OfType<AsteroidBeltData>())
+                    {
+                        Belts++;
+                        if (!belt.Kind.IsSet()) UnkindedAtGeneration++;
+                    }
                     All.Add((seed, new Zone(items, planetSettings, pack, galaxyZone, galaxy)));
                 }
             }
@@ -79,11 +86,12 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
     private static Dictionary<CultRecordKey, float> BodyMass(Zone zone) =>
         zone.Planets.Values.Where(b => !(b is AsteroidBeltData)).GroupBy(b => b.Orbit.Key).ToDictionary(g => g.Key, g => g.First().Mass);
 
-    // The generated orbits: every body's and its ancestors', which leaves out stations, turrets, Lagrange copies and swarm rails (a copy of the host's rail, like a Lagrange copy).
+    // The generated orbits: every body's and its ancestors', which leaves out stations, turrets, Lagrange copies and the copied
+    // rails swarms and lanes ride (a copy of the host's rail, like a Lagrange copy; BeltShapes.CopiedRail).
     private static HashSet<CultRecordKey> Placed(Zone zone)
     {
         var placed = new HashSet<CultRecordKey>();
-        foreach (var body in zone.Planets.Values.Where(b => !(b is AsteroidBeltData { RidesRail: true })))
+        foreach (var body in zone.Planets.Values.Where(b => !BeltShapes.CopiedRail(zone, b.Orbit.Key)))
             for (var key = body.Orbit.Key; placed.Add(key) && zone.Orbits[key].Data.Parent.IsSet();) key = zone.Orbits[key].Data.Parent.Key;
         return placed;
     }
@@ -332,7 +340,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         foreach (var (seed, zone) in _zones.All)
         {
             var mass = BodyMass(zone);
-            foreach (var (beltKey, belt) in zone.AsteroidBelts.Where(b => !b.Value.Data.RidesRail))
+            foreach (var (beltKey, belt) in zone.AsteroidBelts.Where(b => !BeltShapes.CopiedRail(zone, zone.Planets[b.Key].Orbit.Key)))
             {
                 belts++;
                 var orbit = zone.Planets[beltKey].Orbit.Key;
@@ -363,7 +371,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
     // authored width (ruling belt-fills-its-slot): it sits at the slot's midpoint where the test can spell both edges, and
     // none collapses to a line (finding belts-collapse-to-a-line). Rocks are scattered inside the belt's half width, so their
     // spread is at most the belt's width; a belt beside another belt has an edge only the generator knows, and is checked
-    // against the weaker bound.
+    // against the weaker bound (two adjacent belts' spacing is pinned by AdjacentBeltsKeepTheirSpacing).
     [Fact]
     public void BeltsFillTheirSlots()
     {
@@ -374,7 +382,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         {
             var mass = BodyMass(zone);
             var placed = Placed(zone);
-            var beltAt = zone.AsteroidBelts.Where(b => !b.Value.Data.RidesRail).ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Data.Asteroids);
+            var beltAt = zone.AsteroidBelts.Where(b => !BeltShapes.CopiedRail(zone, zone.Planets[b.Key].Orbit.Key)).ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Data.Asteroids);
             foreach (var (orbit, rocks) in beltAt)
             {
                 var parent = zone.Orbits[orbit].Data.Parent.Key;
@@ -424,7 +432,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
             { Exponent = authored.Exponent, Multiplier = authored.Multiplier * .02f, Constant = authored.Constant * .02f });
         int belts = 0, filled = 0;
         foreach (var (seed, zone) in narrow.All)
-            foreach (var (key, belt) in zone.AsteroidBelts.Where(b => !b.Value.Data.RidesRail))
+            foreach (var (key, belt) in zone.AsteroidBelts.Where(b => !BeltShapes.CopiedRail(zone, zone.Planets[b.Key].Orbit.Key)))
             {
                 var rocks = belt.Data.Asteroids;
                 if (rocks.Length < 2) continue;
@@ -446,6 +454,42 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
     }
 
     private static PlanetSettings AuthoredPlanetSettings() => AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
+
+    // A belt's field kind is chosen at generation and saved with it (Mining Cut 3, Q16 B): every belt the generator writes,
+    // annulus or swarm, carries one before any Zone reads it (finding ensure-unpinned).
+    [Fact]
+    public void EveryBeltIsKindedAtGeneration()
+    {
+        _out.WriteLine($"belts {_zones.Belts}, unkinded at generation {_zones.UnkindedAtGeneration}");
+        Assert.True(_zones.All.Any(z => z.Zone.AsteroidBelts.Values.Any(b => b.Data.RidesRail)), "no swarm in the sample");
+        Assert.True(_zones.Belts > 20, $"only {_zones.Belts} belts generated");
+        Assert.Equal(0, _zones.UnkindedAtGeneration);
+    }
+
+    // Two belts side by side under one parent (production never draws them; follow-up belt-after-belt-edge-pin): the second
+    // belt's slot starts a sibling spacing outside the first belt's outer edge, not its rail, so their rock intervals keep a spacing.
+    [Fact]
+    public void AdjacentBeltsKeepTheirSpacing()
+    {
+        var settings = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<ZoneGenerationSettings>("ZoneSettings");
+        // Wider than any slot, so each belt fills its slot and the second's inner edge is the slot's inner bound.
+        settings.AsteroidBeltWidth = new ExponentialCurve { Exponent = 1f, Multiplier = 0f, Constant = 1e7f };
+        var root = new GeneratorPlanet { Mass = 1e5f };
+        Body(root, 100f);
+        var first = Body(root, 0f);
+        var second = Body(root, 0f);
+        Body(root, 100f, .5f);
+        foreach (var belt in new[] { first, second }) { belt.Belt = true; belt.Settings = settings; }
+        ZoneGenerator.Place(root, AuthoredPlanetSettings(), 1e6f, float.PositiveInfinity);
+        Assert.True(root.Children.Contains(first) && root.Children.Contains(second), "a belt folded");
+        Assert.True(first.Distance < second.Distance, "the belts swapped order");
+        Assert.True(first.BeltHalfWidth > 0 && second.BeltHalfWidth > 0, "a belt collapsed to a line");
+        var q = 1 / (1 - GravityField.Reach / 2);
+        var firstOuter = first.Distance + first.BeltHalfWidth;
+        var secondInner = second.Distance - second.BeltHalfWidth;
+        _out.WriteLine($"first {first.Distance} +- {first.BeltHalfWidth}, second {second.Distance} +- {second.BeltHalfWidth}");
+        Assert.True(firstOuter * q <= secondInner * (1 + 1e-4f), $"the second belt's inner edge {secondInner} is within a spacing of the first's outer edge {firstOuter}");
+    }
 
     // A rosette's ring round a root with no reach limit of its own sits at half the root's 0.75 x radius window, 3/8 of the radius.
     [Fact]
