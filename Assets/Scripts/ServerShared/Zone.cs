@@ -365,8 +365,19 @@ public class Zone
         }
 
         foreach (var flight in _flights.Values) flight.Update(deltaTime);
-        foreach(var agent in Agents.ToArray())
+        // Every pilot's command is applied by PilotApplier, once per step. Entities with no agent (the player, a scripted
+        // pilot, a lone ship) first, as the player's input lands before the step; then each agent applies right after it
+        // decides, so the next agent sees it as it saw the direct writes this replaced.
+        var agents = Agents.ToArray();
+        var piloted = new HashSet<Entity>();
+        foreach (var agent in agents) piloted.Add(agent.Ship);
+        foreach (var entity in Entities.ToArray())
+            if (!piloted.Contains(entity)) PilotApplier.Apply(entity);
+        foreach (var agent in agents)
+        {
             agent.Update(deltaTime);
+            PilotApplier.Apply(agent.Ship);
+        }
 
         var entities = Entities.ToArray();
         foreach (var entity in entities) entity.PublishInbox();

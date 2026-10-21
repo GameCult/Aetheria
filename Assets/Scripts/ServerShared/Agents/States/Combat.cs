@@ -43,7 +43,8 @@ public class CombatState : BaseState
             _optimumStale = false;
         }
 
-        var target = _agent.Ship.Target.Value.Entity;
+        // The pilot's own pending designation (its Flight's, this step) when set, else last step's applied target.
+        var target = (_agent.Ship.Command.Designated ?? _agent.Ship.Target.Value).Entity;
         if (target == null) return;
         
         _availableGroups.Clear();
@@ -70,7 +71,8 @@ public class CombatState : BaseState
                 bestTargetItem = reveal.Item;
             }
         }
-        /*DEL select*/
+        _agent.Ship.Command.SelectItem(bestTargetItem);
+        var aim = bestTargetItem == null ? AimTarget.None : AimTarget.OfItem(bestTargetItem);
 
         for (var i = 0; i < _agent.Ship.WeaponGroups.Length; i++)
         {
@@ -81,7 +83,7 @@ public class CombatState : BaseState
                 // damage.
                 if (weapon.Item.Online.Value &&
                     FireControl.Designated(weapon, _agent.Ship, target, out _) &&
-                    !FireControl.Refuses(weapon, _agent.Ship) &&
+                    !FireControl.Refuses(weapon, _agent.Ship, target) &&
                     (weapon is ConstantWeapon ||
                      weapon is InstantWeapon instantWeapon && instantWeapon.CanFire))
                 {
@@ -94,7 +96,7 @@ public class CombatState : BaseState
             if (dps > .1) _availableGroups.Add((i, dps));
         }
         
-        foreach(var w in _availableLockingWeapons) /*DEL lock*/;
+        foreach(var w in _availableLockingWeapons) _agent.Ship.Command.Pull(w);
 
         UseConsumables(toTarget, targetDistance);
 
@@ -139,14 +141,15 @@ public class CombatState : BaseState
             // fires at, and "the target is designated" for a fused one.
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
-                if (FireControl.AgentFires(weapon, _agent.Ship, target, _agent.Doctrine.MinHitProbability))
-                    /*DEL pull*/;
-                else if (weapon.Firing)
-                    /*DEL release*/;
+                if (FireControl.AgentFires(weapon, _agent.Ship, target, _agent.Doctrine.MinHitProbability, aim))
+                    _agent.Ship.Command.Pull(weapon);
+                // A lock pulled above this step counts as firing, as it did when it was activated in place.
+                else if (weapon.Firing || _agent.Ship.Command.Pulls(weapon))
+                    _agent.Ship.Command.Release(weapon);
             }
         }
-        /*DEL aim*/
-        /*DEL turn*/
+        _agent.Ship.Command.Aim = toTarget;
+        _agent.Ship.Command.Turn = TurnCommand.Toward(toTarget.xz);
         _agent.Accelerate(movementDirection * _agent.TopSpeed, true);//selectedGroup >= 0);
 
         // Fire charged guns!

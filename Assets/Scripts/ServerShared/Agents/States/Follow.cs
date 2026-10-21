@@ -20,7 +20,7 @@ public class FollowState : BaseState
         var pull = direction * (float) sign(error) * saturate(abs(error) / max(task.Standoff, 1f));
         var desired = task.Anchor.Velocity + pull * _agent.TopSpeed;
 
-        /*DEL aim*/
+        _agent.Ship.Command.Aim = float3(direction.x, 0, direction.y);
         _agent.Accelerate(desired);
     }
 }

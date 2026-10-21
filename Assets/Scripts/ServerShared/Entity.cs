@@ -87,6 +87,10 @@ public abstract class Entity
     // hull turns only by Ship.Turn.
     public float3 Aim;
 
+    // The entity's one pilot input, written by its one pilot (its agent, the player, a scripted pilot) and applied only by
+    // PilotApplier in the zone step. Runtime only: never packed.
+    public PilotCommand Command { get; } = new PilotCommand();
+
     public string Name;
 
     // Names the entity for assertion messages and logs: xunit and the debugger format an object by walking its graph

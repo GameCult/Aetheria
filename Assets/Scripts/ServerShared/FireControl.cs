@@ -84,8 +84,11 @@ public static class FireControl
     // Whether the shooter's next round from this weapon is refused: the weapons ask before they spend anything, so
     // a refused round costs no ammo, energy, sound, heat, wear or visibility (operator ruling 2026-09-30). The
     // answer is Solve's own -- there is no second copy of the arming test.
-    public static bool Refuses(Weapon weapon, Entity shooter) =>
-        !IsMineLayer(weapon) && Solve(weapon, weapon.Item, shooter, shooter.Target.Value.Entity).Outcome == FireOutcome.Refused;
+    public static bool Refuses(Weapon weapon, Entity shooter) => Refuses(weapon, shooter, shooter.Target.Value.Entity);
+
+    // The same answer against a target the shooter's pilot has commanded but not yet applied.
+    public static bool Refuses(Weapon weapon, Entity shooter, Entity target) =>
+        !IsMineLayer(weapon) && Solve(weapon, weapon.Item, shooter, target).Outcome == FireOutcome.Refused;
 
     // A mine layer lays a body, not a round: it is never refused, never arc-gated, and Fire routes it to Lay.
     public static bool IsMineLayer(Weapon weapon) => weapon.WeaponData is MineLayerData;
@@ -96,12 +99,19 @@ public static class FireControl
     // fires a fused weapon at nothing -- no target, or one it holds no valid data on, is no reason to fish -- and
     // never one Solve refuses: a refused weapon is not a weapon it can use.
     // The hit-probability threshold is the shooter's doctrine (RoleDoctrine.MinHitProbability), or the turret's global.
-    public static bool AgentFires(Weapon weapon, Entity shooter, Entity target, float minHitProbability)
+    public static bool AgentFires(Weapon weapon, Entity shooter, Entity target, float minHitProbability) =>
+        AgentFires(weapon, shooter, target, minHitProbability, null);
+
+    // The same decision priced on the aim the pilot commands this step (Combat), not the shooter's applied aim slot.
+    public static bool AgentFires(Weapon weapon, Entity shooter, Entity target, float minHitProbability, AimTarget aim) =>
+        AgentFires(weapon, shooter, target, minHitProbability, (AimTarget?) aim);
+
+    private static bool AgentFires(Weapon weapon, Entity shooter, Entity target, float minHitProbability, AimTarget? aim)
     {
         // A mine layer lays only at a designated target in range, never at nothing and never on a hit probability.
         if (IsMineLayer(weapon)) return Solve(weapon, weapon.Item, shooter, target).Designated;
         if (FuseOf(weapon.Item, out _) == null)
-            return HitProbability(weapon, shooter, target) >= minHitProbability;
+            return HitProbability(weapon, shooter, target, aim) >= minHitProbability;
         var solution = Solve(weapon, weapon.Item, shooter, target);
         return solution.Designated && solution.Outcome != FireOutcome.Refused;
     }
@@ -330,7 +340,7 @@ public static class FireControl
     // common gated-out case (GatedOutHitProbabilityAllocatesNothing pins that at exactly 0).
     // Evasion fix (evasion-term): the same call also prices how far the target can and does move off the line of
     // fire, along the same travel direction, so the live price and the HUD read one evasion.
-    private static (Silhouette Silhouette, float PSpread, float Evasion) Forecast(Weapon weapon, Entity source, Entity target, HullData targetHull, float precision, float range)
+    private static (Silhouette Silhouette, float PSpread, float Evasion) Forecast(Weapon weapon, Entity source, Entity target, HullData targetHull, float precision, float range, AimTarget aim)
     {
         var travel = TravelDirection(weapon, source, target);
         var evasion = Evasion(target, travel);
@@ -340,7 +350,6 @@ public static class FireControl
         Silhouette sil;
         try
         {
-            var aim = source.ResolvedAim;
             sil = Silhouette(target, targetHull, aim.Item, bearing, precision, buffer, aim.Mount);
             var settings = source.ItemManager.GameplaySettings;
             pSpread = PSpread(weapon.Spread, sil.Span, range, settings.SchematicCellSize);
@@ -355,13 +364,21 @@ public static class FireControl
         return (sil, pSpread, evasion);
     }
 
-    public static float HitProbability(Weapon weapon, Entity source, Entity target)
+    public static float HitProbability(Weapon weapon, Entity source, Entity target) =>
+        HitProbability(weapon, source, target, (AimTarget?) null);
+
+    // Priced on `aim` rather than the source's aim slot: the aim its pilot commands this step.
+    public static float HitProbability(Weapon weapon, Entity source, Entity target, AimTarget aim) =>
+        HitProbability(weapon, source, target, (AimTarget?) aim);
+
+    // A null aim reads source.ResolvedAim, after the gate, so a gated-out shot reads nothing more.
+    private static float HitProbability(Weapon weapon, Entity source, Entity target, AimTarget? aim)
     {
         var pFire = PFire(weapon, source, target, out var range);
         if (pFire <= 0f) return 0f;
 
         var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
-        var (sil, pSpread, evasion) = Forecast(weapon, source, target, targetHull, Precision(source), range);
+        var (sil, pSpread, evasion) = Forecast(weapon, source, target, targetHull, Precision(source), range, aim ?? source.ResolvedAim);
         return pFire * PMount(AngularVelocity(source, target), TrackingRate(weapon, source)) * pSpread * sil.POnHull * PDeviation(evasion, Tracking(source));
     }
 
@@ -399,7 +416,7 @@ public static class FireControl
         diagnostic.PSensor = PSensor(settings, diagnostic.Resolution, diagnostic.Info);
         diagnostic.PFire = diagnostic.Accuracy * diagnostic.PSensor;
 
-        var (sil, pSpread, evasion) = Forecast(weapon, source, target, targetHull, diagnostic.Precision, diagnostic.Range);
+        var (sil, pSpread, evasion) = Forecast(weapon, source, target, targetHull, diagnostic.Precision, diagnostic.Range, source.ResolvedAim);
         diagnostic.PSpread = pSpread;
         diagnostic.POnHull = sil.POnHull;
         diagnostic.Evasion = evasion;

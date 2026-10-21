@@ -115,7 +115,7 @@ public class Flight
                 {
                     track.Phase = Phase.Hailing;
                     track.Start = _time;
-                    if (!string.IsNullOrEmpty(_doctrine.Hail)) /*DEL hail*/;
+                    if (!string.IsNullOrEmpty(_doctrine.Hail)) Nearest(entity)?.Agent.Ship.Command.Hail(_doctrine.Hail);
                 }
                 else track.Phase = Phase.Engaged;
                 break;
@@ -175,7 +175,7 @@ public class Flight
     private static void Aim(Ship ship, Entity target)
     {
         var wanted = target == null ? TargetRef.None : new TargetRef(target);
-        if (!ship.Target.Value.Equals(wanted)) /*DEL designate*/;
+        if (!ship.Target.Value.Equals(wanted)) ship.Command.Designate(wanted);
     }
 
     private float Standoff(Ship ship)
