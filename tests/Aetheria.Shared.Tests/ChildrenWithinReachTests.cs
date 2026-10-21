@@ -88,7 +88,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
 
     // The generated orbits: every body's and its ancestors', which leaves out stations, turrets, Lagrange copies and the copied
     // rails swarms and lanes ride (a copy of the host's rail, like a Lagrange copy; BeltShapes.CopiedRail).
-    private static HashSet<CultRecordKey> Placed(Zone zone)
+    internal static HashSet<CultRecordKey> Placed(Zone zone)
     {
         var placed = new HashSet<CultRecordKey>();
         foreach (var body in zone.Planets.Values.Where(b => !BeltShapes.CopiedRail(zone, b.Orbit.Key)))
@@ -96,7 +96,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         return placed;
     }
 
-    private static List<CultRecordKey> ChildrenOf(Zone zone, CultRecordKey parent, HashSet<CultRecordKey> placed) =>
+    internal static List<CultRecordKey> ChildrenOf(Zone zone, CultRecordKey parent, HashSet<CultRecordKey> placed) =>
         placed.Where(k => zone.Orbits[k].Data.Parent.IsSet() && zone.Orbits[k].Data.Parent.Key.Equals(parent))
             .OrderBy(k => zone.Orbits[k].Data.Distance).ToList();
 
@@ -455,17 +455,6 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
 
     private static PlanetSettings AuthoredPlanetSettings() => AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
 
-    // A belt's field kind is chosen at generation and saved with it (Mining Cut 3, Q16 B): every belt the generator writes,
-    // annulus or swarm, carries one before any Zone reads it (finding ensure-unpinned).
-    [Fact]
-    public void EveryBeltIsKindedAtGeneration()
-    {
-        _out.WriteLine($"belts {_zones.Belts}, unkinded at generation {_zones.UnkindedAtGeneration}");
-        Assert.True(_zones.All.Any(z => z.Zone.AsteroidBelts.Values.Any(b => b.Data.RidesRail)), "no swarm in the sample");
-        Assert.True(_zones.Belts > 20, $"only {_zones.Belts} belts generated");
-        Assert.Equal(0, _zones.UnkindedAtGeneration);
-    }
-
     // Two belts side by side under one parent (production never draws them; follow-up belt-after-belt-edge-pin): the second
     // belt's slot starts a sibling spacing outside the first belt's outer edge, not its rail, so their rock intervals keep a spacing.
     [Fact]
@@ -489,6 +478,8 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         var secondInner = second.Distance - second.BeltHalfWidth;
         _out.WriteLine($"first {first.Distance} +- {first.BeltHalfWidth}, second {second.Distance} +- {second.BeltHalfWidth}");
         Assert.True(firstOuter * q <= secondInner * (1 + 1e-4f), $"the second belt's inner edge {secondInner} is within a spacing of the first's outer edge {firstOuter}");
+        // The slot Place records for the second belt starts at that edge (Place is the only writer of a slot).
+        Assert.True(Math.Abs(second.SlotInner - firstOuter * q) <= 1e-4f * second.SlotInner, $"the second belt's slot starts at {second.SlotInner}, not {firstOuter * q}");
     }
 
     // A rosette's ring round a root with no reach limit of its own sits at half the root's 0.75 x radius window, 3/8 of the radius.

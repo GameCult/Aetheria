@@ -221,10 +221,12 @@ public static class ZoneGenerator
         // rocks round both L4 and L5. Drawn from a stream of its own, so no other draw in the zone moves; not a GeneratorPlanet,
         // so it takes no slot and no station candidacy sees it.
         var swarmRandom = new Random(seed ^ TrojanStream);
+        var swarmHosts = new HashSet<GeneratorPlanet>();
         foreach (var host in planets.Where(p => p.Parent != null && !p.Parent.Empty && !p.Belt && p.Distance > 0
                      && p.Mass > zoneSettings.PlanetMass && p.Mass <= zoneSettings.SunMass))
         {
             if (swarmRandom.NextFloat() >= zoneSettings.TrojanProbability) continue;
+            swarmHosts.Add(host);
             var hostOrbit = orbitMap[host];
             var rail = new OrbitData { Parent = hostOrbit.Parent, Distance = hostOrbit.Distance, Phase = hostOrbit.Phase };
             pack.Orbits.Add(cache.Upsert(rail));
@@ -240,9 +242,40 @@ public static class ZoneGenerator
             pack.Planets.Add(cache.Upsert(swarmBody));
         }
 
+        // Laned belts (rulings belt-shapes-direction, lanes-two-sided-visual-margin): a belt candidate that kept its body carries
+        // an annulus on a copy of its rail that fills its slot less a lane round the body, rocks on both sides. The lane is sized
+        // against the body the player sees (LaneBodyRadii body radii a side), and only a body whose slot holds a band at least
+        // that wide on both sides gets one. One belt shape per parent, and none on a swarm host. Drawn from a stream of its own,
+        // so no other draw in the zone moves; its rocks sit inside the host's slot, below the next sibling's spacing, so they
+        // raise no L_F and no support: the lane moves no well, period or height.
+        var laneRandom = new Random(seed ^ LaneStream);
+        var shaped = new HashSet<GeneratorPlanet>(planets.Where(p => p.Belt).Select(p => p.Parent));
+        foreach (var host in planets.Where(p => p.BeltCandidate && !p.Belt))
+        {
+            if (laneRandom.NextFloat() >= zoneSettings.LaneProbability) continue;
+            var lane = zoneSettings.LaneBodyRadii * planetSettings.BodyRadius.Evaluate(host.Mass);
+            if (swarmHosts.Contains(host) || shaped.Contains(host.Parent)
+                || host.SlotInner > host.Distance - 2 * lane || host.SlotOuter < host.Distance + 2 * lane) continue;
+            shaped.Add(host.Parent);
+            var hostOrbit = orbitMap[host];
+            var rail = new OrbitData { Parent = hostOrbit.Parent, Distance = hostOrbit.Distance, Phase = hostOrbit.Phase };
+            pack.Orbits.Add(cache.Upsert(rail));
+            var laned = new AsteroidBeltData
+            {
+                Orbit = cache.RefOf(rail),
+                Asteroids = LaneRocks(zoneSettings, ref laneRandom, host.Mass, rail.Distance, lane, host.SlotInner, host.SlotOuter)
+            };
+            BodyData lanedBody = laned;
+            var lanedKey = cache.Upsert(lanedBody).Key;
+            laned.Name = lanedKey.Value.Substring(0, 8);
+            FieldKinds.Ensure(lanedKey, laned, cache);
+            pack.Planets.Add(cache.Upsert(lanedBody));
+        }
+
         // The generator's own well tree, for clearance only (the Zone builds its own): what a rail must stay out of is the body's
-        // support, or its Roche margin if more. A belt's extent is the rule Zone reads (AsteroidBelt.Extent). Swarm rails are
-        // left out: a swarm's extent is its own rail, a copy of its host's, so it raises no L_F and no support.
+        // support, or its Roche margin if more. A belt's extent is the rule Zone reads (AsteroidBelt.Extent). Swarm and lane rails
+        // are left out: a swarm's extent is its own rail, a copy of its host's, and a lane's outer rock sits inside its host's slot,
+        // below the next sibling's spacing, so neither raises an L_F or a support.
         var wellNodes = planets.Select(p => new WellNode(cache.RefOf(orbitMap[p]).Key, p.Parent == null ? default : cache.RefOf(orbitMap[p.Parent]).Key,
             p.Distance, p.Phase, p.Empty || p.Belt ? 0f : p.Mass,
             p.Belt ? AsteroidBelt.Extent(beltOf[p], p.Distance) : p.Distance, p.FixedPosition)).ToList();
@@ -598,8 +631,11 @@ public static class ZoneGenerator
 			: root.AllPlanets().Where(p => p != root && p.Mass < settings.BeltMassCeiling && !binaries.Contains(p) && p.Children.Count == 0);
 
 		foreach(var planet in beltCandidates.Reverse())
+		{
+			planet.BeltCandidate = true;
 			if (random.NextFloat() < settings.BeltProbability && !planet.Parent.Children.Any(p=>p.Belt))
 				planet.Belt = true;
+		}
 
 		var totalMass = root.AllPlanets().Sum(p => p.Mass);
 		var rootMass = root.Mass;
@@ -631,6 +667,32 @@ public static class ZoneGenerator
 				Size = random.NextFloat(),
 				RotationSpeed = settings.AsteroidRotationSpeed.Evaluate(random.NextFloat())
 			};
+		return rocks;
+	}
+
+	private const uint LaneStream = 0x85EBCA6Bu;
+
+	// A laned belt's rocks: the count an annulus of the host's mass at `distance` would draw, over the bands [inner, distance - lane]
+	// and [distance + lane, outer], each rock in a band by its area and drawn across it as the annulus draws across its width.
+	public static Asteroid[] LaneRocks(ZoneGenerationSettings settings, ref Random random, float mass, float distance, float lane, float inner, float outer)
+	{
+		float Sq(float x) => x * x;
+		var innerArea = Sq(distance - lane) - Sq(inner);
+		var share = innerArea / (innerArea + Sq(outer) - Sq(distance + lane));
+		var rocks = new Asteroid[(int) settings.AsteroidCount.Evaluate(mass * distance)];
+		for (var i = 0; i < rocks.Length; i++)
+		{
+			var innerBand = random.NextFloat() < share;
+			var a = innerBand ? inner : distance + lane;
+			var b = innerBand ? distance - lane : outer;
+			rocks[i] = new Asteroid
+			{
+				Distance = (a + b) / 2 + random.NextFloat() * (random.NextFloat() - .5f) * (b - a),
+				Phase = random.NextFloat(),
+				Size = random.NextFloat(),
+				RotationSpeed = settings.AsteroidRotationSpeed.Evaluate(random.NextFloat())
+			};
+		}
 		return rocks;
 	}
 	public const float CuspMargin = 1.5f;
@@ -691,15 +753,18 @@ public static class ZoneGenerator
 			var g = children.Count > 1 ? pow(upper / positions[positions.Count - 1], 1f / (children.Count - 1)) : 1f;
 			for (var k = 0; k < children.Count; k++)
 				children[k].Distance = positions[k] * pow(g, k);
-			// A belt is an interval inside its slot: inner edge outside the lower bound and the previous sibling's spacing, outer edge
-			// inside the next sibling's spacing and the window; the authored width is the widest it may be.
+			// Every child's slot: from the lower bound and the previous sibling's spacing out to the next sibling's spacing and the
+			// window. Place is the only writer of a slot; a belt fills its own, and the lane pass reads a body's. A belt is an
+			// interval inside its slot, the authored width the widest it may be.
 			var outer = 0f;
 			for (var k = 0; k < children.Count; k++)
 			{
 				var c = children[k];
+				c.SlotInner = Math.Max(lo, outer * q);
+				c.SlotOuter = k + 1 < children.Count ? Math.Min(upper, children[k + 1].Distance / q) : upper;
 				if (!c.Belt) { outer = c.Distance; continue; }
-				var inner = Math.Max(lo, outer * q);
-				var outerLimit = k + 1 < children.Count ? Math.Min(upper, children[k + 1].Distance / q) : upper;
+				var inner = c.SlotInner;
+				var outerLimit = c.SlotOuter;
 				c.Distance = (inner + outerLimit) / 2;
 				var half = Math.Max(0f, Math.Min(c.Settings.AsteroidBeltWidth.Evaluate(c.Distance), outerLimit - inner) / 2);
 				c.BeltHalfWidth = half;
@@ -765,6 +830,11 @@ public class GeneratorPlanet
 	public float BeltHalfWidth;
 	public bool Empty = false;
 	public bool Belt = false;
+	// The interval Place gives a child between its previous sibling's spacing and the next sibling's spacing or the window; zero
+	// on a ring member, which has no slot.
+	public float SlotInner, SlotOuter;
+	// A childless light body, not a binary or root rosette member, that could have become a belt (set by GenerateEntities).
+	public bool BeltCandidate;
 	// A member of a rosette's ring, which Place puts on one orbit round its bodyless parent.
 	public bool Ring = false;
 	public List<GeneratorPlanet> Children = new List<GeneratorPlanet>(); // Planets orbiting this one are referred to as children

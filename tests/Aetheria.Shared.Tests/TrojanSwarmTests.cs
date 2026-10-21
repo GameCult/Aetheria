@@ -98,7 +98,8 @@ public class TrojanSwarmTests
     }
 
     // The widened digests (ZoneFingerprint with PopulatedRadius) were computed on Yggdrasil over the generator of cut laned-belts
-    // C1 (one belt extent rule) with swarms off, over the zones of each seed: a zone with no swarm is the base zone, and a zone with
+    // C1 (one belt extent rule) with swarms off, over the zones of each seed; both samples draw no lane, so the base is the zone
+    // with neither shape: a zone with no swarm is the base zone, and a zone with
     // swarms is the base zone plus them. The per-zone comparison leaves PopulatedRadius out, since a swarm's outer rock may grow it.
     private static readonly Dictionary<uint, string> BaseDigest = new Dictionary<uint, string>
     {
@@ -113,8 +114,8 @@ public class TrojanSwarmTests
     [Fact]
     public void ASwarmMovesNothingElseInTheZone()
     {
-        using var swarmless = new ChildrenWithinReachTests.Zones(First, Last, z => z.TrojanProbability = 0);
-        using var live = new ChildrenWithinReachTests.Zones(First, Last, null);
+        using var swarmless = new ChildrenWithinReachTests.Zones(First, Last, z => { z.TrojanProbability = 0; z.LaneProbability = 0; });
+        using var live = new ChildrenWithinReachTests.Zones(First, Last, z => z.LaneProbability = 0);
         Assert.Equal(swarmless.All.Count, live.All.Count);
         int swarms = 0, grew = 0;
         foreach (var seed in BaseDigest.Keys)
