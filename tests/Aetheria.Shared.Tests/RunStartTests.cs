@@ -178,13 +178,14 @@ public sealed partial class RunStartTests : IDisposable
         }
     }
 
-    // A faction always reaches its own manufacturer's gear: in a main-sector galaxy every product a faction makes is
-    // on offer to that faction, allegiance or not. And an allegiance map lists only other factions.
+    // A faction always reaches its own manufacturer's gear: in a main-sector galaxy every offered product a faction makes
+    // (LoadoutGenerator.IsOffered, the market's one owner) is on offer to that faction, allegiance or not. And an
+    // allegiance map lists only other factions.
     [Fact]
     public void AFactionReachesItsOwnGearAndItsAllegianceNamesOnlyOthers()
     {
         var galaxy = MainSectorGalaxy();
-        var products = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).ToArray();
+        var products = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet() && LoadoutGenerator.IsOffered(_cache, p)).ToArray();
         foreach (var faction in galaxy.Factions)
         {
             Assert.DoesNotContain(faction.Allegiance.Keys, key => key.Key.Equals(_cache.RefOf(faction).Key));
