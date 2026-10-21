@@ -32,6 +32,27 @@ def _inside(triangle, px, py):
     return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
 
 
+def _with_area(triangles_xy):
+    triangles = [tri for tri in triangles_xy if
+                 (tri[1][0] - tri[0][0]) * (tri[2][1] - tri[0][1]) != (tri[1][1] - tri[0][1]) * (tri[2][0] - tri[0][0])]
+    if not triangles:
+        raise ValueError("The hull has no triangle with area to rasterise")
+    return triangles
+
+
+def _size(triangles, cell_size):
+    xs = [p[0] for tri in triangles for p in tri]
+    ys = [p[1] for tri in triangles for p in tri]
+    return _cells_across(max(xs) - min(xs), cell_size), _cells_across(max(ys) - min(ys), cell_size), xs, ys
+
+
+def grid_size(triangles_xy, cell_size=CELL_SIZE):
+    """(width, height) in cells of the grid rasterise would lay over these triangles, without refusing a grid over
+    MAX_CELLS: the caller judges the bound. Raises ValueError when no triangle has area."""
+    width, height, _, _ = _size(_with_area(triangles_xy), cell_size)
+    return width, height
+
+
 def rasterise(triangles_xy, cell_size=CELL_SIZE, samples=SAMPLES):
     """Occupied cells of a top-down silhouette given as triangles of (x, y) points in the Ship Root frame.
 
@@ -40,14 +61,8 @@ def rasterise(triangles_xy, cell_size=CELL_SIZE, samples=SAMPLES):
     inside several triangles counts once, and each triangle is tested only at the samples inside its bounding box.
     Returns (width, height, cells, grid_origin): cells are column-major, cells[x * height + y], and grid_origin is cell
     (0, 0)'s centre."""
-    triangles = [tri for tri in triangles_xy if
-                 (tri[1][0] - tri[0][0]) * (tri[2][1] - tri[0][1]) != (tri[1][1] - tri[0][1]) * (tri[2][0] - tri[0][0])]
-    if not triangles:
-        raise ValueError("The hull has no triangle with area to rasterise")
-    xs = [p[0] for tri in triangles for p in tri]
-    ys = [p[1] for tri in triangles for p in tri]
-    width = _cells_across(max(xs) - min(xs), cell_size)
-    height = _cells_across(max(ys) - min(ys), cell_size)
+    triangles = _with_area(triangles_xy)
+    width, height, xs, ys = _size(triangles, cell_size)
     for axis, count in (("wide", width), ("long", height)):
         if count > MAX_CELLS:
             raise ValueError(f"The hull needs {count} cells {axis}; a ship grid holds at most {MAX_CELLS}")

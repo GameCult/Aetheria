@@ -34,15 +34,17 @@ ANCHORS_SLOT = 3  # ShipAuthoring.Anchors
 SCHEMATIC_LINES_SLOT = 4  # ShipAuthoring.SchematicLines
 HULL_SHAPE_SLOT = 5  # ItemData.Shape
 HULL_HARDPOINTS_SLOT = 23  # HullData.Hardpoints
+HULL_TYPE_SLOT = 25  # HullData.HullType
 # HardpointData member names in slot order; a hardpoint row is one value per name, and any slot past the last
 # name belongs to a later schema and is carried through untouched.
 HARDPOINT_MEMBERS = ("Type", "Position", "Shape", "Transform", "Rotation", "Armor", "FiringArc")
 # ShipAnchor member names in slot order; as for hardpoints, slots past the last name are carried through by anchor Id.
 ANCHOR_MEMBERS = ("Id", "Role", "ModelNodeId", "ParentId", "Order")
-# Enum member names in value order (HardpointType, ItemRotation).
+# Enum member names in value order (HardpointType, ItemRotation, HullType).
 HARDPOINT_TYPE_NAMES = ("Hull", "Tool", "Thermal", "Thruster", "WarpDrive", "Reactor", "Radiator",
                         "Shield", "Sensors", "Energy", "Ballistic", "Launcher", "ControlModule")
 ROTATION_NAMES = ("None", "CounterClockwise", "Reversed", "Clockwise")
+HULL_TYPE_NAMES = ("Ship", "Station", "Turret")
 
 
 # ShipAuthoringStore.RequireShipId's rule, mirrored so New Ship refuses before it touches anything; ShipSchemaPinTests
@@ -206,6 +208,15 @@ def read_layout(path: str, cultlib_packages: str):
     file = read(path, cultlib_packages)
     hull = _hull_body(file)
     return hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT], layout_revision(hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT])
+
+
+def read_hull_type(path: str, cultlib_packages: str) -> str:
+    """The hull's HullData.HullType as its enum member name ("Ship", "Station" or "Turret")."""
+    hull = _hull_body(read(path, cultlib_packages))
+    value = hull[HULL_TYPE_SLOT] if len(hull) > HULL_TYPE_SLOT else None
+    if type(value) is not int or not 0 <= value < len(HULL_TYPE_NAMES):
+        raise ValueError("The ship file's hull has no hull type this add-on knows")
+    return HULL_TYPE_NAMES[value]
 
 
 def layout_revision(shape: list[Any], hardpoints: list[list[Any]]) -> str:

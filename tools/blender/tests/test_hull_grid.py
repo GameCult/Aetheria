@@ -136,6 +136,16 @@ class RasteriseTests(unittest.TestCase):
             hull_grid.rasterise(rect(0, 0, 66, 2))
         self.assertEqual(str(caught.exception), "The hull needs 33 cells wide; a ship grid holds at most 32")
 
+    def test_grid_size_is_rasterises_size_and_does_not_refuse_an_oversized_grid(self):
+        self.assertEqual(hull_grid.grid_size(rect(0, 0, 2, 64)), hull_grid.rasterise(rect(0, 0, 2, 64))[:2])
+        self.assertEqual(hull_grid.grid_size(rect(-3, -1, 3, 4) + CORNER), hull_grid.rasterise(rect(-3, -1, 3, 4) + CORNER)[:2])
+        self.assertEqual(hull_grid.grid_size(rect(0, 0, 2, 66)), (1, 33))
+        self.assertEqual(hull_grid.grid_size(rect(0, 0, 66, 2)), (33, 1))
+        self.assertEqual(hull_grid.grid_size(rect(0, 0, 4, 4), cell_size=1.0), (4, 4))
+        with self.assertRaises(ValueError) as caught:
+            hull_grid.grid_size([((0, 0), (1, 1), (2, 2))])
+        self.assertEqual(str(caught.exception), "The hull has no triangle with area to rasterise")
+
     def test_a_silhouette_with_no_area_is_refused(self):
         for triangles in ([], [((0, 0), (1, 1), (2, 2))]):
             with self.assertRaises(ValueError) as caught:
