@@ -274,6 +274,9 @@ public sealed class ShipProductTests : IDisposable
         RefusedAndUntouched("product", path, "ACM", "--remove");
         RefusedAndUntouched("product", path, "ACM", "--not-offered");
         RefusedAndUntouched("product", path, "ACM", "--name", "--not-offered");
+        RefusedAndUntouched("product", path, "ACM", "--title", "X");
+        RefusedAndUntouched("product", path, "ACM", "--name", "X", "--description");
+        RefusedAndUntouched("product", path, "ACM", "--name", "X", "--note", "Y");
 
         var (code, _, error) = Run("product", path, "ACM", "--name", "Acme Skiff", "--description", "Reliable.");
         Assert.True(code == 0, error);
@@ -305,6 +308,7 @@ public sealed class ShipProductTests : IDisposable
         var (renamedCode, renamedOutput, _) = Run("product", path, "Acme", "--name", "Renamed");
         Assert.Equal(0, renamedCode);
         Assert.DoesNotContain("not offered", renamedOutput);
+        Assert.Equal(offOutput.Replace(", not offered", ""), renamedOutput);
         var renamed = Assert.Single(ShipAuthoringStore.Load(path).Products);
         Assert.Equal("Renamed", renamed.Name);
         Assert.False(renamed.NotOffered);
