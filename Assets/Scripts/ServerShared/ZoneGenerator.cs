@@ -118,6 +118,7 @@ public static class ZoneGenerator
         }
         pack.Orbits = planets.Select(planet => cache.RefOf(orbitMap[planet])).ToList();
 
+        var beltOf = new Dictionary<GeneratorPlanet, AsteroidBeltData>();
         pack.Planets = planets.Where(p=>!p.Empty).Select(planet =>
         {
 	        BodyType bodyType = planet.Belt ? BodyType.Asteroid :
@@ -149,6 +150,7 @@ public static class ZoneGenerator
 	        planetData.Orbit = cache.RefOf(orbitMap[planet]);
             if (planetData is AsteroidBeltData beltData)
             {
+	            beltOf[planet] = beltData;
 	            beltData.Asteroids =
 		            Enumerable.Range(0, (int) zoneSettings.AsteroidCount.Evaluate(beltData.Mass * orbitMap[planet].Distance))
 			            .Select(_ => new Asteroid
@@ -219,7 +221,7 @@ public static class ZoneGenerator
         // rocks round both L4 and L5. Drawn from a stream of its own, so no other draw in the zone moves; not a GeneratorPlanet,
         // so it takes no slot and no station candidacy sees it.
         var swarmRandom = new Random(seed ^ TrojanStream);
-        foreach (var host in planets.Where(p => p.Parent != null && !p.Parent.Empty && !p.Empty && !p.Belt && p.Distance > 0
+        foreach (var host in planets.Where(p => p.Parent != null && !p.Parent.Empty && !p.Belt && p.Distance > 0
                      && p.Mass > zoneSettings.PlanetMass && p.Mass <= zoneSettings.SunMass))
         {
             if (swarmRandom.NextFloat() >= zoneSettings.TrojanProbability) continue;
@@ -239,10 +241,11 @@ public static class ZoneGenerator
         }
 
         // The generator's own well tree, for clearance only (the Zone builds its own): what a rail must stay out of is the body's
-        // support, or its Roche margin if more.
+        // support, or its Roche margin if more. A belt's extent is the rule Zone reads (AsteroidBelt.Extent). Swarm rails are
+        // left out: a swarm's extent is its own rail, a copy of its host's, so it raises no L_F and no support.
         var wellNodes = planets.Select(p => new WellNode(cache.RefOf(orbitMap[p]).Key, p.Parent == null ? default : cache.RefOf(orbitMap[p.Parent]).Key,
             p.Distance, p.Phase, p.Empty || p.Belt ? 0f : p.Mass,
-            p.Belt ? p.Distance + p.BeltHalfWidth : p.Distance, p.FixedPosition)).ToList();
+            p.Belt ? AsteroidBelt.Extent(beltOf[p], p.Distance) : p.Distance, p.FixedPosition)).ToList();
         var wells = WellTree.Build(wellNodes, planetSettings, pack.Radius);
         float Extent(GeneratorPlanet p)
         {

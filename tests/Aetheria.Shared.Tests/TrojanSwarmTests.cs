@@ -97,16 +97,17 @@ public class TrojanSwarmTests
         Assert.True(onSwarmHost > 0, "no station or turret sits on a swarm host's rail");
     }
 
-    // The digests were computed at 67517f40, before this cut, over the zones of each seed with the authored settings: a zone
-    // with no swarm is the base zone, and a zone with swarms is the base zone plus them.
+    // The digests were computed at 67517f40, before cut trojan-swarms, over the zones of each seed with the authored settings;
+    // seeds 3-6 were repinned at cut laned-belts C1, whose one belt extent rule moves stations in them. A zone with no swarm is
+    // the base zone, and a zone with swarms is the base zone plus them.
     private static readonly Dictionary<uint, string> BaseDigest = new Dictionary<uint, string>
     {
         [1] = "02a2bef42b5d4aeaf1e7004d0ab26620ee570ced95115abf98226ab4e0db23eb",
         [2] = "de231f392e5724ecdce7e746957633bef2724252147ecbb5830db047b635aead",
-        [3] = "5c33fe9f748d6b0b34a7bec923216c7f9bbdfdf8f326c59b77fde9ec96ca2bcb",
-        [4] = "585284386657e4714ad325cb053a78853c5bcaf7eb1a02cbd4826b0e86ad3593",
-        [5] = "4a1aeecad09c61ff7daa43eda40a9c0109dc4b6833439b8400d8c72d939950c8",
-        [6] = "7fd3c5844144b73faf05cd6a53fe92274e4455f38da4aaca4624ea13d96a12c3",
+        [3] = "0377471bf1a73b4e00ee2d18a9e90960fdf7011d35e7c648f103f3538750501f",
+        [4] = "195c6647ff921a12cd5ee71f94610f245e64c15fc1d38bc708846cd04e3ddeb5",
+        [5] = "ae0d57e84456767d35a699941238e7574e815da663b0354e5e1676063910e8a5",
+        [6] = "8ad70edd5d41e942ba9067930e0f148e3da6c054bf1d9d7cdd26be93e12017c6",
     };
 
     [Fact]
@@ -148,11 +149,11 @@ public class TrojanSwarmTests
         var belt = MessagePackSerializer.Deserialize<AsteroidBeltData>(old, options);
         Assert.False(belt.RidesRail);
         Assert.Equal(3f, belt.Asteroids[0].Distance);
-        Assert.Equal(7f, new AsteroidBelt(belt).Extent(7f));
-        Assert.Equal(3f, new AsteroidBelt(belt).Extent(2f));
+        Assert.Equal(7f, AsteroidBelt.Extent(belt, 7f));
+        Assert.Equal(3f, AsteroidBelt.Extent(belt, 2f));
         var swarm = MessagePackSerializer.Deserialize<AsteroidBeltData>(MessagePackSerializer.Serialize(
             new AsteroidBeltData { Asteroids = belt.Asteroids, RidesRail = true }, options), options);
         Assert.True(swarm.RidesRail);
-        Assert.Equal(2f, new AsteroidBelt(swarm).Extent(2f));
+        Assert.Equal(2f, AsteroidBelt.Extent(swarm, 2f));
     }
 }

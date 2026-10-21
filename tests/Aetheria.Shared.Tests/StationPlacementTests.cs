@@ -177,7 +177,7 @@ public sealed class StationPlacementTests : IDisposable
         var placed = new HashSet<CultRecordKey>();
         foreach (var body in zone.Planets.Values)
             for (var key = body.Orbit.Key; placed.Add(key) && zone.Orbits[key].Data.Parent.IsSet();) key = zone.Orbits[key].Data.Parent.Key;
-        var beltExtent = zone.AsteroidBelts.ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Extent(zone.Orbits[zone.Planets[b.Key].Orbit.Key].Data.Distance));
+        var beltExtent = zone.AsteroidBelts.ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => AsteroidBelt.Extent(b.Value.Data, zone.Orbits[zone.Planets[b.Key].Orbit.Key].Data.Distance));
         var nodes = placed.Select(k =>
         {
             var d = zone.Orbits[k].Data;
