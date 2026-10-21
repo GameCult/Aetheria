@@ -446,14 +446,14 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         Assert.True(filled >= 10, $"only {filled} of {belts} belts fill the authored width");
     }
 
-    private static GeneratorPlanet Body(GeneratorPlanet parent, float mass, float phase = 0, bool ring = false)
+    internal static GeneratorPlanet Body(GeneratorPlanet parent, float mass, float phase = 0, bool ring = false)
     {
         var node = new GeneratorPlanet { Parent = parent, Mass = mass, Phase = phase, Ring = ring };
         parent.Children.Add(node);
         return node;
     }
 
-    private static PlanetSettings AuthoredPlanetSettings() => AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
+    internal static PlanetSettings AuthoredPlanetSettings() => AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
 
     // Two belts side by side under one parent (production never draws them; follow-up belt-after-belt-edge-pin): the second
     // belt's slot starts a sibling spacing outside the first belt's outer edge, not its rail, so their rock intervals keep a spacing.

@@ -254,8 +254,7 @@ public static class ZoneGenerator
         {
             if (laneRandom.NextFloat() >= zoneSettings.LaneProbability) continue;
             var lane = zoneSettings.LaneBodyRadii * planetSettings.BodyRadius.Evaluate(host.Mass);
-            if (swarmHosts.Contains(host) || shaped.Contains(host.Parent)
-                || host.SlotInner > host.Distance - 2 * lane || host.SlotOuter < host.Distance + 2 * lane) continue;
+            if (swarmHosts.Contains(host) || shaped.Contains(host.Parent) || !LaneHost(host, lane)) continue;
             shaped.Add(host.Parent);
             var hostOrbit = orbitMap[host];
             var rail = new OrbitData { Parent = hostOrbit.Parent, Distance = hostOrbit.Distance, Phase = hostOrbit.Phase };
@@ -671,6 +670,15 @@ public static class ZoneGenerator
 	}
 
 	private const uint LaneStream = 0x85EBCA6Bu;
+
+	// Whether a placed body can carry a lane of half-width `lane`: its slot holds a band at least that wide on both sides
+	// (ruling lanes-two-sided-visual-margin), and it is not its parent's outermost child (ruling lane-not-outermost). Place
+	// stretches the chain to the window, so an outermost child's outer side is the window, not a sibling's spacing; a lane's outer
+	// band there would reach past every sibling's extent and raise its parent's support, and lanes move nothing else in the zone.
+	// An only child is its parent's outermost.
+	public static bool LaneHost(GeneratorPlanet host, float lane) =>
+		host.Parent.Children.Any(c => c.Distance > host.Distance)
+		&& host.SlotInner <= host.Distance - 2 * lane && host.SlotOuter >= host.Distance + 2 * lane;
 
 	// A laned belt's rocks: the count an annulus of the host's mass at `distance` would draw, over the bands [inner, distance - lane]
 	// and [distance + lane, outer], each rock in a band by its area and drawn across it as the annulus draws across its width.

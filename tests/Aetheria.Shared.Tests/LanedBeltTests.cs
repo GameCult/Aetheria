@@ -4,10 +4,10 @@ using GameCult.Caching;
 using Xunit;
 using Xunit.Abstractions;
 
-// Laned belts (rulings belt-shapes-direction, lanes-two-sided-visual-margin; map B60): a belt candidate that kept its body carries
-// an annulus on a copy of its rail that fills the body's slot less a lane LaneBodyRadii body radii a side, with rocks on both
-// sides; it is drawn from a stream of its own and sits inside the slot, so it moves nothing else in the zone. Seeds 1-6, authored
-// settings, against the same seeds drawing no lane.
+// Laned belts (rulings belt-shapes-direction, lanes-two-sided-visual-margin, lane-narrow, lane-not-outermost; map B60): a belt
+// candidate that kept its body and is not its parent's outermost child carries an annulus on a copy of its rail that fills the
+// body's slot less a lane LaneBodyRadii (1.5) body radii a side, with rocks on both sides; it is drawn from a stream of its own and
+// sits inside the slot, so it moves nothing else in the zone. Seeds 1-6, authored settings, against the same seeds drawing no lane.
 public sealed class LanedBeltTests : IClassFixture<LanedBeltTests.Samples>
 {
     private const uint First = 1, Last = 6;
@@ -138,6 +138,23 @@ public sealed class LanedBeltTests : IClassFixture<LanedBeltTests.Samples>
             Assert.True(doubled == 0, $"seed {seed}: {doubled} parents carry two belt shapes");
         }
         Assert.True(lanes > 0, $"no lane in seeds {First}-{Last}");
+    }
+
+    // An only child is its parent's outermost (ruling lane-not-outermost): Place stretches nothing for it, so its slot runs out to
+    // the window and has room for a lane on both sides, yet its lane's outer band would sit past every sibling's extent and raise
+    // the parent's support. The host filter refuses it on that ground alone.
+    [Fact]
+    public void AnOnlyChildHostsNoLane()
+    {
+        var root = new GeneratorPlanet { Mass = 1e5f };
+        var child = ChildrenWithinReachTests.Body(root, 10f);
+        var planetSettings = ChildrenWithinReachTests.AuthoredPlanetSettings();
+        ZoneGenerator.Place(root, planetSettings, 1e6f, 1e5f);
+        var lane = _samples.Authored.Settings.LaneBodyRadii * planetSettings.BodyRadius.Evaluate(child.Mass);
+        _out.WriteLine($"only child at {child.Distance}, slot [{child.SlotInner}, {child.SlotOuter}], lane half-width {lane}");
+        Assert.True(child.SlotInner <= child.Distance - 2 * lane && child.SlotOuter >= child.Distance + 2 * lane,
+            $"the only child's slot [{child.SlotInner}, {child.SlotOuter}] has no room for a lane of {lane} at {child.Distance}");
+        Assert.False(ZoneGenerator.LaneHost(child, lane));
     }
 
     // A belt's field kind is chosen at generation and saved with it (Mining Cut 3, Q16 B): every belt the generator writes,
