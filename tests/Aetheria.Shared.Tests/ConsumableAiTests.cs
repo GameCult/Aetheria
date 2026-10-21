@@ -587,7 +587,11 @@ public sealed class ConsumableAiTests : IDisposable
         s.Zone.Update(.05f);
         Assert.True(s.Agent.Target.Value.IsNone);
         agent.Task = new FollowTask { Anchor = s.Prey, Standoff = 100 };
-        for (var i = 0; i < 6 && !(s.State is FollowState); i++) agent.Update(.05f);
+        for (var i = 0; i < 6 && !(s.State is FollowState); i++)
+        {
+            agent.Update(.05f);
+            PilotApplier.Apply(s.Agent);
+        }
         Assert.True(s.State is FollowState, $"the agent is in {s.State?.GetType().Name}");
 
         void Paint(float strength)
@@ -595,6 +599,7 @@ public sealed class ConsumableAiTests : IDisposable
             s.Agent.ReceivePaint(s.Locker, s.Locker.Equipment.Single(i => i.Behaviors.Any(b => b is LockWeapon)), PaintMode.Track, strength);
             s.Agent.PublishInbox();
             agent.Update(.05f);
+            PilotApplier.Apply(s.Agent);
         }
         Paint(.3f);
         Assert.False(s.Active(s.Vent));

@@ -140,8 +140,8 @@ public sealed partial class RunStartTests
         var launched = Launch(new Duel());
         Assert.Empty(launched.failures);
         _items.Random = new CultMath.Random(0xC0FFEE);
-        launched.staged.Player.MovementDirection = float2(0, 1);
-        launched.staged.Player.Turn = .5f;
+        launched.staged.Player.Command.Movement = float2(0, 1);
+        launched.staged.Player.Command.Turn = TurnCommand.OfRate(.5f);
         foreach (var ship in launched.arena.Entities.OfType<Ship>())
             ship.SetTarget(launched.arena.Entities.OfType<Ship>().First(other => other != ship));
         return (launched.arena, launched.staged.Player);
@@ -238,8 +238,8 @@ public sealed partial class RunStartTests
         Assert.True(turned > 60, "the held turn turned the ship");
 
         // A write to Direction between steps (staging, a load, a wormhole exit) is not a turn.
-        player.Turn = 0;
-        player.MovementDirection = float2(0, 0); // the drives are idled so the Direction write below is tested alone
+        player.Command.Turn = TurnCommand.OfRate(0);
+        player.Command.Movement = float2(0, 0); // the drives are idled so the Direction write below is tested alone
         for (var step = 0; step < 600 && abs(player.TurnRate) > 0; step++) arena.Update(ClockFrame);
         player.Direction = normalize(float2(3, -4));
         arena.Update(ClockFrame);
@@ -295,7 +295,7 @@ public sealed partial class RunStartTests
     public void DrawnRotationFollowsTheTurn()
     {
         var (arena, player) = LaunchDuel();
-        player.Turn = 1f;
+        player.Command.Turn = TurnCommand.OfRate(1f);
         for (var step = 0; step < 300; step++) arena.Update(ClockFrame);
         var rate = player.TurnRate;
         Assert.True(abs(rate) > .05f, "the ship is turning");

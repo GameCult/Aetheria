@@ -57,6 +57,8 @@ public sealed class FlightTests : IDisposable
     private void Tick(float dt)
     {
         foreach (var flight in _zone.Flights.ToArray()) flight.Update(dt);
+        // The flight-only step: each member's command (its flight's designation) is applied as the zone step applies it.
+        foreach (var entity in _zone.Entities.ToArray()) PilotApplier.Apply(entity);
     }
 
     [Fact]

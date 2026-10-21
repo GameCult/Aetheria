@@ -371,6 +371,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         flight.Join(agent, new PatrolOrbitsTask());
 
         flight.Update(.1f);
+        PilotApplier.Apply(r.Shooter);
 
         Assert.Equal(expected, ((FollowTask) agent.Task).Standoff, 2);
     }
@@ -730,7 +731,9 @@ public sealed class FireControlPerWeaponTests : IDisposable
         // update leaves the root state for combat, the second is combat deciding.
         var agent = new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant);
         agent.Update(.01f);
+        PilotApplier.Apply(r.Shooter);
         agent.Update(.01f);
+        PilotApplier.Apply(r.Shooter);
 
         Assert.True(r.Gun.Weapon.Firing);
     }
