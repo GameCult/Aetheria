@@ -219,10 +219,11 @@ public static class ZoneGenerator
 
         // Trojan swarms (rulings trojans-first, trojans-ride-host-period-with-stations): a belt on a copy of its host's rail, its
         // rocks round both L4 and L5. Drawn from a stream of its own, so no other draw in the zone moves; not a GeneratorPlanet,
-        // so it takes no slot and no station candidacy sees it.
+        // so it takes no slot and no station candidacy sees it. A standing binary leaves a bodyless node (Empty) that keeps its
+        // pair's mass and a parent, so the Empty guard is what keeps a swarm off a rail no body is on.
         var swarmRandom = new Random(seed ^ TrojanStream);
         var swarmHosts = new HashSet<GeneratorPlanet>();
-        foreach (var host in planets.Where(p => p.Parent != null && !p.Parent.Empty && !p.Belt && p.Distance > 0
+        foreach (var host in planets.Where(p => p.Parent != null && !p.Parent.Empty && !p.Empty && !p.Belt && p.Distance > 0
                      && p.Mass > zoneSettings.PlanetMass && p.Mass <= zoneSettings.SunMass))
         {
             if (swarmRandom.NextFloat() >= zoneSettings.TrojanProbability) continue;
