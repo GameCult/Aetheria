@@ -289,8 +289,8 @@ def _language(library, faction):
 def build(runner, library, hull_type):
     """Reads the hull source through runner (see Runner) and judges it against the languages library(faction) answers with
     (the ECHO text of that faction's own language file). hull_type is the hull's HullData.HullType name, which the caller
-    reads; only a "Ship" is judged on the language's proportions. Raises HullSourceError when the source cannot be read at all;
-    otherwise returns a HullBuild whose failed() lists the checks it breaks."""
+    reads; only a "Ship" is judged on the language's proportions. Raises HullSourceError when the source cannot be read at
+    all; otherwise returns a HullBuild whose failed() lists the checks it breaks."""
     _, text = runner("brief")
     brief = read_brief(text)
     _, text = runner("lang")

@@ -38,6 +38,8 @@ the hull.scad into the package and runs the panel's operators:
   changes nothing in the scene. Her art needs no product.
   Build and Package refuse copies that share an aetheria.id, selecting the original and the copies, and delete nothing.
   Package moves no row and turns no mount: every layout row is as authored after it, and a hand-turned mount keeps its yaw.
+  The ship.cc HullData.HullType decides whether the language's proportions judge the hull: a body far wider than the
+  language's ships is refused as Ship and built as Station, and a Station wider than the layout grid is refused.
 """
 
 import dataclasses
@@ -698,6 +700,66 @@ def agent_guards(scene):
     return collection
 
 
+def hull_type_gate(scene):
+    """The hull's HullData.HullType in ship.cc decides whether the language's proportions judge it; every hull type must
+    fit the layout grid. A body far wider than a Zhestokost ship is refused as Ship, built as Station, and a Station
+    wider than 32 cells is refused on the grid."""
+    fixture, _, extent, length, rows, *_ = HULLS[0]
+    ship_id = "smoke.hull.role"
+    collection, box, package = make_ship(scene, fixture, ship_id, extent, length, rows)
+    ship_module = sys.modules["aetheria_ships.ship_cc"]
+    path = str(package / "ship.cc")
+    source = package / "hull.scad"
+    original = source.read_text()
+    slab = '\nif (part == "primary") translate([-%d, -2, 0]) cube([%d, 4, 1]);\n'
+    source.write_text(original + slab % (15, 30))
+    judged = []
+    real = hull_source.build
+
+    def recorded(*args):
+        judged.append(real(*args))
+        return judged[-1]
+
+    sys.modules["aetheria_ships"].hull_source.build = recorded
+    try:
+        require(ship_module.read_hull_type(path, PACKAGES) == "Ship", "New Ship did not write a Ship hull")
+        select(box)
+        result, message = run(bpy.ops.aetheria.build_hull_source)
+        require(result == {"CANCELLED"} and "the body's proportions lie inside the language's ranges" in message,
+                f"A Ship far wider than its language allows was built: {message!r}")
+        print("PASS 5.1 a body wider than the language's ships is refused as Ship, on proportion")
+
+        store = ship_module.read(path, PACKAGES).store
+        for envelope in store.pull_all():
+            if envelope.type == ship_module.HULL_SCHEMA:
+                values = msgpack.unpackb(envelope.payload, raw=False)
+                values[ship_module.HULL_TYPE_SLOT] = 1
+                store.push(dataclasses.replace(envelope, payload=msgpack.packb(values, use_bin_type=True)))
+        require(ship_module.read_hull_type(path, PACKAGES) == "Station", "The pushed HullType did not read back as Station")
+        select(box)
+        result, message = run(bpy.ops.aetheria.build_hull_source)
+        names = [c.name for c in judged[-1].checks]
+        require(result == {"FINISHED"} and judged[-1].hull_type == "Station"
+                and "the body's proportions lie inside the language's ranges" not in names
+                and "the top view fits the layout grid" in names,
+                f"The same body as Station was refused or judged on proportion: {message!r} {names}")
+        print("PASS 5.2 the same body as Station is built, with no proportion check and a grid check")
+
+        built = set(generated(collection))
+        source.write_text(original + slab % (35, 70))
+        select(box)
+        result, message = run(bpy.ops.aetheria.build_hull_source)
+        require(result == {"CANCELLED"} and "the top view fits the layout grid" in message
+                and "the body's proportions lie inside the language's ranges" not in message
+                and set(generated(collection)) == built,
+                f"A Station 70 m wide was not refused on the layout grid, or the refusal changed the scene: {message!r}")
+        print("PASS 5.3 a Station 70 m wide is refused on the layout grid, not on proportion")
+    finally:
+        sys.modules["aetheria_ships"].hull_source.build = real
+    print("HULL_TYPE_GATE_OK", flush=True)
+    return collection
+
+
 def main():
     require(bpy.app.version[:2] == (5, 2), f"This smoke is for Blender 5.2; this is {bpy.app.version_string}")
     bpy.data.objects.remove(bpy.data.objects["Cube"], do_unlink=True)
@@ -733,6 +795,7 @@ def main():
         previous = one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palette, maker, other)
     clear(previous)
     clear(agent_guards(scene))
+    clear(hull_type_gate(scene))
     never_built(scene)
 
 
@@ -750,7 +813,7 @@ else:
     print("SMOKE_HULL_SOURCE_OK", flush=True)
     code = 0
 finally:
-    for _, ship_id, *_ in HULLS + ((None, "smoke.hull.unbuilt"), (None, "smoke.hull.guards")):
+    for _, ship_id, *_ in HULLS + ((None, "smoke.hull.unbuilt"), (None, "smoke.hull.guards"), (None, "smoke.hull.role")):
         shutil.rmtree(MODS / ship_id, ignore_errors=True)
     if created:
         shutil.rmtree(MODS, ignore_errors=True)
