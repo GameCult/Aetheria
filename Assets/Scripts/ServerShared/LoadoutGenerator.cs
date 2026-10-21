@@ -197,6 +197,8 @@ public class LoadoutGenerator
                 entry.design != null &&
                 entry.design.Price > 0 &&
                 entry.product.Manufacturer.IsSet() &&
+                // A not-offered product is never a candidate, so the any-manufacturer fallback below cannot reach it either.
+                IsOffered(entry.product) &&
                 (!(entry.design is EquippableItemData equippable) || HasHome(equippable, hulls)) &&
                 (filter?.Invoke(entry.design) ?? true))
             .ToArray();
@@ -216,9 +218,10 @@ public class LoadoutGenerator
     // bunch more hulls before all the gear variety in the game has a home"): generation never offers it, so no station
     // stocks it. It gains one the moment a hull with a hardpoint that takes it exists. Tool gear goes in any interior.
     // Only a hull some product sells gives gear a home: a hull no faction builds (the Smoke Test Hull) is a test fixture, so its
-    // hardpoints never put gear on a shelf. The one definition of the hulls HasHome considers.
+    // hardpoints never put gear on a shelf. An off-market hull gives no gear a home either: only its pinned Loadout flies it.
+    // The one definition of the hulls HasHome considers.
     public static HullData[] SoldHulls(CultCache items) =>
-        items.GetAll<FactionProductData>().Select(product => items.Get(product.Design)).OfType<HullData>().Distinct().ToArray();
+        items.GetAll<FactionProductData>().Where(IsOffered).Select(product => items.Get(product.Design)).OfType<HullData>().Distinct().ToArray();
 
     public static bool HasHome(EquippableItemData design, HullData[] hulls) =>
         design.HardpointType == HardpointType.Tool || design.HardpointType == HardpointType.Hull ||
@@ -231,9 +234,14 @@ public class LoadoutGenerator
     // always reaches its own manufacturer's gear, and otherwise gear made by a manufacturer its allegiance names
     // (operator, 2026-09-30: allegiance lists only other factions). Whether that manufacturer is present in the galaxy
     // does not matter (operator, 2026-10-06: a faction need not be present for its gear to be available).
+    // A not-offered product is available to nobody, a scenario stage included (ruling boss-hulls-exclusive).
     public bool IsAvailable(FactionProductData product) =>
-        Galaxy == null || Faction == null ||
-        ItemManager.ItemData.Get(product.Manufacturer) == Faction || Faction.Allegiance.ContainsKey(product.Manufacturer);
+        IsOffered(product) && (
+            Galaxy == null || Faction == null ||
+            ItemManager.ItemData.Get(product.Manufacturer) == Faction || Faction.Allegiance.ContainsKey(product.Manufacturer));
+
+    // Whether a product is on the market at all (ruling off-market-is-unoffered-product). The one reader of NotOffered.
+    public static bool IsOffered(FactionProductData product) => !product.NotOffered;
 
     // How much this outfitter favors a product: its maker's preference times the product's share of it. The one weight of
     // generation and of ChooseProduct. A bin takes the share of its maker's stock that would pass its floor and its line takes
