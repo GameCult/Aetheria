@@ -24,7 +24,7 @@ from mathutils import Matrix, Vector
 
 from . import hull_grid, hull_source
 from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
-                      encode_hardpoint, layout_revision, read, read_layout, replace_layout, replace_lines,
+                      encode_hardpoint, layout_revision, read, read_hull_type, read_layout, replace_layout, replace_lines,
                       product_makers, replace_visual, valid_ship_id)
 
 MODEL_ASSET = "ship.glb"
@@ -1557,8 +1557,10 @@ def _hull_mesh(name, mesh, material, offset=(0.0, 0.0, 0.0), yaw=0.0):
 
 def _build_hull_source(context, collection):
     """Replaces the objects Build made before with the hull source's zone meshes, anchors and collider under Ship Root.
-    Refuses, before anything changes, when the source cannot be read, breaks a check of its faction's language, or the
-    collection holds render meshes Build did not make (operator art: Build never overwrites it). Writes no layout row."""
+    Refuses, before anything changes, when the source cannot be read, breaks a check of its faction's language (whose
+    proportions judge a hull whose ship.cc HullData.HullType is Ship, and no other), its zones overflow the layout grid,
+    or the collection holds render meshes Build did not make (operator art: Build never overwrites it). Writes no layout
+    row."""
     source = _hull_source_file(collection)
     if source is None:
         raise ValueError("The bound package holds no hull.scad")
@@ -1573,7 +1575,9 @@ def _build_hull_source(context, collection):
                              "changed; Build From Hull Source replaces only what it made and nobody touched")
     addon = context.preferences.addons.get(__package__)
     executable = addon.preferences.openscad if addon and addon.preferences else DEFAULT_OPENSCAD
-    hull = hull_source.build(hull_source.openscad_runner(executable, source), hull_source.language_library(executable))
+    hull_type = read_hull_type(bpy.path.abspath(collection["aetheria.ship_cc"]), _brokkr_cultlib(context))
+    hull = hull_source.build(hull_source.openscad_runner(executable, source), hull_source.language_library(executable),
+                             hull_type)
     broken = hull.failed()
     if broken:
         raise ValueError("The hull source breaks its faction's language or its brief: " + "; ".join(c.name for c in broken))

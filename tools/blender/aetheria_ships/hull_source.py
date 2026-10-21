@@ -14,11 +14,15 @@ with it (a hull that redefines or shadows an included language fails a check):
     <zone>   the zone's geometry, OFF; a donor's zone is named "<donor>:<zone>"
     emit:<id>, rad:<id>   the mesh of a thruster-emitter or radiator-mesh anchor
 
-Frame: Ship Root, metres, nose -Y, starboard -X, up +Z. build() returns a HullBuild; the caller refuses on any failed
-check. Messages and check names are fixed text: nothing a hull source says is echoed back.
+Frame: Ship Root, metres, nose -Y, starboard -X, up +Z. build() also takes the hull's HullData.HullType ("Ship",
+"Station" or "Turret"), which the caller reads: the add-on from the bound package's ship.cc, the bench from its flag.
+A faction language's proportions judge Ship hulls only; every hull's zones must fit the layout grid (hull_grid.MAX_CELLS
+cells of hull_grid.CELL_SIZE a side). The brief's role is prose and decides nothing. build() returns a HullBuild; the
+caller refuses on any failed check. Messages and check names are fixed text: nothing a hull source says is echoed back.
 """
 
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -28,6 +32,13 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
+
+if __package__:
+    from . import hull_grid
+else:  # loaded by path (tests, the bench): load the sibling the same way
+    _grid_spec = importlib.util.spec_from_file_location("hull_grid", Path(__file__).with_name("hull_grid.py"))
+    hull_grid = importlib.util.module_from_spec(_grid_spec)
+    _grid_spec.loader.exec_module(hull_grid)
 
 FACTIONS_DIR = Path(__file__).with_name("factions")
 HULL_FILE = "hull.scad"
@@ -113,6 +124,7 @@ class HullBuild:
     glow: tuple
     radiator: tuple
     body_zone: str  # the zone key the collider is made from
+    hull_type: str  # HullData.HullType of the bound package ("Ship", "Station", "Turret"), as the caller read it
     checks: list = field(default_factory=list)
 
     def failed(self):
@@ -274,9 +286,10 @@ def _language(library, faction):
     return language
 
 
-def build(runner, library):
+def build(runner, library, hull_type):
     """Reads the hull source through runner (see Runner) and judges it against the languages library(faction) answers with
-    (the ECHO text of that faction's own language file). Raises HullSourceError when the source cannot be read at all;
+    (the ECHO text of that faction's own language file). hull_type is the hull's HullData.HullType name, which the caller
+    reads; only a "Ship" is judged on the language's proportions. Raises HullSourceError when the source cannot be read at all;
     otherwise returns a HullBuild whose failed() lists the checks it breaks."""
     _, text = runner("brief")
     brief = read_brief(text)
@@ -298,7 +311,7 @@ def build(runner, library):
     judge = donor or own
     body_zone = f"{donor.faction}:{donor.body}" if donor else own.body
     result = HullBuild(brief, {language.faction: language for language in owned}, zones, colours, anchors, anchor_meshes,
-                       own.glow, own.radiator, body_zone)
+                       own.glow, own.radiator, body_zone, hull_type)
     by_faction = lambda language: language.faction
     result.checks = [Check("the hull includes its faction's language files and changes none of them",
                            sorted(included, key=by_faction) == sorted(owned, key=by_faction), "")]
@@ -314,8 +327,9 @@ def _checks(hull, own, judge):
     checks.append(Check("every emitter and radiator anchor has a mesh", not missing, f"{len(missing)} without"))
     checks.append(Check("a donor is named exactly when the language has no proportions of its own",
                         bool(brief.donor) == (own.proportion is None), ""))
+    # A language's proportions describe its ships; a station or turret is not held to them, and no check is listed.
     body = hull.zones[hull.body_zone] if hull.body_zone in hull.zones else Mesh((), ())
-    if body.triangles and judge.proportion:
+    if hull.hull_type == "Ship" and body.triangles and judge.proportion:
         low, high = body.bounds()
         width, length, height = (high[0] - low[0]), (high[1] - low[1]), (high[2] - low[2])
         ratios = (height / width if width else float("inf"), width / length if length else float("inf"))
@@ -323,7 +337,7 @@ def _checks(hull, own, judge):
         checks.append(Check("the body's proportions lie inside the language's ranges",
                             hw_lo <= ratios[0] <= hw_hi and wl_lo <= ratios[1] <= wl_hi,
                             f"h/w {ratios[0]:.2f}, w/l {ratios[1]:.2f}"))
-    else:
+    elif hull.hull_type == "Ship":
         checks.append(Check("the body's proportions lie inside the language's ranges", False, "no body to judge"))
     every = [m for m in list(hull.zones.values()) + list(hull.anchor_meshes.values()) if m.triangles]
     if every:
@@ -338,6 +352,14 @@ def _checks(hull, own, judge):
     else:
         checks.append(Check("the top view obeys the language's symmetry rule", False, "no geometry"))
         checks.append(Check("the length lies inside the brief's range", False, "no geometry"))
+    # Rasterise reads the zone meshes only, so the grid bound is judged over them, not over anchor meshes.
+    try:
+        width, height = hull_grid.grid_size([t for m in hull.zones.values() for t in _triangles_xy(m)])
+        checks.append(Check("the top view fits the layout grid",
+                            width <= hull_grid.MAX_CELLS and height <= hull_grid.MAX_CELLS,
+                            f"{width} x {height} cells, at most {hull_grid.MAX_CELLS} a side"))
+    except ValueError:
+        checks.append(Check("the top view fits the layout grid", False, "no geometry"))
     triangles = sum(len(m.triangles) for m in every)
     checks.append(Check("the triangle count lies inside the brief's budget",
                         brief.triangles[0] <= triangles <= brief.triangles[1], f"{triangles}"))

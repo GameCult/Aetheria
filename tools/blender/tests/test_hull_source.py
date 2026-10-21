@@ -57,6 +57,7 @@ class Fixture:
     def __init__(self):
         self.library = {"zhestokost": language()}
         self.hull_lang = None
+        self.hull_type = "Ship"  # HullData.HullType, which the caller reads from the package
         # Body 6 wide, 10 long, 2 high (h/w 0.33, w/l 0.6); a bilateral plate on top; one gun with a muzzle.
         self.parts = {
             "brief": ("", brief()),
@@ -77,7 +78,7 @@ class Fixture:
         return self.library[faction]
 
     def build(self):
-        return hs.build(self.runner(), self.read_library)
+        return hs.build(self.runner(), self.read_library, self.hull_type)
 
     def failed(self):
         return [c.name for c in self.build().failed()]
@@ -126,6 +127,82 @@ class ReadingTests(unittest.TestCase):
             hs.read_languages(language(symmetry=("mostly", 0.5)))
         with self.assertRaises(hs.HullSourceError):
             hs.read_languages(language(body="keel"))
+
+
+PROPORTION = "the body's proportions lie inside the language's ranges"
+GRID = "the top view fits the layout grid"
+
+
+def names(built):
+    return [c.name for c in built.checks]
+
+
+class HullTypeTests(unittest.TestCase):
+    """A language's proportions judge Ship hulls only; every other rule, and the layout grid, judges every hull type."""
+
+    @staticmethod
+    def fixture(hull_type, **parts):
+        fixture = Fixture()
+        fixture.hull_type = hull_type
+        fixture.parts.update({k: (v, "") for k, v in parts.items()})
+        return fixture
+
+    def test_a_station_or_turret_is_not_held_to_the_languages_proportions_and_lists_no_proportion_check(self):
+        wide = box(-12, 12, -5, 5, 0, 2)  # h/w 0.08, w/l 2.4: outside both of Zhestokost's ranges
+        for hull_type in ("Station", "Turret"):
+            with self.subTest(hull_type):
+                built = self.fixture(hull_type, primary=wide).build()
+                self.assertEqual([c.name for c in built.failed()], [])
+                self.assertNotIn(PROPORTION, names(built))
+                self.assertEqual(built.hull_type, hull_type)
+        self.assertEqual(self.fixture("Ship", primary=wide).failed(), [PROPORTION])
+
+    def test_a_station_with_no_body_lists_no_proportion_check_but_a_ship_fails_it(self):
+        self.assertNotIn(PROPORTION, names(self.fixture("Station", primary="").build()))
+        ship = self.fixture("Ship", primary="").build()
+        self.assertEqual([c.detail for c in ship.checks if c.name == PROPORTION], ["no body to judge"])
+
+    def test_a_ship_lists_the_proportion_check_when_it_passes(self):
+        built = self.fixture("Ship").build()
+        self.assertEqual([c.ok for c in built.checks if c.name == PROPORTION], [True])
+
+    def test_a_station_is_still_judged_on_symmetry_length_and_budget(self):
+        self.assertEqual(self.fixture("Station", secondary=box(2, 6, -1, 1, 2, 3)).failed(),
+                         ["the top view obeys the language's bilateral rule"])
+        self.assertEqual(self.fixture("Station", primary=box(-3, 3, -10, 10, 0, 2)).failed(),
+                         ["the length lies inside the brief's range"])
+        station = self.fixture("Station")
+        station.parts["brief"] = ("", brief(triangles=(10, 20)))
+        self.assertEqual(station.failed(), ["the triangle count lies inside the brief's budget"])
+
+    def test_every_hull_type_must_fit_the_layout_grid_at_thirty_two_cells_a_side(self):
+        for hull_type in ("Ship", "Station", "Turret"):
+            with self.subTest(hull_type):
+                fits = self.fixture(hull_type, secondary=box(-32, 32, -1, 1, 2, 3)).build()
+                self.assertEqual([(c.ok, c.detail) for c in fits.checks if c.name == GRID],
+                                 [(True, "32 x 5 cells, at most 32 a side")])
+                wide = self.fixture(hull_type, secondary=box(-33, 33, -1, 1, 2, 3))
+                self.assertEqual(wide.failed(), [GRID])
+                self.assertEqual([c.detail for c in wide.build().checks if c.name == GRID],
+                                 ["33 x 5 cells, at most 32 a side"])
+        long = self.fixture("Station", secondary=box(-1, 1, -33, 33, 2, 3))
+        long.parts["brief"] = ("", brief(length=(8, 70)))
+        self.assertEqual(long.failed(), [GRID])
+        self.assertEqual([c.detail for c in long.build().checks if c.name == GRID], ["3 x 33 cells, at most 32 a side"])
+
+    def test_the_grid_reads_zone_meshes_only_not_anchor_meshes(self):
+        built = self.fixture("Station", **{"emit:Th.A": box(-35, 35, 5, 5.1, 0.5, 1.5)}).build()
+        self.assertEqual([c.name for c in built.failed()], [])
+        self.assertEqual([c.detail for c in built.checks if c.name == GRID], ["3 x 5 cells, at most 32 a side"])
+
+    def test_a_hull_with_no_zone_geometry_fails_the_grid_check(self):
+        built = self.fixture("Station", primary="", secondary="").build()
+        self.assertEqual([(c.ok, c.detail) for c in built.checks if c.name == GRID], [(False, "no geometry")])
+
+    def test_build_has_no_default_hull_type(self):
+        fixture = Fixture()
+        with self.assertRaises(TypeError):
+            hs.build(fixture.runner(), fixture.read_library)
 
 
 class MirrorOverlapTests(unittest.TestCase):
@@ -381,7 +458,7 @@ class LanguageOwnershipTests(unittest.TestCase):
     def test_the_library_is_asked_for_the_faction_and_the_donor_the_brief_names(self):
         asked = []
         fixture = DonorTests.pirate()
-        hs.build(fixture.runner(), lambda faction: asked.append(faction) or fixture.read_library(faction))
+        hs.build(fixture.runner(), lambda faction: asked.append(faction) or fixture.read_library(faction), "Ship")
         self.assertEqual(sorted(asked), ["pirate", "rnd"])
 
 
