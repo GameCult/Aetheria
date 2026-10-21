@@ -34,11 +34,14 @@ from pathlib import Path
 from typing import Callable, Optional
 
 if __package__:
-    from . import hull_grid
-else:  # loaded by path (tests, the bench): load the sibling the same way
-    _grid_spec = importlib.util.spec_from_file_location("hull_grid", Path(__file__).with_name("hull_grid.py"))
-    hull_grid = importlib.util.module_from_spec(_grid_spec)
-    _grid_spec.loader.exec_module(hull_grid)
+    from . import hull_grid, ship_cc
+else:  # loaded by path (tests, the bench): load the siblings the same way
+    def _sibling(name):
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(f"{name}.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    hull_grid, ship_cc = _sibling("hull_grid"), _sibling("ship_cc")
 
 FACTIONS_DIR = Path(__file__).with_name("factions")
 HULL_FILE = "hull.scad"
@@ -289,8 +292,11 @@ def _language(library, faction):
 def build(runner, library, hull_type):
     """Reads the hull source through runner (see Runner) and judges it against the languages library(faction) answers with
     (the ECHO text of that faction's own language file). hull_type is the hull's HullData.HullType name, which the caller
-    reads; only a "Ship" is judged on the language's proportions. Raises HullSourceError when the source cannot be read at
-    all; otherwise returns a HullBuild whose failed() lists the checks it breaks."""
+    reads; only a "Ship" is judged on the language's proportions. Raises HullSourceError, before reading anything, when
+    hull_type is not one of ship_cc.HULL_TYPE_NAMES, and when the source cannot be read at all; otherwise returns a
+    HullBuild whose failed() lists the checks it breaks."""
+    if not (type(hull_type) is str and hull_type in ship_cc.HULL_TYPE_NAMES):
+        raise HullSourceError("The hull type is not a HullData.HullType name (Ship, Station or Turret)")
     _, text = runner("brief")
     brief = read_brief(text)
     _, text = runner("lang")
