@@ -60,19 +60,40 @@ public sealed partial class RunStartTests
         Assert.Equal(expected.Random.state, items.Random.state);
     }
 
-    // A pack holding one unpiloted ship at the origin besides the player, from a staged arena.
+    private const int OriginDrifters = 3;
+
+    // The galaxy seed whose ContinueStep item seed wraps to zero: -ContinueStep times the inverse of 0x9E3779B1, mod 2^32.
+    private const uint ZeroAtContinueSeed = 0xD45E720Du;
+
+    [Fact]
+    public void ItemSeedRefusesAZeroSeed()
+    {
+        var galaxy = Launch(new Scripted(false, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)),
+            seed: ZeroAtContinueSeed)).galaxy;
+        Assert.Equal(ZeroAtContinueSeed, galaxy.Seed);
+        Assert.NotEqual(0u, RunStart.ItemSeed(galaxy, RunStart.ArenaStep));
+        var refused = Assert.Throws<InvalidOperationException>(() => RunStart.ItemSeed(galaxy, RunStart.ContinueStep));
+        Assert.Contains("zero", refused.Message);
+    }
+
+    // A pack holding three unpiloted ships at the origin besides the player, from a staged arena. More than one, so
+    // each ship's own ordinal is visible: ships sharing a draw would stack on one point.
     private (ZonePack pack, Galaxy galaxy) OriginPack()
     {
-        Ship drifter = null;
+        var drifters = new List<Ship>();
         var (galaxy, arena, staged, failures) = Launch(new Scripted(false, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
-            drifter = stage.Place(stage.Bare("Longinus"), float2(0, 0)) as Ship;
+            for (var i = 0; i < OriginDrifters; i++)
+                drifters.Add(stage.Place(stage.Bare("Longinus"), float2(0, 0)) as Ship);
         }));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
-        Assert.NotNull(drifter);
-        Assert.False(drifter.IsPlayerShip);
-        Assert.True(lengthsq(drifter.Position) < 1, "the fixture's drifter is packed at the origin");
+        Assert.All(drifters, drifter =>
+        {
+            Assert.NotNull(drifter);
+            Assert.False(drifter.IsPlayerShip);
+            Assert.True(lengthsq(drifter.Position) < 1, "the fixture's drifters are packed at the origin");
+        });
         return (arena.PackZone(), galaxy);
     }
 
@@ -95,6 +116,32 @@ public sealed partial class RunStartTests
         Assert.NotEmpty(first);
         Assert.All(first, position => Assert.True(lengthsq(position) >= 1, "the drifter was scattered"));
         Assert.Equal(first, second);
+    }
+
+    // Each origin ship is placed by its own draw: the 1-based ordinal of its entry in the pack, on the zone's
+    // ScatterStream, within half the zone's radius of the centre on every axis.
+    [Fact]
+    public void ScatterDrawsEachShipsOrdinalWithinHalfTheRadius()
+    {
+        var (pack, galaxy) = OriginPack();
+        var zone = new Zone(_items, _planetSettings, pack, galaxy.Entrance, galaxy);
+        Assert.Equal(pack.Entities.Count, zone.Entities.Count);
+
+        var half = pack.Radius * .5f;
+        var expected = new List<CultMath.float3>();
+        var actual = new List<CultMath.float3>();
+        for (var i = 0; i < zone.Entities.Count; i++)
+        {
+            if (zone.Entities[i] is not Ship {IsPlayerShip: false} ship) continue;
+            expected.Add(SimulationDice.For(zone.CombatSeed, SimulationDice.ScatterStream, (uint) i + 1)
+                .NextFloat3(float3(-half), float3(half)));
+            actual.Add(ship.Position);
+        }
+
+        Assert.Equal(OriginDrifters, actual.Count);
+        Assert.Equal(expected, actual);
+        Assert.Equal(OriginDrifters, actual.Distinct().Count());
+        Assert.All(actual, position => Assert.True(all(abs(position) <= half), $"{position} is within half the radius {half}"));
     }
 
     [Fact]
