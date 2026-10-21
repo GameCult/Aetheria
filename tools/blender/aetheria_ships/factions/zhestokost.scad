@@ -23,6 +23,7 @@
 //      the skin, so nothing floats. Top/belly frames keep local +Y aft; wall/belt frames keep +Y aft with local +X
 //      pointing down the wall on either side (starboard mates are mirrors of port); stern/nose frames have local +Y down.
 //   3. Zone routing: every zh_ module draws only the zone the global `part` names, so a hull writes its assembly once.
+//      A hull on a Zhestokost donor (HULL_DONOR == "zhestokost") names a donor zone 'zhestokost:<zone>'.
 //      Anchor meshes (zh_rad_vanes, zh_emitter) are not routed: call them inside the hull's rad:/emit: parts under
 //      the same mate that placed their housing.
 // Scale: chamfers are cast-heavy (ZH_CH); fittings have standard sizes (ZH_HATCH, ZH_COLLAR_R, ZH_LUG) shared by
@@ -37,7 +38,8 @@ ZH_HATCH = 2.6;        // standard magazine hatch (m, square)
 ZH_COLLAR_R = 1.05;    // standard transfer collar radius
 ZH_LUG = 1.0;          // standard tow lug scale
 
-module zh_z(z) { if (part == z) children(); }
+function zh_key(z) = (!is_undef(HULL_DONOR) && HULL_DONOR == "zhestokost") ? str("zhestokost:", z) : z;
+module zh_z(z) { if (part == zh_key(z)) children(); }
 
 // ==== geometry core: sections, surface points, mates =================================================================
 // A section. bt: deck inset (how far the upper wall batters in), bb: belly inset. Defaults keep the faction's batter.
