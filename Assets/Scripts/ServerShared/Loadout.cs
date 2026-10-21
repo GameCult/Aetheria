@@ -99,14 +99,13 @@ public static class Loadouts
     // The only writer of Loadout records. It opens its own short-lived cache over the catalog file, writable, and disposes it
     // after the one commit. No other cache is touched, so no catalog instance play holds (or has mutated) can reach the
     // file; a cache that already has the catalog open sees the loadout only once it reloads.
-    // Throws and writes nothing when the loadout names a mod design (hull or slot), when the file is missing (capture never creates a catalog), when a loadout of this name
+    // The catalog is a stack of packages, the shipped content included (ruling catalog-is-a-package-stack), so a loadout may
+    // name any design the stack holds; one whose package is later removed fails closed where it is built, with its reason logged.
+    // Throws and writes nothing when the file is missing (capture never creates a catalog), when a loadout of this name
     // exists under another key, or when one exists under KeyOf(Name) and replace is not set. The commit is conditional
     // on the record at KeyOf(Name), so a loadout changed on disk since this open is not clobbered: returns false then.
     public static bool Commit(string catalogPath, Loadout loadout, bool replace)
     {
-        var modDesigns = new[] { loadout.Hull.Key }.Concat(loadout.Slots.Select(slot => slot.Design.Key)).Where(ShipModCatalog.IsModKey).Select(key => key.Value).Distinct().ToArray();
-        if (modDesigns.Length > 0)
-            throw new InvalidOperationException($"Loadout '{loadout.Name}' names mod designs ({string.Join(", ", modDesigns)}); the shipped catalog never references a mod, so a mod ship cannot be captured as a loadout.");
         if (!File.Exists(catalogPath))
             throw new InvalidOperationException($"Catalog {catalogPath} does not exist; a loadout commit never creates one.");
         using var cache = AetheriaStores.Open(catalogPath, catalogWritable: true);

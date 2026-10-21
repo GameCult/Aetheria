@@ -122,27 +122,25 @@ public sealed class LoadoutTests : IDisposable
         Assert.True(!File.Exists(Player) || !SchemaNames(Player).Contains("aetheria.loadout"));
     }
 
-    // The shipped catalog never references a mod: a mod may be uninstalled, and a preset naming one would dangle. The
-    // refusal is at the only writer, so no caller (the editor command included) can get one into the file.
+    // The catalog is a stack of packages (ruling catalog-is-a-package-stack): a preset may name a package's design, hull or
+    // slot, and the only writer commits it under the package's key. Whether the design resolves is decided where the preset is
+    // built, not here.
     [Theory]
     [InlineData("hull", "mod-hull:mod.skiff")]
     [InlineData("slot", "mod-hull:mod.skiff")]
     [InlineData("slot", "mod-ship:mod.skiff")]
-    public void APresetNamingAModDesignIsRefusedAndNothingIsWritten(string where, string key)
+    public void APresetNamingAPackageDesignIsCommitted(string where, string key)
     {
-        var mod = new CultRecordRef<EquippableItemData>(new CultRecordKey(key));
         using var cache = Open();
         var loadout = HandBuilt(cache);
         if (where == "hull") loadout.Hull = new CultRecordRef<HullData>(new CultRecordKey(key));
-        else loadout.Slots[1].Design = mod;
-        var before = Hash(Catalog);
+        else loadout.Slots[1].Design = new CultRecordRef<EquippableItemData>(new CultRecordKey(key));
 
-        var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(Catalog, loadout, replace: false));
+        Assert.True(Loadouts.Commit(Catalog, loadout, replace: false));
 
-        Assert.Contains("names mod designs", error.Message);
-        Assert.Contains(key, error.Message);
-        Assert.Equal(before, Hash(Catalog));
-        Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false));
+        using var reopened = Open();
+        var written = Assert.Single(reopened.GetAll<Loadout>());
+        Assert.Equal(key, (where == "hull" ? written.Hull.Key : written.Slots[1].Design.Key).Value);
     }
 
     // Recapturing a name refuses without replace and leaves the file untouched; with replace it replaces, never duplicates.
