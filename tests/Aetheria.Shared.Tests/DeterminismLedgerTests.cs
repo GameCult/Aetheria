@@ -43,8 +43,8 @@ public sealed partial class RunStartTests
     {
         var galaxy = Launch(new Scripted(false, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)), seed: 4242)).galaxy;
         Assert.Equal(4242u, galaxy.Seed);
-        Assert.Equal(4242u * 0x9E3779B1u + 1, RunStart.ItemSeed(galaxy, RunStart.ArenaStep));
-        Assert.Equal(4242u * 0x9E3779B1u + 2, RunStart.ItemSeed(galaxy, RunStart.StageStep));
+        Assert.Equal(unchecked(4242u * 0x9E3779B1u + 1), RunStart.ItemSeed(galaxy, RunStart.ArenaStep));
+        Assert.Equal(unchecked(4242u * 0x9E3779B1u + 2), RunStart.ItemSeed(galaxy, RunStart.StageStep));
         var arena = RunStart.ItemSeed(galaxy, RunStart.ArenaStep);
         var stage = RunStart.ItemSeed(galaxy, RunStart.StageStep);
         var resumed = RunStart.ItemSeed(galaxy, RunStart.ContinueStep);
