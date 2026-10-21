@@ -4,6 +4,7 @@ using static ItemRotation;
 public sealed class RefusedRounds : Scenario
 {
     public override string Name => "Refused Rounds";
+    public override string Id => "refused-rounds";
     public override string Brief => "The Smoke Test Hull with Smoke Refused, Smoke Refused Beam, Smoke Refused Charge and an Autocannon; a bare Longinus " +
                                     "dead ahead. Each smoke weapon's blast radius is wider than its range, so it can never be fired. Verify: pull each " +
                                     "trigger and a refused shot costs no ammo, energy, heat, sound, visibility or cooldown, the beam never starts and " +

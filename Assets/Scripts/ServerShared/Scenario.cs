@@ -6,6 +6,10 @@ public abstract class Scenario
 {
     public abstract string Name { get; }
 
+    // The scenario's stable identity: kebab-case, unique across Scenarios, never shown to the player, recorded by
+    // matches and replays. Name is display only.
+    public abstract string Id { get; }
+
     // The conditions and what to verify in them, shown under the scenario's button.
     public abstract string Brief { get; }
 

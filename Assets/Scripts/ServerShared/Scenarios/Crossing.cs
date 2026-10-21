@@ -4,6 +4,7 @@ using static ItemRotation;
 public sealed class Crossing : Scenario
 {
     public override string Name => "Crossing";
+    public override string Id => "crossing";
     public override string Brief => "A Lightning Projector at the starboard gun and a Cell Blaster at the port gun, an unpiloted Djinni coasting across the bow " +
                                     "close ahead and an unpiloted one waiting at range. The crosser is launched to port at 50 m/s and only coasts: nothing steers it, " +
                                     "its hull drag slows it to about 25 m/s at the bow line, and it does not shoot back. Make the pass coasting: give no throttle until the Djinni has crossed the bow, then fly freely " +

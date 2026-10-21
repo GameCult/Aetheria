@@ -4,6 +4,7 @@ using static ItemRotation;
 public sealed class AiFusedDiscipline : Scenario
 {
     public override string Name => "AI Fused Discipline";
+    public override string Id => "ai-fused-discipline";
     public override string Brief => "A Djinni; a piloted neutral Longinus carrying a Smoke Proximity and a piloted hostile Longinus whose only weapon is " +
                                     "Smoke Refused. Verify: the hostile closes on you and never fires its refused weapon; the neutral never fires its " +
                                     "fused one.";

@@ -4,6 +4,7 @@ using float2 = CultMath.float2;
 public sealed class TutorialGalaxy : Scenario
 {
     public override string Name => "Tutorial Galaxy";
+    public override string Id => "tutorial-galaxy";
     public override string Brief => "A small galaxy of fixed factions, entered in a ship of the protagonist faction.";
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();

@@ -37,6 +37,7 @@ public sealed partial class RunStartTests
         }
 
         public override string Name => "Scripted";
+        public override string Id => "test-scripted";
         public override string Brief => "A test's own scenario.";
         public override uint Seed => _seed;
         public override bool Ambient => _ambient;

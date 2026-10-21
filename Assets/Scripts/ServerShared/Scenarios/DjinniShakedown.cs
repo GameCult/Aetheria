@@ -3,6 +3,7 @@ using float2 = CultMath.float2;
 public sealed class DjinniShakedown : Scenario
 {
     public override string Name => "Djinni Shakedown";
+    public override string Id => "djinni-shakedown";
     public override string Brief => "A fitted Djinni in empty space, facing +z, with a bare hull dead ahead and one abeam. Verify: its thrusters " +
                                     "move and turn it; with the hull offline and thrusters firing, its speed does not run away. Its " +
                                     "articulated ballistic barrel points at the hull ahead when it bears, and rests at the arc edge while you " +

@@ -17,6 +17,7 @@ public sealed class DemoTerminus : Scenario
     };
 
     public override string Name => "Terminus (Demo)";
+    public override string Id => "demo-terminus";
     public override string Brief => "One gate, one region, one boss. Allied: the Pirates. Opposed: Zhestokost. " +
                                     "Neutral: Lucent Media and Aeronautics Unlimited.";
 

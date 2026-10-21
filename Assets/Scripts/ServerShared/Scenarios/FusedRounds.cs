@@ -4,6 +4,7 @@ using static ItemRotation;
 public sealed class FusedRounds : Scenario
 {
     public override string Name => "Fused Rounds";
+    public override string Id => "fused-rounds";
     public override string Brief => "The Smoke Test Hull with Smoke Proximity, Smoke Delayed and a Cluster Cannon; a hostile bare Longinus at mid range, a bare " +
                                     "hull dead ahead, a fragile one to starboard, a close one inside the proximity blast radius, and one astern. " +
                                     "Verify with nothing selected: aim past every hull and the round bursts at max range along the aim; aim at the hull " +

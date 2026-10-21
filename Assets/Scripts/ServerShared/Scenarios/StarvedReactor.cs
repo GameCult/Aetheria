@@ -4,6 +4,7 @@ using static ItemRotation;
 public sealed class StarvedReactor : Scenario
 {
     public override string Name => "Starved Reactor";
+    public override string Id => "starved-reactor";
     public override string Brief => "Two Light Lasers on a Muon Fusion Reactor, which can fall to a quarter of the Compact Reactor's charge, and a bare hull " +
                                     "to shoot. Verify: starvation reads as starvation, brownout degrades, refills stutter.";
     public override uint Seed => 102;

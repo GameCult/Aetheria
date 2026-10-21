@@ -9,6 +9,7 @@ public sealed class Pursuit : Scenario
     private const float Astern = 300;
 
     public override string Name => "Pursuit";
+    public override string Id => "pursuit";
     public override string Brief => "A hostile Longinus on your tail; a Mine Launcher fitted, three Coolant Vents and two Thruster " +
                                     "Overdrives aboard. Verify: lay mines in its path, the mine pulses slowly after 2 s, fast when " +
                                     "the hostile is near, explodes 2 s later; vent and coast to lose it; overdrive away.";
