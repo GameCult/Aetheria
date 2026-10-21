@@ -57,7 +57,7 @@ public class Agent
     {
         // The pilot tick writes Turn every tick, in every state: a state that pilots overwrites this zero with its
         // demand, and one that does not leaves the hull holding course instead of inheriting the last state's rate.
-        Ship.Turn = 0;
+        /*DEL turn0*/
         VentOnTrack();
         _currentState.Update(delta);
         foreach (var transition in _currentState.Transitions)
@@ -84,7 +84,7 @@ public class Agent
     {
         if (Ship.HasActiveConsumable(kind)) return;
         var consumable = Ship.FirstCarriedConsumable(kind);
-        if (consumable != null) Ship.TryActivateConsumable(consumable);
+        if (consumable != null) /*DEL use*/;
     }
 
     public void Accelerate(float2 targetVelocity, bool noTurn = false)
@@ -95,18 +95,18 @@ public class Agent
         // If Delta V is above the threshold, direct the ship towards the delta and use only main thrusters
         if (!noTurn && deltaVMag > FORWARD_DELTA_THRESHOLD)
         {
-            Ship.Turn = Steering.Toward(Ship, deltaVDirection);
-            Ship.MovementDirection = float2(0, pow(dot(Ship.Direction, deltaVDirection), 2));
+            /*DEL accel-turn*/
+            /*DEL accel-move1*/
         }
         // If Delta V is low, use all thrusters and leave Turn to the caller (MoveTo already pointed it at the target)
         else if(deltaVMag > THRUST_DELTA_THRESHOLD)
         {
             var right = Ship.Direction.Rotate(ItemRotation.Clockwise);
-            Ship.MovementDirection = float2(dot(right, deltaVDirection), dot(Ship.Direction, deltaVDirection));
+            /*DEL accel-move2*/
         }
         else
         {
-            Ship.MovementDirection = float2.zero;
+            /*DEL accel-move3*/
         }
     }
 }

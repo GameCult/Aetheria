@@ -70,7 +70,7 @@ public class CombatState : BaseState
                 bestTargetItem = reveal.Item;
             }
         }
-        _agent.Ship.TrySelectTargetItem(bestTargetItem);
+        /*DEL select*/
 
         for (var i = 0; i < _agent.Ship.WeaponGroups.Length; i++)
         {
@@ -94,7 +94,7 @@ public class CombatState : BaseState
             if (dps > .1) _availableGroups.Add((i, dps));
         }
         
-        foreach(var w in _availableLockingWeapons) w.Activate();
+        foreach(var w in _availableLockingWeapons) /*DEL lock*/;
 
         UseConsumables(toTarget, targetDistance);
 
@@ -140,13 +140,13 @@ public class CombatState : BaseState
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
                 if (FireControl.AgentFires(weapon, _agent.Ship, target, _agent.Doctrine.MinHitProbability))
-                    weapon.Activate();
+                    /*DEL pull*/;
                 else if (weapon.Firing)
-                    weapon.Deactivate();
+                    /*DEL release*/;
             }
         }
-        _agent.Ship.Aim = toTarget;
-        _agent.Ship.Turn = Steering.Toward(_agent.Ship, toTarget.xz);
+        /*DEL aim*/
+        /*DEL turn*/
         _agent.Accelerate(movementDirection * _agent.TopSpeed, true);//selectedGroup >= 0);
 
         // Fire charged guns!
