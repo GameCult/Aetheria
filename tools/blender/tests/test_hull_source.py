@@ -1023,5 +1023,25 @@ class LineCheckDetailTests(unittest.TestCase):
         self.assertEqual(built.failed(), [])
 
 
+class BytesOpenScad(FakeOpenScad):
+    """Writes raw bytes where -o points: an SVG with a byte that is not UTF-8 in its title."""
+
+    def __call__(self, command, **kwargs):
+        self.calls.append((command, kwargs.get("env")))
+        Path(command[command.index("-o") + 1]).write_bytes(bytes([255]) + SVG.encode("utf-8"))
+        return self
+
+
+class SilhouetteReadTests(unittest.TestCase):
+    def test_a_drawing_with_a_byte_that_is_not_utf8_still_reads(self):
+        with mock.patch.object(hs.subprocess, "Popen", BytesOpenScad()):
+            self.assertEqual(len(hs.openscad_projector("scad")([hs.parse_off(box(0, 1, 0, 1, 0, 1))])), 2)
+
+    def test_a_number_that_is_not_a_number_is_refused_in_fixed_words(self):
+        with self.assertRaises(hs.HullSourceError) as caught:
+            hs.parse_svg_contours('<svg><path d="M .,. L 1,1 L 2,2 z"/></svg>')
+        self.assertEqual(str(caught.exception), "OpenSCAD wrote a silhouette that is not readable")
+
+
 if __name__ == "__main__":
     unittest.main()
