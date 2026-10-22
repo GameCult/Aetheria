@@ -91,14 +91,12 @@ public static class StationKindsCatalog
         output.WriteLine($"{hull.Name}: kind {kindId}");
         if (!apply)
         {
-            output.WriteLine("
-Dry run. Pass \"apply\" to set it.");
+            output.WriteLine("\nDry run. Pass \"apply\" to set it.");
             return 0;
         }
         hull.Kind = kind;
         cache.Upsert(hull);
-        output.WriteLine($"
-Set {hull.Name}'s kind in Aetheria.cc");
+        output.WriteLine($"\nSet {hull.Name}'s kind in Aetheria.cc");
         return 0;
     }
 }
