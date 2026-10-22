@@ -775,4 +775,124 @@ public sealed class CargoTransferTests : IDisposable
         var stock = Commodity("Ore", 10); // 7 credits each
         Assert.Equal(expected, StationServices.BuyableQuantity(_items, stock, typed, credits));
     }
+    // ---- The bay owns the quantity that may sit in it ---------------------------------------------------------
+
+    [Theory]
+    [InlineData("Ore", 0)]
+    [InlineData("Ore", -3)]
+    [InlineData("Ore", int.MinValue)]
+    [InlineData("Grit", 3)] // MaxStack 2
+    [InlineData("Ore", 101)]
+    public void TheBayRefusesAStackBelowOneOrAboveMaxStack(string design, int quantity)
+    {
+        var bay = ShipWith("Crate").CargoBays[0];
+        var massBefore = bay.Mass;
+
+        Assert.False(bay.TryStore(Commodity(design, quantity)));
+        Assert.False(bay.TryStore(Commodity(design, quantity), new int2(0, 0)));
+
+        Assert.Empty(bay.Cargo);
+        Assert.Equal(massBefore, bay.Mass);
+    }
+
+    [Fact]
+    public void ANegativeStackNeverMergesIntoAHeldOne()
+    {
+        var bay = ShipWith("Crate").CargoBays[0];
+        var held = Commodity("Ore", 5);
+        Assert.True(bay.TryStore(held));
+        var at = bay.Cargo[held];
+
+        Assert.False(bay.TryStore(Commodity("Ore", -3), at));
+
+        Assert.Equal(5, held.Quantity);
+    }
+
+    [Fact]
+    public void AMergeThatOverflowsFillsTheHeldStackToMaxAndLeavesTheRestWithTheCaller()
+    {
+        var bay = ShipWith("Crate").CargoBays[0];
+        var held = Commodity("Grit", 1);
+        Assert.True(bay.TryStore(held));
+        var incoming = Commodity("Grit", 2);
+
+        Assert.False(bay.TryStore(incoming, bay.Cargo[held]));
+
+        Assert.Equal(2, held.Quantity);
+        Assert.Equal(1, incoming.Quantity);
+    }
+
+    [Fact]
+    public void APurchaseAboveTheStationStockIsRefusedWithoutCharge()
+    {
+        // Real bays, Grit stacks hold two: a stock of 3 cannot be bought as 5. Before, the second lot took the 1-unit
+        // remainder and was charged for 2.
+        var station = Station().CargoBays[0];
+        var player = ShipWith("Crate").CargoBays[0];
+        var stock = Commodity("Grit", 2);
+        Assert.True(station.TryStore(stock));
+        var second = Commodity("Grit", 1);
+        Assert.True(station.TryStore(second, new int2(1, 0)));
+        var credits = 100;
+
+        var result = StationServices.TryBuyLots(_items, stock, 5, ref credits, lot => station.TryTransferItem(player, stock, lot));
+
+        Assert.Equal(BuyResult.NoRoom, result);
+        Assert.Equal(100, credits);
+        Assert.Equal(0, Units(player, stock));
+    }
+
+    [Fact]
+    public void APurchaseOfAnEmptyStationStackChargesNothingAndDeliversNothing()
+    {
+        var station = Station().CargoBays[0];
+        var player = ShipWith("Crate").CargoBays[0];
+        var stock = Commodity("Ore", 0);
+        var credits = 100;
+
+        var result = StationServices.TryBuyLots(_items, stock, StationServices.BuyableQuantity(_items, stock, 1, credits), ref credits,
+            lot => station.TryTransferItem(player, stock, lot));
+
+        Assert.Equal(BuyResult.NoRoom, result);
+        Assert.Equal(100, credits);
+        Assert.Empty(player.Cargo);
+    }
+
+    [Fact]
+    public void ThePurchaseOfTheWholeStockChargesTheUnitsTheBayMoved()
+    {
+        var station = Station().CargoBays[0];
+        var player = ShipWith("Crate").CargoBays[0];
+        var stock = Commodity("Grit", 2);
+        Assert.True(station.TryStore(stock));
+        var more = Commodity("Grit", 1);
+        Assert.True(station.TryStore(more, new int2(1, 0)));
+        var credits = 100;
+
+        var result = StationServices.TryBuyLots(_items, stock, 2, ref credits, lot => station.TryTransferItem(player, stock, lot));
+
+        Assert.Equal(BuyResult.Bought, result);
+        Assert.Equal(98, credits);
+        Assert.Equal(2, Units(player, stock));
+    }
+
+    [Fact]
+    public void ARestoredBayDropsAStackBelowOneAndLogsWhy()
+    {
+        var log = new List<string>();
+        var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+        var items = new ItemManager(1u, _cache, new ProvenanceLedger(), settings, log.Add);
+        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var ship = ShipWith("Crate");
+        Assert.True(ship.CargoBays[0].TryStore(Commodity("Slag", 4)));
+        var pack = (ShipPack) EntitySerializer.Pack(ship);
+        // The typed -5 purchase of old saves: a negative stack in the hold, beside a good one.
+        pack.CargoContents[0] = pack.CargoContents[0].Concat(new[] { (new int2(3, 3), (ItemInstance) Commodity("Ore", -5)) }).ToArray();
+
+        var restored = (Ship) EntitySerializer.Unpack(items, zone, pack);
+
+        var bay = restored.CargoBays[0];
+        Assert.Equal(new[] { 4 }, bay.Cargo.Keys.OfType<SimpleCommodity>().Select(c => c.Quantity).ToArray());
+        Assert.Contains(log, l => l.Contains("-5") && l.Contains("Ore"));
+    }
 }
