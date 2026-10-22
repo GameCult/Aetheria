@@ -545,6 +545,10 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
             cultlib = _brokkr_cultlib(context)
             if read(path, cultlib).ship.body[0] != collection["aetheria.id"]:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
+            saved_shape, _, _ = read_layout(path, cultlib)
+            root = _ship_root(collection)
+            if root is not None:  # the frame Package would write the model in, so the lines match ship.glb
+                _frame_ship(context, collection, root, path, saved_shape)
             lines = _schematic_lines(context, collection)
             if lines is None:
                 raise ValueError("No schematic lines were captured; the ship record was not changed")
