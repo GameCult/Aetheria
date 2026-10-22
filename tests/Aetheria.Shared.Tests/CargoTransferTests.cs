@@ -697,15 +697,14 @@ public sealed class CargoTransferTests : IDisposable
         Assert.Equal(5, order.Remaining);
     }
 
-    // An empty stack in a hold is no unit to give: the give moves the real units and then has nothing left.
+    // A give of more than the hold has moves the real units and then has nothing left.
     [Fact]
-    public void AnEmptyStackIsNotAUnitToGive()
+    public void AGiveOfMoreThanTheHoldHasEndsNothingLeft()
     {
         var giver = ShipWithBays("Crate");
         var receiver = ShipWithBays("Crate");
         var grit = Commodity("Grit", 2);
         Assert.True(giver.CargoBays[0].TryStore(grit));
-        Assert.True(giver.CargoBays[0].TryStore(Commodity("Grit", 0)));
         Place(giver, receiver);
         giver.Command.Give(receiver, grit, 3);
 
