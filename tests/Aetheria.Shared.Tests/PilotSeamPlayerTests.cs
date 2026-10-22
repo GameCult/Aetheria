@@ -221,6 +221,71 @@ public sealed partial class RunStartTests
         SeamAimEqual(selectThenCycle, east.ResolvedAim);
     }
 
+    // A stance press flips the stance as it stands when the press is applied, so two in a step cancel, as two flips in
+    // place did before the seam; none is replayed.
+    [Fact]
+    public void StanceTogglesInAStepCompose()
+    {
+        var (arena, east, west, _) = PlayerSeamTrio();
+        Assert.False(east.IsHostileTo(west));
+        east.Command.ToggleStance(west);
+        Assert.False(east.IsHostileTo(west), "nothing lands before the step");
+        arena.Update(SeamDt);
+        Assert.True(east.IsHostileTo(west));
+
+        east.Command.ToggleStance(west);
+        east.Command.ToggleStance(west);
+        arena.Update(SeamDt);
+        Assert.True(east.IsHostileTo(west), "two flips in a step cancel");
+
+        east.Command.ToggleStance(west);
+        arena.Update(SeamDt);
+        Assert.False(east.IsHostileTo(west));
+        arena.Update(SeamDt);
+        Assert.False(east.IsHostileTo(west), "the press is not replayed");
+    }
+
+    // The player's switches are presses on its command too: each flips at the next step, two in a step cancel, and none is
+    // replayed. A ping is a press that pings once.
+    [Fact]
+    public void PlayerSwitchesArePressesAtTheStep()
+    {
+        var (arena, east, _) = SeamPair(false);
+        Assert.NotNull(east.Shield);
+        Assert.NotNull(east.Sensor);
+        (bool, bool, bool) Switches() => (east.OverrideShutdown, east.HeatsinksEnabled, east.Shield.Item.Enabled.Value);
+        Assert.Equal((false, true, true), Switches());
+
+        east.Command.ToggleOverrideShutdown();
+        east.Command.ToggleHeatsinks();
+        east.Command.ToggleShield();
+        Assert.Equal((false, true, true), Switches());
+        arena.Update(SeamDt);
+        Assert.Equal((true, false, false), Switches());
+        arena.Update(SeamDt);
+        Assert.Equal((true, false, false), Switches());
+
+        east.Command.ToggleOverrideShutdown();
+        east.Command.ToggleOverrideShutdown();
+        east.Command.ToggleHeatsinks();
+        east.Command.ToggleHeatsinks();
+        east.Command.ToggleShield();
+        east.Command.ToggleShield();
+        arena.Update(SeamDt);
+        Assert.Equal((true, false, false), Switches());
+
+        var pings = 0;
+        east.Sensor.OnPingStart += () => pings++;
+        for (var step = 0; step < 600; step++) arena.Update(SeamDt); // the ping's capacitor fills
+        Assert.Equal(0, pings);
+        east.Command.Ping();
+        Assert.Equal(0, pings);
+        arena.Update(SeamDt);
+        Assert.Equal(1, pings);
+        for (var step = 0; step < 10; step++) arena.Update(SeamDt);
+        Assert.Equal(1, pings);
+    }
+
     // A trigger that counts its edges: a semi-auto fires once per Activate.
     private sealed class SeamTrigger : IActivatedBehavior
     {
