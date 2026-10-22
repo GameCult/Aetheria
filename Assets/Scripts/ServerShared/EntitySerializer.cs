@@ -47,6 +47,15 @@ public static class EntitySerializer
         return pack;
     }
 
+    // A saved stack goes back where it was. The bay refuses what cannot sit in it (a stack below one unit, as the typed
+    // -5 purchase of old saves left, or above MaxStack), and the refusal is logged, never silent.
+    private static void RestoreStack(ItemManager itemManager, EquippedCargoBay bay, int2 position, ItemInstance item)
+    {
+        if (bay.TryStore(item, position)) return;
+        var quantity = item is SimpleCommodity commodity ? $" x{commodity.Quantity}" : "";
+        itemManager.Log($"Dropped a saved item the bay refused at {position}: {itemManager.GetData(item).Name}{quantity}");
+    }
+
     public static Entity Unpack(ItemManager itemManager, Zone zone, EntityPack pack)
     {
         return pack switch
@@ -103,12 +112,12 @@ public static class EntitySerializer
         for (var bayIndex = 0; bayIndex < pack.CargoContents.Length; bayIndex++)
             if(entity.CargoBays.Count >= bayIndex + 1)
                 foreach (var (position, item) in pack.CargoContents[bayIndex])
-                    entity.CargoBays[bayIndex].TryStore(item, position);
+                    RestoreStack(itemManager, entity.CargoBays[bayIndex], position, item);
 
         for (var bayIndex = 0; bayIndex < pack.DockingBayContents.Length; bayIndex++)
             if(entity.DockingBays.Count >= bayIndex + 1)
                 foreach (var (position, item) in pack.DockingBayContents[bayIndex])
-                    entity.DockingBays[bayIndex].TryStore(item, position);
+                    RestoreStack(itemManager, entity.DockingBays[bayIndex], position, item);
 
         entity.Temperature = pack.Temperature;
 

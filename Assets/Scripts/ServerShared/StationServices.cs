@@ -79,12 +79,13 @@ public static class StationServices
         return BuyResult.Bought;
     }
 
-    // The purchase of `quantity` units of a station stack, one lot of at most MaxStack at a time. `deliver` puts a lot of
-    // that many units where it goes, and each lot is charged for the units it delivered. The first lot the station
-    // cannot sell or the player cannot take ends the purchase, with the lots before it bought.
+    // The purchase of `quantity` units of a station stack, one lot of at most MaxStack at a time. The stock is the
+    // station's: a purchase of more than the stack holds, or of a stack that holds nothing, is refused before anything
+    // moves, so every lot is units the station has and `deliver` moves whole, and each lot is charged for the units it
+    // delivered. The first lot the player cannot take ends the purchase, with the lots before it bought.
     public static BuyResult TryBuyLots(ItemManager items, SimpleCommodity stock, int quantity, ref int credits, Func<int, bool> deliver)
     {
-        if (quantity < 1) return BuyResult.NoRoom;
+        if (quantity < 1 || quantity > stock.Quantity) return BuyResult.NoRoom;
         var maxStack = items.GetData(stock).MaxStack;
         for (var remaining = quantity; remaining > 0;)
         {

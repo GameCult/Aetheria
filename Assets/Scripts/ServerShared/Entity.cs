@@ -2530,9 +2530,12 @@ public class EquippedCargoBay : EquippedItem
     // Try to store the given commodity at the given position
     // If there's a stack at the given position it will be added to
     // Returns true only when ALL of the items are successfully stored
+    // The bay decides what quantity may sit in it: a stack below one unit or above its design's MaxStack is refused with
+    // the bay as it was, so no caller, loot, pickup or restore has to check for it.
     public bool TryStore(SimpleCommodity item, int2 cargoCoord)
     {
         var itemData = ItemManager.GetData(item);
+        if (item.Quantity < 1 || item.Quantity > itemData.MaxStack) return false;
         if (ItemFits(item, cargoCoord))
         {
             foreach (var p in itemData.Shape.Coordinates)
