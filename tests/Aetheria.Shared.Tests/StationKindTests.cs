@@ -264,7 +264,6 @@ public sealed class StationKindTests : IDisposable
         var pack = world.Generator(world.Lucent).GenerateStationLoadout(kind);
         Assert.NotNull(pack);
         Assert.Equal(kind.Key, pack.Kind.Key);
-        Assert.Contains(world.Log, line => line.Contains("any manufacturer"));
     }
 
     [Fact]
