@@ -70,7 +70,7 @@ public sealed partial class ContactRevealTests
         ship.SetTarget(TargetRef.None);
         for (var step = 0; step < (int) MathF.Round(seconds / dt); step++)
         {
-            capacitor.AddCharge(1000f);
+            capacitor.AddStepCharge(1000f, dt);
             gun.Activate();
             Tick(dt);
         }
@@ -313,18 +313,24 @@ public sealed partial class ContactRevealTests
         foreach (var s in ships) s.SetTarget(TargetRef.None);
         void Step()
         {
-            for (var i = 0; i < guns; i++) { capacitors[i].AddCharge(1000f); weapons[i].Activate(); }
+            for (var i = 0; i < guns; i++) { capacitors[i].AddStepCharge(1000f, dt); weapons[i].Activate(); }
             Tick(dt);
         }
         for (var i = 0; i < 30; i++) Step(); // warm the JIT and the shot queue
-        rounds = 0;
+        for (var i = 0; i < 60; i++) Tick(dt); // let the in-flight rounds resolve
         var steps = 300;
+        var idleBytes = GC.GetAllocatedBytesForCurrentThread();
+        var idle = System.Diagnostics.Stopwatch.StartNew();
+        for (var i = 0; i < steps; i++) Tick(dt);
+        idle.Stop();
+        idleBytes = GC.GetAllocatedBytesForCurrentThread() - idleBytes;
+        rounds = 0;
         var bytes = GC.GetAllocatedBytesForCurrentThread();
         var watch = System.Diagnostics.Stopwatch.StartNew();
         for (var i = 0; i < steps; i++) Step();
         watch.Stop();
         bytes = GC.GetAllocatedBytesForCurrentThread() - bytes;
-        var line = $"{guns} guns at .005 s, {SimClock.TickRate} Hz: {rounds / (double) steps:F1} rounds per step, {watch.Elapsed.TotalMilliseconds / steps:F3} ms per step, {bytes / (double) rounds:F0} heap bytes per round";
+        var line = $"{guns} guns at .005 s, {SimClock.TickRate} Hz: {rounds / (double) steps:F1} rounds per step, {watch.Elapsed.TotalMilliseconds / steps:F3} ms per step, {(bytes - idleBytes) / (double) rounds:F0} heap bytes per round beyond the idle step (idle step {idle.Elapsed.TotalMilliseconds / steps:F3} ms, {idleBytes / (double) steps:F0} bytes)";
         System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "simrate-stepcost.txt"), line);
         Assert.True(Math.Abs(rounds / (double) steps - guns * dt / .005) < 1.0 * guns, line);
     }

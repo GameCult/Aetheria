@@ -181,7 +181,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public float PowerRequest(float dt)
     {
         RefreshInputCapacitor();
-        return _capacitor.RequestedFill(dt);
+        return _capacitor.RequestedStepFill(dt);
     }
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense. The ruling's own example of what
@@ -265,7 +265,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public override bool Execute(float dt)
     {
         try { return Step(dt); }
-        finally { _pulled = false; }
+        finally { _pulled = false; _capacitor.Settle(); }
     }
 
     // One step of rounds. A round is due at a moment inside the step (_burstTimer is how long ago, at the step's end), and a
@@ -277,7 +277,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         // Cut 4: this tick's grant, read back via Item.PowerSupply -- Item is non-null here because a null-Item
         // instance never reaches PowerBus.Step (see TrySpendActivationEnergy) and so never accrues charge.
         if (Item != null)
-            _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
+            _capacitor.AddStepCharge(_capacitor.RequestedStepFill(dt) * Item.PowerSupply, dt);
         var ended = false;
         var retriggered = false;
         if (_coolingDown)
