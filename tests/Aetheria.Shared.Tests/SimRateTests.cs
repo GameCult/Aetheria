@@ -293,7 +293,7 @@ public sealed partial class ContactRevealTests
             var rounds = HoldTrigger(ship, Guns(ship)[0], dt, 10f, fireTimes);
             var probe = (InstantWeapon) Guns(ship)[0].Behaviors.Single(b => b is InstantWeapon);
             var cap = (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(probe);
-            Assert.True(abs(rounds.Count - 1000f) <= 1.01f, $"dt {dt}: {rounds.Count} rounds in 10 s, expected 1000 +-1; capacity {cap.Capacity} rate {cap.Rate} charge {cap.Charge} cooldown {probe.Cooldown} canfire {probe.CanFire} firing {probe.Firing}");
+            Assert.True(abs(rounds.Count - 1000f) <= 1.01f, $"dt {dt}: {rounds.Count} rounds in 10 s, expected 1000 +-1; capacity {cap.Capacity} rate {cap.Rate} charge {cap.Charge} cooldown {probe.Cooldown} canfire {probe.CanFire} firing {probe.Firing} retriggers {probe.DiagRetriggers} break {probe.DiagBreak}");
             Assert.Equal(rounds.Count, fireTimes.Count);
             for (var i = 1; i < fireTimes.Count; i++)
                 Assert.True(abs(fireTimes[i] - fireTimes[i - 1] - .01f) < 2e-4f, $"dt {dt}: rounds {i - 1} and {i} born {fireTimes[i - 1]:R} and {fireTimes[i]:R}");
