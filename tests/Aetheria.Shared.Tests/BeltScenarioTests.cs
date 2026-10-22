@@ -35,7 +35,7 @@ public sealed partial class RunStartTests
 
         var field = arena.Planets.Single(body => body.Value == belt).Key;
         // A weapon's reach and a sensor's gain are read once the ship's stats have settled, so the first second passes first.
-        for (var tick = 0; tick < 60; tick++) arena.Update(1f / 60f);
+        for (var tick = 0; tick < System.MathF.Round(1f / SimClock.GameStep); tick++) arena.Update(SimClock.GameStep);
         var inReach = new List<ChunkId>();
         player.VisibleChunksInReach(inReach);
         Assert.NotEmpty(inReach);
