@@ -241,11 +241,6 @@ public sealed partial class RunStartTests
         arena.Update(SeamDt);
         Assert.True(east.IsHostileTo(west), "a stance set is a set, not a flip");
 
-        east.Command.ToggleStance();
-        east.Command.ToggleStance();
-        arena.Update(SeamDt);
-        Assert.True(east.IsHostileTo(west), "two flips in a step cancel");
-
         // Next then the press in one step: the press flips the new target, not the one applied when it was pressed.
         east.Command.Verb(TargetVerb.Next);
         east.Command.ToggleStance();
@@ -253,14 +248,33 @@ public sealed partial class RunStartTests
         Assert.Same(third, east.Target.Value.Entity);
         Assert.True(east.IsHostileTo(third), "the press flips the new target");
         Assert.True(east.IsHostileTo(west), "the old target is untouched");
-        east.Command.Designate(new TargetRef(west));
-        arena.Update(SeamDt);
 
+        // Declaring the target neutral drops it (it leaves VisibleEnemies), so a second press in that step finds no
+        // target, as a second press in place did before the seam.
+        east.Command.ToggleStance();
         east.Command.ToggleStance();
         arena.Update(SeamDt);
-        Assert.False(east.IsHostileTo(west));
+        Assert.False(east.IsHostileTo(third));
+        Assert.True(east.Target.Value.IsNone);
+
+        // From neutral, two flips in a step cancel.
+        east.Command.Iff(west, false);
         arena.Update(SeamDt);
-        Assert.False(east.IsHostileTo(west), "the press is not replayed");
+        east.Command.Designate(new TargetRef(west));
+        arena.Update(SeamDt);
+        Assert.Same(west, east.Target.Value.Entity);
+        east.Command.ToggleStance();
+        east.Command.ToggleStance();
+        arena.Update(SeamDt);
+        Assert.False(east.IsHostileTo(west), "two flips in a step cancel");
+        Assert.Equal(false, east.IffOverride(west));
+
+        east.Command.Designate(new TargetRef(west));
+        east.Command.ToggleStance();
+        arena.Update(SeamDt);
+        Assert.True(east.IsHostileTo(west));
+        arena.Update(SeamDt);
+        Assert.True(east.IsHostileTo(west), "the press is not replayed");
     }
 
     // The player's switches are presses on its command too: each flips at the next step, two in a step cancel, and none is
