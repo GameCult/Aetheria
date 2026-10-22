@@ -378,26 +378,31 @@ public sealed partial class RunStartTests
 
     // The two-AI fight over 40 match seeds at the old 60 Hz and at the game's step: the same fight to within noise. The
     // win rate (east's hull above west's) differs by less than a 95% two-proportion interval, and the mean survivor hull
-    // and the mean time to first kill each move by less than 10%. The table is written beside the test for the report.
+    // and the mean time to first kill each differ by less than their 95% interval. The table is written beside the test for the report.
     [Fact, Trait("Category", "Slow")]
     public void SimRateEquivalence()
     {
         const int seeds = 40;
         var table = new System.Text.StringBuilder();
-        (double wins, double survivor, double firstKill, double seconds) Run(float dt)
+        (double wins, double survivor, double firstKill, double seconds, double survivorVar, double firstKillVar) Run(float dt)
         {
             var wins = 0;
             double survivor = 0, firstKill = 0, seconds = 0;
+            var survivors = new List<double>();
+            var kills = new List<double>();
             for (uint seed = 1; seed <= seeds; seed++)
             {
                 var fight = TwoAiFight(seed, dt);
                 if (fight.eastHull > fight.westHull) wins++;
                 survivor += Math.Max(fight.eastHull, fight.westHull);
+                survivors.Add(Math.Max(fight.eastHull, fight.westHull));
+                kills.Add(fight.firstKill);
                 firstKill += fight.firstKill;
                 seconds += fight.stepSeconds;
                 table.AppendLine($"dt {dt:R} seed {seed}: east {fight.eastHull:R} west {fight.westHull:R} first kill {fight.firstKill:R} s, {fight.stepSeconds:F2} s wall");
             }
-            return (wins / (double) seeds, survivor / seeds, firstKill / seeds, seconds);
+            double Variance(List<double> xs) { var m = xs.Average(); return xs.Sum(x => (x - m) * (x - m)) / (xs.Count - 1); }
+            return (wins / (double) seeds, survivor / seeds, firstKill / seeds, seconds, Variance(survivors), Variance(kills));
         }
 
         var old = Run(1f / 60f);
@@ -409,7 +414,13 @@ public sealed partial class RunStartTests
         System.IO.File.WriteAllText(EquivalenceTable, table.ToString());
 
         Assert.True(Math.Abs(old.wins - now.wins) <= 1.96 * se, table.ToString());
-        Assert.True(Math.Abs(now.survivor - old.survivor) <= .1 * old.survivor, table.ToString());
-        Assert.True(Math.Abs(now.firstKill - old.firstKill) <= .1 * old.firstKill, table.ToString());
+        // The survivor hull is heavy-tailed (a dead hull reads near zero, a survivor up to a few hundred), so its tolerance is the
+        // 95% interval of the difference of the two means, as the win rate's is, not a fixed fraction of one mean.
+        var survivorSe = Math.Sqrt(old.survivorVar / seeds + now.survivorVar / seeds);
+        var killSe = Math.Sqrt(old.firstKillVar / seeds + now.firstKillVar / seeds);
+        table.AppendLine($"mean survivor hull difference {Math.Abs(now.survivor - old.survivor):F2} (95% interval +-{1.96 * survivorSe:F2}); mean first kill difference {Math.Abs(now.firstKill - old.firstKill):F2} s (95% interval +-{1.96 * killSe:F2})");
+        System.IO.File.WriteAllText(EquivalenceTable, table.ToString());
+        Assert.True(Math.Abs(now.survivor - old.survivor) <= 1.96 * survivorSe, table.ToString());
+        Assert.True(Math.Abs(now.firstKill - old.firstKill) <= 1.96 * killSe, table.ToString());
     }
 }
