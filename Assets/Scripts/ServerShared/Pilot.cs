@@ -56,6 +56,8 @@ public sealed class PilotCommand
     internal readonly List<(ActivatedBehavior Behavior, bool Pull)> Triggers = new List<(ActivatedBehavior, bool)>();
     internal readonly List<(Entity Other, bool? Hostile, bool Toggle)> Iffs = new List<(Entity, bool?, bool)>();
     internal TargetVerb TargetVerb;
+    // The step's give verb: a Give, or a stop when its Receiver is null. The last one in a step wins.
+    internal (Entity Receiver, ItemInstance Item, int Quantity)? GiveVerb;
     internal int AimCycles;
     internal int ShutdownOverrideToggles, HeatsinkToggles, ShieldToggles, Pings;
 
@@ -77,6 +79,17 @@ public sealed class PilotCommand
     public void ToggleHeatsinks() => HeatsinkToggles++;
     public void ToggleShield() => ShieldToggles++;
     public void Ping() => Pings++;
+    // Offers goods from this entity's hold to a ship alongside (ruling transfer-is-give-only): the quantity of a commodity,
+    // or the one crafted instance. It replaces any give under way. A give of nothing, or of less than one, is ignored, and
+    // so is one to oneself when applied. The last give or stop in a step wins.
+    public void Give(Entity receiver, ItemInstance item, int quantity)
+    {
+        if (receiver == null || item == null) return;
+        var count = item is CraftedItemInstance ? 1 : quantity;
+        if (count < 1) return;
+        GiveVerb = (receiver, item, count);
+    }
+    public void StopGiving() => GiveVerb = (null, null, 0);
 
     // The pilot's own pending decisions, which it reads back instead of the ship (that is last step's applied state).
     public TargetRef? Designated => Designations.Count > 0 ? Designations[Designations.Count - 1] : (TargetRef?) null;
@@ -98,6 +111,7 @@ public sealed class PilotCommand
         Triggers.Clear();
         Iffs.Clear();
         TargetVerb = TargetVerb.None;
+        GiveVerb = null;
         AimCycles = 0;
         ShutdownOverrideToggles = HeatsinkToggles = ShieldToggles = Pings = 0;
     }
@@ -134,6 +148,11 @@ public static class PilotApplier
         for (var i = 0; i < command.Pings; i++) entity.Sensor?.Ping();
         foreach (var hail in command.Hails) entity.SetMessage(hail);
         foreach (var consumable in command.Uses) entity.TryActivateConsumable(consumable);
+        if (command.GiveVerb is (Entity receiver, ItemInstance given, int quantity))
+        {
+            if (receiver == null) CargoTransfer.End(entity, GiveEnd.Stopped);
+            else if (!ReferenceEquals(receiver, entity)) CargoTransfer.Begin(entity, new GiveOrder(receiver, given, quantity));
+        }
         if (command.Aim is float3 aim) entity.Aim = aim;
         foreach (var (behavior, pull) in command.Triggers)
             if (pull) behavior.Activate();

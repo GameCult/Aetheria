@@ -191,6 +191,10 @@ public abstract class Entity
     // The pilot's tractor command (0..1); the Pickup behaviour spins its beam toward it.
     public float TractorCommand { get; internal set; }
 
+    // The give the pilot has under way, and why the last one ended. CargoTransfer is the only writer of both.
+    public GiveOrder Giving { get; internal set; }
+    public GiveEnd? LastGiveEnd { get; internal set; }
+
     // The beam's spun-up state: Pickup's, or 0 without one.
     public float TractorPower => GetBehavior<Pickup>()?.Power ?? 0f;
     
@@ -1460,42 +1464,6 @@ public abstract class Entity
         }
     }
 
-    // Attempts to move a given number of items of the given type to the target Entity
-    // Returns the number of items successfully transferred
-    public int TryTransferItems(Entity target, CultRecordKey itemDataID, int quantity)
-    {
-        int quantityTransferred = 0;
-        while (quantityTransferred < quantity)
-        {
-            EquippedCargoBay originInventory = CargoBays.FirstOrDefault(c => c.ItemsOfType.ContainsKey(itemDataID));
-
-            if (originInventory == null) break;
-
-            var itemInstance = originInventory.ItemsOfType[itemDataID][0];
-
-            if (itemInstance is SimpleCommodity simpleCommodity)
-            {
-                var targetQuantity = min(simpleCommodity.Quantity, quantity - quantityTransferred);
-                if (!target.CargoBays.Any(c => originInventory.TryTransferItem(c, simpleCommodity, targetQuantity)))
-                {
-                    quantityTransferred += targetQuantity - simpleCommodity.Quantity;
-                    break;
-                }
-
-                quantityTransferred += targetQuantity;
-            }
-            else if (itemInstance is CraftedItemInstance craftedItemInstance)
-            {
-                if (!target.CargoBays.Any(c => originInventory.TryTransferItem(c, craftedItemInstance)))
-                    break;
-                
-                quantityTransferred++;
-            }
-        }
-
-        return quantityTransferred;
-    }
-
     public EquippableItem TryUnequip(EquippedItem item)
     {
         // Don't allow unequipping when the entity is active
@@ -1752,6 +1720,7 @@ public abstract class Entity
         if (bay != null)
         {
             bay.DockedShip = ship;
+            CargoTransfer.End(ship, GiveEnd.GiverDocked);
             ship.SetParent(this);
             Zone.Remove(ship);
             ship.Deactivate();
@@ -2695,12 +2664,17 @@ public class EquippedCargoBay : EquippedItem
             return false;
         }
 
+        // Whole or nothing: the target must be able to take the part before it leaves the stack.
+        var part = new SimpleCommodity { Data = item.Data, Quantity = min(quantity, item.Quantity), Rotation = item.Rotation };
+        if (!target.TryFindSpace(part, out _)) return false;
+
         var oldPos = Cargo[item];
         var newItem = Remove(item, quantity);
-        
-        if (target.TryStore(item)) return true;
-        
-        // Failed to transfer full quantity, move the remaining items back to their old slot
+
+        // The part removed goes across, never the stack left behind.
+        if (target.TryStore(newItem)) return true;
+
+        // The target refused after all: put the part back where it came from.
         TryStore(newItem, oldPos);
         return false;
     }
