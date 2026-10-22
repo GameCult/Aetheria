@@ -69,11 +69,14 @@ public sealed partial class RunStartTests
         arena.Update(SeamDt);
         Assert.Same(third, east.Target.Value.Entity);
 
+        // With nothing held, Previous picks the farthest and Next the nearest.
+        east.SetTarget(TargetRef.None);
         east.Command.Verb(TargetVerb.Previous);
         arena.Update(SeamDt);
-        Assert.Same(west, east.Target.Value.Entity);
+        Assert.Same(third, east.Target.Value.Entity);
 
-        // Enemies only: the farther hostile, not the nearer neutral.
+        // Enemies only: the farther hostile, not the nearer neutral (Next, from nothing, would pick the neutral).
+        east.SetTarget(TargetRef.None);
         east.SetIff(third, true);
         east.Command.Verb(TargetVerb.NearestEnemy);
         arena.Update(SeamDt);
