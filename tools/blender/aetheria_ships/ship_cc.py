@@ -173,7 +173,7 @@ def _stamped(record: Record, msgpack: Any):
 def replace_lines(path: str, cultlib_packages: str, lines: list[list[Any]]) -> int:
     file = read(path, cultlib_packages)
     if not lines:
-        raise ValueError("No Grease Pencil strokes were captured; the ship record was not changed")
+        raise ValueError("No schematic lines were captured; the ship record was not changed")
     file.ship.body[SCHEMATIC_LINES_SLOT] = lines
     file.store.push(_stamped(file.ship, file.msgpack))
     return len(lines)

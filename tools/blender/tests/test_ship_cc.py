@@ -368,7 +368,7 @@ class ReplaceLinesTests(ShipFileCase):
 
     def test_refuses_an_empty_capture_and_changes_nothing(self):
         before = self.bytes()
-        with self.assertRaisesRegex(ValueError, "No Grease Pencil strokes"):
+        with self.assertRaisesRegex(ValueError, "No schematic lines"):
             ship_cc.replace_lines(self.path, PACKAGES, [])
         self.assertEqual(before, self.bytes())
 

@@ -120,4 +120,25 @@ public sealed class NakovalnyaPackageTests
             .Select(row => $"{row.Item1} refuses the {row.Item2}").ToArray();
         Assert.Empty(refused);
     }
+
+    // The package's schematic is the kit's (ruling agent-hull-schematic-from-kit): hull_source's silhouette first, then
+    // the kit's lines; Studio fits their top view onto the hull Shape's whole cell rect.
+    [Fact]
+    public void SchematicLinesComeFromTheKit()
+    {
+        using var cache = Catalog();
+        var hull = Hull(cache);
+        var ship = cache.Get(new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey(Id)));
+        var kitLayers = new[] { "outline", "step", "seam", "fitting" };
+
+        Assert.Equal("silhouette", ship.SchematicLines[0].Layer);
+        Assert.True(ship.SchematicLines[0].Cyclic);
+        Assert.True(ship.SchematicLines.Count(line => kitLayers.Contains(line.Layer)) > 20);
+        Assert.All(ship.SchematicLines, line => Assert.Contains(line.Layer, kitLayers.Append("silhouette")));
+        ShipAuthoringStore.Validate(hull, ship);
+
+        var fit = SchematicUnderlay.Fit(ship.SchematicLines, hull.Shape).SelectMany(line => line).ToArray();
+        Assert.Equal((19, 30), (hull.Shape.Width, hull.Shape.Height));
+        Assert.Equal((0f, 0f, 19f, 30f), (fit.Min(p => p.x), fit.Min(p => p.y), fit.Max(p => p.x), fit.Max(p => p.y)));
+    }
 }
