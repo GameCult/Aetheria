@@ -197,6 +197,25 @@ public sealed class ShipAuthoringTests
         Assert.IsType<NotSupportedException>(error.InnerException);
     }
 
+    // A store format this runtime does not know is refused on read with NotSupportedException from the attach; Load names the file.
+    [Fact]
+    public async Task LoadNamesTheFileWhoseStoreFormatIsNewer()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "newer.cc");
+        using (var cache = ShipAuthoringStore.Open(path, writable: true))
+        {
+            ShipAuthoringStore.Write(cache, Fixture().Hull, Fixture().Visual);
+            await cache.FlushAsync();
+        }
+        var snapshot = CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(path));
+        snapshot.FormatVersion = "cultcache.store.v9";
+        File.WriteAllBytes(path, CultDocumentMessagePackSerialization.SerializeSnapshot(snapshot));
+        var error = Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(path));
+        Assert.Contains(path, error.Message);
+        Assert.IsType<NotSupportedException>(error.InnerException);
+    }
+
     // Decodes one record's payload of the named schema to its slot array, lets the edit change it, and stores it again.
     private static void RewritePayload(string path, string schemaName, Action<object[]> edit)
     {
