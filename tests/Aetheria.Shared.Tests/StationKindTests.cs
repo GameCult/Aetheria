@@ -52,6 +52,7 @@ public sealed class StationKindTests : IDisposable
             var cache = new CultCache(TestCatalog.Registry());
             host._caches.Add(cache);
             cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(dir, "Aetheria.cc")), AetheriaStores.CatalogTypes);
+            cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(dir, "run.cc")), AetheriaStores.RunTypes);
             var world = new World { Cache = cache };
             world.Items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), world.Log.Add);
             world.Zh = cache.GetAll<Faction>().Single(f => f.Name == "Zhestokost");
