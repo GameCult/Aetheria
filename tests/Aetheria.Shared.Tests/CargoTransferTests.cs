@@ -308,7 +308,7 @@ public sealed class CargoTransferTests : IDisposable
     {
         // Two stacks in two bays: the order is for the design, not for the stack it was named with.
         var (giver, receiver, ore) = Alongside(3);
-        Assert.True(giver.TryEquip(Mint("Crate"), new int2(2, 2)));
+        Assert.True(giver.TryEquip(Mint("Crate")));
         Assert.True(giver.CargoBays[1].TryStore(Commodity("Ore", 4)));
         giver.Command.Give(receiver, ore, 7);
 
