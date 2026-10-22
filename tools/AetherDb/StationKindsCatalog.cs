@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using GameCult.Caching;
-using GameCult.Caching.MessagePack;
 
 // Authors the catalog's one list of station kinds (aetheria-living-world, cut station-kind-datum) and gives Zenith, the
 // one station hull in the repo, its ruled kind (ruling zenith-is-a-trade-hub: provisional, one edit here to change).
@@ -34,15 +33,6 @@ public static class StationKindsCatalog
         ("waystation", "Waystation", "Fuel, repair and medicine along a corridor."),
     };
 
-    // The catalog opened without AetheriaStores.Open's checks: the catalog this command first runs on holds a station hull with no
-    // kind, which StationKinds.Validate refuses, and this command is what gives it one.
-    public static CultCache OpenCatalog(bool apply, string catalogPath = null)
-    {
-        var cache = new CultCache();
-        cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath ?? Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), !apply), AetheriaStores.CatalogTypes);
-        return cache;
-    }
-
     public static int Run(CultCache cache, bool apply, TextWriter output)
     {
         var held = cache.GetAll<StationKindData>().Select(kind => cache.RefOf(kind).Key.Value).ToHashSet(StringComparer.Ordinal);
@@ -54,6 +44,9 @@ public static class StationKindsCatalog
         var setZenith = zenith != null && !zenith.Kind.IsSet();
         output.WriteLine(zenith == null ? "Zenith: no such hull, kind not set"
             : setZenith ? $"Zenith: kind {ZenithKind}" : "Zenith: already has a kind, kept");
+
+        foreach (var hull in cache.GetAll<HullData>().Where(h => h.HullType == HullType.Station && !h.Kind.IsSet() && h != zenith).OrderBy(h => h.Name, StringComparer.Ordinal))
+            output.WriteLine($"Station hull '{hull.Name}' has no kind; set one with: station-kinds hull \"{hull.Name}\" <kind> apply");
 
         if (!apply)
         {
@@ -77,6 +70,35 @@ public static class StationKindsCatalog
             }
         });
         output.WriteLine($"\nAuthored {missing.Length} station kinds{(setZenith ? " and Zenith's kind" : "")} in Aetheria.cc");
+        return 0;
+    }
+
+    // Gives a station hull its kind: the way to repair a hull the catalog holds without one. Dry run unless apply.
+    public static int SetHullKind(CultCache cache, string hullName, string kindId, bool apply, TextWriter output)
+    {
+        var hull = cache.GetAll<HullData>().FirstOrDefault(h => h.HullType == HullType.Station && h.Name == hullName);
+        if (hull == null)
+        {
+            output.WriteLine($"The catalog holds no station hull named '{hullName}'.");
+            return 1;
+        }
+        var kind = new CultRecordRef<StationKindData>(StationKindData.KeyOf(kindId));
+        if (cache.Get(kind) == null)
+        {
+            output.WriteLine($"The catalog holds no station kind '{kindId}'.");
+            return 1;
+        }
+        output.WriteLine($"{hull.Name}: kind {kindId}");
+        if (!apply)
+        {
+            output.WriteLine("
+Dry run. Pass \"apply\" to set it.");
+            return 0;
+        }
+        hull.Kind = kind;
+        cache.Upsert(hull);
+        output.WriteLine($"
+Set {hull.Name}'s kind in Aetheria.cc");
         return 0;
     }
 }
