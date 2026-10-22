@@ -42,11 +42,11 @@ public class InputCapacitor
 
     public void AddCharge(float amount) => Charge = clamp(Charge + amount, 0f, Capacity);
 
-    // A weapon may fire several rounds in one step (ruling rounds-per-step), and what flows in during that step is what pays
-    // for them, so its buffer is Capacity or the step's inflow, whichever is more; Settle trims the surplus a step did not spend.
-    // The fill rate is unchanged, so the energy a gun draws is still exactly its rounds' cost. A sensor or a shield keeps the
-    // one-activation buffer above.
-    private float StepReach(float dt) => max(Capacity, Rate * dt);
+    // A weapon held through a step may fire several rounds in it (ruling rounds-per-step): the charge it holds and what flows in
+    // during the step pay for them, so for that step its buffer is a full activation plus the step's inflow; Settle trims what
+    // the step did not spend back to Capacity. The fill rate is unchanged, so the energy a gun draws is still exactly its
+    // rounds' cost. A sensor or a shield, and a weapon not held, keep the one-activation buffer above.
+    private float StepReach(float dt) => Capacity + Rate * dt;
 
     public float RequestedStepFill(float dt) => min(Rate * dt, max(0f, StepReach(dt) - Charge));
 

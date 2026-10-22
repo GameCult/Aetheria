@@ -515,8 +515,8 @@ public sealed class MineTests : IDisposable
     [Fact]
     public void LayingIsDeterministicAndFillsItsSpread()
     {
-        var a = Build(spread: 40f, velocity: 5f, cooldown: .15f, layerFaction: A);
-        var b = Build(spread: 40f, velocity: 5f, cooldown: .15f, layerFaction: A);
+        var a = Build(spread: 40f, velocity: 5f, cooldown: .199f, layerFaction: A);
+        var b = Build(spread: 40f, velocity: 5f, cooldown: .199f, layerFaction: A);
         var angles = new List<float>();
         using var sub = a.Zone.Mines.ObserveAdd().Subscribe(e =>
         {

@@ -177,11 +177,15 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         _capacitor.UpdateStats(perShotEnergy, cooldown, rateOverride: RateOverride);
     }
 
+    // What the capacitor asks the bus for this step: a weapon held through it may fire several rounds in it, so it asks for
+    // the step's whole inflow; any other tops up to one activation.
+    private float Fill(float dt) => Repeats ? _capacitor.RequestedStepFill(dt) : _capacitor.RequestedFill(dt);
+
     // Cut 4: the request PowerBus needs before Execute runs, mirroring EnergyDraw's IPowerConsumer pattern.
     public float PowerRequest(float dt)
     {
         RefreshInputCapacitor();
-        return _capacitor.RequestedStepFill(dt);
+        return Fill(dt);
     }
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense. The ruling's own example of what
@@ -277,7 +281,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         // Cut 4: this tick's grant, read back via Item.PowerSupply -- Item is non-null here because a null-Item
         // instance never reaches PowerBus.Step (see TrySpendActivationEnergy) and so never accrues charge.
         if (Item != null)
-            _capacitor.AddStepCharge(_capacitor.RequestedStepFill(dt) * Item.PowerSupply, dt);
+            _capacitor.AddStepCharge(Fill(dt) * Item.PowerSupply, dt);
         var ended = false;
         var retriggered = false;
         if (_coolingDown)
