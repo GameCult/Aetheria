@@ -1782,13 +1782,18 @@ public abstract class Entity
         Parent = null;
     }
 
+    // Indexed, not foreach: Equipment is a ReactiveCollection whose enumerator is heap-allocated, and every round a gun fires
+    // asks for the targeting system several times (rounds per step: hundreds of rounds a step must not allocate each).
     public T GetBehavior<T>() where T : Behavior
     {
-        foreach (var equippedItem in Equipment)
-            if(equippedItem.Behaviors != null)
-                foreach (var behavior in equippedItem.Behaviors)
-                    if (behavior is T b)
-                        return b;
+        for (var i = 0; i < Equipment.Count; i++)
+        {
+            var behaviors = Equipment[i].Behaviors;
+            if (behaviors == null) continue;
+            foreach (var behavior in behaviors)
+                if (behavior is T b)
+                    return b;
+        }
         return null;
     }
 
