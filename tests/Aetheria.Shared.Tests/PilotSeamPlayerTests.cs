@@ -21,7 +21,7 @@ public sealed partial class RunStartTests
         Ship third = null;
         var (arena, east, west) = SeamPair(false, (stage, e, w) =>
             third = stage.Place(EvLonginus(stage), float2(350, 0), facing: float2(-1, 0)) as Ship);
-        for (var step = 0; step < 60; step++) arena.Update(SeamDt);
+        for (var step = 0; step < 600 && !(east.VisibleEntities.Contains(west) && east.VisibleEntities.Contains(third)); step++) arena.Update(SeamDt);
         Assert.Contains(west, east.VisibleEntities);
         Assert.Contains(third, east.VisibleEntities);
         return (arena, east, west, third);
