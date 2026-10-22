@@ -646,6 +646,9 @@ def nakovalnya_frames(executable):
     for mount in mounts:
         near = min(math.hypot(mount.position[0] - c[0], mount.position[1] - c[1]) for c in centres)
         require(near <= 0.3, f"{mount.id} is {near:.2f} m from the nearest fitting octagon")
+    # Parts that face sideways (the belt collars and turning blocks, the wall hatches) draw nothing: no top view sees them.
+    require(len(octagons) == 20, f"{len(octagons)} octagons: ten flak drums and ten flak rings, and no belt collar's")
+    require(sum(row.layer != "silhouette" for row in built.lines) == 102, "The Nakovalnya kit's line count changed")
     kinds = {row.layer for row in built.lines}
     require({"silhouette", "outline", "step", "seam", "fitting"} <= kinds, f"The Nakovalnya lacks a layer: {kinds}")
     print(f"PASS frames the Nakovalnya's {len(built.lines)} lines are in the frame of its geometry")
