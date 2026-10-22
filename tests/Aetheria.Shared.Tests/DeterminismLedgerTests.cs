@@ -32,8 +32,11 @@ public sealed partial class RunStartTests
     // once the sensors drop the staged anchor the follower stops following it (ce81a426).
     // Repinned a third time, once, for two causes (sim-rate cut): the rules went step-exact (timers keep their overshoot,
     // passive sensing decays exactly), which alone gives 4f4a1c8b88308d0a368527549f33baf0e157a056b4c0fd33aeb110b027b862e1
-    // at 60 Hz; and the game step is now SimClock.GameStep (30 Hz), 1800 steps of the same 60 simulated seconds.
-    private const string TwoAiPinnedDigest = "d5e16969d5366349f2cddeec53f7e8e8c69074dcf5aa7aabb365e9a91a34511f";
+    // at 60 Hz; and the game step is now SimClock.GameStep (30 Hz), 1800 steps of the same 60 simulated seconds: d5e16969d5366349f2cddeec53f7e8e8c69074dcf5aa7aabb365e9a91a34511f.
+    // Repinned a fourth time, once (rounds-per-step): a round is born at its due moment inside its step, so its FireTime, origin
+    // and frozen target pose are carried back by its age (a pull's first round leaves at the step's start, not its end) and
+    // its commit and arrival times follow. Rebasing onto master moved nothing (d5e16969 measured at the rebased h1 head).
+    private const string TwoAiPinnedDigest = "1971060955717cabd4543d70c031562a5a101dbadb71b9bcd0bc1bfb3e89dd94";
     private const float TwoAiSeconds = 60f;
 
     [Fact]

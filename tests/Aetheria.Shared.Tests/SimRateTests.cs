@@ -335,7 +335,8 @@ public sealed partial class ContactRevealTests
         bytes = GC.GetAllocatedBytesForCurrentThread() - bytes;
         // Where the bytes go: a round's birth (FireControl.Fire) alone, and the queued rounds' commit and resolution alone.
         var item0 = Guns(ships[0])[0];
-        for (var i = 0; i < 50; i++) FireControl.Fire(weapons[0], item0, ships[0]);
+        for (var i = 0; i < 2000; i++) FireControl.Fire(weapons[0], item0, ships[0]); // grows the shot queue once
+        Tick(dt);
         var born = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 1000; i++) FireControl.Fire(weapons[0], item0, ships[0]);
         born = GC.GetAllocatedBytesForCurrentThread() - born;
