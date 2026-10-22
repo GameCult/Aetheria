@@ -493,7 +493,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     report = scene.aetheria_package_report
     require(result == {"CANCELLED"} and "The package has no product" in report, f"Package took a hull with no zones and no art: {report!r} {message!r}")
     require((package / "ship.glb").read_bytes() == glb_before, "A refused Package changed ship.glb")
-    require("aetheria.hull_maker" in collection and "aetheria.hull_built" in collection and source.is_file() == (number % 2 == 1),
+    require("aetheria.hull_maker" in collection and "aetheria.hull_built" in collection and "aetheria.hull_lines" in collection and source.is_file() == (number % 2 == 1),
             "A refused Package changed Build's records or hull.scad")
     print(f"PASS {number}.9a Build's zones deleted with nothing in their place stay under the guard")
     art_mesh = bpy.data.meshes.new("author hull")
@@ -510,7 +510,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     report = scene.aetheria_package_report
     require(result == {"FINISHED"} and "retired the agent hull source" in report, f"Package did not retire the hull source: {report!r} {message!r}")
     require(not source.exists(), "hull.scad is still there after the author's art was packaged")
-    require("aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection,
+    require("aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection and "aetheria.hull_lines" not in collection,
             "The record of Build's objects or its maker outlived hull.scad")
     require(all(echoed not in report for echoed in (ship_id, str(GAME))), "The report echoes an input")
     select(box)
