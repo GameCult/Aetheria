@@ -2,12 +2,12 @@
   <PropertyGroup>
     <CultLibRoot Condition="'$(CultLibRoot)' == '' and '$(CULTLIB_ROOT)' != ''">$(CULTLIB_ROOT)</CultLibRoot>
     <CultLibRoot Condition="'$(CultLibRoot)' == ''">$(MSBuildThisFileDirectory)..\CultLib</CultLibRoot>
-    <!-- CultCache: caching-unity-v1.4.0 / cultlib-unity-v1.0.60 in Packages/manifest.json. -->
-    <CultLibRevision>45c2f4006f5f7dab357426cabd3197e8d0a17f66</CultLibRevision>
+    <!-- CultCache: caching-unity-v2.0.0 / cultlib-unity-v2.0.1 in Packages/manifest.json. -->
+    <CultLibRevision>b8fc5eb07720a187a0421424ac2cb3aa2966ca1d</CultLibRevision>
     <CultMathRoot Condition="'$(CultMathRoot)' == '' and '$(CULTMATH_ROOT)' != ''">$(CULTMATH_ROOT)</CultMathRoot>
     <CultMathRoot Condition="'$(CultMathRoot)' == ''">$(CultLibRoot)</CultMathRoot>
-    <!-- CultMath: cultmath-unity-v0.4.1 in Packages/manifest.json. -->
-    <CultMathRevision>9c1b06cd703bfa44352050e819b0d0659cf5978a</CultMathRevision>
+    <!-- CultMath: cultmath-unity-v0.5.0 in Packages/manifest.json. -->
+    <CultMathRevision>7a8933b085468e1fc6f9d3bce4a85e7d101aaca3</CultMathRevision>
     <GitExecutable Condition="'$(GitExecutable)' == '' and Exists('C:\Program Files\Git\cmd\git.exe')">C:\Program Files\Git\cmd\git.exe</GitExecutable>
     <GitExecutable Condition="'$(GitExecutable)' == ''">git</GitExecutable>
   </PropertyGroup>

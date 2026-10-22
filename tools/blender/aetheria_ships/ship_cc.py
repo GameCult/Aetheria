@@ -119,7 +119,10 @@ class ShipFile(NamedTuple):
 def read(path: str, cultlib_packages: str) -> ShipFile:
     cultcache, msgpack = _libraries(cultlib_packages)
     store = cultcache.SingleFileMessagePackBackingStore(path)
-    envelopes = store.pull_all()
+    try:
+        envelopes = store.pull_all()
+    except OSError as error:
+        raise ValueError(f"The ship file cannot be read: {error.strerror}") from None
     ships = [envelope for envelope in envelopes if envelope.type == SCHEMA]
     hulls = [envelope for envelope in envelopes if envelope.type == HULL_SCHEMA]
     # Before S1 the hull lived inside the ship record. Saving such a file would preserve the stale hull under a ship that

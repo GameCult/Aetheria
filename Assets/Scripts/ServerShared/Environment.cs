@@ -72,6 +72,8 @@ public class NoiseSettings
 
 [Union(0, typeof(PowerBrush)), 
  Union(1, typeof(SimplexBrush)), 
+ Union(2, typeof(AnimatedSimplexBrush)),
+ Union(3, typeof(RadialWaveBrush)),
  Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public abstract class Brush
 {

@@ -173,7 +173,47 @@ public sealed class ShipAuthoringTests
         RewritePayload(path, "aetheria.hulldata", slots => ((object[])((object[])slots[5])[0])[2] = new object[] { 5, false, true, false });
         var error = Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(path));
         Assert.Contains(path, error.Message);
-        Assert.IsAssignableFrom<MessagePackSerializationException>(error.InnerException);
+        // The pull names the record key and schema; the MessagePack failure is its cause.
+        var pull = Assert.IsType<InvalidDataException>(error.InnerException);
+        Assert.Contains("Record '" + ShipModCatalog.HullKey("mod.skiff") + "'", pull.Message);
+        Assert.Contains("schema", pull.Message);
+        Assert.IsAssignableFrom<MessagePackSerializationException>(pull.InnerException);
+    }
+
+    // A store header with a nil format stamp is refused by the runtime with NotSupportedException; Load names the file.
+    [Fact]
+    public void LoadNamesTheFileWhoseFormatStampIsNil()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "nilstamp.cc");
+        File.WriteAllBytes(path, CultDocumentMessagePackSerialization.SerializeSnapshot(new CultPersistedStoreSnapshot
+        {
+            FormatVersion = null,
+            SchemaCatalog = Array.Empty<CultSchemaCatalogEntry>(),
+            Records = Array.Empty<CultPersistedRecord>(),
+        }));
+        var error = Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(path));
+        Assert.Contains(path, error.Message);
+        Assert.IsType<NotSupportedException>(error.InnerException);
+    }
+
+    // A store format this runtime does not know is refused on read with NotSupportedException from the attach; Load names the file.
+    [Fact]
+    public async Task LoadNamesTheFileWhoseStoreFormatIsNewer()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "newer.cc");
+        using (var cache = ShipAuthoringStore.Open(path, writable: true))
+        {
+            ShipAuthoringStore.Write(cache, Fixture().Hull, Fixture().Visual);
+            await cache.FlushAsync();
+        }
+        var snapshot = CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(path));
+        snapshot.FormatVersion = "cultcache.store.v9";
+        File.WriteAllBytes(path, CultDocumentMessagePackSerialization.SerializeSnapshot(snapshot));
+        var error = Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(path));
+        Assert.Contains(path, error.Message);
+        Assert.IsType<NotSupportedException>(error.InnerException);
     }
 
     // Decodes one record's payload of the named schema to its slot array, lets the edit change it, and stores it again.

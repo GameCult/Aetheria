@@ -136,9 +136,13 @@ public static class ShipAuthoringStore
     {
         RefuseLegacyEmbeddedHull(path);
         try { return LoadRecords(path); }
-        catch (MessagePackSerializationException error)
+        catch (Exception error) when (error is InvalidDataException or MessagePackSerializationException)
         {
             throw new InvalidOperationException($"{path}: a record does not decode as its schema: {error.Message}", error);
+        }
+        catch (NotSupportedException error)
+        {
+            throw new InvalidOperationException($"{path}: not a readable ship file: {error.Message}", error);
         }
     }
 
@@ -152,7 +156,7 @@ public static class ShipAuthoringStore
         if (bytes.Length == 0) return;
         CultPersistedStoreSnapshot snapshot;
         try { snapshot = CultDocumentMessagePackSerialization.DeserializeSnapshot(bytes); }
-        catch (MessagePackSerializationException error)
+        catch (Exception error) when (error is MessagePackSerializationException or NotSupportedException)
         {
             throw new InvalidOperationException($"{path}: not a readable ship file: {error.Message}", error);
         }
