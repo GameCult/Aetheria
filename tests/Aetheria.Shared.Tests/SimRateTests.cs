@@ -326,7 +326,7 @@ public sealed partial class ContactRevealTests
         bytes = GC.GetAllocatedBytesForCurrentThread() - bytes;
         var line = $"{guns} guns at .005 s, {SimClock.TickRate} Hz: {rounds / (double) steps:F1} rounds per step, {watch.Elapsed.TotalMilliseconds / steps:F3} ms per step, {bytes / (double) rounds:F0} heap bytes per round";
         System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "simrate-stepcost.txt"), line);
-        Assert.True(abs(rounds / (double) steps - guns * dt / .005) < 1.0 * guns, line);
+        Assert.True(Math.Abs(rounds / (double) steps - guns * dt / .005) < 1.0 * guns, line);
     }
 
     [Fact]
