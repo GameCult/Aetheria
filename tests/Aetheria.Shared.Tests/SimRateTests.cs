@@ -333,7 +333,16 @@ public sealed partial class ContactRevealTests
         for (var i = 0; i < steps; i++) Step();
         watch.Stop();
         bytes = GC.GetAllocatedBytesForCurrentThread() - bytes;
-        var line = $"{guns} guns at .005 s, {SimClock.TickRate} Hz: {rounds / (double) steps:F1} rounds per step, {watch.Elapsed.TotalMilliseconds / steps:F3} ms per step, {(bytes - idleBytes) / (double) rounds:F0} heap bytes per round beyond the idle step (idle step {idle.Elapsed.TotalMilliseconds / steps:F3} ms, {idleBytes / (double) steps:F0} bytes)";
+        // Where the bytes go: a round's birth (FireControl.Fire) alone, and the queued rounds' commit and resolution alone.
+        var item0 = Guns(ships[0])[0];
+        for (var i = 0; i < 50; i++) FireControl.Fire(weapons[0], item0, ships[0]);
+        var born = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 1000; i++) FireControl.Fire(weapons[0], item0, ships[0]);
+        born = GC.GetAllocatedBytesForCurrentThread() - born;
+        var settle = GC.GetAllocatedBytesForCurrentThread();
+        Tick(dt);
+        settle = GC.GetAllocatedBytesForCurrentThread() - settle;
+        var line = $"born {born / 1000.0:F0} B per round, 1050 rounds resolved in one step {settle / 1050.0:F0} B per round; {guns} guns at .005 s, {SimClock.TickRate} Hz: {rounds / (double) steps:F1} rounds per step, {watch.Elapsed.TotalMilliseconds / steps:F3} ms per step, {(bytes - idleBytes) / (double) rounds:F0} heap bytes per round beyond the idle step (idle step {idle.Elapsed.TotalMilliseconds / steps:F3} ms, {idleBytes / (double) steps:F0} bytes)";
         System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "simrate-stepcost.txt"), line);
         Assert.True(Math.Abs(rounds / (double) steps - guns * dt / .005) < 1.0 * guns, line);
     }
