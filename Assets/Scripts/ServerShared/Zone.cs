@@ -221,7 +221,7 @@ public class Zone
         foreach (var belt in AsteroidBelts)
         {
             var rail = Planets[belt.Key].Orbit.Key;
-            beltExtent[rail] = belt.Value.Extent(Orbits[rail].Data.Distance);
+            beltExtent[rail] = AsteroidBelt.Extent(belt.Value.Data, Orbits[rail].Data.Distance);
         }
         var wellNodes = new List<WellNode>();
         foreach (var orbit in Orbits)
@@ -903,8 +903,10 @@ public class AsteroidBelt
     }
 
     // What the belt's rail adds to its parent's L_F (WellTree): an annulus reaches its outermost rock, whose period reads the
-    // field there; a swarm riding its rail reaches only the rail, whose period every rock shares.
-    public float Extent(float railDistance) => Data.RidesRail ? railDistance : Math.Max(Radius, railDistance);
+    // field there; a swarm riding its rail reaches only the rail, whose period every rock shares. The one belt extent rule:
+    // Zone, ZoneGenerator's clearance tree and the station tests all read it.
+    public static float Extent(AsteroidBeltData data, float railDistance) =>
+        data.RidesRail ? railDistance : Math.Max(data.Asteroids.Max(a => a.Distance), railDistance);
 
     // Cut 1 (docs/mining-cut.md): the formula of Zone.cs:269-271 verbatim, `time` in double as `_time` was used.
     // The only place a chunk pose is computed; no per-tick copy survives it. Cut 2: size is no longer read from

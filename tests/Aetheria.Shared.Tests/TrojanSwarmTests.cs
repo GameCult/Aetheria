@@ -38,6 +38,37 @@ public class TrojanSwarmTests
     private static float Turn(float2 p) => frac((float) (Math.Atan2(p.y, p.x) / (2 * Math.PI)));
     private static float Wrap(float t) => t - (float) Math.Round(t);
 
+    // A standing binary leaves a bodyless node with a parent and its pair's mass, heavy enough to pass the host mass filter; a
+    // swarm round it would ride a rail no body is on (finding swarm-on-bodyless-node). StationPlacementTests' binary tuning with a
+    // swarm drawn for every eligible host: every swarm's rail copies a body's orbit.
+    [Fact]
+    public void NoSwarmRidesABinarysBodylessNode()
+    {
+        using var zones = new ChildrenWithinReachTests.Zones(First, Last, z =>
+        {
+            z.SatelliteCreationProbability = 1;
+            z.BinaryCreationProbability = 1;
+            z.ZoneRadius.Minimum *= 3; z.ZoneRadius.Maximum *= 3;
+            z.ZoneMass.Minimum *= .1f; z.ZoneMass.Maximum *= .1f;
+            z.TrojanProbability = 1;
+        });
+        int binaries = 0, swarms = 0, bodyless = 0;
+        foreach (var (seed, zone) in zones.All)
+        {
+            var bodyOrbits = zone.Planets.Values.Select(b => b.Orbit.Key).ToHashSet();
+            binaries += zone.Orbits.Count(o => o.Value.Data.Parent.IsSet() && !bodyOrbits.Contains(o.Key) && zone.Wells.Reach(o.Key) > 0f);
+            var bodies = zone.Planets.Values.Where(b => !(b is AsteroidBeltData)).Select(b => zone.Orbits[b.Orbit.Key].Data).ToList();
+            foreach (var rail in zone.AsteroidBelts.Where(b => b.Value.Data.RidesRail).Select(b => zone.Orbits[zone.Planets[b.Key].Orbit.Key].Data))
+            {
+                swarms++;
+                if (!bodies.Any(o => o.Parent.Key.Equals(rail.Parent.Key) && o.Distance == rail.Distance && o.Phase == rail.Phase)) bodyless++;
+            }
+        }
+        _out.WriteLine($"zones {zones.All.Count}, bodyless nodes {binaries}, swarms {swarms}, on a bodyless node {bodyless}");
+        Assert.True(binaries > 5 && swarms > 10, $"{binaries} bodyless nodes and {swarms} swarms: the seeds do not exercise the rule");
+        Assert.Equal(0, bodyless);
+    }
+
     [Fact]
     public void ASwarmKeepsItsShapeOverAnHour()
     {
@@ -97,23 +128,25 @@ public class TrojanSwarmTests
         Assert.True(onSwarmHost > 0, "no station or turret sits on a swarm host's rail");
     }
 
-    // The digests were computed at 67517f40, before this cut, over the zones of each seed with the authored settings: a zone
-    // with no swarm is the base zone, and a zone with swarms is the base zone plus them.
+    // The widened digests (ZoneFingerprint with PopulatedRadius) were computed on Yggdrasil over the generator of cut laned-belts
+    // C1 (one belt extent rule) with swarms off, over the zones of each seed; both samples draw no lane, so the base is the zone
+    // with neither shape: a zone with no swarm is the base zone, and a zone with
+    // swarms is the base zone plus them. The per-zone comparison leaves PopulatedRadius out, since a swarm's outer rock may grow it.
     private static readonly Dictionary<uint, string> BaseDigest = new Dictionary<uint, string>
     {
-        [1] = "02a2bef42b5d4aeaf1e7004d0ab26620ee570ced95115abf98226ab4e0db23eb",
-        [2] = "de231f392e5724ecdce7e746957633bef2724252147ecbb5830db047b635aead",
-        [3] = "5c33fe9f748d6b0b34a7bec923216c7f9bbdfdf8f326c59b77fde9ec96ca2bcb",
-        [4] = "585284386657e4714ad325cb053a78853c5bcaf7eb1a02cbd4826b0e86ad3593",
-        [5] = "4a1aeecad09c61ff7daa43eda40a9c0109dc4b6833439b8400d8c72d939950c8",
-        [6] = "7fd3c5844144b73faf05cd6a53fe92274e4455f38da4aaca4624ea13d96a12c3",
+        [1] = "1873400d50d11b27913a67daca460f0829629aa21dacabac2cfc97a66537a700",
+        [2] = "5872680ee91c2019b345925f54c2113303cc2817ee9ea28d26ba839e43d1944e",
+        [3] = "e92cc32010f01b7962a2a58b6ea91c9c39ee3d915301164f176d0ebad218837c",
+        [4] = "61db9bdae2ca8704a7946debb4fe63ae3e649112fcda19d293ba2fddcaf45674",
+        [5] = "69ca46ebfae646b3a09faf9d636f3c706e5f6b7146f111a0ea06196332ae58b9",
+        [6] = "307dc4b38ff341670a5b5179ab977b6c7c59ba682d529d80dcaf9c4852c21fe2",
     };
 
     [Fact]
     public void ASwarmMovesNothingElseInTheZone()
     {
-        using var swarmless = new ChildrenWithinReachTests.Zones(First, Last, z => z.TrojanProbability = 0);
-        using var live = new ChildrenWithinReachTests.Zones(First, Last, null);
+        using var swarmless = new ChildrenWithinReachTests.Zones(First, Last, z => { z.TrojanProbability = 0; z.LaneProbability = 0; });
+        using var live = new ChildrenWithinReachTests.Zones(First, Last, z => z.LaneProbability = 0);
         Assert.Equal(swarmless.All.Count, live.All.Count);
         int swarms = 0, grew = 0;
         foreach (var seed in BaseDigest.Keys)
@@ -121,11 +154,11 @@ public class TrojanSwarmTests
             var a = swarmless.All.Where(x => x.Seed == seed).Select(x => x.Zone).ToList();
             var b = live.All.Where(x => x.Seed == seed).Select(x => x.Zone).ToList();
             Assert.Empty(a.SelectMany(z => z.AsteroidBelts.Where(x => x.Value.Data.RidesRail)));
-            Assert.Equal(BaseDigest[seed], ZoneFingerprint.Of(a, _ => false, _ => false));
-            string Swarmed(Zone z) => ZoneFingerprint.Of(new[] { z }, SwarmRails(z).Contains, IsSwarm);
+            Assert.Equal(BaseDigest[seed], ZoneFingerprint.Of(a, _ => false, _ => false, true));
+            string Swarmed(Zone z) => ZoneFingerprint.Of(new[] { z }, SwarmRails(z).Contains, IsSwarm, false);
             for (var n = 0; n < a.Count; n++)
             {
-                Assert.Equal(ZoneFingerprint.Of(new[] { a[n] }, _ => false, _ => false), Swarmed(b[n]));
+                Assert.Equal(ZoneFingerprint.Of(new[] { a[n] }, _ => false, _ => false, false), Swarmed(b[n]));
                 swarms += SwarmRails(b[n]).Count;
                 Assert.True(b[n].PopulatedRadius >= a[n].PopulatedRadius, $"seed {seed}: a swarm shrank the populated radius");
                 if (b[n].PopulatedRadius > a[n].PopulatedRadius) grew++;
@@ -148,11 +181,11 @@ public class TrojanSwarmTests
         var belt = MessagePackSerializer.Deserialize<AsteroidBeltData>(old, options);
         Assert.False(belt.RidesRail);
         Assert.Equal(3f, belt.Asteroids[0].Distance);
-        Assert.Equal(7f, new AsteroidBelt(belt).Extent(7f));
-        Assert.Equal(3f, new AsteroidBelt(belt).Extent(2f));
+        Assert.Equal(7f, AsteroidBelt.Extent(belt, 7f));
+        Assert.Equal(3f, AsteroidBelt.Extent(belt, 2f));
         var swarm = MessagePackSerializer.Deserialize<AsteroidBeltData>(MessagePackSerializer.Serialize(
             new AsteroidBeltData { Asteroids = belt.Asteroids, RidesRail = true }, options), options);
         Assert.True(swarm.RidesRail);
-        Assert.Equal(2f, new AsteroidBelt(swarm).Extent(2f));
+        Assert.Equal(2f, AsteroidBelt.Extent(swarm, 2f));
     }
 }

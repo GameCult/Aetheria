@@ -134,6 +134,12 @@ public class ZoneGenerationSettings
     public float TrojanHalfWidth = .06f;
     public ExponentialCurve TrojanCount = new ExponentialCurve { Exponent = 1f, Multiplier = .04f, Constant = 8f };
 
+    // Laned belts (rulings lanes-two-sided-visual-margin, lane-narrow): the chance a belt candidate that kept its body and has
+    // room on both sides carries a laned belt, and the lane's half-width in the host's body radii (1.5 by ruling). LaneProbability
+    // is 0 here: a settings object built in code draws no lane.
+    public float LaneProbability = 0f;
+    public float LaneBodyRadii = 1.5f;
+
     public float ResourceDensityMinimum = .1f;
     public float ResourceDensityMaximum = 1.5f;
 
