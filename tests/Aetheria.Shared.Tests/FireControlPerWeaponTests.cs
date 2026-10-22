@@ -1012,11 +1012,12 @@ public sealed class FireControlPerWeaponTests : IDisposable
     }
 
     // Holding the trigger fires once per Cooldown: the round that starts the cooldown pays for the tick it flew in.
-    // Cooldown 1 at .25 s ticks is a shot every 5 ticks, 12 in 15 s. And a burst whose every round is refused
-    // leaves no cooldown: the same held trigger is ready every tick. Kills: a first round that starts the cooldown
-    // at 1 after the tick's decrement (a shot every 6 ticks, 10 in 15 s); a cooldown left by a refused burst.
+    // Cooldown 1 at .25 s ticks is a shot a second, 15 in 15 s (+-1: the first cycle has no carried overshoot). And a burst
+    // whose every round is refused leaves no cooldown: the same held trigger is ready every tick. Kills: a first round
+    // that starts the cooldown at 1 after the tick's decrement (a shot every 5 ticks, 12 in 15 s); a cooldown left by a
+    // refused burst.
     [Theory]
-    [InlineData(100f, 12)]
+    [InlineData(100f, 15)]
     [InlineData(29.5f, 0)]
     public void AHeldTriggerFiresOncePerCooldownAndARefusedBurstLeavesNone(float range, int shots)
     {
@@ -1036,7 +1037,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
             if (weapon.CanFire) readyTicks++;
         }
 
-        Assert.Equal(shots, fired);
+        if (shots == 0) Assert.Equal(0, fired); else Assert.InRange(fired, shots - 1, shots + 1);
         if (shots == 0) Assert.Equal(60, readyTicks);
     }
 

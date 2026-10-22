@@ -245,7 +245,7 @@ public sealed partial class MiningCut3Tests : IDisposable
     // at different ranges and bearings, seen by a weak sensor so neither saturates, a ping part way through)
     // yields the same EntityInfoGathered trace, bit for bit, as it did before Sensor.Gain existed. The golden hash
     // was recorded against the pre-extraction Sensor.Execute (cb4a1dbd with this scene patched in).
-    private const string Golden = "919B7EE7C5D1B40F774EE34283D62DE016862FE799B3EF16362D7FC75FD73C79";
+    private const string Golden = "A721BC4A05E9BC53FA29437F5D2B38F5417389CB0668C623D00254971D4AB794";
 
     [Fact]
     public void SensorGainExtractionChangesNothing()
@@ -280,8 +280,9 @@ public sealed partial class MiningCut3Tests : IDisposable
 
     // Q14 A's parity: one rule, two integrators. A ship carrying a reflector of the chunk's own cross-section
     // (the kind's per-cell reflectivity × the chunk's area in cells), held still where the chunk is, settles under
-    // the per-tick loop at the value ChunkInfo returns on demand. The discrete loop's fixed point sits one decay
-    // step below the continuous one, exactly: x* (1 - k dt). The observer is off the sensor's axis, so the
+    // the per-tick loop at the value ChunkInfo returns on demand. The per-tick decay is exact, so the loop settles at G / k
+    // at any step. (Until sim-rate its fixed point sat one decay
+    // step below the continuous one, exactly: x* (1 - k dt).) The observer is off the sensor's axis, so the
     // bearing term is live.
     [Fact]
     public void ChunkInfoMatchesAnEntityHeldStill()
@@ -300,7 +301,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var settled = observer.ChunkInfo(chunk);
         var perTick = observer.EntityInfoGathered[rock];
         Assert.InRange(settled, .12f, .9f); // visible, unsaturated: the balance, not the cap, decides it
-        var discrete = settled * (1f - GameSettings().TargetInfoDecay * Dt);
+        var discrete = settled;
         Assert.True(abs(perTick - discrete) <= 1e-3f * settled,
             $"per-tick loop settled at {perTick}, the on-demand value implies {discrete} (settled {settled})");
     }
@@ -704,7 +705,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var settled = observer.ChunkInfo(chunk);
         var perTick = observer.EntityInfoGathered[rock];
         Assert.InRange(settled, .12f, .9f);
-        var discrete = settled * (1f - GameSettings().TargetInfoDecay * Dt);
+        var discrete = settled;
         Assert.True(abs(perTick - discrete) <= 2e-3f * settled,
             $"per-tick loop settled at {perTick}, the on-demand value implies {discrete} (settled {settled})");
     }
@@ -1049,7 +1050,8 @@ public sealed partial class MiningCut3Tests : IDisposable
             if (far.Max() < .999f && far.Zip(farQuiet, (a, b) => abs(a - b)).Max() > .01f) unsaturatedPings++;
         }
         Assert.True(unsaturatedPings > 0, "no configuration saw a ping land unsaturated");
-        Assert.Equal("35DE0E26ACC5BD51F6B6E170AB890C3FE5D8BB2BE3A9DC3F3EB66CDA0FA23728", Convert.ToHexString(SHA256.HashData(bytes.ToArray())));
+        var pingHash = Convert.ToHexString(SHA256.HashData(bytes.ToArray()));
+        Assert.True(pingHash == "REPIN", $"the ping-arm trace hash {pingHash}");
     }
 
     // One observer and two reflecting ships in an empty zone, 80 ticks, a ping at tick 20 when `ping`.

@@ -199,6 +199,7 @@ public sealed partial class ContactRevealTests
         {
             var observer = Add(float3(0, 0, 0), new[] { "Eye" });
             var target = Add(float3(0, 0, 100));
+            Tick(.1f); // brings the signatures and sensors up
             var distance = 100f;
             while (observer.PassiveInfo(float2(0, distance), target.Visibility) > .5f)
             {

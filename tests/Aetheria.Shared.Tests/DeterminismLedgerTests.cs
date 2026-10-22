@@ -31,7 +31,7 @@ public sealed partial class RunStartTests
     // each other, so they engage at step 0 (f19b9992); and Follow now flies only on an anchor the pilot itself tracks, so
     // once the sensors drop the staged anchor the follower stops following it (ce81a426).
     private const string TwoAiPinnedDigest = "ce81a426c40495e4b4b7b7f83ad23767cc781dce5523d713b4455e0aa5b7fe33";
-    private const int TwoAiSteps = 60 * SimClock.TickRate;
+    private const float TwoAiSeconds = 60f;
 
     [Fact]
     public void ItemManagerRefusesSeedZero()
@@ -186,8 +186,9 @@ public sealed partial class RunStartTests
     }
 
     // Two piloted fighters about 900 apart, each approaching the other, hostile both ways; the player bare, unpiloted
-    // and far from the fight. Steps 3600 times at 1/60 s and returns the SHA-256 of the joined snapshots.
-    private (string digest, bool bothPiloted, int hits, bool hullLost) TwoAiFight()
+    // and far from the fight. Steps TwoAiSeconds at `dt` (the game's step by default) and returns the SHA-256 of the joined
+    // snapshots, the hull each fighter ends with and the sim time a hull first reaches zero (TwoAiSeconds when none does).
+    private (string digest, bool bothPiloted, int hits, bool hullLost, float eastHull, float westHull, float firstKill) TwoAiFight(uint seed = GalaxySeed, float dt = SimClock.GameStep)
     {
         Ship east = null, west = null;
         var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
@@ -197,7 +198,7 @@ public sealed partial class RunStartTests
             west = stage.Place(EvLonginus(stage), float2(-450, 0), facing: float2(1, 0), piloted: true) as Ship;
             stage.Approach(east, west);
             stage.Approach(west, east);
-        }));
+        }, seed));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         east.SetIff(west, true);
         west.SetIff(east, true);
@@ -212,13 +213,16 @@ public sealed partial class RunStartTests
             if (outcome.Hit) hits++;
         });
         var history = new StringBuilder();
-        for (var step = 0; step < TwoAiSteps; step++)
+        var firstKill = TwoAiSeconds;
+        var steps = (int) MathF.Round(TwoAiSeconds / dt);
+        for (var step = 0; step < steps; step++)
         {
-            arena.Update(SimClock.GameStep);
+            arena.Update(dt);
             history.Append(Snapshot(arena, shots)).Append('\n');
+            if (firstKill == TwoAiSeconds && (east.Hull.Durability <= 0 || west.Hull.Durability <= 0)) firstKill = (step + 1) * dt;
         }
         var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(history.ToString()))).ToLowerInvariant();
-        return (digest, bothPiloted, hits, east.Hull.Durability + west.Hull.Durability < hullAtStart);
+        return (digest, bothPiloted, hits, east.Hull.Durability + west.Hull.Durability < hullAtStart, east.Hull.Durability, west.Hull.Durability, firstKill);
     }
 
     [Fact]

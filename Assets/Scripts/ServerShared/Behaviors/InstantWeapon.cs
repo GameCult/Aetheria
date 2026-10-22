@@ -186,6 +186,21 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // would ever fill this capacitor -- bypass it entirely rather than starving such an instance forever.
     protected bool TrySpendActivationEnergy() => Item == null || _capacitor.TrySpend(_capacitor.Capacity);
 
+    // Ends the countdown once it is below zero, keeping what it ran past zero (at most one step) for the next one.
+    private void FinishCountdown(float dt)
+    {
+        if (!_coolingDown || !(_cooldown < 0)) return;
+        _overshoot = min(-_cooldown * CountdownSpan, dt);
+        _coolingDown = false;
+        if (_data.MagazineSize > 0 && _ammo == 0)
+        {
+            _ammo = _data.MagazineSize;
+            OnReloadComplete?.Invoke();
+        }
+        else
+            OnCooldownComplete?.Invoke();
+    }
+
     private float CountdownSpan => _data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown;
 
     private float TakeOvershoot()
@@ -238,20 +253,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
         if (_coolingDown)
         {
-            var span = CountdownSpan;
-            _cooldown -= dt / span;
-            if (_cooldown < 0)
-            {
-                _overshoot = -_cooldown * span;
-                _coolingDown = false;
-                if (_data.MagazineSize > 0 && _ammo == 0)
-                {
-                    _ammo = _data.MagazineSize;
-                    OnReloadComplete?.Invoke();
-                }
-                else
-                    OnCooldownComplete?.Invoke();
-            }
+            _cooldown -= dt / CountdownSpan;
+            FinishCountdown(dt);
         }
 
         _burstTimer += dt;
@@ -298,6 +301,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             AddHeat(Heat);
             Entity.SetSignature(this, SignatureChannel.LaunchFlash, Visibility, Item);
         }
+        // A cooldown shorter than the step it started in is over in that step, so the next trigger can fire on the next one.
+        FinishCountdown(dt);
         return true;
     }
 
