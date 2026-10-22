@@ -11,11 +11,16 @@ with it (a hull that redefines or shadows an included language fails a check):
              (every included language file echoes its own, and so does factions/<faction>.scad run alone; a Pirate
              language has no body zone and no proportion)
     anchors  ECHO anchor = [id, role, [x, y, z], yaw, parent]      one line per anchor, yaw 0 nose, 90 port
+    lines    ECHO line = [layer, cyclic, [[x, y, z], ...]]    one line per kit part that draws one, points in the Ship Root
+             frame (lowpoly.scad lp_line under lp_at frames); layer is one of KIT_LAYERS
     <zone>   the zone's geometry, OFF; a donor's zone is named "<donor>:<zone>"
     emit:<id>, rad:<id>   the mesh of a thruster-emitter or radiator-mesh anchor
 
 Frame: Ship Root, metres, nose -Y, starboard -X, up +Z. build() also takes the hull's HullData.HullType ("Ship",
 "Station" or "Turret"), which the caller reads: the add-on from the bound package's ship.cc, the bench from its flag.
+Schematic lines (HullBuild.lines): the top-view silhouette first (OpenSCAD projection() of every zone and anchor mesh,
+read from the SVG it exports), then the kit's lines, each with a fixed RGBA from LINE_STYLE. A kit part is placed with
+lp_at so its line is emitted in the frame the geometry is; a source that echoes no lines has the silhouette alone.
 A faction language's proportions judge Ship hulls only; every hull's zones must fit the layout grid (hull_grid.MAX_CELLS
 cells of hull_grid.CELL_SIZE a side). The brief's role is prose and decides nothing. build() returns a HullBuild; the
 caller refuses on any failed check. Messages and check names are fixed text: nothing a hull source says is echoed back.
@@ -49,9 +54,18 @@ OPENSCAD_TIMEOUT = 180  # seconds, per part
 SILHOUETTE_CELL = 0.25  # metres, the top-view raster the symmetry check compares
 ANCHOR_ROLES = ("weapon-mount", "weapon-muzzle", "thruster-emitter", "radiator-mesh")
 MESH_ROLES = {"thruster-emitter": "emit:", "radiator-mesh": "rad:"}
-ECHO_PARTS = ("brief", "lang", "anchors")  # parts that make no geometry; their ECHO lines are the answer
+ECHO_PARTS = ("brief", "lang", "anchors", "lines")  # parts that make no geometry; their ECHO lines are the answer
 LANGUAGE_NAME = re.compile(r"[a-z][a-z0-9_]*")
 ECHO_LINE = re.compile(r"^ECHO: (\w+) = (.*)$", re.MULTILINE)
+KIT_LAYERS = ("outline", "step", "seam", "fitting")  # layers a kit's lines may name; "silhouette" is hull_source's own
+LINE_STYLE = {"silhouette": (1.0, 1.0, 1.0, 1.0), "outline": (1.0, 1.0, 1.0, 0.75), "fitting": (1.0, 1.0, 1.0, 0.6),
+              "step": (1.0, 1.0, 1.0, 0.5), "seam": (1.0, 1.0, 1.0, 0.35)}
+MIN_SILHOUETTE_AREA = 0.25  # m2, below which a projected contour is a sliver, not the hull
+LINE_EDGE_TOLERANCE = 0.3  # m, how far outside the silhouette's edge a kit line's point may lie
+DUPLICATE_CELL = 0.001  # m, kit lines whose points all agree to this are the same line
+
+# A projector answers a list of Meshes with the contours (lists of (x, y)) of their top-view union.
+Projector = Callable[[list], "list[list[tuple]]"]
 
 # A runner answers one part of the hull source with (OFF text, ECHO text). OFF text is "" when the part made no geometry.
 Runner = Callable[[str], "tuple[str, str]"]
@@ -110,6 +124,16 @@ class Anchor:
 
 
 @dataclass(frozen=True)
+class SchematicLine:
+    layer: str  # "silhouette" or one of KIT_LAYERS
+    cyclic: bool
+    points: tuple  # ((x, y, z), ...) in the Ship Root frame
+
+    def rgba(self):
+        return LINE_STYLE[self.layer]
+
+
+@dataclass(frozen=True)
 class Check:
     name: str
     ok: bool
@@ -129,6 +153,7 @@ class HullBuild:
     body_zone: str  # the zone key the collider is made from
     hull_type: str  # HullData.HullType of the bound package ("Ship", "Station", "Turret"), as the caller read it
     checks: list = field(default_factory=list)
+    lines: list = field(default_factory=list)  # SchematicLine: the silhouette contours first, then the kit's lines
 
     def failed(self):
         return [check for check in self.checks if not check.ok]
@@ -250,6 +275,47 @@ def read_anchors(text):
     return anchors
 
 
+def read_lines(text):
+    """The kit's schematic lines, in echo order. A layer outside KIT_LAYERS, fewer than two points or a point that is not
+    three finite numbers is refused."""
+    lines = []
+    for raw in parse_echoes(text, "line"):
+        if not isinstance(raw, list) or len(raw) != 3 or type(raw[1]) is not bool or not isinstance(raw[2], list):
+            raise HullSourceError("A schematic line has the wrong shape")
+        layer = _text(raw[0])
+        if layer not in KIT_LAYERS:
+            raise HullSourceError("A schematic line names a layer a kit does not draw")
+        if len(raw[2]) < 2:
+            raise HullSourceError("A schematic line has fewer than two points")
+        points = tuple(_vector(p, 3) for p in raw[2])
+        if not all(math.isfinite(c) for p in points for c in p):
+            raise HullSourceError("A schematic line has a point that is not a finite number")
+        lines.append(SchematicLine(layer, raw[1], points))
+    return lines
+
+
+def to_off(mesh):
+    """The OFF text of a Mesh."""
+    rows = ["OFF", f"{len(mesh.vertices)} {len(mesh.triangles)} 0"] + [" ".join(repr(float(c)) for c in v) for v in mesh.vertices]
+    return "\n".join(rows + [f"3 {a} {b} {c}" for a, b, c in mesh.triangles]) + "\n"
+
+
+def parse_svg_contours(text):
+    """The contours of an OpenSCAD SVG (a path of 'M x,y L x,y ... z' pieces) as lists of model (x, y): the SVG's y is the
+    model's -y. A contour under MIN_SILHOUETTE_AREA is dropped (the zero-area slivers a projection leaves)."""
+    contours = []
+    for path in re.findall(r'<path\s+d="([^"]*)"', text):
+        for piece in path.split("z"):
+            try:
+                ring = [(float(x), -float(y)) for x, y in re.findall(r"(-?[\d.]+(?:e[-+]?\d+)?),(-?[\d.]+(?:e[-+]?\d+)?)", piece)]
+            except ValueError:
+                raise HullSourceError("OpenSCAD wrote a silhouette that is not readable") from None
+            area = abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(ring, ring[1:] + ring[:1]))) / 2
+            if len(ring) >= 3 and area >= MIN_SILHOUETTE_AREA:
+                contours.append(ring)
+    return contours
+
+
 def _exactly_one(values, what):
     if len(values) != 1:
         raise HullSourceError(f"The hull source must echo exactly one {what}")
@@ -289,9 +355,36 @@ def _language(library, faction):
     return language
 
 
-def build(runner, library, hull_type):
+def _point_in_ring(x, y, ring):
+    inside = False
+    for (ax, ay), (bx, by) in zip(ring, ring[1:] + ring[:1]):
+        if (ay > y) != (by > y) and x < ax + (y - ay) * (bx - ax) / (by - ay):
+            inside = not inside
+    return inside
+
+
+def _edge_distance(x, y, ring):
+    best = float("inf")
+    for (ax, ay), (bx, by) in zip(ring, ring[1:] + ring[:1]):
+        dx, dy = bx - ax, by - ay
+        along = ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy) if dx or dy else 0.0
+        along = max(0.0, min(1.0, along))
+        best = min(best, math.hypot(x - (ax + along * dx), y - (ay + along * dy)))
+    return best
+
+
+def over_silhouette(point, contours):
+    """Whether the point's top view lies inside the silhouette (even-odd over every contour) or within
+    LINE_EDGE_TOLERANCE of a contour's edge."""
+    x, y = point[0], point[1]
+    return (sum(_point_in_ring(x, y, ring) for ring in contours) % 2 == 1
+            or any(_edge_distance(x, y, ring) <= LINE_EDGE_TOLERANCE for ring in contours))
+
+
+def build(runner, library, hull_type, projector):
     """Reads the hull source through runner (see Runner) and judges it against the languages library(faction) answers with
-    (the ECHO text of that faction's own language file). hull_type is the hull's HullData.HullType name, which the caller
+    (the ECHO text of that faction's own language file). projector (see Projector) answers the top-view contours of every
+    zone and anchor mesh, which become the silhouette line. hull_type is the hull's HullData.HullType name, which the caller
     reads; only a "Ship" is judged on the language's proportions. Raises HullSourceError, before reading anything, when
     hull_type is not one of ship_cc.HULL_TYPE_NAMES, and when the source cannot be read at all; otherwise returns a
     HullBuild whose failed() lists the checks it breaks."""
@@ -314,10 +407,16 @@ def build(runner, library, hull_type):
     if len(set(ids)) != len(ids) or any(a.role not in ANCHOR_ROLES for a in anchors):
         raise HullSourceError("The hull source's anchors repeat an id or name a role a hull source does not make")
     anchor_meshes = {a.id: parse_off(runner(MESH_ROLES[a.role] + a.id)[0]) for a in anchors if a.role in MESH_ROLES}
+    kit_lines = read_lines(runner("lines")[1])
     judge = donor or own
     body_zone = f"{donor.faction}:{donor.body}" if donor else own.body
     result = HullBuild(brief, {language.faction: language for language in owned}, zones, colours, anchors, anchor_meshes,
                        own.glow, own.radiator, body_zone, hull_type)
+    meshes = [m for m in list(zones.values()) + list(anchor_meshes.values()) if m.triangles]
+    if meshes:
+        top = max(v[2] for m in meshes for v in m.vertices)
+        result.lines = [SchematicLine("silhouette", True, tuple((x, y, top) for x, y in contour)) for contour in projector(meshes)]
+    result.lines += kit_lines
     by_faction = lambda language: language.faction
     result.checks = [Check("the hull includes its faction's language files and changes none of them",
                            sorted(included, key=by_faction) == sorted(owned, key=by_faction), "")]
@@ -366,6 +465,14 @@ def _checks(hull, own, judge):
                             f"{width} x {height} cells, at most {hull_grid.MAX_CELLS} a side"))
     except ValueError:
         checks.append(Check("the top view fits the layout grid", False, "no geometry"))
+    silhouette = [line for line in hull.lines if line.layer == "silhouette"]
+    kit = [line for line in hull.lines if line.layer != "silhouette"]
+    contours = [[p[:2] for p in line.points] for line in silhouette]
+    checks.append(Check("the top view yields a silhouette", bool(silhouette), f"{len(silhouette)} contours"))
+    outside = [line for line in kit if not all(over_silhouette(p, contours) for p in line.points)] if silhouette else kit
+    checks.append(Check("every kit line lies over the hull's top view", not outside, f"{len(outside)} outside"))
+    keys = [tuple(tuple(round(c / DUPLICATE_CELL) for c in p) for p in line.points) for line in kit]
+    checks.append(Check("no two kit lines are the same", len(set(keys)) == len(keys), f"{len(keys) - len(set(keys))} repeated"))
     triangles = sum(len(m.triangles) for m in every)
     checks.append(Check("the triangle count lies inside the brief's budget",
                         brief.triangles[0] <= triangles <= brief.triangles[1], f"{triangles}"))
@@ -380,6 +487,25 @@ def _checks(hull, own, judge):
     return checks
 
 
+def _run_openscad(command, on_start, **options):
+    """Runs one OpenSCAD process to completion and answers its output. The refusals are fixed text."""
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, **options)
+    except OSError:
+        raise HullSourceError("OpenSCAD could not be started") from None
+    if on_start:
+        on_start(process.pid)
+    try:
+        output, _ = process.communicate(timeout=OPENSCAD_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.communicate()
+        raise HullSourceError("OpenSCAD did not finish a part in time") from None
+    if process.returncode != 0:
+        raise HullSourceError("OpenSCAD refused a part of the hull source")
+    return output
+
+
 def openscad_runner(executable, source, library=FACTIONS_DIR, on_start=None):
     """A Runner that runs OpenSCAD (Manifold backend, full render) on source, one process at a time. on_start(pid) is
     called with each process's id. OPENSCADPATH is the language folder, so a hull source includes <zhestokost.scad>."""
@@ -390,20 +516,7 @@ def openscad_runner(executable, source, library=FACTIONS_DIR, on_start=None):
             target = Path(folder) / ("part.echo" if part in ECHO_PARTS else "part.off")
             command = [str(executable), "--backend", "Manifold", "--render", "all", "-D", f'part="{part}"',
                        "-o", str(target), str(source)]
-            try:
-                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
-            except OSError:
-                raise HullSourceError("OpenSCAD could not be started") from None
-            if on_start:
-                on_start(process.pid)
-            try:
-                output, _ = process.communicate(timeout=OPENSCAD_TIMEOUT)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.communicate()
-                raise HullSourceError("OpenSCAD did not finish a part in time") from None
-            if process.returncode != 0:
-                raise HullSourceError("OpenSCAD refused a part of the hull source")
+            output = _run_openscad(command, on_start, env=env)
             written = target.read_text(encoding="utf-8", errors="replace") if target.exists() else ""
             return ("", written + output) if part in ECHO_PARTS else (written, output)
 
@@ -420,3 +533,24 @@ def language_library(executable, library=FACTIONS_DIR, on_start=None):
         return openscad_runner(executable, file, library=library, on_start=on_start)("lang")[1]
 
     return read
+
+
+def openscad_projector(executable, on_start=None):
+    """A Projector that has OpenSCAD (Manifold backend) project the union of the meshes onto the XY plane and export it as
+    SVG, one process, with the same timeout and refusal shape as openscad_runner."""
+    def project(meshes):
+        with tempfile.TemporaryDirectory() as folder:
+            names = []
+            for i, mesh in enumerate(meshes):
+                (Path(folder) / f"m{i}.off").write_text(to_off(mesh), encoding="utf-8")
+                names.append(f'import("m{i}.off");')
+            wrapper = Path(folder) / "silhouette.scad"
+            wrapper.write_text("projection() union() { " + " ".join(names) + " }\n", encoding="utf-8")
+            target = Path(folder) / "silhouette.svg"
+            command = [str(executable), "--backend", "Manifold", "-o", str(target), str(wrapper)]
+            _run_openscad(command, on_start, cwd=folder)
+            if not target.exists():
+                raise HullSourceError("OpenSCAD refused a part of the hull source")
+            return parse_svg_contours(target.read_text(encoding="utf-8", errors="replace"))
+
+    return project
