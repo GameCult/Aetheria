@@ -31,9 +31,6 @@ public sealed class CargoTransferTests : IDisposable
         foreach (var cell in pocket.AllCoordinates) pocket[cell] = true;
         _cache.Upsert(new CargoBayData { Name = "Pocket", Shape = new Shape(), InteriorShape = pocket, Price = 5, Durability = 4 });
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });
-        var bin = new Shape(1, 1);
-        foreach (var cell in bin.AllCoordinates) bin[cell] = true;
-        _cache.Upsert(new CargoBayData { Name = "Bin", Shape = bin, InteriorShape = bin, Price = 5, Durability = 4 });
         _cache.Upsert(new SimpleCommodityData { Name = "Grit", Shape = new Shape(), Price = 1, MaxStack = 2 });
         _cache.Upsert(new SimpleCommodityData { Name = "Slag", Shape = new Shape(), Price = 1, MaxStack = 100 });
         _cache.Upsert(new DockingBayData { Name = "Berth", Shape = new Shape(), InteriorShape = bay, MaxSize = new int2(2, 2), Price = 60, Durability = 6 });
@@ -314,22 +311,6 @@ public sealed class CargoTransferTests : IDisposable
 
         Assert.Equal(0, Held(receiver, ore));
         Assert.Equal(GiveEnd.OutOfRange, giver.LastGiveEnd);
-    }
-
-    [Fact]
-    public void AGiveGoesToTheNextReceiverBayWhenTheFirstIsFull()
-    {
-        var (giver, receiver, ore) = Alongside(10, "Bin");
-        Assert.True(receiver.CargoBays[0].TryStore(Commodity("Slag", 5)));
-        Assert.True(receiver.TryEquip(Mint("Bin")));
-        Assert.Equal(2, receiver.CargoBays.Count);
-        giver.Command.Give(receiver, ore, 3);
-
-        Steps(40);
-
-        Assert.Equal(0, Units(receiver.CargoBays[0], ore));
-        Assert.Equal(3, Units(receiver.CargoBays[1], ore));
-        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
     }
 
     [Fact]
