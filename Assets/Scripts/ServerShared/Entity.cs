@@ -2596,8 +2596,10 @@ public class EquippedCargoBay : EquippedItem
         return true;
     }
 
+    // The part removed: null, with the bay as it was, when the item is not here or the quantity is below one unit.
     public SimpleCommodity Remove(SimpleCommodity item, int quantity)
     {
+        if (quantity < 1) return null;
         if (!Cargo.ContainsKey(item))
         {
             ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
@@ -2658,6 +2660,7 @@ public class EquippedCargoBay : EquippedItem
     
     public bool TryTransferItem(EquippedCargoBay target, SimpleCommodity item, int quantity)
     {
+        if (quantity < 1) return false;
         if (!Cargo.ContainsKey(item))
         {
             ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
