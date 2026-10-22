@@ -232,6 +232,9 @@ public sealed partial class RunStartTests
         Assert.False(east.IsHostileTo(west), "nothing lands before the step");
         arena.Update(SeamDt);
         Assert.True(east.IsHostileTo(west));
+        east.Command.Iff(west, true);
+        arena.Update(SeamDt);
+        Assert.True(east.IsHostileTo(west), "a stance set is a set, not a flip");
 
         east.Command.ToggleStance(west);
         east.Command.ToggleStance(west);
@@ -254,6 +257,17 @@ public sealed partial class RunStartTests
         var (arena, east, _) = SeamPair(false);
         Assert.Null(east.Shield);
         Assert.NotNull(east.Sensor);
+        var pings = 0;
+        east.Sensor.OnPingStart += () => pings++;
+        for (var step = 0; step < 600; step++) arena.Update(SeamDt); // the ping's capacitor fills, before any switch is thrown
+        Assert.Equal(0, pings);
+        east.Command.Ping();
+        Assert.Equal(0, pings);
+        arena.Update(SeamDt);
+        Assert.Equal(1, pings);
+        for (var step = 0; step < 10; step++) arena.Update(SeamDt);
+        Assert.Equal(1, pings);
+
         (bool, bool) Switches() => (east.OverrideShutdown, east.HeatsinksEnabled);
         Assert.Equal((false, true), Switches());
 
@@ -272,17 +286,6 @@ public sealed partial class RunStartTests
         east.Command.ToggleHeatsinks();
         arena.Update(SeamDt);
         Assert.Equal((true, false), Switches());
-
-        var pings = 0;
-        east.Sensor.OnPingStart += () => pings++;
-        for (var step = 0; step < 600; step++) arena.Update(SeamDt); // the ping's capacitor fills
-        Assert.Equal(0, pings);
-        east.Command.Ping();
-        Assert.Equal(0, pings);
-        arena.Update(SeamDt);
-        Assert.Equal(1, pings);
-        for (var step = 0; step < 10; step++) arena.Update(SeamDt);
-        Assert.Equal(1, pings);
     }
 
     // A trigger that counts its edges: a semi-auto fires once per Activate.
