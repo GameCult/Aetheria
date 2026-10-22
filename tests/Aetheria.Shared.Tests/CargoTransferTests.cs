@@ -845,17 +845,17 @@ public sealed class CargoTransferTests : IDisposable
     [Fact]
     public void APurchaseOfAnEmptyStationStackChargesNothingAndDeliversNothing()
     {
-        var station = Station().CargoBays[0];
-        var player = ShipWith("Crate").CargoBays[0];
+        // An old save's zero stack, as the station's stock. The field clamps the typed quantity up to one unit.
         var stock = Commodity("Ore", 0);
         var credits = 100;
+        var delivered = 0;
 
         var result = StationServices.TryBuyLots(_items, stock, StationServices.BuyableQuantity(_items, stock, 1, credits), ref credits,
-            lot => station.TryTransferItem(player, stock, lot));
+            lot => { delivered += lot; return true; });
 
         Assert.Equal(BuyResult.NoRoom, result);
         Assert.Equal(100, credits);
-        Assert.Empty(player.Cargo);
+        Assert.Equal(0, delivered);
     }
 
     [Fact]
