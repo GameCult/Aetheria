@@ -325,6 +325,68 @@ public sealed class ShipProductTests : IDisposable
         RefusedAndUntouched("product", path, "ACM", "--remove");
     }
 
+    // The hull as data, to compare everything stats did not name.
+    private static byte[] HullBytes(HullData hull) => MessagePack.MessagePackSerializer.Serialize(hull, CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly));
+
+    [Fact]
+    public void StatsWritesOnlyTheFieldsItNamesAndARefusalLeavesTheFileUntouched()
+    {
+        Environment.CurrentDirectory = _root.Path;
+        var path = Package("mod.skiff", "Skiffhull", 0);
+        var bare = Path.Combine(ShipFixture.WritePackage(Mods, "mod.bare", "Barehull", tweak: ship => ship.Hull.Behaviors.Clear()), "ship.cc");
+        var twin = Path.Combine(ShipFixture.WritePackage(Mods, "mod.twin", "Twinhull",
+            tweak: ship => ship.Hull.Behaviors.Add(ship.Hull.Behaviors.OfType<VelocityLimitData>().First())), "ship.cc");
+        void RefusedAndUntouched(string file, params string[] flags)
+        {
+            var before = File.ReadAllBytes(file);
+            Assert.Equal(1, Run(new[] { "stats", file }.Concat(flags).ToArray()).Code);
+            Assert.Equal(before, File.ReadAllBytes(file));
+        }
+
+        RefusedAndUntouched(path);
+        RefusedAndUntouched(path, "--speed", "5");
+        RefusedAndUntouched(path, "--mass");
+        RefusedAndUntouched(path, "--mass", "NaN");
+        RefusedAndUntouched(path, "--mass", "Infinity");
+        RefusedAndUntouched(path, "--armor", "-1");
+        RefusedAndUntouched(path, "--drag", "slow");
+        RefusedAndUntouched(path, "--mass", "5", "--mass", "6");
+        // A valid flag beside a bad one writes nothing.
+        RefusedAndUntouched(path, "--mass", "5", "--durability", "-2");
+        RefusedAndUntouched(bare, "--top-speed", "50");
+        RefusedAndUntouched(bare, "--mass", "5", "--top-speed", "50");
+        // Two VelocityLimits leave no one top speed to set.
+        RefusedAndUntouched(twin, "--top-speed", "50");
+
+        // Each flag sets its own field and nothing else.
+        var expected = ShipAuthoringStore.Load(path).Hull;
+        foreach (var (flag, value, set) in new (string, float, Action<HullData>)[]
+        {
+            ("--mass", 60000f, hull => hull.Mass = 60000f),
+            ("--durability", 8000f, hull => hull.Durability = 8000f),
+            ("--armor", 40f, hull => hull.Armor = 40f),
+            ("--drag", .35f, hull => hull.Drag = .35f),
+            ("--top-speed", 37.5f, hull => { var speed = hull.Behaviors.OfType<VelocityLimitData>().Single().TopSpeed; speed.Min = speed.Max = 37.5f; }),
+        })
+        {
+            var (code, output, error) = Run("stats", path, flag, value.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+            Assert.True(code == 0, error);
+            Assert.Contains(flag.Substring(2), output);
+            set(expected);
+            Assert.Equal(HullBytes(expected), HullBytes(ShipAuthoringStore.Load(path).Hull));
+        }
+        var written = ShipAuthoringStore.Load(path).Hull;
+        Assert.Equal((60000f, 8000f, 40f, .35f), (written.Mass, written.Durability, written.Armor, written.Drag));
+        var top = written.Behaviors.OfType<VelocityLimitData>().Single().TopSpeed;
+        Assert.Equal((37.5f, 37.5f), (top.Min, top.Max));
+
+        // Several at once, and a hull with no top speed takes the others.
+        Assert.Equal(0, Run("stats", path, "--mass", "1", "--drag", "0").Code);
+        Assert.Equal((1f, 0f, 8000f), (ShipAuthoringStore.Load(path).Hull.Mass, ShipAuthoringStore.Load(path).Hull.Drag, ShipAuthoringStore.Load(path).Hull.Durability));
+        Assert.Equal(0, Run("stats", bare, "--armor", "12").Code);
+        Assert.Equal(12f, ShipAuthoringStore.Load(bare).Hull.Armor);
+    }
+
     [Fact]
     public void ValidateJudgesProductsOnADraftAndInspectListsThem()
     {

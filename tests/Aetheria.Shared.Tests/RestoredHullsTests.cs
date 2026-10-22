@@ -187,9 +187,21 @@ public sealed class RestoredHullsTests
 
         using var cache = OpenCatalog();
         var missing = new List<string>();
+        // A hull names one body (ShipAuthoringStore.RequireOneBody): a Unity prefab, or a mod ship's visual record, which
+        // must be in the catalog under its own mod-ship key.
         foreach (var hull in cache.GetAll<HullData>())
-            if (!assetGuids.Contains(hull.Prefab ?? ""))
+        {
+            if (hull.Visual.IsSet())
+            {
+                var visual = cache.Get(hull.Visual);
+                if (visual == null || !hull.Visual.Key.Equals(ShipModCatalog.AuthoringKey(visual.Id)))
+                    missing.Add($"{hull.Name}.Visual = {hull.Visual.Key.Value}");
+                if (!string.IsNullOrWhiteSpace(hull.Prefab))
+                    missing.Add($"{hull.Name} names both Prefab {hull.Prefab} and Visual {hull.Visual.Key.Value}");
+            }
+            else if (!assetGuids.Contains(hull.Prefab ?? ""))
                 missing.Add($"{hull.Name}.Prefab = {hull.Prefab ?? "null"}");
+        }
         foreach (var design in cache.GetAll<EquippableItemData>())
         {
             foreach (var thruster in design.Behaviors.OfType<ThrusterData>())
@@ -245,14 +257,13 @@ public sealed class RestoredHullsTests
     }
 
     // The dock intro dereferences the ship's VelocityLimit unguarded (ActionGameManager), so every ship hull the catalog
-    // sells carries exactly one, with a top speed that is a finite positive number. After the retirement
+    // sells (LoadoutGenerator.SoldHulls) carries exactly one, with a top speed that is a finite positive number. After the retirement
     // (ruling retire-longinusx) the shipped ship hulls are the Longinus and the Djinni.
     [Fact]
     public void EveryShippedShipHullHasATopSpeed()
     {
         using var cache = OpenCatalog();
-        var sold = cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
-        var ships = cache.GetAll<HullData>().Where(h => h.HullType == HullType.Ship && sold.Contains(cache.RefOf(h).Key)).OrderBy(h => h.Name, StringComparer.Ordinal).ToArray();
+        var ships = LoadoutGenerator.SoldHulls(cache).Where(h => h.HullType == HullType.Ship).OrderBy(h => h.Name, StringComparer.Ordinal).ToArray();
         Assert.Equal(new[] { "Djinni", "Longinus" }, ships.Select(h => h.Name));
         foreach (var hull in ships)
         {

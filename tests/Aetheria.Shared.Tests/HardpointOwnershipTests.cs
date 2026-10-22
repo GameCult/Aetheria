@@ -261,9 +261,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void GeneratedLoadoutsGiveEveryReaderItsHardpoint()
     {
-        var sold = _cache.GetAll<FactionProductData>().Select(p => p.Design.Key).ToHashSet();
-        var shipHulls = _cache.GetAll<HullData>()
-            .Where(h => h.HullType == HullType.Ship && sold.Contains(_cache.RefOf(h).Key)).Select(h => h.Name).ToList();
+        var shipHulls = LoadoutGenerator.SoldHulls(_cache).Where(h => h.HullType == HullType.Ship).Select(h => h.Name).ToList();
         var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
         var packs = shipHulls.SelectMany(name => Enumerable.Range(0, 2).Select(_ => generator.GenerateShipLoadout(h => h.Name == name)))
             .Concat(Enumerable.Range(0, 4).Select(_ => generator.GenerateStationLoadout()))
