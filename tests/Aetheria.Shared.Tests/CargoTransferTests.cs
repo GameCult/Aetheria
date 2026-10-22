@@ -32,7 +32,7 @@ public sealed class CargoTransferTests : IDisposable
         _cache.Upsert(new CargoBayData { Name = "Pocket", Shape = new Shape(), InteriorShape = pocket, Price = 5, Durability = 4 });
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });
         var bin = new Shape(1, 1);
-        bin[0, 0] = true;
+        foreach (var cell in bin.AllCoordinates) bin[cell] = true;
         _cache.Upsert(new CargoBayData { Name = "Bin", Shape = bin, InteriorShape = bin, Price = 5, Durability = 4 });
         _cache.Upsert(new SimpleCommodityData { Name = "Grit", Shape = new Shape(), Price = 1, MaxStack = 2 });
         _cache.Upsert(new SimpleCommodityData { Name = "Slag", Shape = new Shape(), Price = 1, MaxStack = 100 });
