@@ -148,6 +148,9 @@ public sealed class ScenarioStage
         var placement = _placed.FirstOrDefault(p => ReferenceEquals(p.Entity, entity));
         if (placement == null || !placement.Piloted) { _failures.Add($"approach: {entity?.Name ?? "no entity"} is not a placed, piloted ship"); return; }
         if (target == null) { _failures.Add("approach: no target to close on"); return; }
+        // The one production handle minted from truth: the stage states the pilot's knowledge of its anchor (ruling
+        // stage-states-pilot-knowledge), and RunStart seeds the matching sensor track. The view still answers about the
+        // anchor only while the pilot's sensors hold it.
         placement.Task = new FollowTask { Anchor = PilotView.Handle(target), Standoff = 0f };
         placement.Knows = target;
     }

@@ -14,13 +14,22 @@ using CultMath;
 // within a zone step nothing moves during the agent phase, so the track equals what the Entity would answer. The
 // fire-control readouts call FireControl's own functions with the resolved subject, so the HUD, the player and the
 // brains price one model (A-one-sim). Own-ship reads stay the brain's own.
+//
+// The view enforces its own rules; it does not trust its callers. Every per-member read answers for a member the view
+// holds and nothing else, and every per-contact fire-control readout (Intercept, WeaponReveals, Designated, Refuses,
+// Fires) answers only while that member itself tracks the contact: a sidemate's track gives a member no aim, no reveals
+// and no shot (per-shooter-fire-control). Only Flight builds a view and sets it on its pilots, and the side-of-one view an
+// Agent starts with is its own; the constructor and the setter are internal.
 public sealed class PilotView
 {
     private readonly List<Ship> _members = new List<Ship>();
     private static Func<ContactId, Entity> _openContact;
     private static Func<RevealId, EquippedItem> _openReveal;
 
-    public PilotView(params Ship[] members) => _members.AddRange(members);
+    internal PilotView(params Ship[] members) => _members.AddRange(members);
+
+    private bool Holds(Ship member) => _members.Contains(member);
+    private bool Tracks(Ship member, Entity subject) => Holds(member) && subject != null && member.VisibleEntities.Contains(subject);
 
     internal void Add(Ship member) => _members.Add(member);
     internal void Remove(Ship member) => _members.Remove(member);
@@ -69,7 +78,9 @@ public sealed class PilotView
         }
     }
 
-    // For fixtures: the handle of a subject, as the view would issue it.
+    // For fixtures, and for the one place the stage states what a pilot already knows (ScenarioStage.Approach seeds an
+    // anchor handle for a FollowTask before the zone exists: staged knowledge, ruling stage-states-pilot-knowledge). A
+    // brain never calls this; the sensors, not the handle, decide whether the view answers about the contact.
     internal static ContactId Handle(Entity subject) => new ContactId(subject);
 
     private static Entity Subject(ContactId id)
@@ -95,13 +106,13 @@ public sealed class PilotView
         return picture;
     }
 
-    public bool Sees(Ship member, ContactId contact) => member.VisibleEnemies.Contains(Subject(contact));
+    public bool Sees(Ship member, ContactId contact) => Holds(member) && member.VisibleEnemies.Contains(Subject(contact));
 
     // The member's own track of the contact, or null while it does not track it.
     public Track? TrackOf(Ship member, ContactId contact)
     {
         var subject = Subject(contact);
-        if (subject == null || !member.VisibleEntities.Contains(subject)) return null;
+        if (!Tracks(member, subject)) return null;
         return new Track(subject.Position, subject.Velocity, subject.Direction);
     }
 
@@ -117,45 +128,64 @@ public sealed class PilotView
         return null;
     }
 
-    public bool? IffOverride(Ship member, ContactId contact) => member.IffOverride(Subject(contact));
+    public bool? IffOverride(Ship member, ContactId contact) => Holds(member) ? member.IffOverride(Subject(contact)) : null;
 
     public float? Info(Ship member, ContactId contact) =>
-        member.EntityInfoGathered.TryGetValue(Subject(contact), out var info) ? info : (float?) null;
+        Holds(member) && member.EntityInfoGathered.TryGetValue(Subject(contact), out var info) ? info : (float?) null;
 
-    public bool BelievesTrespassing(Ship member, ContactId contact) => member.BelievesTrespassing(Subject(contact));
+    public bool BelievesTrespassing(Ship member, ContactId contact) => Holds(member) && member.BelievesTrespassing(Subject(contact));
 
     // The member's pending designation when set, else last step's applied target.
     public ContactId? TargetOf(Ship member)
     {
+        if (!Holds(member)) return null;
         var subject = (member.Command.Designated ?? member.Target.Value).Entity;
         return subject == null ? (ContactId?) null : new ContactId(subject);
     }
 
     public ContactId? AppliedTargetOf(Ship member)
     {
+        if (!Holds(member)) return null;
         var subject = member.Target.Value.Entity;
         return subject == null ? (ContactId?) null : new ContactId(subject);
     }
 
     // The weapons the member believes the contact has, in the contact's equipment order; Aimable is FireControl.IsRevealed.
-    public List<(RevealId Id, EquippableItemData Claimed, bool Aimable)> WeaponReveals(Ship member, ContactId contact) =>
-        member.RevealedWeapons(Subject(contact))
-            .Select(r => (new RevealId(r.Item), r.Claimed, FireControl.IsRevealed(member, r.Item))).ToList();
-
-    public bool Designated(Ship member, Weapon weapon, ContactId contact) =>
-        FireControl.Designated(weapon, member, Subject(contact), out _);
-
-    public bool Refuses(Ship member, Weapon weapon, ContactId contact) =>
-        FireControl.Refuses(weapon, member, Subject(contact));
-
-    public bool Fires(Ship member, Weapon weapon, ContactId contact, float minHitProbability, RevealId? aim) =>
-        FireControl.AgentFires(weapon, member, Subject(contact), minHitProbability,
-            aim == null ? AimTarget.None : AimTarget.OfItem(Item(aim.Value)));
-
-    // Where to point to hit the contact with the weapon: the shared prediction, at the height the contact rides.
-    public float3 Intercept(Ship member, Weapon weapon, ContactId contact)
+    // Empty unless the member tracks the contact.
+    public List<(RevealId Id, EquippableItemData Claimed, bool Aimable)> WeaponReveals(Ship member, ContactId contact)
     {
         var subject = Subject(contact);
+        if (!Tracks(member, subject)) return new List<(RevealId, EquippableItemData, bool)>();
+        return member.RevealedWeapons(subject)
+            .Select(r => (new RevealId(r.Item), r.Claimed, FireControl.IsRevealed(member, r.Item))).ToList();
+    }
+
+    // The next four answer for a member that tracks the contact: otherwise not designated, refused, no shot, no intercept.
+    public bool Designated(Ship member, Weapon weapon, ContactId contact)
+    {
+        var subject = Subject(contact);
+        return Tracks(member, subject) && FireControl.Designated(weapon, member, subject, out _);
+    }
+
+    public bool Refuses(Ship member, Weapon weapon, ContactId contact)
+    {
+        var subject = Subject(contact);
+        return !Tracks(member, subject) || FireControl.Refuses(weapon, member, subject);
+    }
+
+    public bool Fires(Ship member, Weapon weapon, ContactId contact, float minHitProbability, RevealId? aim)
+    {
+        var subject = Subject(contact);
+        return Tracks(member, subject) && FireControl.AgentFires(weapon, member, subject, minHitProbability,
+            aim == null ? AimTarget.None : AimTarget.OfItem(Item(aim.Value)));
+    }
+
+    // Where to point to hit the contact with the weapon: the shared prediction, at the height the contact rides; null
+    // unless the member tracks the contact.
+    public float3? Intercept(Ship member, Weapon weapon, ContactId contact)
+    {
+        var subject = Subject(contact);
+        if (!Tracks(member, subject)) return null;
         var predicted = FireControl.PredictedIntercept(weapon, member, subject);
         predicted.y = subject.RideHeight(predicted.xz);
         return predicted;
@@ -164,10 +194,13 @@ public sealed class PilotView
     // Designate the contact, or nothing for null, when that is not already the member's applied target.
     public void Designate(Ship member, ContactId? contact)
     {
+        if (!Holds(member)) return;
         var wanted = contact == null ? TargetRef.None : new TargetRef(Subject(contact.Value));
         if (!member.Target.Value.Equals(wanted)) member.Command.Designate(wanted);
     }
 
-    public void SelectItem(Ship member, RevealId? reveal) =>
-        member.Command.SelectItem(reveal == null ? null : Item(reveal.Value));
+    public void SelectItem(Ship member, RevealId? reveal)
+    {
+        if (Holds(member)) member.Command.SelectItem(reveal == null ? null : Item(reveal.Value));
+    }
 }

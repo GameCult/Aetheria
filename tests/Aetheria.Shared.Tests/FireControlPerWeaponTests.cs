@@ -441,7 +441,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var planarY = expected.y;
         expected.y = r.Target.RideHeight(expected.xz);
         Assert.NotEqual(planarY, expected.y);
-        Assert.Equal(expected, view.Intercept(r.Shooter, weapon, contact));
+        Assert.Equal(expected, view.Intercept(r.Shooter, weapon, contact).Value);
     }
 
     // A view answers fire control only for a member that tracks the contact: the shooter outside the view, or having lost

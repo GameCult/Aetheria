@@ -134,8 +134,9 @@ public class CombatState : BaseState
                 // Cut 3 (docs/fire-control-cut.md): the one prediction function, shared with the shot's
                 // own snapshot and the roll's deviation measurement -- two separate predictions here and in the
                 // roll would let an AI aim at one point and get judged for missing a different one.
+                // The target is tracked here (the guard above), so the intercept is never null.
                 var predictedPosition = view.Intercept(_agent.Ship, testWeapon, target.Value);
-                toTarget = normalize(predictedPosition - _agent.Ship.Position);
+                if (predictedPosition != null) toTarget = normalize(predictedPosition.Value - _agent.Ship.Position);
             }
 
             // Each weapon decides for itself (operator ruling 2026-09-30): a group shares a trigger, not a
