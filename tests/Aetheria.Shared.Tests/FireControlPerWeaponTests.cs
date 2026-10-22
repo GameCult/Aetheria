@@ -1052,6 +1052,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var weapon = (InstantWeapon) r.Gun.Weapon;
         r.Zone.Update(.25f);
         weapon.Activate();
+        weapon.Deactivate();
         r.Zone.Update(.25f);
         Assert.False(weapon.CanFire, "control: the first burst fired and is cooling");
         for (var i = 0; i < 10 && !weapon.CanFire; i++) r.Zone.Update(.25f);

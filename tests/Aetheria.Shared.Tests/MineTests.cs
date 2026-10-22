@@ -168,6 +168,7 @@ public sealed class MineTests : IDisposable
     {
         var before = lab.Zone.Mines.Count;
         lab.Weapon.Activate();
+        lab.Weapon.Deactivate();
         lab.Zone.Update(dt);
         Assert.Equal(before + 1, lab.Zone.Mines.Count);
         return lab.Zone.Mines.Last();
@@ -532,6 +533,7 @@ public sealed class MineTests : IDisposable
             foreach (var lab in new[] { a, b })
             {
                 lab.Weapon.Activate();
+                lab.Weapon.Deactivate();
                 lab.Zone.Update(.1f);
                 lab.Zone.Update(.1f);
             }
@@ -803,6 +805,7 @@ public sealed class MineTests : IDisposable
         lab.Zone.Log = log.Add;
 
         lab.Weapon.Activate();
+        lab.Weapon.Deactivate();
         lab.Zone.Update(.1f);
 
         Assert.Empty(lab.Zone.Mines);
