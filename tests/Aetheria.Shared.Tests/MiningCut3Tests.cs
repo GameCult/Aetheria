@@ -851,9 +851,9 @@ public sealed partial class MiningCut3Tests : IDisposable
                 cache.Upsert(existing);
             }
             // Authored kinds have fixed keys; the pick orders kinds by key, so the fixture's keys are fixed too.
-            cache.Upsert(typeof(FieldKindData), Kind("Gen A", 1f, 1f), new CultRecordKey("field-kind:gen-a"));
-            cache.Upsert(typeof(FieldKindData), Kind("Gen B", 1f, 2f), new CultRecordKey("field-kind:gen-b"));
-            cache.Upsert(typeof(FieldKindData), Kind("Gen C", 1f, 4f), new CultRecordKey("field-kind:gen-c"));
+            cache.Commit(batch => batch.Upsert(typeof(FieldKindData), Kind("Gen A", 1f, 1f), new CultRecordKey("field-kind:gen-a")));
+            cache.Commit(batch => batch.Upsert(typeof(FieldKindData), Kind("Gen B", 1f, 2f), new CultRecordKey("field-kind:gen-b")));
+            cache.Commit(batch => batch.Upsert(typeof(FieldKindData), Kind("Gen C", 1f, 4f), new CultRecordKey("field-kind:gen-c")));
             Galaxy galaxy;
             try
             {
