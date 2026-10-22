@@ -31,7 +31,7 @@ public sealed partial class RunStartTests
     // each other, so they engage at step 0 (f19b9992); and Follow now flies only on an anchor the pilot itself tracks, so
     // once the sensors drop the staged anchor the follower stops following it (ce81a426).
     private const string TwoAiPinnedDigest = "ce81a426c40495e4b4b7b7f83ad23767cc781dce5523d713b4455e0aa5b7fe33";
-    private const int TwoAiSteps = 3600;
+    private const int TwoAiSteps = 60 * SimClock.TickRate;
 
     [Fact]
     public void ItemManagerRefusesSeedZero()
@@ -214,7 +214,7 @@ public sealed partial class RunStartTests
         var history = new StringBuilder();
         for (var step = 0; step < TwoAiSteps; step++)
         {
-            arena.Update(1f / 60f);
+            arena.Update(SimClock.GameStep);
             history.Append(Snapshot(arena, shots)).Append('\n');
         }
         var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(history.ToString()))).ToLowerInvariant();
