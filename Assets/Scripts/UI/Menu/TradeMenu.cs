@@ -28,8 +28,6 @@ public class TradeMenu : MonoBehaviour
     // False lists the station's wares to buy; true lists the selected bay's goods to sell.
     private bool _selling;
     private (ItemFilter filter, HardpointType type) _hardpointFilter;
-    private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
-    private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
     private List<(ItemFilter filter, Type type)> _behaviorFilters = new List<(ItemFilter filter, Type type)>();
     
     public EquippedCargoBay Inventory { get; set; }
@@ -62,14 +60,6 @@ public class TradeMenu : MonoBehaviour
             if (_hardpointFilter.filter != null)
                 hardpointTypes = hardpointTypes.Where(x => x != _hardpointFilter.type);
             
-            IEnumerable<SimpleCommodityCategory> commodityTypes = (SimpleCommodityCategory[]) Enum.GetValues(typeof(SimpleCommodityCategory));
-            if (_commodityFilter.filter != null)
-                commodityTypes = commodityTypes.Where(x => x != _commodityFilter.type);
-            
-            IEnumerable<CompoundCommodityCategory> compoundCommodityTypes = (CompoundCommodityCategory[]) Enum.GetValues(typeof(CompoundCommodityCategory));
-            if (_compoundCommodityFilter.filter != null)
-                compoundCommodityTypes = compoundCommodityTypes.Where(x => x != _compoundCommodityFilter.type);
-            
             ContextMenu.AddDropdown("Gear Type", hardpointTypes
                 .Select<HardpointType, (string, Action, bool)>(x => (Enum.GetName(typeof(HardpointType), x), () =>
                 {
@@ -82,73 +72,8 @@ public class TradeMenu : MonoBehaviour
                             Populate();
                         };
                     }
-                    if(_commodityFilter.filter)
-                    {
-                        _commodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _commodityFilter.filter = null;
-                    }
-                    if(_compoundCommodityFilter.filter)
-                    {
-                        _compoundCommodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _compoundCommodityFilter.filter = null;
-                    }
-
                     _hardpointFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(HardpointType), x)}";
                     _hardpointFilter.type = x;
-                    Populate();
-                }, true)));
-            ContextMenu.AddDropdown("Simple Commodity", commodityTypes
-                .Select<SimpleCommodityCategory, (string, Action, bool)>(x => (Enum.GetName(typeof(SimpleCommodityCategory), x), () =>
-                {
-                    if (!_commodityFilter.filter)
-                    {
-                        _commodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
-                        _commodityFilter.filter.OnDisable += () =>
-                        {
-                            _commodityFilter.filter = null;
-                            Populate();
-                        };
-                    }
-                    if(_hardpointFilter.filter)
-                    {
-                        _hardpointFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _hardpointFilter.filter = null;
-                    }
-                    if(_compoundCommodityFilter.filter)
-                    {
-                        _compoundCommodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _compoundCommodityFilter.filter = null;
-                    }
-
-                    _commodityFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(SimpleCommodityCategory), x)}";
-                    _commodityFilter.type = x;
-                    Populate();
-                }, true)));
-            ContextMenu.AddDropdown("Compound Commodity", compoundCommodityTypes
-                .Select<CompoundCommodityCategory, (string, Action, bool)>(x => (Enum.GetName(typeof(CompoundCommodityCategory), x), () =>
-                {
-                    if (!_compoundCommodityFilter.filter)
-                    {
-                        _compoundCommodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
-                        _compoundCommodityFilter.filter.OnDisable += () =>
-                        {
-                            _compoundCommodityFilter.filter = null;
-                            Populate();
-                        };
-                    }
-                    if(_hardpointFilter.filter)
-                    {
-                        _hardpointFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _hardpointFilter.filter = null;
-                    }
-                    if(_commodityFilter.filter)
-                    {
-                        _commodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _commodityFilter.filter = null;
-                    }
-
-                    _compoundCommodityFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(CompoundCommodityCategory), x)}";
-                    _compoundCommodityFilter.type = x;
                     Populate();
                 }, true)));
             ContextMenu.AddDropdown("Item Behavior", typeof(BehaviorData).GetAllChildClasses()
@@ -199,19 +124,15 @@ public class TradeMenu : MonoBehaviour
             columns.Add(("Type", 2,
                 x => () =>
                 {
-                    if (x.data is SimpleCommodityData s) return Enum.GetName(typeof(SimpleCommodityCategory), s.Category);
-                    if(x.data is CompoundCommodityData c) return Enum.GetName(typeof(CompoundCommodityCategory), c.Category);
+                    if (x.data is SimpleCommodityData || x.data is CompoundCommodityData) return "Commodity";
                     if(x.data is EquippableItemData e) return Enum.GetName(typeof(HardpointType), e.HardpointType);
                     return "None";
                 }, 
                 x =>
                 {
                     var data = x.data;
-                    if (data is SimpleCommodityData s) return (int) s.Category;
-                    var offset = Enum.GetValues(typeof(SimpleCommodityCategory)).Length;
-                    if(data is CompoundCommodityData c) return (int) c.Category + offset;
-                    offset += Enum.GetValues(typeof(CompoundCommodityCategory)).Length;
-                    if(data is EquippableItemData e) return (int) e.HardpointType + offset;
+                    if (data is SimpleCommodityData || data is CompoundCommodityData) return 0;
+                    if (data is EquippableItemData e) return 1 + (int) e.HardpointType;
                     return 0;
                 }));
         columns.Add(("Mass", 1,
@@ -236,12 +157,6 @@ public class TradeMenu : MonoBehaviour
             items = items.Where(i =>
                 !(MaximumSizeFilter.Width.text.Length > 0 && i.data.Shape.Width > int.Parse(MaximumSizeFilter.Width.text) ||
                  MaximumSizeFilter.Height.text.Length > 0 && i.data.Shape.Height > int.Parse(MaximumSizeFilter.Height.text)));
-        
-        if(_commodityFilter.filter != null)
-            items = items.Where(i => i.data is SimpleCommodityData s && s.Category == _commodityFilter.type);
-        
-        if(_compoundCommodityFilter.filter != null)
-            items = items.Where(i => i.data is CompoundCommodityData c && c.Category == _compoundCommodityFilter.type);
         
         if (_hardpointFilter.filter != null)
             items = items.Where(i => i.data is EquippableItemData e && e.HardpointType == _hardpointFilter.type);

@@ -322,13 +322,11 @@ public abstract class ItemData
 [CultDocument("aetheria.simplecommoditydata", "1"), Inspectable, MessagePackObject]
 public class SimpleCommodityData : ItemData
 {
-    // MessagePack keys 6, 7, 8 and 11 belonged to removed resource-distribution fields; do not reuse them.
+    // MessagePack keys 6, 7, 8, 10 and 11 belonged to removed resource-distribution fields; do not reuse them.
 
     [Inspectable, JsonProperty("maxStackSize"), Key(9)]
     public int MaxStack = 10;
 
-    [Inspectable, JsonProperty("category"), Key(10)]  
-    public SimpleCommodityCategory Category;
 }
 
 [JsonObject(MemberSerialization.OptIn)]
@@ -352,11 +350,7 @@ public class ItemRole
 [CultDocument("aetheria.compoundcommoditydata", "1"), Inspectable, MessagePackObject]
 public class CompoundCommodityData : CraftedItemData
 {
-    [Inspectable, CultReference(typeof(PersonalityAttribute), many: true), JsonProperty("demandProfile"), Key(10)]
-    public Dictionary<CultRecordRef<PersonalityAttribute>, float> DemandProfile = new Dictionary<CultRecordRef<PersonalityAttribute>, float>();
-
-    [Inspectable, JsonProperty("category"), Key(11)] 
-    public CompoundCommodityCategory Category;
+    // MessagePack keys 10 and 11 belonged to the removed demand weights and classification; do not reuse them.
 }
 
 [CultDocument("aetheria.consumableitemdata", "1"), Inspectable, MessagePackObject]
