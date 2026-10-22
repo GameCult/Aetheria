@@ -64,7 +64,7 @@ public sealed partial class ContactRevealTests
         var rounds = new List<float>();
         gun.OnFire += _ => rounds.Add(_zone.Time);
         ship.SetTarget(TargetRef.None);
-        for (var step = 0; step < (int) round(seconds / dt); step++)
+        for (var step = 0; step < (int) MathF.Round(seconds / dt); step++)
         {
             capacitor.AddCharge(1000f);
             gun.Activate();
@@ -119,7 +119,7 @@ public sealed partial class ContactRevealTests
         var ship = Add(float3(0, 0, 0), new[] { name });
         var pings = 0;
         SensorOf(ship).OnPingStart += () => pings++;
-        for (var step = 0; step < (int) round(seconds / dt); step++)
+        for (var step = 0; step < (int) MathF.Round(seconds / dt); step++)
         {
             SensorOf(ship).Ping();
             Tick(dt);
@@ -150,7 +150,7 @@ public sealed partial class ContactRevealTests
                 var ship = Add(float3(0, 0, 0), null, new[] { name });
                 var clock = ship.Equipment.SelectMany(i => i.Behaviors).OfType<Cooldown>().Single();
                 var fired = 0;
-                for (var step = 0; step < (int) round(30f / dt); step++)
+                for (var step = 0; step < (int) MathF.Round(30f / dt); step++)
                 {
                     Tick(dt);
                     if (clock.Execute(dt)) fired++;
@@ -185,7 +185,7 @@ public sealed partial class ContactRevealTests
                 typeof(ConstantWeapon).GetField("_ammo", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(weapon, 100000);
                 ship.SetTarget(TargetRef.None);
                 weapon.Activate();
-                for (var step = 0; step < (int) round(30f / dt); step++) Tick(dt);
+                for (var step = 0; step < (int) MathF.Round(30f / dt); step++) Tick(dt);
                 var spent = 100000 - weapon.Ammo;
                 Assert.True(abs(spent - 30f / interval) <= 1.01f, $"ammo interval {interval} at dt {dt}: {spent} spent, expected {30f / interval} +-1");
             }
@@ -207,7 +207,7 @@ public sealed partial class ContactRevealTests
             }
             var documented = observer.PassiveInfo(target.Position.xz, target.Visibility);
             Assert.InRange(documented, 1e-4f, .5f);
-            for (var step = 0; step < (int) round(40f / dt); step++) Tick(dt);
+            for (var step = 0; step < (int) MathF.Round(40f / dt); step++) Tick(dt);
             Assert.InRange(Track(observer, target), documented - 1e-3f, documented + 1e-3f);
         }
     }
