@@ -176,6 +176,29 @@ public sealed class StationKindTests : IDisposable
             CultRecordRef<Faction> faction = cache.Upsert(new Faction { Name = "F", ShortName = "F" });
             Mint(cache, "Lonely", kind => kind.StandIns.Add(new StationKindStandIn { Faction = faction, Kind = Kind("nowhere") }));
         }));
+        // A stand-in whose kind stands in for another faction only is one hop for this faction: Open accepts it.
+        SeedAndReopen(cache =>
+        {
+            CultRecordRef<Faction> mine = cache.Upsert(new Faction { Name = "F", ShortName = "F" });
+            CultRecordRef<Faction> other = cache.Upsert(new Faction { Name = "G", ShortName = "G" });
+            var third = Mint(cache, "Third");
+            var second = Mint(cache, "Second", kind => kind.StandIns.Add(new StationKindStandIn { Faction = other, Kind = third }));
+            Mint(cache, "First", kind => kind.StandIns.Add(new StationKindStandIn { Faction = mine, Kind = second }));
+        }, out var accepted);
+        AetheriaStores.Open(accepted).Dispose();
+        // Any one of the stand-in kind's entries for the same faction makes a second hop.
+        Assert.Contains("one hop", OpenRefusal(cache =>
+        {
+            CultRecordRef<Faction> mine = cache.Upsert(new Faction { Name = "F", ShortName = "F" });
+            CultRecordRef<Faction> other = cache.Upsert(new Faction { Name = "G", ShortName = "G" });
+            var third = Mint(cache, "Third");
+            var second = Mint(cache, "Second", kind =>
+            {
+                kind.StandIns.Add(new StationKindStandIn { Faction = other, Kind = third });
+                kind.StandIns.Add(new StationKindStandIn { Faction = mine, Kind = third });
+            });
+            Mint(cache, "First", kind => kind.StandIns.Add(new StationKindStandIn { Faction = mine, Kind = second }));
+        }));
         Assert.Contains("one hop", OpenRefusal(cache =>
         {
             CultRecordRef<Faction> faction = cache.Upsert(new Faction { Name = "F", ShortName = "F" });
@@ -261,6 +284,13 @@ public sealed class StationKindTests : IDisposable
         var kind = StationKinds.Choose(world.Cache, world.Lucent, new CultRecordKey("site"), logged.Add);
         Assert.Equal(Kind("shipyard").Key, kind.Key);
         Assert.Single(logged);
+        Assert.Contains(world.Lucent.Name, logged[0]);
+        var anonymous = new List<string>();
+        StationKinds.Choose(world.Cache, null, new CultRecordKey("site"), anonymous.Add);
+        Assert.Contains("This galaxy", Assert.Single(anonymous));
+        world.StandIn("mining", world.Au, "shipyard");
+        Assert.Equal(Kind("mining").Key, StationKinds.HullKindFor(world.Cache, null, Kind("mining")).Key);
+        Assert.False(StationKinds.HullKindFor(world.Cache, world.Au, default).IsSet());
 
         var pack = world.Generator(world.Lucent).GenerateStationLoadout(kind);
         Assert.NotNull(pack);

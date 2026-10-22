@@ -13,10 +13,10 @@ using Newtonsoft.Json;
 public class StationKindData
 {
     [CultName, JsonProperty("name"), Key(0)]
-    public string Name = "";
+    public string Name;
 
     [JsonProperty("description"), Key(1)]
-    public string Description = "";
+    public string Description;
 
     // A faction with no model of this kind builds the stand-in's hull and the station stays this kind. Ignored once the
     // faction offers a model of this kind.
@@ -76,7 +76,7 @@ public static class StationKinds
     // any maker).
     public static CultRecordRef<StationKindData> HullKindFor(CultCache catalog, Faction faction, CultRecordRef<StationKindData> kind)
     {
-        if (!kind.IsSet() || faction == null) return kind;
+        if (!kind.IsSet()) return kind;
         if (OfferedStationHulls(catalog, faction).Any(hull => hull.Kind.Key.Equals(kind.Key))) return kind;
         var standIn = catalog.Get(kind)?.StandIns.FirstOrDefault(entry => catalog.Get(entry.Faction) == faction);
         return standIn != null && standIn.Kind.IsSet() ? standIn.Kind : kind;
