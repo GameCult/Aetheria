@@ -140,6 +140,10 @@ public static class ShipAuthoringStore
         {
             throw new InvalidOperationException($"{path}: a record does not decode as its schema: {error.Message}", error);
         }
+        catch (NotSupportedException error)
+        {
+            throw new InvalidOperationException($"{path}: not a readable ship file: {error.Message}", error);
+        }
     }
 
     // Key 1 of ShipAuthoring held the whole hull before S1. The type no longer has that member, so a deserialized record
