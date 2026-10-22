@@ -33,6 +33,12 @@ public sealed class CargoTransferTests : IDisposable
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });
         _cache.Upsert(new SimpleCommodityData { Name = "Grit", Shape = new Shape(), Price = 1, MaxStack = 2 });
         _cache.Upsert(new SimpleCommodityData { Name = "Slag", Shape = new Shape(), Price = 1, MaxStack = 100 });
+        var slot = new Shape(1, 2);
+        foreach (var cell in slot.AllCoordinates) slot[cell] = true;
+        _cache.Upsert(new CargoBayData { Name = "Slot", Shape = new Shape(), InteriorShape = slot, Price = 5, Durability = 4 });
+        var rod = new Shape(2, 1);
+        foreach (var cell in rod.AllCoordinates) rod[cell] = true;
+        _cache.Upsert(new SimpleCommodityData { Name = "Rod", Shape = rod, Price = 1, MaxStack = 1 });
         _cache.Upsert(new DockingBayData { Name = "Berth", Shape = new Shape(), InteriorShape = bay, MaxSize = new int2(2, 2), Price = 60, Durability = 6 });
         _cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 400, Durability = 8 });
         _cache.FlushAsync().Wait();
@@ -59,8 +65,28 @@ public sealed class CargoTransferTests : IDisposable
         };
     }
 
-    private SimpleCommodity Commodity(string design, int quantity) =>
-        new SimpleCommodity { Data = _cache.RefOf<ItemData>(_cache.GetByName<SimpleCommodityData>(design)), Quantity = quantity };
+    private SimpleCommodity Commodity(string design, int quantity, ItemRotation rotation = ItemRotation.None) =>
+        new SimpleCommodity { Data = _cache.RefOf<ItemData>(_cache.GetByName<SimpleCommodityData>(design)), Quantity = quantity, Rotation = rotation };
+
+    // Bays built directly, so a ship can hold several (TryEquip is not under test).
+    private Ship ShipWithBays(params string[] bays)
+    {
+        var ship = new Ship(_items, _zone, Mint("Skiff"), new EntitySettings());
+        for (var i = 0; i < bays.Length; i++)
+            ship.CargoBays.Add(new EquippedCargoBay(_items, Mint(bays[i]), new int2(1 + i, 1), ship, $"bay{i}"));
+        return ship;
+    }
+
+    // Off the origin, so a distance taken from the wrong sum or difference of positions shows.
+    private void Place(Ship giver, Ship receiver)
+    {
+        giver.Position = new float3(-50, 0, 10);
+        receiver.Position = giver.Position + new float3(5, 0, 0);
+        _zone.Admit(giver, piloted: false);
+        _zone.Admit(receiver, piloted: false);
+    }
+
+    private static int Stacks(EquippedCargoBay bay) => bay.Cargo.Keys.Count;
 
     private Ship ShipWith(string bay)
     {
@@ -517,5 +543,236 @@ public sealed class CargoTransferTests : IDisposable
         Assert.Equal(10, Held(giver, ore));
         Assert.Equal(0, Held(receiver, ore));
         Assert.Null(giver.LastGiveEnd);
+    }
+
+    // ---- Quantities below one --------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void ATransferBelowOneUnitChangesNothing(int quantity)
+    {
+        var from = ShipWith("Crate").CargoBays[0];
+        var to = ShipWith("Crate").CargoBays[0];
+        var ore = Commodity("Ore", 10);
+        Assert.True(from.TryStore(ore));
+        Assert.True(to.TryStore(Commodity("Ore", 3)));
+        var mass = (from.Mass, to.Mass);
+        var stacks = (Stacks(from), Stacks(to));
+
+        Assert.False(from.TryTransferItem(to, ore, quantity));
+
+        Assert.Equal(10, Units(from, ore));
+        Assert.Equal(3, Units(to, ore));
+        Assert.Equal(mass, (from.Mass, to.Mass));
+        Assert.Equal(stacks, (Stacks(from), Stacks(to)));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void ARemovalBelowOneUnitTakesNothing(int quantity)
+    {
+        var bay = ShipWith("Crate").CargoBays[0];
+        var ore = Commodity("Ore", 10);
+        Assert.True(bay.TryStore(ore));
+        var mass = bay.Mass;
+
+        Assert.Null(bay.Remove(ore, quantity));
+
+        Assert.Equal(10, Units(bay, ore));
+        Assert.Equal(mass, bay.Mass);
+        Assert.Equal(1, Stacks(bay));
+    }
+
+    // ---- The give: where units go, and when it ends (the soul-tv probes, adopted) ----------------------------
+
+    // First receiver bay full, second has room: the unit goes to the second.
+    [Fact]
+    public void AGivenCommodityGoesToTheSecondBayWhenTheFirstIsFull()
+    {
+        var giver = ShipWithBays("Crate");
+        var receiver = ShipWithBays("Pocket", "Crate");
+        var ore = Commodity("Ore", 10);
+        Assert.True(giver.CargoBays[0].TryStore(ore));
+        Assert.True(receiver.CargoBays[0].TryStore(Commodity("Slag", 5)));
+        Place(giver, receiver);
+        giver.Command.Give(receiver, ore, 3);
+
+        Steps(40);
+
+        Assert.Equal(3, Units(receiver.CargoBays[1], ore));
+        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
+    }
+
+    // Two open receiver bays: one unit per move, not one per bay.
+    [Fact]
+    public void AGiveMovesOneUnitPerMoveWithTwoOpenBays()
+    {
+        var giver = ShipWithBays("Crate");
+        var receiver = ShipWithBays("Crate", "Crate");
+        var ore = Commodity("Ore", 10);
+        Assert.True(giver.CargoBays[0].TryStore(ore));
+        Place(giver, receiver);
+        giver.Command.Give(receiver, ore, 10);
+
+        _zone.Update(1f);
+
+        Assert.Equal(2, Held(receiver, ore));
+        Assert.Equal(8, Held(giver, ore));
+    }
+
+    [Fact]
+    public void AGivenCraftedItemGoesToTheSecondBayWhenTheFirstIsFull()
+    {
+        var giver = ShipWithBays("Crate");
+        var receiver = ShipWithBays("Pocket", "Crate");
+        var gun = Mint("Gun");
+        Assert.True(giver.CargoBays[0].TryStore(gun));
+        Assert.True(receiver.CargoBays[0].TryStore(Commodity("Slag", 5)));
+        Place(giver, receiver);
+        giver.Command.Give(receiver, gun, 1);
+
+        Steps(10);
+
+        Assert.True(receiver.CargoBays[1].Cargo.ContainsKey(gun));
+        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void AGivenCraftedItemMovesOnceIntoTwoOpenBays()
+    {
+        var giver = ShipWithBays("Crate");
+        var receiver = ShipWithBays("Crate", "Crate");
+        var gun = Mint("Gun");
+        Assert.True(giver.CargoBays[0].TryStore(gun));
+        Place(giver, receiver);
+        giver.Command.Give(receiver, gun, 1);
+
+        Steps(10);
+
+        Assert.True(receiver.CargoBays[0].Cargo.ContainsKey(gun));
+        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
+    }
+
+    // A refused one-unit move of a whole one-unit stack re-files it at the end of ItemsOfType, so the next Source would be
+    // a different stack. Rods are 2x1; the receiver's Slot (1x2) takes only the turned one. After the give has ended
+    // ReceiverFull nothing may move.
+    [Fact]
+    public void NothingMovesAfterAGiveEndsReceiverFull()
+    {
+        var giver = ShipWithBays("Crate");
+        var receiver = ShipWithBays("Slot");
+        var flat = Commodity("Rod", 1);
+        Assert.True(giver.CargoBays[0].TryStore(flat));
+        Assert.True(giver.CargoBays[0].TryStore(Commodity("Rod", 1, ItemRotation.Clockwise)));
+        Place(giver, receiver);
+        giver.Command.Give(receiver, flat, 2);
+
+        _zone.Update(5f);
+
+        Assert.Equal(GiveEnd.ReceiverFull, giver.LastGiveEnd);
+        Assert.Equal(0, Held(receiver, flat));
+        Assert.Equal(2, Held(giver, flat));
+    }
+
+    // Refused moves do not spend the order's units.
+    [Fact]
+    public void AnEndedOrderKeepsItsRemainingUnits()
+    {
+        var giver = ShipWithBays("Crate");
+        var receiver = ShipWithBays("Pocket");
+        var ore = Commodity("Ore", 10);
+        Assert.True(giver.CargoBays[0].TryStore(ore));
+        Assert.True(receiver.CargoBays[0].TryStore(Commodity("Slag", 5)));
+        Place(giver, receiver);
+        giver.Command.Give(receiver, ore, 5);
+        _zone.Update(.01f); // applies the command, earns no unit
+        var order = giver.Giving;
+        Assert.NotNull(order);
+
+        _zone.Update(5f);
+
+        Assert.Equal(GiveEnd.ReceiverFull, giver.LastGiveEnd);
+        Assert.Equal(5, order.Remaining);
+    }
+
+    // An empty stack in a hold is no unit to give: the give moves the real units and then has nothing left.
+    [Fact]
+    public void AnEmptyStackIsNotAUnitToGive()
+    {
+        var giver = ShipWithBays("Crate");
+        var receiver = ShipWithBays("Crate");
+        var grit = Commodity("Grit", 2);
+        Assert.True(giver.CargoBays[0].TryStore(grit));
+        Assert.True(giver.CargoBays[0].TryStore(Commodity("Grit", 0)));
+        Place(giver, receiver);
+        giver.Command.Give(receiver, grit, 3);
+
+        _zone.Update(5f);
+
+        Assert.Equal(2, Held(receiver, grit));
+        Assert.Equal(GiveEnd.NothingLeft, giver.LastGiveEnd);
+    }
+
+    // Warping and dying both leave through Zone.Remove; docking has already ended the give GiverDocked.
+    [Fact]
+    public void AGiveEndsWhenItsGiverLeavesTheZone()
+    {
+        var giver = ShipWithBays("Crate");
+        var receiver = ShipWithBays("Crate");
+        var ore = Commodity("Ore", 10);
+        Assert.True(giver.CargoBays[0].TryStore(ore));
+        Place(giver, receiver);
+        giver.Command.Give(receiver, ore, 10);
+        _zone.Update(.5f);
+
+        Assert.True(_zone.Remove(giver));
+
+        Assert.Null(giver.Giving);
+        Assert.Equal(GiveEnd.GiverGone, giver.LastGiveEnd);
+    }
+
+    // ---- The lot a purchase delivers ---------------------------------------------------------------------------
+
+    [Fact]
+    public void APurchaseChargesForEachLotItDelivers()
+    {
+        // Grit stacks hold two. Five units are three lots, and each lot is charged for what it delivers.
+        var stock = Commodity("Grit", 5);
+        var credits = 100;
+        var delivered = new List<int>();
+
+        var result = StationServices.TryBuyLots(_items, stock, 5, ref credits, lot => { delivered.Add(lot); return true; });
+
+        Assert.Equal(BuyResult.Bought, result);
+        Assert.Equal(new[] { 2, 2, 1 }, delivered);
+        Assert.Equal(100 - 5, credits);
+    }
+
+    [Fact]
+    public void ARefusedLotLeavesEarlierLotsBoughtAndChargesNothingMore()
+    {
+        var stock = Commodity("Grit", 5);
+        var credits = 100;
+        var lots = 0;
+
+        var result = StationServices.TryBuyLots(_items, stock, 5, ref credits, lot => ++lots < 2);
+
+        Assert.Equal(BuyResult.NoRoom, result);
+        Assert.Equal(100 - 2, credits);
+    }
+
+    [Theory]
+    [InlineData(-5, 1000, 1)]
+    [InlineData(0, 1000, 1)]
+    [InlineData(4, 1000, 4)]
+    [InlineData(50, 1000, 10)]
+    [InlineData(50, 21, 3)]
+    [InlineData(5, 3, 1)]
+    public void TheBuyQuantityIsClampedToWhatIsBuyable(int typed, int credits, int expected)
+    {
+        var stock = Commodity("Ore", 10); // 7 credits each
+        Assert.Equal(expected, StationServices.BuyableQuantity(_items, stock, typed, credits));
     }
 }
