@@ -23,7 +23,7 @@ import numpy
 from mathutils import Matrix, Vector
 
 from . import hull_grid, hull_source
-from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
+from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, clear_lines, decode_hardpoint,
                       encode_hardpoint, layout_revision, read, read_hull_type, read_layout, replace_layout, replace_lines,
                       product_makers, replace_visual, valid_ship_id)
 
@@ -533,12 +533,11 @@ class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
 class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
     bl_idname = "aetheria.capture_ship_lines"
     bl_label = "Capture Ship Lines"
-    bl_description = "Replace only the line slot in the selected typed ship .cc record"
+    bl_description = "Replace only the line slot in the bound ship .cc record: from the Grease Pencil object, else from the hull source"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
         try:
-            obj = context.active_object
             collection = _ship_collection(context)
             if not collection.get("aetheria.ship_cc"):
                 raise ValueError("The ship collection has no bound .cc path")
@@ -546,10 +545,13 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
             cultlib = _brokkr_cultlib(context)
             if read(path, cultlib).ship.body[0] != collection["aetheria.id"]:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
-            lines = capture_grease_pencil(
-                obj, context.evaluated_depsgraph_get(), context.scene.frame_current,
-                evaluated=context.scene.aetheria_capture_evaluated_lines,
-            )
+            saved_shape, _, _ = read_layout(path, cultlib)
+            root = _ship_root(collection)
+            if root is not None:  # the frame Package would write the model in, so the lines match ship.glb
+                _frame_ship(context, collection, root, path, saved_shape)
+            lines = _schematic_lines(context, collection)
+            if lines is None:
+                raise ValueError("No schematic lines were captured; the ship record was not changed")
             count = replace_lines(path, cultlib, lines)
             self.report({"INFO"}, f"Captured {count} lines")
             return {"FINISHED"}
@@ -1492,6 +1494,7 @@ def _frame_ship(context, collection, root, path, saved_shape):
 
 
 HULL_MAKER = "aetheria.hull_maker"  # on the collection: the Faction key of the language Build judged the hull against
+HULL_LINES = "aetheria.hull_lines"  # on the collection: [{layer, cyclic, points (flat), rgba}] the hull source's kit drew, in Ship Root's frame
 HULL_BUILT = "aetheria.hull_built"  # on the collection: {object name: fingerprint} of what Build From Hull Source made
 HULL_AGENT = "agent"  # HS rows H5, H7-H10, H12: Build's judged body or record governs; Package checks the maker
 HULL_ART = "art"  # HS rows H4, H6, H11: her meshes replace Build's; Package ships them and retires the hull source
@@ -1577,7 +1580,7 @@ def _build_hull_source(context, collection):
     executable = addon.preferences.openscad if addon and addon.preferences else DEFAULT_OPENSCAD
     hull_type = read_hull_type(bpy.path.abspath(collection["aetheria.ship_cc"]), _brokkr_cultlib(context))
     hull = hull_source.build(hull_source.openscad_runner(executable, source), hull_source.language_library(executable),
-                             hull_type)
+                             hull_type, hull_source.openscad_projector(executable))
     broken = hull.failed()
     if broken:
         raise ValueError("The hull source breaks its faction's language or its brief: " + "; ".join(c.name for c in broken))
@@ -1629,7 +1632,37 @@ def _build_hull_source(context, collection):
     collider["aetheria.role"], collider["aetheria.id"] = role, anchor_id
     collection[HULL_BUILT] = {obj.name: _fingerprint(obj) for obj in made}
     collection[HULL_MAKER] = hull.languages[hull.brief.faction].maker
+    collection[HULL_LINES] = [{"layer": line.layer, "cyclic": line.cyclic, "points": [c for p in line.points for c in p],
+                               "rgba": list(line.rgba())} for line in hull.lines]
     return hull
+
+
+def _schematic_lines(context, collection):
+    """The ShipAuthoring.SchematicLines rows Package and Capture write, and the only source of them: her Grease Pencil
+    object if the collection has one (two or more are refused), else the lines Build recorded from the hull source's kit
+    while the hull is still Build's (not _hull_state art), mapped through Ship Root's matrix_world (so after _frame_ship,
+    the frame her strokes are captured in), else None and the slot is left as it is. Package alone clears the slot, at
+    the moment her art takes over."""
+    pencils = [obj for obj in collection.all_objects if obj.type == "GREASEPENCIL"]
+    if len(pencils) > 1:
+        raise ValueError("Keep one Grease Pencil object: it is the ship's schematic")
+    scene = context.scene
+    if pencils:
+        return capture_grease_pencil(pencils[0], context.evaluated_depsgraph_get(), scene.frame_current,
+                                     evaluated=scene.aetheria_capture_evaluated_lines)
+    record = collection.get(HULL_LINES)
+    if record is None or _hull_state(collection) == HULL_ART:  # her art took over: Build's lines are a retired hull's
+        return None
+    root = _ship_root(collection)
+    world = root.matrix_world if root is not None else Matrix.Identity(4)
+    rows = []
+    for line in record:
+        flat = list(line["points"])
+        points = []
+        for x, y, z in zip(flat[0::3], flat[1::3], flat[2::3]):
+            points.extend(float(c) for c in world @ Vector((x, y, z)))
+        rows.append([line["layer"], "", points, None, None, bool(line["cyclic"]), [float(c) for c in line["rgba"]]])
+    return rows
 
 
 def _hull_state(collection):
@@ -1659,7 +1692,7 @@ def _retire_hull_source(collection):
     source = _hull_source_file(collection)
     if source is not None:
         source.unlink()
-    for record in (HULL_BUILT, HULL_MAKER):
+    for record in (HULL_BUILT, HULL_MAKER, HULL_LINES):
         if record in collection:
             del collection[record]
     return True
@@ -1708,7 +1741,7 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
     bl_idname = "aetheria.package_ship"
     bl_label = "Package Ship"
     bl_description = ("Put the grid's centre of mass at the world origin, derive the missing map icon, shield and "
-                      "tractor, write the anchors and ship.glb from the bound collection, capture its LineArt, and "
+                      "tractor, write the anchors and ship.glb from the bound collection, capture its schematic lines, and "
                       "run AetherDb's validator")
     bl_options = {"REGISTER"}
 
@@ -1738,11 +1771,11 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             anchors = _anchors(collection)
             _export_glb(context, collection, str(Path(path).with_name(MODEL_ASSET)))
             replace_visual(path, cultlib, ship_id, MODEL_ASSET, anchors)
-            pencils = [obj for obj in collection.all_objects if obj.type == "GREASEPENCIL"]
-            if len(pencils) == 1:
-                replace_lines(path, cultlib, capture_grease_pencil(
-                    pencils[0], context.evaluated_depsgraph_get(), scene.frame_current,
-                    evaluated=scene.aetheria_capture_evaluated_lines))
+            lines = _schematic_lines(context, collection)
+            if lines is not None:
+                replace_lines(path, cultlib, lines)
+            elif _hull_state(collection) == HULL_ART:  # the lines in the slot are the retired hull's, not hers
+                clear_lines(path, cultlib)
             code, message = _aetherdb(context, "validate", path, ship_cc=path)
         except _EXPECTED as exc:
             scene.aetheria_package_report = f"Package failed: {_failure_text(exc)}"

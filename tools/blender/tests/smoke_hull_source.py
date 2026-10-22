@@ -36,6 +36,10 @@ the hull.scad into the package and runs the panel's operators:
   or a product by another maker than the language Build judged it against (hull-names-its-own-faction); with a product by
   that maker it accepts, with hull.scad in the package or not (the guard keys on the hull's state), and a refused Package
   changes nothing in the scene. Her art needs no product.
+  Schematic lines: after Build and Package the ship.cc's first line is the silhouette and the kit's lines follow (the Pirate
+  hull's kit draws none); a Grease Pencil object in the collection replaces them with its own; a second one is refused by
+  Package and Capture Ship Lines, and the slot is as it was. The Nakovalnya's hull.scad, read with the real kit, has a
+  silhouette whose box is the zones' top-view box and a fitting octagon at every flak mount anchor.
   Build and Package refuse copies that share an aetheria.id, selecting the original and the copies, and delete nothing.
   Package moves no row and turns no mount: every layout row is as authored after it, and a hand-turned mount keeps its yaw.
   The ship.cc HullData.HullType decides whether the language's proportions judge the hull: a body far wider than the
@@ -366,6 +370,54 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     require(saved == [(mount_id, cell) for mount_id, _, cell in rows], f"A row is not as authored after Package: {saved}")
     print(f"PASS {number}.5 Package accepts the built ship and keeps hull.scad")
 
+    # Schematic lines: Build's, else hers, and never two of hers.
+    packaged = ship_lines(ship_cc)
+    require(packaged and packaged[0][0] == "silhouette" and packaged[0][5] is True, f"The first line is not the silhouette: {packaged[:1]}")
+    kit = [row for row in packaged if row[0] != "silhouette"]
+    drawn = [row[0] for row in packaged]
+    require(drawn[:len(packaged) - len(kit)] == ["silhouette"] * (len(packaged) - len(kit)), "The silhouette contours are not first")
+    require(all(row[3] is None and row[4] is None and row[1] == "" for row in packaged),
+            "A kit line row is not shaped as Package writes it")
+    require(bool(kit) == (fixture == "zh-ammo-tender"), f"The kit drew {len(kit)} lines for {fixture}")
+    require(all(approx(row[6], hull_source.LINE_STYLE[row[0]]) for row in packaged), "A line lost its style")
+    shipped_z = {round(c, 3) for row in packaged for c in row[2][2::3]}
+    require(len(shipped_z) >= 1, "The lines have no height")
+    pencil = grease_pencil(collection, "her lines", [(0, 0, 0), (1, 0, 0), (1, 1, 0)])
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    require(result == {"FINISHED"}, f"Package refused a ship with one Grease Pencil: {message!r}")
+    hers = ship_lines(ship_cc)
+    require(len(hers) == 1 and hers[0][0] == "hers" and len(hers[0][2]) == 9, f"Her Grease Pencil did not replace the kit's lines: {hers}")
+    second = grease_pencil(collection, "second lines", [(0, 0, 0), (2, 0, 0)])
+    before = ship_lines(ship_cc)
+    for operator in (bpy.ops.aetheria.package_ship, bpy.ops.aetheria.capture_ship_lines):
+        select(box)
+        result, message = run(operator)
+        require(result == {"CANCELLED"} and "Keep one Grease Pencil object" in (message + scene.aetheria_package_report),
+                f"Two Grease Pencil objects were not refused: {message!r}")
+    require(ship_lines(ship_cc) == before, "A refused schematic changed the line slot")
+    for obj in (pencil, second):
+        bpy.data.objects.remove(obj)
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    require(result == {"FINISHED"} and len(ship_lines(ship_cc)) == len(packaged), f"Without Grease Pencil the kit's lines are back: {message!r}")
+    print(f"PASS {number}.5b the kit's lines ship, her Grease Pencil wins, two are refused")
+
+    # Capture's kit branch writes what Package wrote, and also when Save Layout has moved the centre of mass since the last
+    # Package (here: Ship Root is off the origin), because Capture frames the ship as Package does.
+    shipped = ship_lines(ship_cc)
+    select(box)
+    result, message = run(bpy.ops.aetheria.capture_ship_lines)
+    require(result == {"FINISHED"} and same_lines(ship_lines(ship_cc), shipped), f"Capture did not write the kit's lines as Package did: {message!r}")
+    root.location.x += 1.7
+    root.location.y -= 0.9
+    bpy.context.view_layer.update()
+    select(box)
+    result, message = run(bpy.ops.aetheria.capture_ship_lines)
+    require(result == {"FINISHED"} and same_lines(ship_lines(ship_cc), shipped),
+            f"Capture, with Ship Root off its Package frame, wrote lines out of the packaged model's frame: {message!r}")
+    print(f"PASS {number}.5c Capture writes the kit's lines in Package's frame")
+
     # What Package did to the built objects is not an edit: Build still replaces them.
     select(box)
     result, message = run(bpy.ops.aetheria.build_hull_source)
@@ -456,7 +508,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     report = scene.aetheria_package_report
     require(result == {"CANCELLED"} and "The package has no product" in report, f"Package took a hull with no zones and no art: {report!r} {message!r}")
     require((package / "ship.glb").read_bytes() == glb_before, "A refused Package changed ship.glb")
-    require("aetheria.hull_maker" in collection and "aetheria.hull_built" in collection and source.is_file() == (number % 2 == 1),
+    require("aetheria.hull_maker" in collection and "aetheria.hull_built" in collection and "aetheria.hull_lines" in collection and source.is_file() == (number % 2 == 1),
             "A refused Package changed Build's records or hull.scad")
     print(f"PASS {number}.9a Build's zones deleted with nothing in their place stay under the guard")
     art_mesh = bpy.data.meshes.new("author hull")
@@ -473,9 +525,18 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     report = scene.aetheria_package_report
     require(result == {"FINISHED"} and "retired the agent hull source" in report, f"Package did not retire the hull source: {report!r} {message!r}")
     require(not source.exists(), "hull.scad is still there after the author's art was packaged")
-    require("aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection,
+    require("aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection and "aetheria.hull_lines" not in collection,
             "The record of Build's objects or its maker outlived hull.scad")
     require(all(echoed not in report for echoed in (ship_id, str(GAME))), "The report echoes an input")
+    # The retired hull's kit lines are not hers: the slot is empty (Studio draws no underlay, the preview no line mesh),
+    # Capture has nothing to capture, and a second Package leaves it empty.
+    require(ship_lines(ship_cc) == [], f"The retired hull's {len(ship_lines(ship_cc))} lines ship over her art")
+    select(box)
+    result, message = run(bpy.ops.aetheria.capture_ship_lines)
+    require(result == {"CANCELLED"} and ship_lines(ship_cc) == [], f"Capture wrote lines for a hull with no source: {message!r}")
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    require(result == {"FINISHED"} and ship_lines(ship_cc) == [], f"A second Package brought lines back: {message!r} {ship_lines(ship_cc)[:1]}")
     select(box)
     result, message = run(bpy.ops.aetheria.build_hull_source)
     require(result == {"CANCELLED"} and bpy.data.objects.get("author hull") is art, f"Build ran after takeover: {message!r}")
@@ -564,6 +625,64 @@ def clear(collection):
     """Removes a finished ship's objects: Blender names objects once per file, and anchors are found by name."""
     for obj in list(collection.all_objects if collection else ()):
         bpy.data.objects.remove(obj)
+
+
+def ship_lines(ship_path):
+    """The ShipAuthoring.SchematicLines rows of a ship.cc, as Package wrote them."""
+    return sys.modules["aetheria_ships"].read(ship_path, PACKAGES).ship.body[sys.modules["aetheria_ships"].ship_cc.SCHEMATIC_LINES_SLOT]
+
+
+def same_lines(a, b, tolerance=1e-4):
+    """Whether two SchematicLines slots hold the same rows: layer, cyclic, colour and every point within tolerance."""
+    return len(a) == len(b) and all(
+        x[0] == y[0] and x[5] == y[5] and len(x[2]) == len(y[2]) and approx(x[6], y[6], tolerance)
+        and all(abs(p - q) <= tolerance for p, q in zip(x[2], y[2])) for x, y in zip(a, b))
+
+
+def grease_pencil(collection, name, points):
+    """A Grease Pencil object in the collection holding one stroke, layer named 'hers'."""
+    data = bpy.data.grease_pencils.new(name)
+    material = bpy.data.materials.new(name)
+    bpy.data.materials.create_gpencil_data(material)
+    data.materials.append(material)
+    layer = data.layers.new("hers")
+    drawing = layer.frames.new(1).drawing
+    drawing.add_strokes([len(points)])
+    for point, position in zip(drawing.strokes[0].points, points):
+        point.position = position
+    obj = bpy.data.objects.new(name, data)
+    collection.objects.link(obj)
+    return obj
+
+
+def nakovalnya_frames(executable):
+    """The Nakovalnya's hull.scad with the real kit: the silhouette is the zones' top view and a fitting octagon sits at
+    every flak mount (the frame the kit placed the barrel in is the frame the anchor is in)."""
+    source = REPO / "GameData" / "Mods" / "aetheria.nakovalnya" / "hull.scad"
+    built = hull_source.build(hull_source.openscad_runner(executable, source), hull_source.language_library(executable),
+                              "Ship", hull_source.openscad_projector(executable))
+    require(not built.failed(), f"The Nakovalnya breaks a check: {[c.name for c in built.failed()]}")
+    silhouette = [row for row in built.lines if row.layer == "silhouette"]
+    require(built.lines[0].layer == "silhouette" and len(silhouette) == 1, "The Nakovalnya silhouette is not one first contour")
+    xs = [v[0] for mesh in built.zones.values() for v in mesh.vertices]
+    ys = [v[1] for mesh in built.zones.values() for v in mesh.vertices]
+    box = (min(xs), max(xs), min(ys), max(ys))
+    flat = silhouette[0].points
+    got = (min(p[0] for p in flat), max(p[0] for p in flat), min(p[1] for p in flat), max(p[1] for p in flat))
+    require(approx(box, got, 1e-3), f"The silhouette box {got} is not the zones' top-view box {box}")
+    octagons = [row.points for row in built.lines if row.layer == "fitting" and row.cyclic and len(row.points) == 8]
+    centres = [(sum(p[0] for p in o) / 8, sum(p[1] for p in o) / 8) for o in octagons]
+    mounts = [a for a in built.anchors if a.id.startswith("Gun.F") and a.role == "weapon-mount"]
+    require(len(mounts) == 10, f"The Nakovalnya has {len(mounts)} flak mounts")
+    for mount in mounts:
+        near = min(math.hypot(mount.position[0] - c[0], mount.position[1] - c[1]) for c in centres)
+        require(near <= 0.3, f"{mount.id} is {near:.2f} m from the nearest fitting octagon")
+    # Parts that face sideways (the belt collars and turning blocks, the wall hatches) draw nothing: no top view sees them.
+    require(len(octagons) == 20, f"{len(octagons)} octagons: ten flak drums and ten flak rings, and no belt collar's")
+    require(sum(row.layer != "silhouette" for row in built.lines) == 102, "The Nakovalnya kit's line count changed")
+    kinds = {row.layer for row in built.lines}
+    require({"silhouette", "outline", "step", "seam", "fitting"} <= kinds, f"The Nakovalnya lacks a layer: {kinds}")
+    print(f"PASS frames the Nakovalnya's {len(built.lines)} lines are in the frame of its geometry")
 
 
 def aetherdb(ship_path, *args):
@@ -797,6 +916,7 @@ def main():
     clear(agent_guards(scene))
     clear(hull_type_gate(scene))
     never_built(scene)
+    nakovalnya_frames(EXECUTABLE)
 
 
 created = not MODS.exists()

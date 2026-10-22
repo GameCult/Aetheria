@@ -22,6 +22,7 @@
 //      zh_on_stern, zh_on_nose. In the mate frame local +Z is the outward normal and the part is sunk ZH_SINK into
 //      the skin, so nothing floats. Top/belly frames keep local +Y aft; wall/belt frames keep +Y aft with local +X
 //      pointing down the wall on either side (starboard mates are mirrors of port); stern/nose frames have local +Y down.
+//      Mates are lp_at frames: a part under a mate that draws lines (lp_line) emits them in the Ship Root frame.
 //   3. Zone routing: every zh_ module draws only the zone the global `part` names, so a hull writes its assembly once.
 //      A hull on a Zhestokost donor (HULL_DONOR == "zhestokost") names a donor zone 'zhestokost:<zone>'.
 //      Anchor meshes (zh_rad_vanes, zh_emitter) are not routed: call them inside the hull's rad:/emit: parts under
@@ -65,17 +66,17 @@ function zh_wall_tilt(secs, y) = let(s = zh_sec(secs, y)) atan2(s[4], s[2]*(1-ZH
 function zh_stern_pt(secs, x=0, v=0.5) = let(s = secs[len(secs)-1]) [x, s[0], s[3] + s[2]*v];
 function zh_nose_pt(secs, x=0, v=0.5) = let(s = secs[0]) [x, s[0], s[3] + s[2]*v];
 
-module zh_on_top(secs, y, u=0, sink=ZH_SINK) translate(zh_top(secs, y, u) - [0, 0, sink]) children();
-module zh_on_belly(secs, y, u=0, sink=ZH_SINK) translate(zh_belly(secs, y, u) + [0, 0, sink]) rotate([0, 180, 0]) children();
-module _zh_port(side) { if (side < 0) mirror([1, 0, 0]) children(); else children(); }
+module zh_on_top(secs, y, u=0, sink=ZH_SINK) lp_at(t=zh_top(secs, y, u) - [0, 0, sink]) children();
+module zh_on_belly(secs, y, u=0, sink=ZH_SINK) lp_at(t=zh_belly(secs, y, u) + [0, 0, sink], r=[0, 180, 0]) children();
 module zh_on_belt(secs, y, side=1, v=0.5, sink=ZH_SINK)
-  _zh_port(side) translate(zh_belt(secs, y, 1, v) - [sink, 0, 0]) rotate([0, 90, 0]) children();
+  lp_at(t=zh_belt(secs, y, 1, v) - [sink, 0, 0], r=[0, 90, 0], mx=side < 0) children();
 module zh_on_wall(secs, y, side=1, v=0.5, sink=ZH_SINK) {
   t = zh_wall_tilt(secs, y);
-  _zh_port(side) translate(zh_wall(secs, y, 1, v) - [cos(t), 0, sin(t)]*sink) rotate([0, 90 - t, 0]) children();
+  lp_at(t=zh_wall(secs, y, 1, v) - [cos(t), 0, sin(t)]*sink, r=[0, 90 - t, 0], mx=side < 0) children();
 }
-module zh_on_stern(secs, x=0, v=0.5, sink=ZH_SINK) translate(zh_stern_pt(secs, x, v) - [0, sink, 0]) rotate([-90, 0, 0]) children();
-module zh_on_nose(secs, x=0, v=0.5, sink=ZH_SINK) translate(zh_nose_pt(secs, x, v) + [0, sink, 0]) rotate([90, 0, 0]) rotate([0, 0, 180]) children();
+module zh_on_stern(secs, x=0, v=0.5, sink=ZH_SINK) lp_at(t=zh_stern_pt(secs, x, v) - [0, sink, 0], r=[-90, 0, 0]) children();
+module zh_on_nose(secs, x=0, v=0.5, sink=ZH_SINK)
+  lp_at(t=zh_nose_pt(secs, x, v) + [0, sink, 0], r=[90, 0, 0]) lp_at(r=[0, 0, 180]) children();
 // world point of a local offset under a mate (for anchors): top, belly, stern frames
 function zh_top_at(secs, y, u, o, sink=ZH_SINK) = zh_top(secs, y, u) - [0, 0, sink] + o;
 function zh_belly_at(secs, y, u, o, sink=ZH_SINK) = zh_belly(secs, y, u) + [0, 0, sink] + [-o[0], o[1], -o[2]];
@@ -83,7 +84,22 @@ function zh_stern_at(secs, x, v, o, sink=ZH_SINK) = zh_stern_pt(secs, x, v) - [0
 
 // ==== PRIMARY: masses that make the silhouette ========================================================================
 // Any section list as one faceted poured mass.
-module zh_mass(secs, zone="primary") zh_z(zone) for (i = [0:len(secs)-2]) hull() { _zh_slice(secs[i]); _zh_slice(secs[i+1]); }
+// Lines: the plan at the cast belt (outline), the deck edge (step) and, on a primary mass, a seam across the deck at each
+// interior station. lines=false for a mass no top view can see (a keel under the hull).
+module zh_mass(secs, zone="primary", lines=true) {
+  zh_z(zone) for (i = [0:len(secs)-2]) hull() { _zh_slice(secs[i]); _zh_slice(secs[i+1]); }
+  if (lines) {
+    n = len(secs);
+    lp_line("outline", concat([for (s = secs) [-s[1]/2, s[0], s[3] + s[2]*ZH_WU]],
+                              [for (i = [n-1:-1:0]) [secs[i][1]/2, secs[i][0], secs[i][3] + secs[i][2]*ZH_WU]]), true);
+    lp_line("step", concat([for (s = secs) [-(s[1]/2 - s[4]), s[0], s[3] + s[2]]],
+                           [for (i = [n-1:-1:0]) [secs[i][1]/2 - secs[i][4], secs[i][0], secs[i][3] + secs[i][2]]]), true);
+    if (zone == "primary") for (i = [1:n-2]) let(s = secs[i])
+      lp_line("seam", [[-(s[1]/2 - s[4]), s[0], s[3] + s[2]], [s[1]/2 - s[4], s[0], s[3] + s[2]]]);
+  }
+}
+function zh_rect(w, l, z) = [[-w/2, -l/2, z], [w/2, -l/2, z], [w/2, l/2, z], [-w/2, l/2, z]];
+function zh_oct(r, z) = [for (k = [0:7]) [r*cos(45*k), r*sin(45*k), z]];
 
 // A core or whole hull: bow chamfered in plan and dropped (bow, as a fraction of L), stern a flat face with a cast lip.
 // bowW / bowH: nose width and height as fractions of W and H.
@@ -127,6 +143,7 @@ module zh_collar(r=ZH_COLLAR_R, proud=0.55, lugs=4) {
   zh_z("secondary") difference() {
     cylinder(r=r, h=proud + ZH_SINK, $fn=8); translate([0, 0, -0.1]) cylinder(r=r*0.6, h=proud + 1, $fn=8); }
   zh_z("recess") cylinder(r=r*0.62, h=0.08 + ZH_SINK, $fn=8);
+  lp_line("fitting", zh_oct(r, proud), true);
   zh_z("accent") for (i = [0:lugs-1]) rotate(i*360/lugs) translate([r + 0.16, 0, (proud + 0.25)/2])
     cube([0.5, 0.6, proud + 0.25 + ZH_SINK], center=true);
 }
@@ -139,13 +156,17 @@ module zh_hatch(w=ZH_HATCH, l=ZH_HATCH, t=0.22, dogs=true) {
     for (x = [-1, 1]) translate([x*w*0.27, 0, t + 0.12]) cbox([0.5, l + 0.6, 0.34], 0.07);
     if (dogs) for (sx = [-1, 1], sy = [-1, 1]) translate([sx*(w/2 + 0.12), sy*l*0.3, t*0.6]) cube([0.36, 0.44, 0.4], center=true);
   }
+  lp_line("fitting", zh_rect(w, l, t), true);
   translate([0, l/2 - 0.42, t]) zh_stripes(w*0.36, 0.5, dogs ? 3 : 2);
 }
 
 // Armour plate (any frame): replaceable slab with four bolt bosses; leaves a seam to its neighbour.
-module zh_plate(w, l, t=0.3, zone="secondary") zh_z(zone) {
-  translate([0, 0, t/2]) cbox([w, l, t + ZH_SINK], 0.07);
-  for (sx = [-1, 1], sy = [-1, 1]) translate([sx*(w/2 - 0.25), sy*(l/2 - 0.25), t + 0.05]) cube([0.22, 0.22, 0.12], center=true);
+module zh_plate(w, l, t=0.3, zone="secondary") {
+  zh_z(zone) {
+    translate([0, 0, t/2]) cbox([w, l, t + ZH_SINK], 0.07);
+    for (sx = [-1, 1], sy = [-1, 1]) translate([sx*(w/2 - 0.25), sy*(l/2 - 0.25), t + 0.05]) cube([0.22, 0.22, 0.12], center=true);
+  }
+  lp_line("fitting", zh_rect(w, l, t), true);
 }
 
 // Radiator trough (top frame): cast frame round a black floor, split by a spine wall; vanes stand in it (zh_rad_vanes).
@@ -154,6 +175,8 @@ module zh_rad_trough(w=3.2, l=2.4, d=0.45, zone="secondary") {
     cbox([w + 0.7, l + 0.7, d + ZH_SINK], 0.1); cube([w, l, d*3], center=true); }
   zh_z(zone) translate([0, 0, d*0.6]) cube([0.3, l, d*1.2 + ZH_SINK], center=true);
   zh_z("recess") translate([0, 0, 0.04]) cube([w, l, 0.08 + ZH_SINK], center=true);
+  lp_line("fitting", zh_rect(w + 0.7, l + 0.7, d), true);
+  lp_line("fitting", zh_rect(w, l, d), true);
 }
 // radiator-mesh for one half of a trough (side 1 port, -1 starboard): transverse vanes rising out of it
 module zh_rad_vanes(w=3.2, l=2.4, side=1, n=5, h=1.0) {
@@ -172,17 +195,24 @@ module zh_tow_lug(s=ZH_LUG, zone="secondary") {
 // Ballistic mount (top frame): octagonal ring, battered mantlet block, n thick barrels with box brakes, pointing -Y.
 module zh_gun(n=2, cal=0.22, len=3.0, base=1.8, zone="secondary") {
   zh_z(zone) cylinder(r=base*0.56, h=0.35 + ZH_SINK, $fn=8);
-  zh_mass([for (s = zh_block(0, base*0.95, base, base*0.5, 0.33, base*0.14, 0, 0.22)) s], zone);
-  zh_z(zone) for (i = [0:n-1]) translate([(i - (n-1)/2)*cal*3.2, -base*0.4, 0.33 + base*0.25]) {
-    rotate([0, 0, 180]) tube(cal, len, 8);
-    translate([0, -len, 0]) cbox([cal*3, cal*3.5, cal*3], 0.04);
+  lp_line("fitting", zh_oct(base*0.56, 0.35), true);
+  zh_mass([for (s = zh_block(0, base*0.95, base, base*0.5, 0.33, base*0.14, 0, 0.22)) s], zone, lines=false);
+  for (i = [0:n-1]) lp_at(t=[(i - (n-1)/2)*cal*3.2, -base*0.4, 0.33 + base*0.25]) {
+    zh_z(zone) {
+      rotate([0, 0, 180]) tube(cal, len, 8);
+      translate([0, -len, 0]) cbox([cal*3, cal*3.5, cal*3], 0.04);
+    }
+    lp_line("fitting", [[0, 0, 0], [0, -len, 0]]);
   }
 }
 function zh_gun_muzzle(n=2, cal=0.22, len=3.0, base=1.8) = [0, -base*0.4 - len - cal*1.75, 0.33 + base*0.25];
 
 // ==== TERTIARY: detail ===============================================================================================
 // Shadow-gap floor (top frame): the black bottom of a reveal between modules.
-module zh_reveal(w, l) zh_z("recess") translate([0, 0, 0.03]) cube([w, l, 0.06 + ZH_SINK], center=true);
+module zh_reveal(w, l) {
+  zh_z("recess") translate([0, 0, 0.03]) cube([w, l, 0.06 + ZH_SINK], center=true);
+  lp_line("seam", zh_rect(w, l, 0.06), true);
+}
 // Cream safety chevrons (any frame, +Z out): n diagonal bars clipped to w x l.
 module zh_stripes(w, l, n=3) zh_z("marking") intersection() {
   translate([0, 0, 0.04]) cube([w, l, 0.1], center=true);

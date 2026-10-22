@@ -55,7 +55,8 @@ public sealed partial class RunStartTests
         var galaxy = MainSectorGalaxy();
         AbsentMaker("AbsentToAll");
         var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, galaxy.Entrance, null, .5f);
-        var products = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).ToArray();
+        // Every offered product (LoadoutGenerator.IsOffered); a not-offered one is available to nobody.
+        var products = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet() && LoadoutGenerator.IsOffered(_cache, p)).ToArray();
         Assert.NotEmpty(products);
         Assert.All(products, product => Assert.True(generator.IsAvailable(product), product.Name));
     }

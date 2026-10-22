@@ -173,10 +173,20 @@ def _stamped(record: Record, msgpack: Any):
 def replace_lines(path: str, cultlib_packages: str, lines: list[list[Any]]) -> int:
     file = read(path, cultlib_packages)
     if not lines:
-        raise ValueError("No Grease Pencil strokes were captured; the ship record was not changed")
+        raise ValueError("No schematic lines were captured; the ship record was not changed")
     file.ship.body[SCHEMATIC_LINES_SLOT] = lines
     file.store.push(_stamped(file.ship, file.msgpack))
     return len(lines)
+
+
+def clear_lines(path: str, cultlib_packages: str) -> int:
+    """Empties the line slot and nothing else; returns how many lines it held. replace_lines refuses an empty capture so a
+    failed capture never wipes a ship; this is the one deliberate way to leave a ship without lines."""
+    file = read(path, cultlib_packages)
+    held = len(file.ship.body[SCHEMATIC_LINES_SLOT] or [])
+    file.ship.body[SCHEMATIC_LINES_SLOT] = []
+    file.store.push(_stamped(file.ship, file.msgpack))
+    return held
 
 
 def replace_visual(path: str, cultlib_packages: str, expected_id: str, model_asset: str,

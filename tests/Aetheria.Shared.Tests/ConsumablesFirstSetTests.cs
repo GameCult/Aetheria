@@ -74,9 +74,10 @@ public sealed class ConsumablesFirstSetTests
         Assert.Equal(new[] { "nozzle", "coolant" }, vent.Roles.Select(r => r.Name).ToArray());
         Assert.Equal(2, vent.Behaviors.Count);
         var dump = Assert.IsType<VapourDumpData>(vent.Behaviors[0]);
-        // The cloud at its smallest holds every ship hull; its largest is half as big again.
+        // The cloud at its smallest holds every sold ship hull (ruling vapour-cloud-sold-hulls: a boss hull is never sold and
+        // its Loadout is agent-authored); its largest is half as big again.
         var radiusMin = dump.Radius.Min;
-        foreach (var hull in cache.GetAll<HullData>().Where(h => h.HullType == HullType.Ship))
+        foreach (var hull in LoadoutGenerator.SoldHulls(cache).Where(h => h.HullType == HullType.Ship))
             Assert.True(radiusMin >= Circumradius(hull, cellSize), $"{hull.Name} pokes out of the smallest cloud");
         Assert.Equal(1.5f * Circumradius(cache.GetByName<HullData>("Djinni"), cellSize), radiusMin, 3);
         Assert.Equal(33.03f, radiusMin, 1); // the Djinni, 14x17 cells at two units a cell

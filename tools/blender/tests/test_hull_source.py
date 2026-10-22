@@ -7,6 +7,7 @@ real OpenSCAD and the real language files are exercised by smoke_hull_source.py.
 hull_source is loaded by path because the package __init__ imports bpy.
 """
 
+import dataclasses
 import importlib.util
 import json
 import sys
@@ -50,6 +51,19 @@ def brief(faction="zhestokost", donor="", length=(8, 14), triangles=(10, 100)):
     return echo("brief", [faction, donor, "tender", list(length), list(triangles), ["a read"]])
 
 
+def marks_off(points, size=0.002):
+    """An OFF text of one tiny cube per point, as the kit's marks part is."""
+    rows, faces = [], []
+    for i, (x, y, z) in enumerate(points):
+        h = size / 2
+        rows += [(x + dx * h, y + dy * h, z + dz * h) for dz in (-1, 1) for dy in (-1, 1) for dx in (-1, 1)]
+        b = 8 * i
+        faces += [(b, b + 1, b + 3, b + 2), (b + 4, b + 6, b + 7, b + 5), (b, b + 2, b + 6, b + 4),
+                  (b + 1, b + 5, b + 7, b + 3), (b, b + 4, b + 5, b + 1), (b + 2, b + 3, b + 7, b + 6)]
+    return "\n".join(["OFF", f"{len(rows)} {len(faces)} 0"] + [" ".join(map(repr, r)) for r in rows]
+                     + ["4 " + " ".join(map(str, f)) for f in faces]) + "\n"
+
+
 class Fixture:
     """A hull source as the fake runner sees it: part -> (OFF, ECHO). library holds the ECHO text of each faction's own
     language file; the hull's own `lang` echo is the files it includes, unless hull_lang says otherwise."""
@@ -67,10 +81,27 @@ class Fixture:
                         + echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, -3, 3], 0, "Gun.A"])
                         + echo("anchor", ["Th.A", "thruster-emitter", [1, 5, 1], 180, ""])),
             "emit:Th.A": (box(0.5, 1.5, 5, 5.1, 0.5, 1.5), ""),
+            "lines": ("", ""),
         }
+        self.marks = None  # the "marks" part when a test sets one; else a mark at each kit line's first point
+
+    @staticmethod
+    def projector(meshes):
+        """A top view that is the bounding rectangle of every mesh it is given."""
+        lows = [m.bounds()[0] for m in meshes]
+        highs = [m.bounds()[1] for m in meshes]
+        x0, y0 = min(v[0] for v in lows), min(v[1] for v in lows)
+        x1, y1 = max(v[0] for v in highs), max(v[1] for v in highs)
+        return [[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]]
 
     def runner(self):
-        return lambda part: ("", self.hull_lang if self.hull_lang is not None else "".join(self.library.values()))             if part == "lang" else self.parts[part]
+        return lambda part: ("", self.hull_lang if self.hull_lang is not None else "".join(self.library.values()))             if part == "lang" else self.mark_part() if part == "marks" else self.parts[part]
+
+    def mark_part(self):
+        """What the kit's lp_line draws in the geometry's own frame: a tiny cube at each line's first point."""
+        if self.marks is not None:
+            return self.marks
+        return (marks_off([l.points[0] for l in hs.read_lines(self.parts["lines"][1])]), "")
 
     def read_library(self, faction):
         if faction not in self.library:
@@ -78,7 +109,7 @@ class Fixture:
         return self.library[faction]
 
     def build(self):
-        return hs.build(self.runner(), self.read_library, self.hull_type)
+        return hs.build(self.runner(), self.read_library, self.hull_type, self.projector)
 
     def failed(self):
         return [c.name for c in self.build().failed()]
@@ -206,7 +237,7 @@ class HullTypeTests(unittest.TestCase):
     def test_build_has_no_default_hull_type(self):
         fixture = Fixture()
         with self.assertRaises(TypeError):
-            hs.build(fixture.runner(), fixture.read_library)
+            hs.build(fixture.runner(), fixture.read_library, projector=fixture.projector)
 
     def test_build_refuses_a_hull_type_that_is_not_a_hulltype_name_before_reading_the_source(self):
         for hull_type in ("ship", "SHIP", "Ship ", "", None, "Stations", 0, SECRET):
@@ -214,7 +245,7 @@ class HullTypeTests(unittest.TestCase):
                 fixture, read = Fixture(), []
                 runner = fixture.runner()
                 with self.assertRaises(hs.HullSourceError) as caught:
-                    hs.build(lambda part: read.append(part) or runner(part), fixture.read_library, hull_type)
+                    hs.build(lambda part: read.append(part) or runner(part), fixture.read_library, hull_type, fixture.projector)
                 self.assertEqual(read, [])
                 self.assertNotIn(SECRET, str(caught.exception))
 
@@ -479,7 +510,7 @@ class LanguageOwnershipTests(unittest.TestCase):
     def test_the_library_is_asked_for_the_faction_and_the_donor_the_brief_names(self):
         asked = []
         fixture = DonorTests.pirate()
-        hs.build(fixture.runner(), lambda faction: asked.append(faction) or fixture.read_library(faction), "Ship")
+        hs.build(fixture.runner(), lambda faction: asked.append(faction) or fixture.read_library(faction), "Ship", fixture.projector)
         self.assertEqual(sorted(asked), ["pirate", "rnd"])
 
 
@@ -665,6 +696,416 @@ class RefusalTests(unittest.TestCase):
         for forbidden in ("json.dump", "ThreadPool", "concurrent.futures", "multiprocessing"):
             self.assertNotIn(forbidden, source)
         self.assertEqual(source.count("subprocess.Popen"), 1)
+
+
+LINES_OVER = "every kit line lies over the hull's top view"
+LINES_DISTINCT = "no two kit lines are the same"
+LINES_FRAME = "every kit line is drawn in the frame of its geometry"
+SILHOUETTE = "the top view yields a silhouette"
+
+
+def line(layer="seam", points=((-1, -1, 2), (1, 1, 2)), cyclic=False):
+    return echo("line", [layer, cyclic, [list(p) for p in points]])
+
+
+class FrameCheckTests(unittest.TestCase):
+    """The kit draws a mark where each line starts, in the frame the geometry is drawn in; the line is echoed in the frame
+    lp_at tracks. A part placed by anything but lp_at has its mark and its line in different places."""
+
+    def built(self, kit, marks=None):
+        fixture = Fixture()
+        fixture.parts["lines"] = ("", kit)
+        if marks is not None:
+            fixture.marks = (marks_off(marks), "")
+        return fixture.build()
+
+    def test_marks_where_the_lines_start_pass_and_the_check_is_listed(self):
+        built = self.built(line() + line("step", ((0, 0, 2), (1, 1, 2))))
+        self.assertEqual(built.failed(), [])
+        self.assertIn(LINES_FRAME, names(built))
+
+    def test_a_mark_three_metres_from_its_line_fails_the_frame_check_and_nothing_else(self):
+        built = self.built(line(points=((-1, -1, 2), (1, 1, 2))), marks=[(-1, 2, 2)])
+        self.assertEqual([c.name for c in built.failed()], [LINES_FRAME])
+
+    def test_a_line_with_no_mark_fails(self):
+        built = self.built(line() + line("step", ((0, 0, 2), (1, 1, 2))), marks=[(-1, -1, 2)])
+        self.assertEqual([c.name for c in built.failed()], [LINES_FRAME])
+
+    def test_a_mark_with_no_line_fails(self):
+        built = self.built(line(), marks=[(-1, -1, 2), (2, 2, 2)])
+        self.assertEqual([c.name for c in built.failed()], [LINES_FRAME])
+
+    def test_a_mark_a_millimetre_off_is_the_same_place(self):
+        self.assertEqual(self.built(line(), marks=[(-1, -1, 2.001)]).failed(), [])
+
+    def test_a_source_with_no_lines_asks_for_no_marks_because_openscad_refuses_a_part_that_draws_nothing(self):
+        fixture = Fixture()
+        runner = fixture.runner()
+        asked = []
+        built = hs.build(lambda part: asked.append(part) or runner(part), fixture.read_library, "Ship", fixture.projector)
+        self.assertNotIn("marks", asked)
+        self.assertEqual(built.failed(), [])
+
+    def test_the_detail_counts_the_lines_and_marks_that_disagree(self):
+        built = self.built(line(), marks=[(5, 5, 2)])
+        self.assertEqual({c.name: c.detail for c in built.checks}[LINES_FRAME], "1 lines and 1 marks disagree")
+
+
+class LineReadingTests(unittest.TestCase):
+    def test_lines_are_read_in_echo_order_with_their_layer_flag_and_points(self):
+        text = line("step", ((0, 0, 1), (1, 0, 1), (1, 1, 1)), True) + line("fitting")
+        read = hs.read_lines(text)
+        self.assertEqual([(l.layer, l.cyclic, len(l.points)) for l in read], [("step", True, 3), ("fitting", False, 2)])
+        self.assertEqual(read[0].points[1], (1, 0, 1))
+
+    def test_a_layer_outside_the_kit_layers_is_refused_without_echoing_it(self):
+        for layer in ("silhouette", "outlines", "", SECRET):
+            with self.subTest(layer=layer), self.assertRaises(hs.HullSourceError) as caught:
+                hs.read_lines(line(layer))
+            self.assertNotIn(SECRET, str(caught.exception))
+
+    def test_a_line_of_one_point_or_a_point_that_is_not_finite_is_refused(self):
+        for text in (line(points=((0, 0, 0),)), line(points=()), 'ECHO: line = ["seam", false, [[0, 0, NaN], [1, 1, 1]]]\n',
+                     'ECHO: line = ["seam", false, [[0, 0, Infinity], [1, 1, 1]]]\n', line(points=((0, 0), (1, 1)))):
+            with self.subTest(text=text), self.assertRaises(hs.HullSourceError):
+                hs.read_lines(text)
+
+    def test_a_cyclic_flag_that_is_not_a_boolean_is_refused(self):
+        with self.assertRaises(hs.HullSourceError):
+            hs.read_lines(echo("line", ["seam", 1, [[0, 0, 0], [1, 1, 1]]]))
+
+
+SVG = """<?xml version="1.0" standalone="no"?>
+<svg width="9mm" height="9mm" viewBox="0 -4 9 9" xmlns="http://www.w3.org/2000/svg" version="1.1">
+<path d="
+M 0,-4 L 4,-4 L 4,-1 L 0,-1 z
+M 5,1 L 5.001,1 L 5.001,1.001 z
+M -1e-05,2 L 2,2 L 2,3 L 0,3 z
+" fill="lightgray" stroke="black" stroke-width="0.5"/>
+</svg>
+"""
+
+
+class SvgContourTests(unittest.TestCase):
+    def test_contours_come_back_in_model_coordinates_with_y_negated(self):
+        contours = hs.parse_svg_contours(SVG)
+        self.assertEqual(contours[0], [(0.0, 4.0), (4.0, 4.0), (4.0, 1.0), (0.0, 1.0)])
+        self.assertEqual(contours[1][0], (-1e-05, -2.0))
+
+    def test_a_contour_under_a_quarter_square_metre_is_a_sliver_and_dropped(self):
+        self.assertEqual(len(hs.parse_svg_contours(SVG)), 2)
+
+    def test_a_drawing_with_no_path_has_no_contours(self):
+        self.assertEqual(hs.parse_svg_contours("<svg></svg>"), [])
+
+
+class LineBuildTests(unittest.TestCase):
+    def built(self, kit="", **parts):
+        fixture = Fixture()
+        fixture.parts["lines"] = ("", kit)
+        fixture.parts.update(parts)
+        return fixture, fixture.build()
+
+    def test_a_source_with_no_lines_has_the_silhouette_alone_and_passes_every_check(self):
+        _, built = self.built()
+        self.assertEqual([(l.layer, l.cyclic) for l in built.lines], [("silhouette", True)])
+        self.assertEqual(built.failed(), [])
+
+    def test_the_silhouette_is_first_cyclic_and_at_the_top_of_the_geometry(self):
+        _, built = self.built(line("outline", ((-1, 0, 1), (1, 0, 1))))
+        self.assertEqual([l.layer for l in built.lines], ["silhouette", "outline"])
+        self.assertEqual({p[2] for p in built.lines[0].points}, {3.0})
+        self.assertEqual({p[:2] for p in built.lines[0].points}, {(-3.0, -5.0), (3.0, -5.0), (3.0, 5.0), (-3.0, 5.0)})
+
+    def test_each_layer_carries_its_fixed_style(self):
+        kit = "".join(line(layer) for layer in hs.KIT_LAYERS)
+        _, built = self.built(kit)
+        self.assertEqual([l.rgba() for l in built.lines], [hs.LINE_STYLE[l.layer] for l in built.lines])
+        self.assertEqual(len({l.rgba() for l in built.lines}), 5)
+        self.assertEqual(hs.LINE_STYLE["silhouette"], (1.0, 1.0, 1.0, 1.0))
+
+    def test_the_projector_is_given_every_zone_mesh_that_has_geometry_and_no_anchor_mesh(self):
+        fixture, given = Fixture(), []
+        hs.build(fixture.runner(), fixture.read_library, "Ship",
+                 lambda meshes: given.append(len(meshes)) or fixture.projector(meshes))
+        self.assertEqual(given, [2])  # primary and secondary; the emitter mesh is not part of the layout's top view
+
+    def test_a_kit_line_off_the_hull_fails_the_over_the_top_view_check_and_nothing_else(self):
+        _, built = self.built(line(points=((0, 0, 2), (20, 0, 2))))
+        self.assertEqual([c.name for c in built.failed()], [LINES_OVER])
+
+    def test_a_kit_line_a_little_off_the_edge_still_lies_over_the_hull(self):
+        _, built = self.built(line(points=((3.2, 0, 2), (3.2, 1, 2))))
+        self.assertEqual(built.failed(), [])
+        _, built = self.built(line(points=((3.4, 0, 2), (3.4, 1, 2))))
+        self.assertEqual([c.name for c in built.failed()], [LINES_OVER])
+
+    def test_the_inside_of_a_hole_in_the_silhouette_is_not_over_the_hull(self):
+        hole = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+        outer = [(-3, -5), (3, -5), (3, 5), (-3, 5)]
+        self.assertTrue(hs.over_silhouette((2, 0, 0), [outer, hole]))
+        self.assertFalse(hs.over_silhouette((0, 0, 0), [outer, hole]))
+
+    def test_two_equal_kit_lines_fail_the_distinct_check_and_nothing_else(self):
+        _, built = self.built(line() + line("fitting"))
+        self.assertEqual([c.name for c in built.failed()], [LINES_DISTINCT])
+
+    def test_lines_that_differ_by_a_millimetre_or_more_are_distinct(self):
+        _, built = self.built(line(points=((0, 0, 2), (1, 0, 2))) + line(points=((0, 0.002, 2), (1, 0, 2))))
+        self.assertEqual(built.failed(), [])
+
+    def test_no_contour_fails_the_silhouette_check(self):
+        fixture = Fixture()
+        built = hs.build(fixture.runner(), fixture.read_library, "Ship", lambda meshes: [])
+        self.assertEqual([c.name for c in built.failed()], [SILHOUETTE])
+        self.assertEqual(built.lines, [])
+
+    def test_a_kit_line_with_no_silhouette_to_lie_over_fails_both_checks(self):
+        fixture = Fixture()
+        fixture.parts["lines"] = ("", line())
+        built = hs.build(fixture.runner(), fixture.read_library, "Ship", lambda meshes: [])
+        self.assertEqual(sorted(c.name for c in built.failed()), sorted([SILHOUETTE, LINES_OVER]))
+
+    def test_a_source_with_no_geometry_asks_for_no_silhouette(self):
+        fixture = Fixture()
+        fixture.parts.update({"primary": ("", ""), "secondary": ("", ""), "emit:Th.A": ("", "")})
+        built = hs.build(fixture.runner(), fixture.read_library, "Ship", lambda meshes: self.fail("projected nothing"))
+        self.assertEqual(built.lines, [])
+
+    def test_a_refused_line_is_refused_without_echoing_it(self):
+        fixture = Fixture()
+        fixture.parts["lines"] = ("", line(SECRET))
+        with self.assertRaises(hs.HullSourceError) as caught:
+            fixture.build()
+        self.assertNotIn(SECRET, str(caught.exception))
+
+
+class WrapperOpenScad(FakeOpenScad):
+    """Keeps the wrapper scad and the OFF files OpenSCAD is given, which vanish with the temp folder."""
+
+    def __call__(self, command, **kwargs):
+        wrapper = Path(command[-1])
+        self.wrapper = wrapper.read_text(encoding="utf-8")
+        self.imports = {f.name: f.read_text(encoding="utf-8") for f in wrapper.parent.glob("*.off")}
+        return super().__call__(command, **kwargs)
+
+
+class ProjectorTests(unittest.TestCase):
+    def project(self, openscad, meshes):
+        with mock.patch.object(hs.subprocess, "Popen", openscad):
+            return hs.openscad_projector("scad")(meshes)
+
+    def test_the_meshes_are_unioned_projected_and_the_svg_read_back(self):
+        a, b = hs.parse_off(box(0, 1, 0, 1, 0, 1)), hs.parse_off(box(2, 3, 0, 1, 0, 1))
+        openscad = WrapperOpenScad(off=SVG)
+        contours = self.project(openscad, [a, b])
+        self.assertEqual(openscad.wrapper.split(), ["projection()", "union()", "{", 'import("m0.off");', 'import("m1.off");', "}"])
+        self.assertEqual(sorted(openscad.imports), ["m0.off", "m1.off"])
+        self.assertEqual(hs.parse_off(openscad.imports["m1.off"]).bounds(), b.bounds())
+        command = openscad.calls[0][0]
+        self.assertEqual(command[command.index("--backend") + 1], "Manifold")
+        self.assertTrue(command[command.index("-o") + 1].endswith(".svg"))
+        self.assertEqual(len(contours), 2)
+
+    def test_a_failed_or_silent_openscad_is_refused_without_echoing_its_output(self):
+        for openscad in (FakeOpenScad(returncode=1, output=SECRET), FakeOpenScad(output=SECRET)):
+            with self.assertRaises(hs.HullSourceError) as caught:
+                self.project(openscad, [hs.parse_off(box(0, 1, 0, 1, 0, 1))])
+            self.assertNotIn(SECRET, str(caught.exception))
+
+    def test_the_process_is_reported_to_on_start(self):
+        started = []
+        with mock.patch.object(hs.subprocess, "Popen", WrapperOpenScad(off=SVG)):
+            hs.openscad_projector("scad", on_start=started.append)([hs.parse_off(box(0, 1, 0, 1, 0, 1))])
+        self.assertEqual(started, [4242])
+
+    def test_the_lines_part_answers_the_echo(self):
+        with mock.patch.object(hs.subprocess, "Popen", FakeOpenScad(output=line())):
+            self.assertEqual(hs.openscad_runner("scad", "hull.scad")("lines"), ("", line()))
+
+
+class LineStyleTests(unittest.TestCase):
+    def test_the_style_table_is_the_one_the_underlay_reads(self):
+        self.assertEqual(hs.LINE_STYLE, {
+            "silhouette": (1.0, 1.0, 1.0, 1.0), "outline": (1.0, 1.0, 1.0, 0.75), "fitting": (1.0, 1.0, 1.0, 0.6),
+            "step": (1.0, 1.0, 1.0, 0.5), "seam": (1.0, 1.0, 1.0, 0.35)})
+        self.assertEqual(hs.KIT_LAYERS, ("outline", "step", "seam", "fitting"))
+
+    def test_a_schematic_line_cannot_be_changed_after_it_is_read(self):
+        read = hs.read_lines(line())[0]
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            read.layer = "step"
+
+    def test_the_four_echo_parts_are_written_as_echo_files_and_geometry_parts_as_off(self):
+        for part, suffix in (("brief", ".echo"), ("lang", ".echo"), ("anchors", ".echo"), ("lines", ".echo"), ("primary", ".off")):
+            with self.subTest(part=part):
+                openscad = FakeOpenScad()
+                with mock.patch.object(hs.subprocess, "Popen", openscad):
+                    hs.openscad_runner("scad", "hull.scad")(part)
+                command = openscad.calls[0][0]
+                self.assertTrue(command[command.index("-o") + 1].endswith(suffix))
+
+
+class LineRefusalTextTests(unittest.TestCase):
+    def refusal(self, text):
+        with self.assertRaises(hs.HullSourceError) as caught:
+            hs.read_lines(text)
+        return str(caught.exception)
+
+    def test_each_refusal_says_one_fixed_thing(self):
+        self.assertEqual(self.refusal(echo("line", ["seam", False])), "A schematic line has the wrong shape")
+        self.assertEqual(self.refusal(echo("line", ["seam", 1, []])), "A schematic line has the wrong shape")
+        self.assertEqual(self.refusal(line("nope")), "A schematic line names a layer a kit does not draw")
+        self.assertEqual(self.refusal(line(points=((0, 0, 0),))), "A schematic line has fewer than two points")
+        self.assertEqual(self.refusal('ECHO: line = ["seam", false, [[0, 0, NaN], [1, 1, 1]]]\n'),
+                         "A schematic line has a point that is not a finite number")
+
+
+class ContourAreaTests(unittest.TestCase):
+    @staticmethod
+    def svg(*rings):
+        paths = "\n".join("M " + " L ".join(f"{x},{-y}" for x, y in ring) + " z" for ring in rings)
+        return f'<svg><path d="\n{paths}\n" fill="lightgray"/></svg>'
+
+    def test_a_contour_is_kept_from_a_quarter_square_metre_whichever_way_it_winds_or_where_it_lies(self):
+        square = [(3, 7), (3.5, 7), (3.5, 7.5), (3, 7.5)]
+        triangle = [(10, 10), (11, 10), (10, 11)]
+        for ring in (square, square[::-1], triangle, triangle[::-1]):
+            with self.subTest(ring=ring):
+                self.assertEqual(len(hs.parse_svg_contours(self.svg(ring))), 1)
+
+    def test_a_contour_just_under_a_quarter_square_metre_is_dropped(self):
+        for ring in ([(3, 7), (3.6, 7), (3.6, 7.4), (3, 7.4)], [(0, 0), (1, 0), (0, 0.49)]):
+            with self.subTest(ring=ring):
+                self.assertEqual(hs.parse_svg_contours(self.svg(ring)), [])
+
+    def test_a_contour_of_fewer_than_three_points_is_dropped(self):
+        self.assertEqual(hs.parse_svg_contours(self.svg([(0, 0), (9, 9)])), [])
+
+
+class OverSilhouetteTests(unittest.TestCase):
+    TRIANGLE = [(0.0, 0.0), (10.0, 0.0), (0.0, 10.0)]
+
+    def over(self, x, y, contours=None, z=99.0):
+        return hs.over_silhouette((x, y, z), [self.TRIANGLE] if contours is None else contours)
+
+    def test_inside_and_far_outside(self):
+        self.assertTrue(self.over(2, 2))
+        self.assertFalse(self.over(8, 8))
+        self.assertFalse(self.over(-5, 3))
+
+    def test_the_height_of_a_point_does_not_matter(self):
+        self.assertTrue(self.over(2, 2, z=-50.0))
+        self.assertFalse(self.over(8, 8, z=2.0))
+
+    def test_a_point_outside_but_within_the_tolerance_of_a_slanted_edge_is_over_the_hull(self):
+        # the hypotenuse x + y = 10; (5.1, 5.1) is 0.14 m outside it, (5.3, 5.3) is 0.42 m outside
+        self.assertTrue(self.over(5.1, 5.1))
+        self.assertFalse(self.over(5.3, 5.3))
+
+    def test_a_point_beyond_the_end_of_an_edge_is_measured_to_its_end(self):
+        self.assertTrue(self.over(10.25, 0))
+        self.assertFalse(self.over(10.35, 0))
+        self.assertTrue(self.over(-0.25, -0.0))
+        self.assertFalse(self.over(0, -0.35))
+
+    def test_a_ray_through_a_vertex_counts_the_edge_once(self):
+        diamond = [(0.0, -2.0), (2.0, 0.0), (0.0, 2.0), (-2.0, 0.0)]
+        self.assertTrue(self.over(0.5, 0, [diamond]))
+        self.assertTrue(self.over(-0.5, 0, [diamond]))
+        self.assertFalse(self.over(3.0, 0, [diamond]))
+        self.assertFalse(self.over(0.0, 3.0, [diamond]))
+
+    def test_the_even_odd_rule_alternates_through_nested_contours(self):
+        rings = [[(-s, -s), (s, -s), (s, s), (-s, s)] for s in (10.0, 7.0, 4.0, 1.0)]
+        self.assertTrue(self.over(8.5, 0, rings))     # in the outer ring only
+        self.assertFalse(self.over(5.5, 0, rings))    # a hole
+        self.assertTrue(self.over(2.5, 0, rings))     # island in the hole
+
+    def test_three_nested_contours_put_the_centre_back_on_the_hull(self):
+        rings = [[(-s, -s), (s, -s), (s, s), (-s, s)] for s in (10.0, 6.0, 2.0)]
+        self.assertTrue(self.over(0.0, 0.0, rings))
+
+
+class ProcessRefusalTests(unittest.TestCase):
+    def test_openscad_that_cannot_start_is_refused_in_fixed_words(self):
+        with mock.patch.object(hs.subprocess, "Popen", side_effect=OSError(SECRET)):
+            for make in (lambda: hs.openscad_runner("scad", "hull.scad")("primary"),
+                         lambda: hs.openscad_projector("scad")([hs.parse_off(box(0, 1, 0, 1, 0, 1))])):
+                with self.assertRaises(hs.HullSourceError) as caught:
+                    make()
+                self.assertEqual(str(caught.exception), "OpenSCAD could not be started")
+
+    def test_openscad_that_does_not_finish_is_killed_and_refused_in_fixed_words(self):
+        class Slow(FakeOpenScad):
+            killed = False
+
+            def communicate(self, timeout=None):
+                if not self.killed:
+                    raise hs.subprocess.TimeoutExpired("scad", timeout)
+                return "", None
+
+            def kill(self):
+                self.killed = True
+
+        slow = Slow()
+        with mock.patch.object(hs.subprocess, "Popen", slow):
+            with self.assertRaises(hs.HullSourceError) as caught:
+                hs.openscad_runner("scad", "hull.scad")("primary")
+        self.assertEqual((str(caught.exception), slow.killed), ("OpenSCAD did not finish a part in time", True))
+
+    def test_a_projection_openscad_never_wrote_is_refused(self):
+        with mock.patch.object(hs.subprocess, "Popen", FakeOpenScad()):
+            with self.assertRaises(hs.HullSourceError) as caught:
+                hs.openscad_projector("scad")([hs.parse_off(box(0, 1, 0, 1, 0, 1))])
+        self.assertEqual(str(caught.exception), "OpenSCAD refused a part of the hull source")
+
+    def test_a_refusing_openscad_says_so_in_fixed_words(self):
+        with mock.patch.object(hs.subprocess, "Popen", FakeOpenScad(returncode=2)):
+            with self.assertRaises(hs.HullSourceError) as caught:
+                hs.openscad_runner("scad", "hull.scad")("primary")
+        self.assertEqual(str(caught.exception), "OpenSCAD refused a part of the hull source")
+
+
+class LineCheckDetailTests(unittest.TestCase):
+    def details(self, kit, projector=Fixture.projector):
+        fixture = Fixture()
+        fixture.parts["lines"] = ("", kit)
+        built = hs.build(fixture.runner(), fixture.read_library, "Ship", projector)
+        return {c.name: c.detail for c in built.checks}
+
+    def test_the_details_count_what_the_checks_found(self):
+        got = self.details(line(points=((0, 0, 2), (20, 0, 2))) + line("step") + line("step"))
+        self.assertEqual((got[SILHOUETTE], got[LINES_OVER], got[LINES_DISTINCT]), ("1 contours", "1 outside", "1 repeated"))
+
+    def test_a_silhouette_is_not_a_kit_line_so_two_equal_contours_are_not_a_repeat(self):
+        twice = lambda meshes: Fixture.projector(meshes) * 2
+        got = self.details("", twice)
+        self.assertEqual((got[SILHOUETTE], got[LINES_DISTINCT]), ("2 contours", "0 repeated"))
+        fixture = Fixture()
+        built = hs.build(fixture.runner(), fixture.read_library, "Ship", twice)
+        self.assertEqual(built.failed(), [])
+
+
+class BytesOpenScad(FakeOpenScad):
+    """Writes raw bytes where -o points: an SVG with a byte that is not UTF-8 in its title."""
+
+    def __call__(self, command, **kwargs):
+        self.calls.append((command, kwargs.get("env")))
+        Path(command[command.index("-o") + 1]).write_bytes(bytes([255]) + SVG.encode("utf-8"))
+        return self
+
+
+class SilhouetteReadTests(unittest.TestCase):
+    def test_a_drawing_with_a_byte_that_is_not_utf8_still_reads(self):
+        with mock.patch.object(hs.subprocess, "Popen", BytesOpenScad()):
+            self.assertEqual(len(hs.openscad_projector("scad")([hs.parse_off(box(0, 1, 0, 1, 0, 1))])), 2)
+
+    def test_a_number_that_is_not_a_number_is_refused_in_fixed_words(self):
+        with self.assertRaises(hs.HullSourceError) as caught:
+            hs.parse_svg_contours('<svg><path d="M .,. L 1,1 L 2,2 z"/></svg>')
+        self.assertEqual(str(caught.exception), "OpenSCAD wrote a silhouette that is not readable")
 
 
 if __name__ == "__main__":
