@@ -783,7 +783,12 @@ public static class FireControl
         // point is decided at its commit (CommitBurst), which reads it there. Each shot reads it once.
         if (!shot.DeliveredAtCommit) Deliver(ref shot, solution.BurstReach);
 
-        zone.PendingShots.Add(shot);
+        // The queue is in fire-time order, ties in shot-id order (ids rise as shots are made): Step walks it oldest first. Rounds
+        // of one step are born shooter by shooter, so a later shooter's earlier round goes in before an earlier shooter's later one.
+        var queue = zone.PendingShots;
+        var place = queue.Count;
+        while (place > 0 && queue[place - 1].FireTime > shot.FireTime) place--;
+        queue.Insert(place, shot);
         return shot.ShotId;
     }
 
@@ -849,7 +854,10 @@ public static class FireControl
         if (shots.Count == 0) return;
 
         var now = zone.Time;
-        for (var i = shots.Count - 1; i >= 0; i--)
+        // In fire-time order, oldest first (the queue is kept in it by Fire), so which of a step's rounds breaks a shield or
+        // lands a kill follows sim time, not the order the shooters were stepped in. Shots queued while this walk runs are
+        // left to the next step.
+        for (int i = 0, end = shots.Count; i < end;)
         {
             var shot = shots[i];
 
@@ -863,6 +871,7 @@ public static class FireControl
                 // target is gone. Republishing the committed outcome here used to put a hit marker on a corpse.
                 var miss = MakeOutcome(shot, ShotResult.Miss, false, false, int2.zero, float2.zero, 0f, now);
                 shots.RemoveAt(i);
+                end--;
                 if (!shot.Committed) zone.ShotCommitted.OnNext(miss);
                 zone.ShotResolved.OnNext(miss);
                 continue;
@@ -890,9 +899,12 @@ public static class FireControl
                 // Removed first: Apply reaches damage observers (user code), and a shot left in the queue by one
                 // that throws would resolve, and hurt, again on every later tick.
                 shots.RemoveAt(i);
+                end--;
                 Apply(zone, shot);
                 zone.ShotResolved.OnNext(shot.Outcome);
+                continue;
             }
+            i++;
         }
     }
 

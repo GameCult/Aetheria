@@ -61,9 +61,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // Seconds the last countdown ran past zero (less than one step). The next countdown starts that far along, so a held
     // trigger fires Cooldown apart on average at any step, never floor(Cooldown/dt)+1 steps apart.
     private float _overshoot;
-    // The shooter asked for fire during this step (Activate): a weapon asked of for the whole step fires every round its
-    // cooldown allows inside it, rather than one per step. Cleared when the step ends.
-    private bool _pulled;
     // The shortest cycle a countdown divides by: a cooldown of zero would otherwise fire without end in one step.
     private const float ShortestCycle = .0005f;
 
@@ -95,9 +92,11 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // manager can bind its presentation to the one shot it belongs to instead of applying damage itself.
     public event Action<int> OnFire;
 
-    // Whether the trigger is held through this step, so a cooldown that ends inside it starts the next burst inside it. A
-    // tap or a press fires once per pull (a pull is held for its step); an automatic weapon holds while its trigger is down.
-    protected virtual bool Repeats => _pulled;
+    // Whether the trigger is down, so a cooldown that ends inside a step starts the next burst inside it. The trigger is the
+    // weapon's own state, set by Activate and cleared by Deactivate (a player's press and let-go, an agent's pull and
+    // release), never inferred from how often it was pulled: a tap fires one burst, and a held trigger fires every round
+    // its cooldown allows, at any step length.
+    private bool Repeats => _firing;
 
     public virtual void ResetEvents()
     {
@@ -269,7 +268,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public override bool Execute(float dt)
     {
         try { return Step(dt); }
-        finally { _pulled = false; _capacitor.Settle(); }
+        finally { _capacitor.Settle(); }
     }
 
     // One step of rounds. A round is due at a moment inside the step (_burstTimer is how long ago, at the step's end), and a
@@ -356,7 +355,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
 
     internal override void Activate()
     {
-        _pulled = true;
         if(CanFire)
             Trigger();
         base.Activate();

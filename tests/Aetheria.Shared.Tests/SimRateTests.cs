@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using CultMath;
+using UniRx;
 using Xunit;
 using static CultMath.math;
 using float3 = CultMath.float3;
@@ -75,6 +76,7 @@ public sealed partial class ContactRevealTests
             gun.Activate();
             Tick(dt);
         }
+        gun.Deactivate();
         return rounds;
     }
 
@@ -268,16 +270,18 @@ public sealed partial class ContactRevealTests
                 _openCache.Upsert(Tool(name, new CooldownData { Cooldown = Const(.5f) }));
             var ship = Add(float3(0, 0, 0), null, new[] { name });
             var clock = ship.Equipment.SelectMany(i => i.Behaviors).OfType<Cooldown>().Single();
-            for (var step = 0; step < (int) MathF.Round(10f / dt); step++) Tick(dt);
-            var times = new List<float>();
-            for (var step = 0; step < (int) MathF.Round(3f / dt); step++)
+            // Idle: the timer is updated but its chain never reaches Execute (an earlier behaviour gates it, or the item is
+            // offline). Zone ticks would not do: an Active tool reaches Execute every step and restarts the timer each time.
+            for (var step = 0; step < (int) MathF.Round(10f / dt); step++) clock.Update(dt);
+            var restarts = new List<int>();
+            for (var step = 0; step < (int) MathF.Round(2f / dt); step++)
             {
-                Tick(dt);
-                if (clock.Execute(dt)) times.Add(_zone.Time);
+                if (clock.Execute(dt)) restarts.Add(step);
+                clock.Update(dt);
             }
-            Assert.True(times.Count >= 4);
-            for (var i = 1; i < times.Count; i++)
-                Assert.True(times[i] - times[i - 1] >= .5f - dt - 1e-4f, $"dt {dt}: restarts at {times[i - 1]} and {times[i]}");
+            Assert.True(restarts.Count >= 3, $"dt {dt}: {restarts.Count} restarts in 2 s");
+            for (var i = 1; i < restarts.Count; i++)
+                Assert.True((restarts[i] - restarts[i - 1]) * dt >= .5f - dt - 1e-4f, $"dt {dt}: restarts at steps {restarts[i - 1]} and {restarts[i]}");
         }
     }
 
@@ -299,6 +303,114 @@ public sealed partial class ContactRevealTests
             for (var i = 1; i < fireTimes.Count; i++)
                 Assert.True(abs(fireTimes[i] - fireTimes[i - 1] - .01f) < 2e-4f, $"dt {dt}: rounds {i - 1} and {i} born {fireTimes[i - 1]:R} and {fireTimes[i]:R}");
         }
+    }
+
+    private InputCapacitor CapacitorOf(InstantWeapon gun) => (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(gun);
+
+    // A press that is let go before the step runs fires one burst, whatever the cooldown and the tick: the trigger is the
+    // weapon's state, not a pulse once per step. The press goes through the pilot's command (the player's action bar and the
+    // agents' Combat both do) and straight to the weapon (a turret does).
+    [Fact]
+    public void ATapFiresOneBurstAtEveryRate()
+    {
+        foreach (var cooldown in new[] { .01f, .025f, .1f })
+            foreach (var viaCommand in new[] { false, true })
+                foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 15f })
+                {
+                    var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(cooldown) }, new[] { "Targeting", "Reactor" });
+                    var gun = (InstantWeapon) Guns(ship)[0].Behaviors.Single(b => b is InstantWeapon);
+                    var capacitor = CapacitorOf(gun);
+                    var rounds = 0;
+                    gun.OnFire += _ => rounds++;
+                    ship.SetTarget(TargetRef.None);
+                    capacitor.AddStepCharge(1000f, dt);
+                    if (viaCommand)
+                    {
+                        ship.Command.Pull(gun);
+                        ship.Command.Release(gun);
+                    }
+                    else
+                    {
+                        gun.Activate();
+                        gun.Deactivate();
+                    }
+                    for (var step = 0; step < (int) MathF.Round(1f / dt); step++)
+                    {
+                        capacitor.AddStepCharge(1000f, dt);
+                        Tick(dt);
+                    }
+                    Assert.True(rounds == 1, $"cooldown {cooldown} at dt {dt}, command {viaCommand}: {rounds} rounds from one tap, expected 1");
+                }
+    }
+
+    // A trigger pulled once and held, as the player's key and a turret's pull are, delivers the authored cadence: the rounds
+    // of ten seconds are the same at 15, 30 and 60 Hz, and the weapon stops when the trigger is let go.
+    [Fact]
+    public void AHeldTriggerFiresTheAuthoredCadenceAtEveryRate()
+    {
+        foreach (var cooldown in new[] { .01f, .1f })
+            foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 15f })
+            {
+                var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(cooldown) }, new[] { "Targeting", "Reactor" });
+                var gun = (InstantWeapon) Guns(ship)[0].Behaviors.Single(b => b is InstantWeapon);
+                var capacitor = CapacitorOf(gun);
+                var rounds = 0;
+                gun.OnFire += _ => rounds++;
+                ship.SetTarget(TargetRef.None);
+                capacitor.AddStepCharge(1000f, dt);
+                gun.Activate();
+                for (var step = 0; step < (int) MathF.Round(10f / dt); step++)
+                {
+                    capacitor.AddStepCharge(1000f, dt);
+                    Tick(dt);
+                }
+                Assert.True(abs(rounds - 10f / cooldown) <= 1.01f, $"cooldown {cooldown} at dt {dt}: {rounds} rounds held 10 s, expected {10f / cooldown} +-1");
+                gun.Deactivate();
+                var held = rounds;
+                for (var step = 0; step < (int) MathF.Round(1f / dt); step++)
+                {
+                    capacitor.AddStepCharge(1000f, dt);
+                    Tick(dt);
+                }
+                Assert.True(rounds - held <= 1, $"cooldown {cooldown} at dt {dt}: {rounds - held} rounds after the trigger was let go");
+            }
+    }
+
+    // Within a step, rounds resolve in the order they were fired across shooters, not one shooter's block after the other's
+    // and not newest first: which round breaks a shield or lands the kill follows sim time. Equal moments go by shot id.
+    [Fact]
+    public void RoundsOfOneStepResolveInFireTimeOrderAcrossShooters()
+    {
+        var dt = 1f / 30f;
+        var a = Add(float3(0, 0, 0), new[] { GunWithCooldown(.01f) }, new[] { "Targeting", "Reactor" });
+        var b = Add(float3(5, 0, 0), new[] { GunWithCooldown(.01f) }, new[] { "Targeting", "Reactor" });
+        var guns = new[] { a, b }.Select(s => (InstantWeapon) Guns(s)[0].Behaviors.Single(x => x is InstantWeapon)).ToArray();
+        var fired = new Dictionary<int, float>();
+        foreach (var gun in guns)
+            gun.OnFire += id => { if (_zone.TryGetShot(id, out var shot)) fired[id] = shot.FireTime; };
+        foreach (var s in new[] { a, b }) s.SetTarget(TargetRef.None);
+        var order = new List<int>();
+        var sources = new List<bool>();
+        _zone.ShotResolved.Subscribe(outcome => { order.Add(outcome.ShotId); sources.Add(ReferenceEquals(outcome.Source, a)); });
+        var checkedSteps = 0;
+        for (var step = 0; step < 8; step++)
+        {
+            foreach (var gun in guns) { CapacitorOf(gun).AddStepCharge(1000f, dt); gun.Activate(); }
+            order.Clear();
+            sources.Clear();
+            Tick(dt);
+            if (step < 3) continue;
+            checkedSteps++;
+            Assert.True(order.Count >= 4, $"step {step}: {order.Count} rounds resolved");
+            for (var i = 1; i < order.Count; i++)
+            {
+                var before = (fired[order[i - 1]], order[i - 1]);
+                var after = (fired[order[i]], order[i]);
+                Assert.True(before.CompareTo(after) < 0, $"step {step}: shot {order[i - 1]} (fired {before.Item1:R}) resolved before shot {order[i]} (fired {after.Item1:R})");
+            }
+            Assert.True(sources.Zip(sources.Skip(1), (x, y) => x != y).Count(changed => changed) > 1, $"step {step}: one shooter's rounds resolved as a block");
+        }
+        Assert.True(checkedSteps >= 4);
     }
 
     // Rounds born in one step leave from where the shooter was at their own moment: the origins of two rounds of a step are
@@ -360,6 +472,7 @@ public sealed partial class ContactRevealTests
             Tick(dt);
         }
         for (var i = 0; i < 30; i++) Step(); // warm the JIT and the shot queue
+        foreach (var w in weapons) w.Deactivate(); // the triggers stay down until released
         for (var i = 0; i < 60; i++) Tick(dt); // let the in-flight rounds resolve
         var steps = 300;
         var idleBytes = GC.GetAllocatedBytesForCurrentThread();
