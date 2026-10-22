@@ -79,6 +79,28 @@ public static class StationServices
         return BuyResult.Bought;
     }
 
+    // The purchase of `quantity` units of a station stack, one lot of at most MaxStack at a time. `deliver` puts a lot of
+    // that many units where it goes, and each lot is charged for the units it delivered. The first lot the station
+    // cannot sell or the player cannot take ends the purchase, with the lots before it bought.
+    public static BuyResult TryBuyLots(ItemManager items, SimpleCommodity stock, int quantity, ref int credits, Func<int, bool> deliver)
+    {
+        if (quantity < 1) return BuyResult.NoRoom;
+        var maxStack = items.GetData(stock).MaxStack;
+        for (var remaining = quantity; remaining > 0;)
+        {
+            var lot = Math.Min(remaining, maxStack);
+            var result = TryBuy(items, stock, lot, ref credits, () => deliver(lot));
+            if (result != BuyResult.Bought) return result;
+            remaining -= lot;
+        }
+        return BuyResult.Bought;
+    }
+
+    // The quantity a Buy Quantity field may hold: what was typed, at most what the credits cover and what the station
+    // has, and never below one unit (a price the credits do not cover is then refused as short of credits).
+    public static int BuyableQuantity(ItemManager items, SimpleCommodity stock, int typed, int credits) =>
+        Math.Max(1, Math.Min(Math.Min(typed, credits / BuyPrice(items, stock)), stock.Quantity));
+
     // The sale: the item leaves the bay for one of the station's cargo bays and the station pays SellPrice. False,
     // with the item in its bay and the credits unchanged, when no station bay can take it.
     public static bool TrySell(EquippedCargoBay from, Entity station, ItemInstance item, ref int credits)

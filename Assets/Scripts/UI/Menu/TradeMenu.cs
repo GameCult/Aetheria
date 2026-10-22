@@ -270,7 +270,7 @@ public class TradeMenu : MonoBehaviour
                                 Dialog.Title.text = $"Buying {GameManager.ItemManager.Title(i.item)}";
                                 Dialog.AddField("Quantity", 
                                     () => quantity, 
-                                    q => quantity = min(min(q, GameManager.Credits / StationServices.BuyPrice(GameManager.ItemManager, s)), s.Quantity));
+                                    q => quantity = StationServices.BuyableQuantity(GameManager.ItemManager, s, q, GameManager.Credits));
                                 Dialog.Show(() =>
                                 {
                                     Buy(s,quantity);
@@ -343,17 +343,8 @@ public class TradeMenu : MonoBehaviour
 
     private void Buy(SimpleCommodity simpleCommodity, int quantity)
     {
-        var data = GameManager.ItemManager.GetData(simpleCommodity);
-        // Up-rounded integer division from https://stackoverflow.com/a/503201
-        int lots = (quantity - 1) / data.MaxStack + 1;
-        int remaining = quantity;
-        for (int i = 0; i < lots; i++)
-        {
-            int q = min(remaining, data.MaxStack);
-            if (!Bought(StationServices.TryBuy(GameManager.ItemManager, simpleCommodity, q, ref GameManager.Credits,
-                    () => Inventory.TryTransferItem(_targetCargo, simpleCommodity, quantity)))) return;
-            remaining -= q;
-        }
+        Bought(StationServices.TryBuyLots(GameManager.ItemManager, simpleCommodity, quantity, ref GameManager.Credits,
+            lot => Inventory.TryTransferItem(_targetCargo, simpleCommodity, lot)));
     }
 
     // Refreshes the credits after a purchase, or tells the player why the station refused it.
