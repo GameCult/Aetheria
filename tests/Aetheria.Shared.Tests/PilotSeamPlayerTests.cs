@@ -246,33 +246,32 @@ public sealed partial class RunStartTests
     }
 
     // The player's switches are presses on its command too: each flips at the next step, two in a step cancel, and none is
-    // replayed. A ping is a press that pings once.
+    // replayed. A ping is a press that pings once. (The Longinus has no shield: the shield switch is pinned on a shielded
+    // target in FireControlCut124Tests below, and here its press is a no-op.)
     [Fact]
     public void PlayerSwitchesArePressesAtTheStep()
     {
         var (arena, east, _) = SeamPair(false);
-        Assert.NotNull(east.Shield);
+        Assert.Null(east.Shield);
         Assert.NotNull(east.Sensor);
-        (bool, bool, bool) Switches() => (east.OverrideShutdown, east.HeatsinksEnabled, east.Shield.Item.Enabled.Value);
-        Assert.Equal((false, true, true), Switches());
+        (bool, bool) Switches() => (east.OverrideShutdown, east.HeatsinksEnabled);
+        Assert.Equal((false, true), Switches());
 
         east.Command.ToggleOverrideShutdown();
         east.Command.ToggleHeatsinks();
         east.Command.ToggleShield();
-        Assert.Equal((false, true, true), Switches());
+        Assert.Equal((false, true), Switches());
         arena.Update(SeamDt);
-        Assert.Equal((true, false, false), Switches());
+        Assert.Equal((true, false), Switches());
         arena.Update(SeamDt);
-        Assert.Equal((true, false, false), Switches());
+        Assert.Equal((true, false), Switches());
 
         east.Command.ToggleOverrideShutdown();
         east.Command.ToggleOverrideShutdown();
         east.Command.ToggleHeatsinks();
         east.Command.ToggleHeatsinks();
-        east.Command.ToggleShield();
-        east.Command.ToggleShield();
         arena.Update(SeamDt);
-        Assert.Equal((true, false, false), Switches());
+        Assert.Equal((true, false), Switches());
 
         var pings = 0;
         east.Sensor.OnPingStart += () => pings++;
@@ -326,5 +325,34 @@ public sealed partial class RunStartTests
         east.Command.Tractor = .25f;
         arena.Update(SeamDt);
         Assert.Equal(.25f, east.TractorCommand);
+    }
+}
+
+// The shield switch on the seam (aetheria-arena, seam fixes): the player's shield press is a PilotCommand press, applied at
+// the step like the other switches. Here because this class builds a shielded target.
+public sealed partial class FireControlCut124Tests
+{
+    [Fact]
+    public void TheShieldSwitchIsAPressAtTheStep()
+    {
+        var e = Build(TestSettings(), SolidShape(21, 3), equipShield: true);
+        var shield = e.Target.Shield;
+        Assert.NotNull(shield);
+        Assert.True(shield.Item.Enabled.Value);
+
+        e.Target.Command.ToggleShield();
+        Assert.True(shield.Item.Enabled.Value, "nothing lands before the step");
+        e.Zone.Update(.1f);
+        Assert.False(shield.Item.Enabled.Value);
+        e.Zone.Update(.1f);
+        Assert.False(shield.Item.Enabled.Value, "the press is not replayed");
+
+        e.Target.Command.ToggleShield();
+        e.Target.Command.ToggleShield();
+        e.Zone.Update(.1f);
+        Assert.False(shield.Item.Enabled.Value, "two presses in a step cancel");
+        e.Target.Command.ToggleShield();
+        e.Zone.Update(.1f);
+        Assert.True(shield.Item.Enabled.Value);
     }
 }
