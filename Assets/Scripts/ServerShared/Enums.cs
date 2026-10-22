@@ -152,27 +152,6 @@ public enum MegaPlacementType
     Isolated = 4
 }
 
-public enum SimpleCommodityCategory
-{
-    Minerals = 0,
-    Metals = 1,
-    Alloys = 2,
-    Compounds = 3,
-    Organics = 4,
-    Ammo = 5,
-    Consumer = 6
-}
-
-public enum CompoundCommodityCategory
-{
-    Wearables = 0,
-    Consumables = 1,
-    Luxuries = 2,
-    Tools = 3,
-    Manufacturing = 4,
-    Assemblies = 5
-}
-
 public enum LocationType
 {
     Station,
