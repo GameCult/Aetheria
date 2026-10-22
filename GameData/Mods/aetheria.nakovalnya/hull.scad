@@ -52,16 +52,21 @@ zh_mass(KEEL, lines=false);                       // under the hull: no top view
 for (s = [-1, 1]) lp_at(t=[s*DX, 0, 0]) zh_mass(DRV, "secondary");
 
 // ---- the casemate guns: lighter cast-steel barrels out of charcoal mantlets -----------------------------------------
+MANTLET = [4.0, 1.2, 3.4];
 module casemate_gun() {
-  zh_z("secondary") {
-    translate([0, GY - 0.3, GZ]) cbox([4.0, 1.2, 3.4], 0.2);                  // mantlet
-    translate([0, GY - 0.7, GZ]) rotate([0, 0, 180]) tube(BR*1.55, 1.8, 8);    // barrel collar
-    translate([0, GY - 0.7 - BL, GZ]) cbox([BR*2.7, 1.6, BR*2.7], 0.12);      // muzzle block
+  // mantlet frame: its fitting outline is drawn in the frame the mantlet is
+  lp_at(t=[0, GY - 0.3, GZ]) {
+    zh_z("secondary") cbox(MANTLET, 0.2);
+    lp_line("fitting", zh_rect(MANTLET.x, MANTLET.y, MANTLET.z/2), true);
   }
-  zh_z("primary") translate([0, GY - 0.7, GZ]) rotate([0, 0, 180]) tube(BR, BL, 8);
-  zh_z("recess") translate([0, GY - 0.7 - BL - 0.81, GZ]) cube([BR*1.2, 0.05, BR*1.2], center=true);
-  lp_line("fitting", [for (p = zh_rect(4.0, 1.2, GZ + 1.7)) p + [0, GY - 0.3, 0]], true);
-  lp_line("fitting", [[0, GY - 0.7, GZ + BR], [0, GY - 0.7 - BL, GZ + BR]]);
+  // barrel frame: local +Y runs forward from the collar; the barrel's top line is drawn in the frame the barrel is
+  lp_at(t=[0, GY - 0.7, GZ], r=[0, 0, 180]) {
+    zh_z("secondary") tube(BR*1.55, 1.8, 8);                                    // barrel collar
+    zh_z("primary") tube(BR, BL, 8);
+    zh_z("secondary") translate([0, BL, 0]) cbox([BR*2.7, 1.6, BR*2.7], 0.12);  // muzzle block
+    zh_z("recess") translate([0, BL + 0.81, 0]) cube([BR*1.2, 0.05, BR*1.2], center=true);
+    lp_line("fitting", [[0, 0, BR], [0, BL, BR]]);
+  }
 }
 for (x = CX) lp_at(t=[x, 0, 0]) casemate_gun();
 for (x = CX) lp_at(t=[x, 0, 0]) zh_on_top(CAS, -21.9, 0) zh_stripes(3.6, 0.6, 4);
@@ -90,9 +95,10 @@ zh_on_top(T2, -3.6, 0) zh_serial(0.7, 4);
 
 // ---- dorsal magazine hatches: two rows of four on the mid-deck, clear of the rim -----------------------------------
 for (y = [-8.0, -3.4, 1.2, 5.6], u = [-0.78, 0.78]) zh_on_top(T1, y, u) zh_hatch(2.8, 3.0, dogs=false);
-for (y = [0.5, 4.5]) zh_on_top(T2, y, 0) {                                                                // plate seams
-  zh_z("secondary") translate([0, 0, 0.06]) cube([8.4, 0.5, 0.2], center=true);
-  lp_line("seam", [[-4.2, 0, 0.16], [4.2, 0, 0.16]]);
+PLATE_SEAM = [8.4, 0.5, 0.2];
+for (y = [0.5, 4.5]) zh_on_top(T2, y, 0) lp_at(t=[0, 0, 0.06]) {                                          // plate seams
+  zh_z("secondary") cube(PLATE_SEAM, center=true);
+  lp_line("seam", [[-PLATE_SEAM.x/2, 0, PLATE_SEAM.z/2], [PLATE_SEAM.x/2, 0, PLATE_SEAM.z/2]]);
 }
 
 // Feed collar for an Oboz: a lighter cast-steel flange ring standing proud of the flank round the kit collar.
