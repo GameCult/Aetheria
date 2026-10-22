@@ -51,6 +51,19 @@ def brief(faction="zhestokost", donor="", length=(8, 14), triangles=(10, 100)):
     return echo("brief", [faction, donor, "tender", list(length), list(triangles), ["a read"]])
 
 
+def marks_off(points, size=0.002):
+    """An OFF text of one tiny cube per point, as the kit's marks part is."""
+    rows, faces = [], []
+    for i, (x, y, z) in enumerate(points):
+        h = size / 2
+        rows += [(x + dx * h, y + dy * h, z + dz * h) for dz in (-1, 1) for dy in (-1, 1) for dx in (-1, 1)]
+        b = 8 * i
+        faces += [(b, b + 1, b + 3, b + 2), (b + 4, b + 6, b + 7, b + 5), (b, b + 2, b + 6, b + 4),
+                  (b + 1, b + 5, b + 7, b + 3), (b, b + 4, b + 5, b + 1), (b + 2, b + 3, b + 7, b + 6)]
+    return "\n".join(["OFF", f"{len(rows)} {len(faces)} 0"] + [" ".join(map(repr, r)) for r in rows]
+                     + ["4 " + " ".join(map(str, f)) for f in faces]) + "\n"
+
+
 class Fixture:
     """A hull source as the fake runner sees it: part -> (OFF, ECHO). library holds the ECHO text of each faction's own
     language file; the hull's own `lang` echo is the files it includes, unless hull_lang says otherwise."""
@@ -70,6 +83,7 @@ class Fixture:
             "emit:Th.A": (box(0.5, 1.5, 5, 5.1, 0.5, 1.5), ""),
             "lines": ("", ""),
         }
+        self.marks = None  # the "marks" part when a test sets one; else a mark at each kit line's first point
 
     @staticmethod
     def projector(meshes):
@@ -81,7 +95,13 @@ class Fixture:
         return [[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]]
 
     def runner(self):
-        return lambda part: ("", self.hull_lang if self.hull_lang is not None else "".join(self.library.values()))             if part == "lang" else self.parts[part]
+        return lambda part: ("", self.hull_lang if self.hull_lang is not None else "".join(self.library.values()))             if part == "lang" else self.mark_part() if part == "marks" else self.parts[part]
+
+    def mark_part(self):
+        """What the kit's lp_line draws in the geometry's own frame: a tiny cube at each line's first point."""
+        if self.marks is not None:
+            return self.marks
+        return (marks_off([l.points[0] for l in hs.read_lines(self.parts["lines"][1])]), "")
 
     def read_library(self, faction):
         if faction not in self.library:
@@ -680,11 +700,51 @@ class RefusalTests(unittest.TestCase):
 
 LINES_OVER = "every kit line lies over the hull's top view"
 LINES_DISTINCT = "no two kit lines are the same"
+LINES_FRAME = "every kit line is drawn in the frame of its geometry"
 SILHOUETTE = "the top view yields a silhouette"
 
 
 def line(layer="seam", points=((-1, -1, 2), (1, 1, 2)), cyclic=False):
     return echo("line", [layer, cyclic, [list(p) for p in points]])
+
+
+class FrameCheckTests(unittest.TestCase):
+    """The kit draws a mark where each line starts, in the frame the geometry is drawn in; the line is echoed in the frame
+    lp_at tracks. A part placed by anything but lp_at has its mark and its line in different places."""
+
+    def built(self, kit, marks=None):
+        fixture = Fixture()
+        fixture.parts["lines"] = ("", kit)
+        if marks is not None:
+            fixture.marks = (marks_off(marks), "")
+        return fixture.build()
+
+    def test_marks_where_the_lines_start_pass_and_the_check_is_listed(self):
+        built = self.built(line() + line("step", ((0, 0, 2), (1, 1, 2))))
+        self.assertEqual(built.failed(), [])
+        self.assertIn(LINES_FRAME, names(built))
+
+    def test_a_mark_three_metres_from_its_line_fails_the_frame_check_and_nothing_else(self):
+        built = self.built(line(points=((-1, -1, 2), (1, 1, 2))), marks=[(-1, 2, 2)])
+        self.assertEqual([c.name for c in built.failed()], [LINES_FRAME])
+
+    def test_a_line_with_no_mark_fails(self):
+        built = self.built(line() + line("step", ((0, 0, 2), (1, 1, 2))), marks=[(-1, -1, 2)])
+        self.assertEqual([c.name for c in built.failed()], [LINES_FRAME])
+
+    def test_a_mark_with_no_line_fails(self):
+        built = self.built(line(), marks=[(-1, -1, 2), (2, 2, 2)])
+        self.assertEqual([c.name for c in built.failed()], [LINES_FRAME])
+
+    def test_a_mark_a_millimetre_off_is_the_same_place(self):
+        self.assertEqual(self.built(line(), marks=[(-1, -1, 2.001)]).failed(), [])
+
+    def test_a_source_with_no_lines_and_no_marks_passes(self):
+        self.assertEqual(self.built("", marks=[]).failed(), [])
+
+    def test_the_detail_counts_the_lines_and_marks_that_disagree(self):
+        built = self.built(line(), marks=[(5, 5, 2)])
+        self.assertEqual({c.name: c.detail for c in built.checks}[LINES_FRAME], "1 lines and 1 marks disagree")
 
 
 class LineReadingTests(unittest.TestCase):
