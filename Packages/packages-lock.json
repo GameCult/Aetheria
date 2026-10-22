@@ -265,13 +265,13 @@
       "hash": "42dce3611a81adc5c5fac54cadbaa5637d6022d3"
     },
     "org.gamecult.cultlib": {
-      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v2.0.0",
+      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v2.0.1",
       "depth": 0,
       "source": "git",
       "dependencies": {
         "org.gamecult.cultmath": "0.5.0"
       },
-      "hash": "42dce3611a81adc5c5fac54cadbaa5637d6022d3"
+      "hash": "b8fc5eb07720a187a0421424ac2cb3aa2966ca1d"
     },
     "org.gamecult.cultmath": {
       "version": "https://github.com/GameCult/CultLib.git?path=/packages/cultmath/unity/org.gamecult.cultmath#cultmath-unity-v0.5.0",
