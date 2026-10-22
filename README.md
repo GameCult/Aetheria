@@ -5,6 +5,18 @@ All mechanics are developed to be engine-agnostic, while Unity was chosen as a r
 
 It is our ambition to forge a new paradigm of open source game development, as to our knowledge there are no other open source projects of this scope building up a foundation from scratch. Game development is notoriously averse to this model and nobody wants to share their shiny toys for fear of losing their competitive advantage. By building and sharing immersive and compelling experiences like this, we hope to change that.
 
+## Front Door
+
+- **Value:** a simulation-first tactical ARPG. The game's rules live in a headless .NET build (`Aetheria.Shared`, compiled from `Assets/Scripts/ServerShared`) that needs no Unity; Unity is the shell for graphics and input. Content (hulls, gear, factions, blueprints) is typed CultCache data in `GameData/Aetheria.cc`.
+- **Problem:** an AA-scale open source game built from scratch, with simulation depth (fire control, stats and power, heat, item provenance, locomotion) that agents and contributors can inspect, test and extend without opening the editor.
+- **Entry points:**
+  - `dotnet test tests/Aetheria.Shared.Tests` runs the shared simulation tests; `dotnet run --project tools/AetherDb -- census` reads the catalog (commands under Command Line). `CLAUDE.md` explains AetherDb and the pinned CultLib build rule.
+  - `docs/aetheria-release-target.md`: the demo. `docs/aetheria-arena-target.md`: deterministic headless matches between swappable brains. `docs/moddable-ship-authoring.md`: ship packages.
+  - Unity client: open the repository root in Unity 6000.3.24f1 and start from the "Main Menu" scene (Testing Locally).
+- **In progress:** the demo, one gate, one region and one boss with a fixed faction presence (allied Pirates, antagonist Zhestokost). It is called a demo because full Terminus needs enough faction variety for three procedurally generated regions.
+- **Directions, not built:** the strategic arena (`docs/aetheria-arena-target.md` is a target, not a shipped system) and the living-world economy. Neither has a spec in `docs/` yet beyond the arena target.
+- **Packages ship hulls:** hulls are delivered as mod-owned `.cc` ship packages authored in Blender and the CultLib tools, with no Unity install. That is a proof lane today; catalog `HullData` records remain live until a complete package ship passes authoring, validation, loading and play.
+
 ## Contact Us
 
 If you want to chat, please join [our Discord server](https://discord.gg/trbteNj) for detailed development updates and discussions about the game design, narrative, art direction, and general topics. Shitposting welcome!
@@ -57,13 +69,13 @@ As a result of lessons learned, we then focused on the economy system, and built
 
 ## Current Work
 
-At the moment we are focused on implementing and polishing the ARPG gameplay as a standalone title, first as a rogue-lite combat demo and then adding a story-driven campaign mode.
+At the moment we are focused on implementing and polishing the ARPG gameplay as a standalone title, first as a rogue-lite combat demo (see [the demo target](docs/aetheria-release-target.md)) and then adding a story-driven campaign mode.
 
 ## Architecture
 
 ### Project Structure
 
-There are two solutions in this repository. One is a Unity project containing the desktop client for Aetheria, and the other is a .NET Core application intended to run on Linux cloud servers. The bulk of the game's code is shared between them, located at [Assets/Scripts/ServerShared](Assets/Scripts/ServerShared), defining a common protocol, world simulation code and data serialization format.
+This repository holds a Unity project containing the desktop client for Aetheria and a headless .NET build of the shared simulation (`Aetheria.Shared`, with `tests/Aetheria.Shared.Tests` and `tools/AetherDb`). The bulk of the game's code is shared between them, located at [Assets/Scripts/ServerShared](Assets/Scripts/ServerShared), defining a common protocol, world simulation code and data serialization format.
 
 ### Third Party Libraries
 
