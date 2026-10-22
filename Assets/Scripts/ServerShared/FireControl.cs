@@ -698,7 +698,11 @@ public static class FireControl
     // Damage * interval, through this exact same freeze-and-queue path (a flight time of zero, since a beam's
     // authored Velocity is 0, commits and resolves in the tick it fires -- R4's short-flight degradation,
     // unchanged). Every other caller keeps reading the frozen weapon.Damage it always did.
-    public static int Fire(Weapon weapon, EquippedItem item, Entity source, float? damageOverride = null)
+    // Rounds per step (ruling rounds-per-step): a gun fires every round its cooldown allows in a step, so a round is born
+    // `age` seconds before the step's end, where the shooter and its target were then (carried back along their velocities).
+    // FireTime, the origin, the target's frozen pose and the arrival and commit times all follow, so a presenter draws the round
+    // from where it left and the commit measures the target's stray from the line it was fired along.
+    public static int Fire(Weapon weapon, EquippedItem item, Entity source, float? damageOverride = null, float age = 0f)
     {
         var zone = source.Zone;
         if (IsMineLayer(weapon))
@@ -708,7 +712,7 @@ public static class FireControl
         }
         // Mining Cut 3: a chunk target fires as an untargeted round until Cut 4 routes shots at chunks.
         var target = source.Target.Value.Entity;
-        var now = zone.Time;
+        var now = zone.Time - age;
 
         // R1's engage gate and the shooter-side probability, evaluated now and frozen: nothing at commit time
         // re-reads a stat, an info level or a range. Cut 12.2: PFire no longer carries the spread/hull share --
@@ -724,14 +728,14 @@ public static class FireControl
         var burstPosition = solution.BurstPosition;
         var fuse = solution.Fuse;
         var blastRadius = solution.BlastRadius;
-        var origin = source.Position;
+        var origin = source.Position - float3(source.Velocity.x, 0, source.Velocity.y) * age;
 
         var targetVelocity = float3.zero;
         var targetPosition = origin;
         if (engaged != null)
         {
             targetVelocity = float3(engaged.Velocity.x, 0, engaged.Velocity.y);
-            targetPosition = engaged.Position;
+            targetPosition = engaged.Position - targetVelocity * age;
         }
         var flightTime = weapon.Velocity > .01f ? solution.FlightDistance / weapon.Velocity : 0f;
 

@@ -57,12 +57,16 @@ public sealed partial class ContactRevealTests
 
     // Holds the trigger for `seconds`, topping up the capacitor so only the cooldown paces the gun. Returns the zone
     // time of each round.
-    private List<float> HoldTrigger(Ship ship, EquippedItem item, float dt, float seconds)
+    private List<float> HoldTrigger(Ship ship, EquippedItem item, float dt, float seconds, List<float> fireTimes = null)
     {
         var gun = (InstantWeapon) item.Behaviors.Single(b => b is InstantWeapon);
         var capacitor = (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(gun);
         var rounds = new List<float>();
-        gun.OnFire += _ => rounds.Add(_zone.Time);
+        gun.OnFire += id =>
+        {
+            rounds.Add(_zone.Time);
+            if (fireTimes != null && _zone.TryGetShot(id, out var shot)) fireTimes.Add(shot.FireTime);
+        };
         ship.SetTarget(TargetRef.None);
         for (var step = 0; step < (int) MathF.Round(seconds / dt); step++)
         {
@@ -277,6 +281,54 @@ public sealed partial class ContactRevealTests
     }
 
     // A magazine of three, cooldown .1 s and a .9 s reload is three rounds a 1.1 s cycle, at any step.
+    // Ruling rounds-per-step: cadence is authored in seconds at any tick rate. A gun of 0.01 s fires 100 rounds a second at 15, 30
+    // and 60 Hz (several in one step), each born at its own moment inside the step, one cooldown after the one before.
+    [Fact]
+    public void AFastGunDeliversItsAuthoredRoundsAtEveryRate()
+    {
+        foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 15f })
+        {
+            var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(.01f) }, new[] { "Targeting", "Reactor" });
+            var fireTimes = new List<float>();
+            var rounds = HoldTrigger(ship, Guns(ship)[0], dt, 10f, fireTimes);
+            Assert.True(abs(rounds.Count - 1000f) <= 1.01f, $"dt {dt}: {rounds.Count} rounds in 10 s, expected 1000 +-1");
+            Assert.Equal(rounds.Count, fireTimes.Count);
+            for (var i = 1; i < fireTimes.Count; i++)
+                Assert.True(abs(fireTimes[i] - fireTimes[i - 1] - .01f) < 2e-4f, $"dt {dt}: rounds {i - 1} and {i} born {fireTimes[i - 1]:R} and {fireTimes[i]:R}");
+        }
+    }
+
+    // The cluster's cost: a point-defence battery of 0.005 s guns holding its trigger, every round a queued shot with its own
+    // roll. The step wall time and the heap bytes per round are written beside the test for the report.
+    [Fact, Trait("Category", "Slow")]
+    public void ADenseClusterStepsAtAffordableCost()
+    {
+        const int guns = 16;
+        var dt = SimClock.GameStep;
+        var ships = Enumerable.Range(0, guns).Select(i => Add(float3(i * 3, 0, 0), new[] { GunWithCooldown(.005f) }, new[] { "Targeting", "Reactor" })).ToList();
+        var weapons = ships.Select(s => (InstantWeapon) Guns(s)[0].Behaviors.Single(b => b is InstantWeapon)).ToList();
+        var capacitors = weapons.Select(w => (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(w)).ToList();
+        var rounds = 0;
+        foreach (var w in weapons) w.OnFire += _ => rounds++;
+        foreach (var s in ships) s.SetTarget(TargetRef.None);
+        void Step()
+        {
+            for (var i = 0; i < guns; i++) { capacitors[i].AddCharge(1000f); weapons[i].Activate(); }
+            Tick(dt);
+        }
+        for (var i = 0; i < 30; i++) Step(); // warm the JIT and the shot queue
+        rounds = 0;
+        var steps = 300;
+        var bytes = GC.GetAllocatedBytesForCurrentThread();
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (var i = 0; i < steps; i++) Step();
+        watch.Stop();
+        bytes = GC.GetAllocatedBytesForCurrentThread() - bytes;
+        var line = $"{guns} guns at .005 s, {SimClock.TickRate} Hz: {rounds / (double) steps:F1} rounds per step, {watch.Elapsed.TotalMilliseconds / steps:F3} ms per step, {bytes / (double) rounds:F0} heap bytes per round";
+        System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "simrate-stepcost.txt"), line);
+        Assert.True(abs(rounds / (double) steps - guns * dt / .005) < 1.0 * guns, line);
+    }
+
     [Fact]
     public void MagazineCadenceIsPerSecond()
     {
@@ -340,49 +392,5 @@ public sealed partial class RunStartTests
         Assert.True(Math.Abs(old.wins - now.wins) <= 1.96 * se, table.ToString());
         Assert.True(Math.Abs(now.survivor - old.survivor) <= .1 * old.survivor, table.ToString());
         Assert.True(Math.Abs(now.firstKill - old.firstKill) <= .1 * old.firstKill, table.ToString());
-    }
-
-    // Every shipped cooldown, ping cooldown and ammo interval spans at least two steps, but the four guns below are
-    // authored faster (a restarted cooldown ends within its step, so they fire at most once per step: the step caps their
-    // rate). That is a content decision awaiting a ruling, so the offenders are pinned: a new one fails here. A burst
-    // interval under one step fires several rounds in one step (carry makes that exact on average) and is not a fault.
-    private static readonly string[] KnownFastCooldowns =
-    {
-        "Light Machine Gun.Cooldown", "Long Slug Rifle.Cooldown", "Point Defense Gun.Cooldown", "Slug Rifle.Cooldown"
-    };
-    [Fact]
-    public void ShortestTimerIsSeveralSteps()
-    {
-        using var cache = RestoredHullsTests.OpenCatalog();
-        var timers = new List<(string item, string timer, float seconds)>();
-        var bursts = new List<string>();
-        void Read(string item, IEnumerable<BehaviorData> behaviors)
-        {
-            foreach (var behavior in behaviors.Where(b => b != null))
-                switch (behavior)
-                {
-                    case InstantWeaponData gun:
-                        timers.Add((item, "Cooldown", Math.Min(gun.Cooldown.Min, gun.Cooldown.Max)));
-                        var count = Math.Max(1f, Math.Min(gun.Count.Min, gun.Count.Max));
-                        var interval = Math.Min(gun.BurstTime.Min, gun.BurstTime.Max) / count;
-                        if (count > 1 && interval < SimClock.GameStep) bursts.Add($"{item}: burst interval {interval:R} s");
-                        break;
-                    case SensorData sensor:
-                        timers.Add((item, "PingCooldown", Math.Min(sensor.PingCooldown.Min, sensor.PingCooldown.Max)));
-                        break;
-                    case ConstantWeaponData beam when beam.AmmoType.IsSet():
-                        timers.Add((item, "AmmoInterval", beam.AmmoInterval));
-                        break;
-                    case CooldownData cooldown:
-                        timers.Add((item, "Cooldown", Math.Min(cooldown.Cooldown.Min, cooldown.Cooldown.Max)));
-                        break;
-                }
-        }
-        foreach (var item in cache.GetAll<EquippableItemData>()) Read(item.Name, item.Behaviors);
-        foreach (var item in cache.GetAll<ConsumableItemData>()) Read(item.Name, item.Behaviors);
-
-        var offenders = timers.Where(t => t.seconds > 0 && t.seconds < 2 * SimClock.GameStep)
-            .Select(t => $"{t.item}.{t.timer}").OrderBy(name => name, StringComparer.Ordinal).ToList();
-        Assert.True(offenders.SequenceEqual(KnownFastCooldowns), $"timers under two steps of {SimClock.GameStep:R} s: {string.Join("; ", offenders)}. Burst intervals under a step: {string.Join("; ", bursts)}");
     }
 }

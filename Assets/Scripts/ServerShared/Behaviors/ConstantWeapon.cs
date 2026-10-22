@@ -146,7 +146,8 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
                 }
                 
                 _ammoInterval -= dt / _data.AmmoInterval;
-                if (_ammoInterval < 0)
+                // An interval shorter than the step spends every round it spans.
+                while (_ammoInterval < 0)
                 {
                     _ammoInterval += 1;
                     if (_data.MagazineSize > 1 && _ammo > 0) _ammo--;
