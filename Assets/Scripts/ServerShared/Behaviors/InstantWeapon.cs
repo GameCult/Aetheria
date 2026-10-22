@@ -203,6 +203,13 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
 
     private float CountdownSpan => _data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown;
 
+    // A countdown that starts outside a round (a charge failing) carries the last one's overshoot like every restart.
+    protected void StartCountdown()
+    {
+        _cooldown = 1 - TakeOvershoot() / CountdownSpan;
+        _coolingDown = true;
+    }
+
     private float TakeOvershoot()
     {
         var overshoot = _overshoot;
