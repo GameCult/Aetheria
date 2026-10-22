@@ -841,6 +841,20 @@ public sealed class CargoTransferTests : IDisposable
         Assert.Equal(0, Units(player, stock));
     }
 
+    [Theory]
+    [InlineData(-5)]
+    [InlineData(0)]
+    public void APurchaseOfNoUnitsIsRefusedNotBought(int quantity)
+    {
+        var stock = Commodity("Ore", 10);
+        var credits = 100;
+
+        var result = StationServices.TryBuyLots(_items, stock, quantity, ref credits, lot => true);
+
+        Assert.Equal(BuyResult.NoRoom, result);
+        Assert.Equal(100, credits);
+    }
+
     [Fact]
     public void APurchaseOfAnEmptyStationStackChargesNothingAndDeliversNothing()
     {
