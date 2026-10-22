@@ -403,6 +403,21 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     require(result == {"FINISHED"} and len(ship_lines(ship_cc)) == len(packaged), f"Without Grease Pencil the kit's lines are back: {message!r}")
     print(f"PASS {number}.5b the kit's lines ship, her Grease Pencil wins, two are refused")
 
+    # Capture's kit branch writes what Package wrote, and also when Save Layout has moved the centre of mass since the last
+    # Package (here: Ship Root is off the origin), because Capture frames the ship as Package does.
+    shipped = ship_lines(ship_cc)
+    select(box)
+    result, message = run(bpy.ops.aetheria.capture_ship_lines)
+    require(result == {"FINISHED"} and same_lines(ship_lines(ship_cc), shipped), f"Capture did not write the kit's lines as Package did: {message!r}")
+    root.location.x += 1.7
+    root.location.y -= 0.9
+    bpy.context.view_layer.update()
+    select(box)
+    result, message = run(bpy.ops.aetheria.capture_ship_lines)
+    require(result == {"FINISHED"} and same_lines(ship_lines(ship_cc), shipped),
+            f"Capture, with Ship Root off its Package frame, wrote lines out of the packaged model's frame: {message!r}")
+    print(f"PASS {number}.5c Capture writes the kit's lines in Package's frame")
+
     # What Package did to the built objects is not an edit: Build still replaces them.
     select(box)
     result, message = run(bpy.ops.aetheria.build_hull_source)
@@ -513,6 +528,15 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     require("aetheria.hull_built" not in collection and "aetheria.hull_maker" not in collection and "aetheria.hull_lines" not in collection,
             "The record of Build's objects or its maker outlived hull.scad")
     require(all(echoed not in report for echoed in (ship_id, str(GAME))), "The report echoes an input")
+    # The retired hull's kit lines are not hers: the slot is empty (Studio draws no underlay, the preview no line mesh),
+    # Capture has nothing to capture, and a second Package leaves it empty.
+    require(ship_lines(ship_cc) == [], f"The retired hull's {len(ship_lines(ship_cc))} lines ship over her art")
+    select(box)
+    result, message = run(bpy.ops.aetheria.capture_ship_lines)
+    require(result == {"CANCELLED"} and ship_lines(ship_cc) == [], f"Capture wrote lines for a hull with no source: {message!r}")
+    select(box)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    require(result == {"FINISHED"} and ship_lines(ship_cc) == [], f"A second Package brought lines back: {message!r} {ship_lines(ship_cc)[:1]}")
     select(box)
     result, message = run(bpy.ops.aetheria.build_hull_source)
     require(result == {"CANCELLED"} and bpy.data.objects.get("author hull") is art, f"Build ran after takeover: {message!r}")
@@ -606,6 +630,13 @@ def clear(collection):
 def ship_lines(ship_path):
     """The ShipAuthoring.SchematicLines rows of a ship.cc, as Package wrote them."""
     return sys.modules["aetheria_ships"].read(ship_path, PACKAGES).ship.body[sys.modules["aetheria_ships"].ship_cc.SCHEMATIC_LINES_SLOT]
+
+
+def same_lines(a, b, tolerance=1e-4):
+    """Whether two SchematicLines slots hold the same rows: layer, cyclic, colour and every point within tolerance."""
+    return len(a) == len(b) and all(
+        x[0] == y[0] and x[5] == y[5] and len(x[2]) == len(y[2]) and approx(x[6], y[6], tolerance)
+        and all(abs(p - q) <= tolerance for p, q in zip(x[2], y[2])) for x, y in zip(a, b))
 
 
 def grease_pencil(collection, name, points):
