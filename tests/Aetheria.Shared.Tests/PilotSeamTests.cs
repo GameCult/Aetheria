@@ -454,6 +454,8 @@ public sealed partial class RunStartTests
         Assert.IsType<CombatState>(SeamState(agent));
         Assert.Same(west, east.Target.Value.Entity);
 
+        // East is staged knowing the third ship, as an Approach follower knows its anchor: a sensor track by the sensors' own path.
+        east.EntityInfoGathered[third] = (east.ItemManager.GameplaySettings.TargetDetectionInfoThreshold + 1f) / 2f;
         east.SetTarget(TargetRef.None);
         east.Command.Designate(new TargetRef(third));
         agent.Update(SeamDt);

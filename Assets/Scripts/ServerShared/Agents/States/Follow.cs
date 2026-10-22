@@ -11,14 +11,16 @@ public class FollowState : BaseState
     {
         var task = _agent.Task as FollowTask;
         if (task?.Anchor == null) return;
+        var anchor = _agent.View.SideTrack(task.Anchor.Value);
+        if (anchor == null) return;
 
-        var toAnchor = task.Anchor.Position.xz - _agent.Ship.Position.xz;
+        var toAnchor = anchor.Value.Position.xz - _agent.Ship.Position.xz;
         var distance = length(toAnchor);
         var direction = distance > 0 ? toAnchor / distance : _agent.Ship.Direction;
         // Positive error: too far, close. Negative: too near, open.
         var error = distance - task.Standoff;
         var pull = direction * (float) sign(error) * saturate(abs(error) / max(task.Standoff, 1f));
-        var desired = task.Anchor.Velocity + pull * _agent.TopSpeed;
+        var desired = anchor.Value.Velocity + pull * _agent.TopSpeed;
 
         _agent.Ship.Command.Aim = float3(direction.x, 0, direction.y);
         _agent.Accelerate(desired);

@@ -400,6 +400,96 @@ public sealed class FireControlPerWeaponTests : IDisposable
         AssertAimsAtTarget(r);
     }
 
+    // A brain's fire-control readouts are FireControl's own answers on the resolved subject (A-one-sim), and its reveal
+    // list is the book's weapons in fitted order with Aimable = IsRevealed. Kills: a readout with its own arithmetic, a
+    // dropped aim, an intercept left at the planar height, a reveal list in book order.
+    [Fact]
+    public void ViewReadoutsAreFireControls()
+    {
+        var r = Build(velocity: 500f, targetLayerHeight: 40f);
+        var targetGun = r.Target.Equipment.Single(i => i.Behaviors.OfType<Weapon>().Any());
+        r.Shooter.RecordReveal(r.Target, targetGun, SignatureChannel.LaunchFlash, targetGun.Data);
+        var view = new PilotView(r.Shooter);
+        var contact = PilotView.Handle(r.Target);
+        var weapon = r.Gun.Weapon;
+        var minHit = r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability;
+
+        Assert.True(FireControl.Designated(weapon, r.Shooter, r.Target, out _));
+        Assert.True(view.Designated(r.Shooter, weapon, contact));
+        Assert.Equal(FireControl.Refuses(weapon, r.Shooter, r.Target), view.Refuses(r.Shooter, weapon, contact));
+        Assert.Equal(FireControl.AgentFires(weapon, r.Shooter, r.Target, minHit, AimTarget.None),
+            view.Fires(r.Shooter, weapon, contact, minHit, null));
+
+        var reveal = Assert.Single(view.WeaponReveals(r.Shooter, contact));
+        Assert.Same(targetGun.Data, reveal.Claimed);
+        Assert.Equal(FireControl.IsRevealed(r.Shooter, targetGun), reveal.Aimable);
+        Assert.True(reveal.Aimable);
+        Assert.Equal(FireControl.AgentFires(weapon, r.Shooter, r.Target, minHit, AimTarget.OfItem(targetGun)),
+            view.Fires(r.Shooter, weapon, contact, minHit, reveal.Id));
+        Assert.Equal(FireControl.AgentFires(weapon, r.Shooter, r.Target, 0f, AimTarget.OfItem(targetGun)),
+            view.Fires(r.Shooter, weapon, contact, 0f, reveal.Id));
+        Assert.Equal(FireControl.AgentFires(weapon, r.Shooter, r.Target, 2f, AimTarget.OfItem(targetGun)),
+            view.Fires(r.Shooter, weapon, contact, 2f, reveal.Id));
+
+        view.SelectItem(r.Shooter, reveal.Id);
+        view.SelectItem(r.Shooter, null);
+        PilotApplier.Apply(r.Shooter);
+
+        var expected = FireControl.PredictedIntercept(weapon, r.Shooter, r.Target);
+        r.Target.Position = new float3(r.Target.Position.x, 0, r.Target.Position.z);
+        expected = FireControl.PredictedIntercept(weapon, r.Shooter, r.Target);
+        var planarY = expected.y;
+        expected.y = r.Target.RideHeight(expected.xz);
+        Assert.NotEqual(planarY, expected.y);
+        Assert.Equal(expected, view.Intercept(r.Shooter, weapon, contact).Value);
+    }
+
+    // A view answers fire control only for a member that tracks the contact: the shooter outside the view, or having lost
+    // the track, gets no intercept, no reveals, no designated weapon, a refusal, and no shot; a write for a non-member
+    // changes nothing. The member that tracks is the positive control, answering as FireControl does. Kills: any of
+    // Intercept, WeaponReveals, Designated, Refuses, Fires or SelectItem answering without the member's own track or
+    // membership.
+    public enum Standing { TrackingMember, NotAMember, LostTheTrack }
+
+    [Theory]
+    [InlineData(Standing.TrackingMember)]
+    [InlineData(Standing.NotAMember)]
+    [InlineData(Standing.LostTheTrack)]
+    public void AViewAnswersFireControlOnlyForAMemberThatTracksTheContact(Standing standing)
+    {
+        var r = Build(velocity: 500f);
+        var targetGun = r.Target.Equipment.Single(i => i.Behaviors.OfType<Weapon>().Any());
+        r.Shooter.RecordReveal(r.Target, targetGun, SignatureChannel.LaunchFlash, targetGun.Data);
+        var view = standing == Standing.NotAMember ? new PilotView() : new PilotView(r.Shooter);
+        var contact = PilotView.Handle(r.Target);
+        var weapon = r.Gun.Weapon;
+        var reveal = new PilotView(r.Shooter).WeaponReveals(r.Shooter, contact).Single();
+        if (standing == Standing.LostTheTrack) r.Shooter.VisibleEntities.Remove(r.Target);
+        var minHit = 0f;
+
+        var intercept = view.Intercept(r.Shooter, weapon, contact);
+        var reveals = view.WeaponReveals(r.Shooter, contact);
+        view.SelectItem(r.Shooter, reveal.Id);
+        if (standing == Standing.TrackingMember)
+        {
+            Assert.NotNull(intercept);
+            Assert.Single(reveals);
+            Assert.True(view.Designated(r.Shooter, weapon, contact));
+            Assert.False(view.Refuses(r.Shooter, weapon, contact));
+            Assert.True(view.Fires(r.Shooter, weapon, contact, minHit, null));
+            Assert.Single(r.Shooter.Command.Selections);
+        }
+        else
+        {
+            Assert.Null(intercept);
+            Assert.Empty(reveals);
+            Assert.False(view.Designated(r.Shooter, weapon, contact));
+            Assert.True(view.Refuses(r.Shooter, weapon, contact));
+            Assert.False(view.Fires(r.Shooter, weapon, contact, minHit, null));
+            if (standing == Standing.NotAMember) Assert.Empty(r.Shooter.Command.Selections);
+        }
+    }
+
     private static void AssertAimsAtTarget(Rig r)
     {
         var toTarget = r.Target.Position - r.Shooter.Position;

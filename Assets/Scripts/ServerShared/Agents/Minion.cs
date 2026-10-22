@@ -22,9 +22,9 @@ public class Minion : Agent
 
         var combatState = new CombatState(this);
         _rootState.AddTransition(combatState,
-            () => (Ship.Command.Designated ?? Ship.Target.Value).Entity != null, null, true, _rootState);
+            () => View.TargetOf(Ship) != null, null, true, _rootState);
 
         combatState.AddTransition(_rootState,
-            () => (Ship.Command.Designated ?? Ship.Target.Value).Entity == null, null, true, _rootState);
+            () => View.TargetOf(Ship) == null, null, true, _rootState);
     }
 }

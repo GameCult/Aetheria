@@ -43,36 +43,39 @@ public class CombatState : BaseState
             _optimumStale = false;
         }
 
-        // The pilot's own pending designation (its Flight's, this step) when set, else last step's applied target.
-        var target = (_agent.Ship.Command.Designated ?? _agent.Ship.Target.Value).Entity;
+        // The pilot's own pending designation (its Flight's, this step) when set, else last step's applied target; and
+        // only a contact a member tracks has a track to fly on, so an untracked target is no target here.
+        var view = _agent.View;
+        var target = view.TargetOf(_agent.Ship);
         if (target == null) return;
+        var track = view.TrackOf(_agent.Ship, target.Value);
+        if (track == null) return;
         
         _availableGroups.Clear();
         _availableLockingWeapons.Clear();
         
-        var toTarget = target.Position - _agent.Ship.Position;
+        var toTarget = track.Value.Position - _agent.Ship.Position;
         var targetDistance = length(toTarget.xz);
 
         // Cut 2 (docs/fire-control-cut.md): aim at whichever revealed weapon on the target hits hardest at
         // this range, or clear the aim point when nothing qualifies -- the same predicate
-        // (FireControl.IsRevealed) and the same writer (TrySelectTargetItem) the player path uses. Which weapons it
+        // (the view's Aimable) and the same writer (TrySelectTargetItem) the player path uses. Which weapons it
         // believes the target has, and how hard each hits, come from its book's claims, not the target's live gear
         // (aetheria-ew, classify-from-belief; ew-claim-weapon-measure-ruled: the claimed design's rated figures); the
         // reveal's Item is the aim and stays the truth.
-        EquippedItem bestTargetItem = null;
+        PilotView.RevealId? bestTargetItem = null;
         var bestTargetDps = float.MinValue;
-        foreach (var reveal in _agent.Ship.RevealedWeapons(target))
+        foreach (var reveal in view.WeaponReveals(_agent.Ship, target.Value))
         {
-            if (!FireControl.IsRevealed(_agent.Ship, reveal.Item)) continue;
+            if (!reveal.Aimable) continue;
             var dps = reveal.Claimed.Behaviors.OfType<WeaponData>().First().RatedRangeDamagePerSecond(targetDistance);
             if (dps > bestTargetDps)
             {
                 bestTargetDps = dps;
-                bestTargetItem = reveal.Item;
+                bestTargetItem = reveal.Id;
             }
         }
-        _agent.Ship.Command.SelectItem(bestTargetItem);
-        var aim = bestTargetItem == null ? AimTarget.None : AimTarget.OfItem(bestTargetItem);
+        view.SelectItem(_agent.Ship, bestTargetItem);
 
         for (var i = 0; i < _agent.Ship.WeaponGroups.Length; i++)
         {
@@ -82,8 +85,8 @@ public class CombatState : BaseState
                 // The range test is FireControl's (Designated), and a weapon Solve refuses adds nothing to a group's
                 // damage.
                 if (weapon.Item.Online.Value &&
-                    FireControl.Designated(weapon, _agent.Ship, target, out _) &&
-                    !FireControl.Refuses(weapon, _agent.Ship, target) &&
+                    view.Designated(_agent.Ship, weapon, target.Value) &&
+                    !view.Refuses(_agent.Ship, weapon, target.Value) &&
                     (weapon is ConstantWeapon ||
                      weapon is InstantWeapon instantWeapon && instantWeapon.CanFire))
                 {
@@ -111,11 +114,11 @@ public class CombatState : BaseState
             }
         }
 
-        var targetRight = target.Direction.Rotate(ItemRotation.Clockwise);
+        var targetRight = track.Value.Direction.Rotate(ItemRotation.Clockwise);
         var optimumRangeDelta = abs(_optimumRange - targetDistance);
         var directionToTarget = normalize(toTarget.xz);
         var targetPortAlignment = dot(targetRight, directionToTarget);
-        var targetForeAlignment = dot(-target.Direction, directionToTarget);
+        var targetForeAlignment = dot(-track.Value.Direction, directionToTarget);
         var forwardness = saturate(optimumRangeDelta / _agent.Settings.AgentMaxForwardDistance) * _agent.Settings.AgentForwardLerp;
         if (targetForeAlignment > 0) forwardness = lerp(forwardness, 1, pow(targetPortAlignment, 2));
 
@@ -128,20 +131,20 @@ public class CombatState : BaseState
             var testWeapon = _agent.Ship.WeaponGroups[selectedGroup].weapons.First();
             if(testWeapon.Velocity > 1)
             {
-                // Cut 3 (docs/fire-control-cut.md): the one prediction function, shared with FireControl.Fire's
+                // Cut 3 (docs/fire-control-cut.md): the one prediction function, shared with the shot's
                 // own snapshot and the roll's deviation measurement -- two separate predictions here and in the
                 // roll would let an AI aim at one point and get judged for missing a different one.
-                var predictedPosition = FireControl.PredictedIntercept(testWeapon, _agent.Ship, target);
-                predictedPosition.y = target.RideHeight(predictedPosition.xz);
-                toTarget = normalize(predictedPosition - _agent.Ship.Position);
+                // The target is tracked here (the guard above), so the intercept is never null.
+                var predictedPosition = view.Intercept(_agent.Ship, testWeapon, target.Value);
+                if (predictedPosition != null) toTarget = normalize(predictedPosition.Value - _agent.Ship.Position);
             }
 
             // Each weapon decides for itself (operator ruling 2026-09-30): a group shares a trigger, not a
-            // verdict. FireControl.AgentFires is the AI's "worth it" heuristic for a weapon that hits what it
+            // verdict. The view's Fires is the AI's "worth it" heuristic for a weapon that hits what it
             // fires at, and "the target is designated" for a fused one.
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
-                if (FireControl.AgentFires(weapon, _agent.Ship, target, _agent.Doctrine.MinHitProbability, aim))
+                if (view.Fires(_agent.Ship, weapon, target.Value, _agent.Doctrine.MinHitProbability, bestTargetItem))
                     _agent.Ship.Command.Pull(weapon);
                 // A lock pulled above this step counts as firing, as it did when it was activated in place.
                 else if (weapon.Firing || _agent.Ship.Command.Pulls(weapon))

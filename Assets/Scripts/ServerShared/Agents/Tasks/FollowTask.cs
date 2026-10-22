@@ -5,7 +5,7 @@ using MessagePack;
 // Runtime only, like every agent task.
 public class FollowTask : AgentTask
 {
-    [IgnoreMember] public Entity Anchor;
+    [IgnoreMember] public PilotView.ContactId? Anchor;
     [IgnoreMember] public float Standoff;
     [IgnoreMember] public override TaskType Type => TaskType.Follow;
 }

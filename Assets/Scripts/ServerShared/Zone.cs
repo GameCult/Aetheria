@@ -69,10 +69,9 @@ public class Zone
     private ItemManager _itemManager;
     private double _time;
     public List<Agent> Agents = new List<Agent>();
-    // One flight per faction, created on its first piloted join; unaffiliated ships share Unaffiliated. A flight owns
-    // what its members target and do (Agents/Flight.cs).
-    private static readonly Faction Unaffiliated = new Faction();
-    private readonly Dictionary<Faction, Flight> _flights = new Dictionary<Faction, Flight>();
+    // One flight per side, created on its first piloted join. A side is a faction, or one unaffiliated ship
+    // (brain-one-per-side-r2). A flight owns what its members target and do (Agents/Flight.cs).
+    private readonly Dictionary<object, Flight> _flights = new Dictionary<object, Flight>();
     public IEnumerable<Flight> Flights => _flights.Values;
 
     // Cut 2 (docs/mining-cut.md): chunk wear, keyed by chunk. Zone.Wear is the only writer; ChunkExists and
@@ -177,6 +176,8 @@ public class Zone
             if (agent == null) return;
             Agents.Remove(agent);
             foreach (var flight in _flights.Values) flight.Leave(agent);
+            // A side of one is gone with its ship.
+            if (remove.Value.Faction == null) _flights.Remove(remove.Value);
         });
 
         Targets.Add(new EntityTargets());
@@ -310,9 +311,11 @@ public class Zone
         return true;
     }
 
+    private static object SideOf(Ship ship) => (object) ship.Faction ?? ship;
+
     private Agent CreateAgent(Ship ship, AgentTask stated)
     {
-        var key = ship.Faction ?? Unaffiliated;
+        var key = SideOf(ship);
         if (!_flights.TryGetValue(key, out var flight))
             _flights[key] = flight = new Flight(ship.Faction?.Doctrine, _itemManager.GameplaySettings);
         var id = NextAgentId();
