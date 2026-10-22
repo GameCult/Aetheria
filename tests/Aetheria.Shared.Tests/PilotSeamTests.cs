@@ -462,7 +462,7 @@ public sealed partial class RunStartTests
         var aim = normalize(east.Command.Aim.Value.xz);
         var toThird = dot(aim, normalize(third.Position.xz - east.Position.xz));
         var toWest = dot(aim, normalize(west.Position.xz - east.Position.xz));
-        Assert.True(toThird > toWest + .2f, $"aims at the designated target: toThird {toThird} toWest {toWest}");
+        Assert.True(toThird > toWest + .2f, $"aims at the designated target: toThird {toThird} toWest {toWest} tracked {east.VisibleEntities.Contains(third)}");
     }
 
     [Fact]

@@ -24,8 +24,9 @@ public sealed partial class RunStartTests
     // The two-AI fight's digest, captured on Yggdrasil. Replays are trusted only on the host class that recorded them
     // (ruling replays-per-host-class), and arenas run on Linux.
     private const string TwoAiPinnedHostClass = "linux-x64";
-    // Repinned once, for the side split: the two fighters are unaffiliated, were one side and each followed itself.
-    private const string TwoAiPinnedDigest = "1b2ffe51f799e762199717a3bc003e880a80106023463aabc40bd2e4f746697c";
+    // Repinned twice. First for the side split: the two fighters are unaffiliated, were one side and each followed itself.
+    // Then for staged knowledge (ruling repin-for-staged-knowledge): the fighters are staged knowing each other, so they engage at step 0.
+    private const string TwoAiPinnedDigest = "ce81a426c40495e4b4b7b7f83ad23767cc781dce5523d713b4455e0aa5b7fe33";
     private const int TwoAiSteps = 3600;
 
     [Fact]
