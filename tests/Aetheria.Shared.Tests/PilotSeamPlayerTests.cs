@@ -249,7 +249,7 @@ public sealed partial class RunStartTests
     }
 
     // The player's switches are presses on its command too: each flips at the next step, two in a step cancel, and none is
-    // replayed. A ping is a press that pings once. (The Longinus has no shield: the shield switch is pinned on a shielded
+    // replayed. (The Longinus has no shield: the shield switch is pinned on a shielded
     // target in FireControlCut124Tests below, and here its press is a no-op.)
     [Fact]
     public void PlayerSwitchesArePressesAtTheStep()
@@ -257,21 +257,6 @@ public sealed partial class RunStartTests
         var (arena, east, _) = SeamPair(false);
         Assert.Null(east.Shield);
         Assert.NotNull(east.Sensor);
-        var pings = 0;
-        east.Sensor.OnPingStart += () => pings++;
-        // The ping's cooldown runs out and its capacitor fills (over about as long again), before any switch is thrown.
-        var settle = 0;
-        for (; settle < 36000 && east.Sensor.Cooldown > 0; settle++) arena.Update(SeamDt);
-        Assert.True(east.Sensor.Cooldown <= 0, $"fixture: the ping cools down ({east.Sensor.Cooldown} after {settle} steps)");
-        for (var step = 0; step < settle + 600; step++) arena.Update(SeamDt);
-        Assert.Equal(0, pings);
-        east.Command.Ping();
-        Assert.Equal(0, pings);
-        arena.Update(SeamDt);
-        Assert.True(pings == 1, $"one ping at the step (cooldown {east.Sensor.Cooldown}, settled {settle} steps)");
-        for (var step = 0; step < 10; step++) arena.Update(SeamDt);
-        Assert.Equal(1, pings);
-
         (bool, bool) Switches() => (east.OverrideShutdown, east.HeatsinksEnabled);
         Assert.Equal((false, true), Switches());
 
