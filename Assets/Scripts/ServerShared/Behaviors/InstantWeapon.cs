@@ -352,6 +352,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
 
     internal override void Activate()
     {
+        _pulled = true;
         if(CanFire)
             Trigger();
         base.Activate();
