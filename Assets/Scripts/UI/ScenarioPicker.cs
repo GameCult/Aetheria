@@ -242,7 +242,7 @@ public sealed class ScenarioPicker
         var shift = rowBounds.max.y > high ? rowBounds.max.y - high
             : rowBounds.min.y < low ? rowBounds.min.y - low : 0;
         // Content moves against the row: a row above the viewport needs the content to move down, and the reverse.
-        scroll.content.anchoredPosition += new Vector2(0, shift);
+        scroll.content.anchoredPosition -= new Vector2(0, shift);
         if (shift != 0) FitViewport();
     }
 
