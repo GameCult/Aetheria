@@ -138,6 +138,13 @@ public sealed class ScenarioPicker
         rect.pivot = new Vector2(0, .5f);
         rect.anchoredPosition = Vector2.zero;
         rect.sizeDelta = new Vector2(220, 0);
+        // The visible chrome is the button's Fill child, which the button's own layout group sizes to its text and
+        // centres; with the group off, Fill stretches to the button.
+        button.GetComponent<LayoutGroup>().enabled = false;
+        var fill = button.targetGraphic.rectTransform;
+        fill.anchorMin = Vector2.zero;
+        fill.anchorMax = Vector2.one;
+        fill.offsetMin = fill.offsetMax = Vector2.zero;
         button.gameObject.SetActive(true);
         button.onClick.RemoveAllListeners();
         button.onClick.AddListener(() => onClick());
@@ -175,12 +182,7 @@ public sealed class ScenarioPicker
             _scroll.onValueChanged.RemoveListener(_fit);
             return;
         }
-        var view = ViewOf();
-        var viewBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(_scroll.content, view);
-        // The mask can sit tighter than the viewport rect, so the scroll rect also bounds the visible span.
-        var outer = RectTransformUtility.CalculateRelativeRectTransformBounds(_scroll.content, (RectTransform) _scroll.transform);
-        var low = Mathf.Max(viewBounds.min.y, outer.min.y);
-        var high = Mathf.Min(viewBounds.max.y, outer.max.y);
+        var (low, high) = ViewSpan(_scroll);
         foreach (RectTransform entry in _list.Content ?? _list.transform)
         {
             var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(_scroll.content, entry);
@@ -191,7 +193,16 @@ public sealed class ScenarioPicker
         }
     }
 
-    private RectTransform ViewOf() => _scroll.viewport != null ? _scroll.viewport : (RectTransform) _scroll.transform;
+    // The viewport's vertical extent in content space. CalculateRelativeRectTransformBounds cannot give it: it also
+    // folds in the rects of the viewport's children, which makes the content's own bounds the answer.
+    private static (float low, float high) ViewSpan(ScrollRect scroll)
+    {
+        var view = scroll.viewport != null ? scroll.viewport : (RectTransform) scroll.transform;
+        var rect = view.rect;
+        var low = scroll.content.InverseTransformPoint(view.TransformPoint(new Vector3(0, rect.yMin))).y;
+        var high = scroll.content.InverseTransformPoint(view.TransformPoint(new Vector3(0, rect.yMax))).y;
+        return (Mathf.Min(low, high), Mathf.Max(low, high));
+    }
 
     // Takes a button out of Unity's navigation so a click never moves focus and Move never walks automatic navigation.
     private void Track(Button button) => button.navigation = new Navigation { mode = Navigation.Mode.None };
@@ -220,12 +231,12 @@ public sealed class ScenarioPicker
     {
         var scroll = _scroll;
         if (scroll == null || scroll.content == null) return;
-        var view = scroll.viewport != null ? scroll.viewport : (RectTransform) scroll.transform;
+        var (low, high) = ViewSpan(scroll);
         var rowBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(scroll.content, row);
-        var viewBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(scroll.content, view);
-        var shift = rowBounds.max.y > viewBounds.max.y ? viewBounds.max.y - rowBounds.max.y
-            : rowBounds.min.y < viewBounds.min.y ? viewBounds.min.y - rowBounds.min.y : 0;
+        var shift = rowBounds.max.y > high ? high - rowBounds.max.y
+            : rowBounds.min.y < low ? low - rowBounds.min.y : 0;
         scroll.content.anchoredPosition -= new Vector2(0, shift);
+        if (shift != 0) FitViewport();
     }
 
     // Launches the selection; focus is cleared first so a repeated Enter or a second click cannot launch twice.
