@@ -2,8 +2,8 @@
   <PropertyGroup>
     <CultLibRoot Condition="'$(CultLibRoot)' == '' and '$(CULTLIB_ROOT)' != ''">$(CULTLIB_ROOT)</CultLibRoot>
     <CultLibRoot Condition="'$(CultLibRoot)' == ''">$(MSBuildThisFileDirectory)..\CultLib</CultLibRoot>
-    <!-- CultCache: caching-unity-v2.0.0 / cultlib-unity-v2.0.0 in Packages/manifest.json. -->
-    <CultLibRevision>42dce3611a81adc5c5fac54cadbaa5637d6022d3</CultLibRevision>
+    <!-- CultCache: caching-unity-v2.0.0 / cultlib-unity-v2.0.1 in Packages/manifest.json. -->
+    <CultLibRevision>b8fc5eb07720a187a0421424ac2cb3aa2966ca1d</CultLibRevision>
     <CultMathRoot Condition="'$(CultMathRoot)' == '' and '$(CULTMATH_ROOT)' != ''">$(CULTMATH_ROOT)</CultMathRoot>
     <CultMathRoot Condition="'$(CultMathRoot)' == ''">$(CultLibRoot)</CultMathRoot>
     <!-- CultMath: cultmath-unity-v0.5.0 in Packages/manifest.json. -->
