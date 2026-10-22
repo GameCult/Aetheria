@@ -1,5 +1,5 @@
 // Zhestokost fortress (boss) "Nakovalnya" (anvil). Built from the Zhestokost kit.
-// part = lang | brief | anchors | primary | secondary | accent | recess | marking | emit:<id> | rad:<id>
+// part = lang | brief | anchors | lines | primary | secondary | accent | recess | marking | emit:<id> | rad:<id>
 // Frame: Ship Root, metres, nose -Y, starboard -X, up +Z. Anchor yaw: 0 nose, 90 port, 180 aft, 270 starboard.
 include <zhestokost.scad>
 part = "primary";
@@ -46,10 +46,10 @@ zh_mass(M);
 zh_mass(T1);
 zh_mass(T2);
 zh_mass(APRON);
-for (x = CX) translate([x, 0, 0]) zh_mass(CAS);
+for (x = CX) lp_at(t=[x, 0, 0]) zh_mass(CAS);
 zh_mass(SPINE);
-zh_mass(KEEL);
-for (s = [-1, 1]) translate([s*DX, 0, 0]) zh_mass(DRV, "secondary");
+zh_mass(KEEL, lines=false);                       // under the hull: no top view sees it
+for (s = [-1, 1]) lp_at(t=[s*DX, 0, 0]) zh_mass(DRV, "secondary");
 
 // ---- the casemate guns: lighter cast-steel barrels out of charcoal mantlets -----------------------------------------
 module casemate_gun() {
@@ -60,9 +60,11 @@ module casemate_gun() {
   }
   zh_z("primary") translate([0, GY - 0.7, GZ]) rotate([0, 0, 180]) tube(BR, BL, 8);
   zh_z("recess") translate([0, GY - 0.7 - BL - 0.81, GZ]) cube([BR*1.2, 0.05, BR*1.2], center=true);
+  lp_line("fitting", [for (p = zh_rect(4.0, 1.2, GZ + 1.7)) p + [0, GY - 0.3, 0]], true);
+  lp_line("fitting", [[0, GY - 0.7, GZ + BR], [0, GY - 0.7 - BL, GZ + BR]]);
 }
-for (x = CX) translate([x, 0, 0]) casemate_gun();
-for (x = CX) translate([x, 0, 0]) zh_on_top(CAS, -21.9, 0) zh_stripes(3.6, 0.6, 4);
+for (x = CX) lp_at(t=[x, 0, 0]) casemate_gun();
+for (x = CX) lp_at(t=[x, 0, 0]) zh_on_top(CAS, -21.9, 0) zh_stripes(3.6, 0.6, 4);
 // black reveals between the casemates, on the apron
 for (u = [-0.33, 0.33]) zh_on_top(APRON, -19.5, u) zh_reveal(2.3, 7.0);
 
@@ -76,9 +78,10 @@ module flak(yaw) {
   zh_z("secondary") cylinder(r=FR, h=FH + ZH_SINK, $fn=8);
   zh_z("accent") translate([0, 0, FH*0.35]) cylinder(r=FR + 0.08, h=0.35, $fn=8);   // oxide band round the drum
   zh_z("recess") translate([0, 0, FH - 0.06]) cylinder(r=FR*0.84, h=0.1, $fn=8);
-  translate([0, 0, FH - 0.02]) rotate([0, 0, yaw]) zh_gun(FG[0], FG[1], FG[2], FG[3], "primary");
+  lp_line("fitting", zh_oct(FR, FH), true);
+  lp_at(t=[0, 0, FH - 0.02], r=[0, 0, yaw]) zh_gun(FG[0], FG[1], FG[2], FG[3], "primary");
 }
-for (f = FLAK) translate([f[0], f[1], DECK - ZH_SINK]) flak(f[2]);
+for (f = FLAK) lp_at(t=[f[0], f[1], DECK - ZH_SINK]) flak(f[2]);
 function rz(a, p) = [p[0]*cos(a) - p[1]*sin(a), p[0]*sin(a) + p[1]*cos(a), p[2]];
 
 // ---- bow: cab with the slit high on the spine's front step ---------------------------------------------------------
@@ -87,7 +90,10 @@ zh_on_top(T2, -3.6, 0) zh_serial(0.7, 4);
 
 // ---- dorsal magazine hatches: two rows of four on the mid-deck, clear of the rim -----------------------------------
 for (y = [-8.0, -3.4, 1.2, 5.6], u = [-0.78, 0.78]) zh_on_top(T1, y, u) zh_hatch(2.8, 3.0, dogs=false);
-for (y = [0.5, 4.5]) zh_on_top(T2, y, 0) zh_z("secondary") translate([0, 0, 0.06]) cube([8.4, 0.5, 0.2], center=true);   // plate seams
+for (y = [0.5, 4.5]) zh_on_top(T2, y, 0) {                                                                // plate seams
+  zh_z("secondary") translate([0, 0, 0.06]) cube([8.4, 0.5, 0.2], center=true);
+  lp_line("seam", [[-4.2, 0, 0.16], [4.2, 0, 0.16]]);
+}
 
 // Feed collar for an Oboz: a lighter cast-steel flange ring standing proud of the flank round the kit collar.
 module feed_collar() {
@@ -97,7 +103,7 @@ module feed_collar() {
 }
 // ---- flanks: feed collar, ammunition door, unit serial -------------------------------------------------------------
 for (s = [-1, 1]) {
-  zh_on_belt(M, 1.5, s, 0.5) rotate([0, 0, 22.5]) feed_collar();
+  zh_on_belt(M, 1.5, s, 0.5) lp_at(r=[0, 0, 22.5]) feed_collar();
   zh_on_wall(M, 7.0, s, 0.45) zh_hatch(2.6, 3.0);
   zh_on_wall(M, -9.0, s, 0.5) zh_serial(0.8, 5);
 }
