@@ -15,6 +15,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -44,8 +45,9 @@ def hardpoint_row(mount="thruster.port", tail=("future-hardpoint-slot",)):
 
 
 def hull_body():
-    hull = [None] * (ship_cc.HULL_HARDPOINTS_SLOT + 1)
+    hull = [None] * (ship_cc.HULL_TYPE_SLOT + 1)
     hull[1] = "Skiff"
+    hull[ship_cc.HULL_TYPE_SLOT] = 0
     hull[ship_cc.HULL_SHAPE_SLOT] = [shape(2, 2, [True, False, True, False])]
     hull[ship_cc.HULL_HARDPOINTS_SLOT] = [hardpoint_row()]
     hull.append("future-hull-slot")
@@ -127,6 +129,28 @@ class ReadTests(ShipFileCase):
         self.assertEqual(ship_cc.SCHEMA, file.ship.envelope.type)
         self.assertEqual("Skiff", file.hull.body[1])
         self.assertEqual(ship_cc.HULL_SCHEMA, file.hull.envelope.type)
+
+    def test_reads_the_hulls_type_by_its_enum_name(self):
+        for value, name in ((0, "Ship"), (1, "Station"), (2, "Turret")):
+            with self.subTest(name):
+                hull = hull_body()
+                hull[ship_cc.HULL_TYPE_SLOT] = value
+                self.write(ship_body(), hull)
+                self.assertEqual(name, ship_cc.read_hull_type(self.path, PACKAGES))
+
+    def test_refuses_a_hull_type_it_does_not_know_without_echoing_the_path(self):
+        short = hull_body()[:ship_cc.HULL_TYPE_SLOT]
+        for label, value in (("past the enum", 3), ("negative", -1), ("bool", True), ("missing", None),
+                             ("text", "Ship"), ("short body", short)):
+            with self.subTest(label):
+                hull = value if label == "short body" else hull_body()
+                if label != "short body":
+                    hull[ship_cc.HULL_TYPE_SLOT] = value
+                self.write(ship_body(), hull)
+                with self.assertRaises(ValueError) as caught:
+                    ship_cc.read_hull_type(self.path, PACKAGES)
+                self.assertEqual("The ship file's hull has no hull type this add-on knows", str(caught.exception))
+                self.assertNotIn(self.path, str(caught.exception))
 
     def test_reads_a_file_whose_hull_also_carries_products(self):
         self.add_products()
@@ -519,6 +543,16 @@ class LayoutTests(ShipFileCase):
                 self.edit(revision, width=width, height=height, cells=[True] * (width * height), hardpoints=[])
                 revision = self.layout()[2]
         self.assertNotEqual(before, self.bytes())
+
+    def test_the_grid_limit_is_hull_grids_max_cells(self):
+        _, _, revision = self.layout()
+        before = self.bytes()
+        with self.assertRaisesRegex(ValueError, f"1..{ship_cc.hull_grid.MAX_CELLS} cells"):
+            self.edit(revision, width=33, height=1, cells=[True] * 33)
+        self.assertEqual(before, self.bytes())
+        with mock.patch.object(ship_cc.hull_grid, "MAX_CELLS", 33):
+            self.edit(revision, width=33, height=1, cells=[True] * 33, hardpoints=[])
+        self.assertEqual([33, 1, [True] * 33], self.layout()[0])
 
     def test_a_layout_save_refreshes_the_stored_at_of_the_hull_and_leaves_the_ships(self):
         stale = "2000-01-01T00:00:00+00:00"

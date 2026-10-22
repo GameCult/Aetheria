@@ -22,6 +22,7 @@ public sealed class ShipSchemaPinTests
     [InlineData("SCHEMATIC_LINES_SLOT", typeof(ShipAuthoring), nameof(ShipAuthoring.SchematicLines))]
     [InlineData("HULL_SHAPE_SLOT", typeof(HullData), nameof(HullData.Shape))]
     [InlineData("HULL_HARDPOINTS_SLOT", typeof(HullData), nameof(HullData.Hardpoints))]
+    [InlineData("HULL_TYPE_SLOT", typeof(HullData), nameof(HullData.HullType))]
     [InlineData("PRODUCT_MANUFACTURER_SLOT", typeof(FactionProductData), nameof(FactionProductData.Manufacturer))]
     public void PythonSlotConstantsAreTheKeysOfTheMembersTheyNameInTheirComments(string constant, Type owner, string member)
     {
@@ -136,6 +137,7 @@ public sealed class ShipSchemaPinTests
     {
         Assert.Equal(EnumNames<HardpointType>(), Strings("HARDPOINT_TYPE_NAMES"));
         Assert.Equal(EnumNames<ItemRotation>(), Strings("ROTATION_NAMES"));
+        Assert.Equal(EnumNames<HullType>(), Strings("HULL_TYPE_NAMES"));
     }
 
     [Fact]

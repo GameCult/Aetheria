@@ -16,6 +16,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NamedTuple
 
+if __package__:
+    from . import hull_grid
+else:  # loaded by path (tests, hull_source loaded by path): load the sibling the same way
+    import importlib.util
+    _grid_spec = importlib.util.spec_from_file_location("hull_grid", Path(__file__).with_name("hull_grid.py"))
+    hull_grid = importlib.util.module_from_spec(_grid_spec)
+    _grid_spec.loader.exec_module(hull_grid)
+
 # The cultcache-py this module's raw envelope writes were tested against. cultcache_py has no __version__ and is loaded
 # from source, so the guard reads [project].version of the checkout the imported module itself came from.
 TESTED_CULTCACHE_PY = "0.3.0"
@@ -34,15 +42,17 @@ ANCHORS_SLOT = 3  # ShipAuthoring.Anchors
 SCHEMATIC_LINES_SLOT = 4  # ShipAuthoring.SchematicLines
 HULL_SHAPE_SLOT = 5  # ItemData.Shape
 HULL_HARDPOINTS_SLOT = 23  # HullData.Hardpoints
+HULL_TYPE_SLOT = 25  # HullData.HullType
 # HardpointData member names in slot order; a hardpoint row is one value per name, and any slot past the last
 # name belongs to a later schema and is carried through untouched.
 HARDPOINT_MEMBERS = ("Type", "Position", "Shape", "Transform", "Rotation", "Armor", "FiringArc")
 # ShipAnchor member names in slot order; as for hardpoints, slots past the last name are carried through by anchor Id.
 ANCHOR_MEMBERS = ("Id", "Role", "ModelNodeId", "ParentId", "Order")
-# Enum member names in value order (HardpointType, ItemRotation).
+# Enum member names in value order (HardpointType, ItemRotation, HullType).
 HARDPOINT_TYPE_NAMES = ("Hull", "Tool", "Thermal", "Thruster", "WarpDrive", "Reactor", "Radiator",
                         "Shield", "Sensors", "Energy", "Ballistic", "Launcher", "ControlModule")
 ROTATION_NAMES = ("None", "CounterClockwise", "Reversed", "Clockwise")
+HULL_TYPE_NAMES = ("Ship", "Station", "Turret")
 
 
 # ShipAuthoringStore.RequireShipId's rule, mirrored so New Ship refuses before it touches anything; ShipSchemaPinTests
@@ -208,6 +218,15 @@ def read_layout(path: str, cultlib_packages: str):
     return hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT], layout_revision(hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT])
 
 
+def read_hull_type(path: str, cultlib_packages: str) -> str:
+    """The hull's HullData.HullType as its enum member name ("Ship", "Station" or "Turret")."""
+    hull = _hull_body(read(path, cultlib_packages))
+    value = hull[HULL_TYPE_SLOT] if len(hull) > HULL_TYPE_SLOT else None
+    if type(value) is not int or not 0 <= value < len(HULL_TYPE_NAMES):
+        raise ValueError("The ship file's hull has no hull type this add-on knows")
+    return HULL_TYPE_NAMES[value]
+
+
 def layout_revision(shape: list[Any], hardpoints: list[list[Any]]) -> str:
     """The revision of a layout: a hash of its shape ([width, height, cells]) and hardpoint rows as the file stores
     them. replace_layout returns it, Load records it, and Package compares the layout buffer's against the file's."""
@@ -224,8 +243,9 @@ def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_
     if layout_revision(hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT]) != expected_revision:
         raise ValueError("The .cc layout changed since Load; reload before saving")
     width, height, cells = shape
-    if not (1 <= width <= 32 and 1 <= height <= 32 and len(cells) == width * height):
-        raise ValueError("Hull grid must be 1..32 cells wide and high with one value per cell")
+    limit = hull_grid.MAX_CELLS
+    if not (1 <= width <= limit and 1 <= height <= limit and len(cells) == width * height):
+        raise ValueError(f"Hull grid must be 1..{limit} cells wide and high with one value per cell")
     if not all(type(cell) is bool for cell in cells):
         raise ValueError("Hull grid cells must be booleans")
     if not any(cells):
