@@ -284,6 +284,23 @@ public sealed class IffAndCombatTests : IDisposable
         Assert.DoesNotContain(stranger, patrol.VisibleFriendlies);
     }
 
+    // A stance press flips the stance as it stands, the override or else the belief: against a contact believed hostile with
+    // no override held, it declares the contact neutral. It lands on a target designated in the same step.
+    [Fact]
+    public void AStancePressFlipsTheBelief()
+    {
+        var (_, zone, patrol, stranger) = Owned(new Faction { Name = "X" });
+        Detect(patrol, stranger);
+        Assert.True(patrol.IsHostileTo(stranger), "fixture: hostile by belief");
+        Assert.Null(patrol.IffOverride(stranger)); // fixture: no override, which alone would read neutral
+
+        patrol.Command.Designate(stranger);
+        patrol.Command.ToggleStance();
+        zone.Update(.1f);
+        Assert.False(patrol.IffOverride(stranger));
+        Assert.False(patrol.IsHostileTo(stranger));
+    }
+
     [Fact]
     public void AlliesAreKnownAsTruth()
     {

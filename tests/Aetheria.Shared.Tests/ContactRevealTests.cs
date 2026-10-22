@@ -587,6 +587,23 @@ public sealed partial class ContactRevealTests : IDisposable
         return (light.ToArray(), Track(o, p));
     }
 
+    // The pilot's ping is a press on its command: the sensor pings at the next step, once, and the press is not replayed.
+    [Fact]
+    public void APingPressPingsOnceAtTheStep()
+    {
+        var p = Add(float3(0, 0, 1000), new[] { "Eye" });
+        var sensor = p.Equipment.SelectMany(i => i.Behaviors).OfType<Sensor>().Single();
+        var pings = 0;
+        sensor.OnPingStart += () => pings++;
+        Tick(.1f); // a sensor's first tick opens its ping cooldown; Ping() is refused before it
+        p.Command.Ping();
+        Assert.Equal(0, pings); // nothing lands before the step
+        Tick(.1f);
+        Assert.Equal(1, pings);
+        for (var tick = 0; tick < 60; tick++) Tick(.1f); // past the cooldown, so a replayed press would ping again
+        Assert.Equal(1, pings);
+    }
+
     // Two items revealed at different times: the contact's bearing, while untracked, is the freshest reveal's.
     [Fact]
     public void TheFreshestRevealGivesTheBearing()

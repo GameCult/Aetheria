@@ -221,27 +221,42 @@ public sealed partial class RunStartTests
         SeamAimEqual(selectThenCycle, east.ResolvedAim);
     }
 
-    // A stance press flips the stance as it stands when the press is applied, so two in a step cancel, as two flips in
-    // place did before the seam; none is replayed.
+    // A stance press flips the stance on the target as it stands when the press is applied, after the step's target verbs,
+    // so two in a step cancel, as two flips in place did before the seam; none is replayed.
     [Fact]
     public void StanceTogglesInAStepCompose()
     {
-        var (arena, east, west, _) = PlayerSeamTrio();
+        var (arena, east, west, third) = PlayerSeamTrio();
+        Assert.True(east.Target.Value.IsNone);
         Assert.False(east.IsHostileTo(west));
-        east.Command.ToggleStance(west);
+        // No target is applied yet: the verb in the same step picks the nearest (west), and the press flips it.
+        east.Command.Verb(TargetVerb.Next);
+        east.Command.ToggleStance();
         Assert.False(east.IsHostileTo(west), "nothing lands before the step");
         arena.Update(SeamDt);
-        Assert.True(east.IsHostileTo(west));
+        Assert.Same(west, east.Target.Value.Entity);
+        Assert.True(east.IsHostileTo(west), "the press lands on the target the step's verb picked");
+        Assert.False(east.IsHostileTo(third));
         east.Command.Iff(west, true);
         arena.Update(SeamDt);
         Assert.True(east.IsHostileTo(west), "a stance set is a set, not a flip");
 
-        east.Command.ToggleStance(west);
-        east.Command.ToggleStance(west);
+        east.Command.ToggleStance();
+        east.Command.ToggleStance();
         arena.Update(SeamDt);
         Assert.True(east.IsHostileTo(west), "two flips in a step cancel");
 
-        east.Command.ToggleStance(west);
+        // Next then the press in one step: the press flips the new target, not the one applied when it was pressed.
+        east.Command.Verb(TargetVerb.Next);
+        east.Command.ToggleStance();
+        arena.Update(SeamDt);
+        Assert.Same(third, east.Target.Value.Entity);
+        Assert.True(east.IsHostileTo(third), "the press flips the new target");
+        Assert.True(east.IsHostileTo(west), "the old target is untouched");
+        east.Command.Designate(new TargetRef(west));
+        arena.Update(SeamDt);
+
+        east.Command.ToggleStance();
         arena.Update(SeamDt);
         Assert.False(east.IsHostileTo(west));
         arena.Update(SeamDt);
