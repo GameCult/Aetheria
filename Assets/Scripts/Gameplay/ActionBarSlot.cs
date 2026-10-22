@@ -75,7 +75,7 @@ public class ActionBarSlot : MonoBehaviour
                     this,
                     entity.Equipment[savedActionBarGearBinding.EquipmentIndex],
                     entity.Equipment[savedActionBarGearBinding.EquipmentIndex]
-                        .Behaviors[savedActionBarGearBinding.BehaviorIndex] as IActivatedBehavior),
+                        .Behaviors[savedActionBarGearBinding.BehaviorIndex] as ActivatedBehavior),
             SavedActionBarWeaponGroupBinding savedActionBarWeaponGroupBinding =>
                 new ActionBarWeaponGroupBinding(entity, this, savedActionBarWeaponGroupBinding.Group),
             _ => null
@@ -136,11 +136,11 @@ public class ActionBarConsumableBinding : ActionBarBinding
 public class ActionBarGearBinding : ActionBarBinding
 {
     public EquippedItem Item { get; }
-    public IActivatedBehavior Behavior { get; }
+    public ActivatedBehavior Behavior { get; }
 
     public bool Active;
 
-    public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, IActivatedBehavior behavior) : base(entity, slot)
+    public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, ActivatedBehavior behavior) : base(entity, slot)
     {
         Item = item;
         var data = Entity.ItemManager.GetData(item.EquippableItem);

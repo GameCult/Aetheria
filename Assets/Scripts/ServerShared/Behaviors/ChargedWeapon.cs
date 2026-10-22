@@ -167,7 +167,7 @@ public class ChargedWeapon : InstantWeapon
         return base.Execute(dt);
     }
 
-    public override void Activate()
+    internal override void Activate()
     {
         // CanFire also holds a weapon whose released charge has a burst pending: its cooldown starts at its first round,
         // so a charge started before then would overlap it.
@@ -180,7 +180,7 @@ public class ChargedWeapon : InstantWeapon
         }
     }
 
-    public override void Deactivate()
+    internal override void Deactivate()
     {
         if (_charging)
         {

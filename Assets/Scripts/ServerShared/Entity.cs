@@ -173,7 +173,7 @@ public abstract class Entity
     public bool HeatsinksEnabled
     {
         get => _heatsinksEnabled;
-        set
+        internal set
         {
             if (value == _heatsinksEnabled) return;
             _heatsinksEnabled = value;
@@ -186,7 +186,7 @@ public abstract class Entity
     
     public EntitySettings Settings { get; }
     
-    public bool OverrideShutdown { get; set; }
+    public bool OverrideShutdown { get; internal set; }
     
     // The pilot's tractor command (0..1); the Pickup behaviour spins its beam toward it.
     public float TractorCommand { get; internal set; }
@@ -2170,7 +2170,7 @@ public class EquippedItem : IStatContext
     public ReactiveProperty<bool> ThermalOnline { get; } = new ReactiveProperty<bool>(false);
     public ReactiveProperty<bool> DurabilityOnline { get; } = new ReactiveProperty<bool>(false);
     public ReadOnlyReactiveProperty<bool> Online { get; }
-    public ReactiveProperty<bool> Enabled { get; } = new ReactiveProperty<bool>(true);
+    internal ReactiveProperty<bool> Enabled { get; } = new ReactiveProperty<bool>(true);
     public ReadOnlyReactiveProperty<bool> Active { get; }
     public ItemManager ItemManager { get; }
 

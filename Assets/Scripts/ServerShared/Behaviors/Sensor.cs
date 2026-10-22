@@ -136,7 +136,7 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Utility -- everything else.
     public int DefaultPowerTier => PowerTiers.Utility;
 
-    public void Ping()
+    internal void Ping()
     {
         // Whole-or-nothing against the ping's own input capacitor -- fires only at full charge (operator
         // ruling: no fraction of a shot). A consumable-hosted instance (Item == null) has no PowerBus entry, so

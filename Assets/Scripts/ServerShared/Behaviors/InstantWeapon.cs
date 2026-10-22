@@ -286,7 +286,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         return true;
     }
 
-    public override void Activate()
+    internal override void Activate()
     {
         if(CanFire)
             Trigger();

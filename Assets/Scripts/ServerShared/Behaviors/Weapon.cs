@@ -100,7 +100,7 @@ public abstract class WeaponData : BehaviorData
     public float RatedRange => Range.Max;
 }
 
-public abstract class Weapon : Behavior, IActivatedBehavior
+public abstract class Weapon : ActivatedBehavior
 {
     private WeaponData _data;
 
@@ -179,12 +179,12 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         return true;
     }
 
-    public virtual void Activate()
+    internal override void Activate()
     {
         _firing = true;
     }
 
-    public virtual void Deactivate()
+    internal override void Deactivate()
     {
         _firing = false;
     }

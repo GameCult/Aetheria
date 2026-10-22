@@ -20,9 +20,9 @@ public class TriggerData : BehaviorData
     }
 }
 
-public class Trigger : Behavior, IActivatedBehavior
+public class Trigger : ActivatedBehavior
 {
-    public bool _pulled;
+    private bool _pulled;
 
     public Trigger(TriggerData data, EquippedItem item) : base(data, item) { }
     public Trigger(TriggerData data, ConsumableItemEffect item) : base(data, item) { }
@@ -38,12 +38,12 @@ public class Trigger : Behavior, IActivatedBehavior
         return false;
     }
 
-    public void Activate()
+    internal override void Activate()
     {
         _pulled = true;
     }
 
-    public void Deactivate()
+    internal override void Deactivate()
     {
     }
 }

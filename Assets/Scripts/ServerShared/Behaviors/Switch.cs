@@ -20,11 +20,11 @@ public class SwitchData : BehaviorData
     }
 }
 
-public class Switch : Behavior, IActivatedBehavior
+public class Switch : ActivatedBehavior
 {
     private SwitchData _data;
 
-    public bool Activated { get; set; }
+    public bool Activated { get; private set; }
 
     public Switch(SwitchData data, EquippedItem item) : base(data, item)
     {
@@ -40,12 +40,12 @@ public class Switch : Behavior, IActivatedBehavior
         return Activated;
     }
 
-    public void Activate()
+    internal override void Activate()
     {
         Activated = true;
     }
 
-    public void Deactivate()
+    internal override void Deactivate()
     {
         Activated = false;
     }

@@ -287,11 +287,12 @@ public sealed partial class RunStartTests
     }
 
     // A trigger that counts its edges: a semi-auto fires once per Activate.
-    private sealed class SeamTrigger : IActivatedBehavior
+    private sealed class SeamTrigger : ActivatedBehavior
     {
         public int Pulled, Released;
-        public void Activate() => Pulled++;
-        public void Deactivate() => Released++;
+        public SeamTrigger(EquippedItem item) : base(null, item) { }
+        internal override void Activate() => Pulled++;
+        internal override void Deactivate() => Released++;
     }
 
     // A press is one pull at the next step and the button held after it pulls nothing more, so a semi-auto fires once;
@@ -300,7 +301,7 @@ public sealed partial class RunStartTests
     public void PlayerTriggerIsAnEdge()
     {
         var (arena, east, _) = SeamPair(false);
-        var trigger = new SeamTrigger();
+        var trigger = new SeamTrigger(SeamGun(east).Item);
         east.Command.Pull(trigger);
         Assert.Equal(0, trigger.Pulled);
         for (var step = 0; step < 10; step++) arena.Update(SeamDt);

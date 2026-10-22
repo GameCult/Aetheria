@@ -198,7 +198,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
         return true;
     }
 
-    public override void Activate()
+    internal override void Activate()
     {
         // A refused beam never starts (operator ruling 2026-09-30): OnStartFiring drives the beam's visuals and
         // audio, so starting it only for Execute to stop it a tick later would flash a beam that fires nothing.
@@ -209,7 +209,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
         }
     }
 
-    public override void Deactivate()
+    internal override void Deactivate()
     {
         if (_firing)
         {

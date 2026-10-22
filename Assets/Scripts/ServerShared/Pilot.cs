@@ -53,27 +53,35 @@ public sealed class PilotCommand
     internal readonly List<EquippedItem> Selections = new List<EquippedItem>();
     internal readonly List<string> Hails = new List<string>();
     internal readonly List<ConsumableItemData> Uses = new List<ConsumableItemData>();
-    internal readonly List<(IActivatedBehavior Behavior, bool Pull)> Triggers = new List<(IActivatedBehavior, bool)>();
-    internal readonly List<(Entity Other, bool? Hostile)> Iffs = new List<(Entity, bool?)>();
+    internal readonly List<(ActivatedBehavior Behavior, bool Pull)> Triggers = new List<(ActivatedBehavior, bool)>();
+    internal readonly List<(Entity Other, bool? Hostile, bool Toggle)> Iffs = new List<(Entity, bool?, bool)>();
     internal TargetVerb TargetVerb;
     internal int AimCycles;
+    internal int ShutdownOverrideToggles, HeatsinkToggles, ShieldToggles, Pings;
 
     public void Designate(TargetRef target) => Designations.Add(target);
     public void SelectItem(EquippedItem item) => Selections.Add(item);
     public void Hail(string message) => Hails.Add(message);
     public void Use(ConsumableItemData consumable) => Uses.Add(consumable);
-    public void Pull(IActivatedBehavior behavior) => Triggers.Add((behavior, true));
-    public void Release(IActivatedBehavior behavior) => Triggers.Add((behavior, false));
+    public void Pull(ActivatedBehavior behavior) => Triggers.Add((behavior, true));
+    public void Release(ActivatedBehavior behavior) => Triggers.Add((behavior, false));
     // The last verb in a step wins.
     public void Verb(TargetVerb verb) => TargetVerb = verb;
     public void CycleAim() => AimCycles++;
-    public void Iff(Entity other, bool? hostile) => Iffs.Add((other, hostile));
+    public void Iff(Entity other, bool? hostile) => Iffs.Add((other, hostile, false));
+    // A press that flips the stance on `other` as it stands when applied, in order with Iff, so two in a step cancel.
+    public void ToggleStance(Entity other) => Iffs.Add((other, null, true));
+    // The entity's own switches, pressed: each press flips its switch when applied, so two in a step cancel.
+    public void ToggleOverrideShutdown() => ShutdownOverrideToggles++;
+    public void ToggleHeatsinks() => HeatsinkToggles++;
+    public void ToggleShield() => ShieldToggles++;
+    public void Ping() => Pings++;
 
     // The pilot's own pending decisions, which it reads back instead of the ship (that is last step's applied state).
     public TargetRef? Designated => Designations.Count > 0 ? Designations[Designations.Count - 1] : (TargetRef?) null;
 
     // Whether the last trigger this pilot commanded for `behavior` this step is a pull.
-    public bool Pulls(IActivatedBehavior behavior)
+    public bool Pulls(ActivatedBehavior behavior)
     {
         for (var i = Triggers.Count - 1; i >= 0; i--)
             if (ReferenceEquals(Triggers[i].Behavior, behavior)) return Triggers[i].Pull;
@@ -90,6 +98,7 @@ public sealed class PilotCommand
         Iffs.Clear();
         TargetVerb = TargetVerb.None;
         AimCycles = 0;
+        ShutdownOverrideToggles = HeatsinkToggles = ShieldToggles = Pings = 0;
     }
 }
 
@@ -112,7 +121,12 @@ public static class PilotApplier
         }
         foreach (var item in command.Selections) entity.TrySelectTargetItem(item);
         for (var i = 0; i < command.AimCycles; i++) entity.CycleAim();
-        foreach (var (other, hostile) in command.Iffs) entity.SetIff(other, hostile);
+        foreach (var (other, hostile, toggle) in command.Iffs) entity.SetIff(other, toggle ? !entity.IsHostileTo(other) : hostile);
+        for (var i = 0; i < command.ShutdownOverrideToggles; i++) entity.OverrideShutdown = !entity.OverrideShutdown;
+        for (var i = 0; i < command.HeatsinkToggles; i++) entity.HeatsinksEnabled = !entity.HeatsinksEnabled;
+        if (entity.Shield != null)
+            for (var i = 0; i < command.ShieldToggles; i++) entity.Shield.Item.Enabled.Value = !entity.Shield.Item.Enabled.Value;
+        for (var i = 0; i < command.Pings; i++) entity.Sensor?.Ping();
         foreach (var hail in command.Hails) entity.SetMessage(hail);
         foreach (var consumable in command.Uses) entity.TryActivateConsumable(consumable);
         if (command.Aim is float3 aim) entity.Aim = aim;

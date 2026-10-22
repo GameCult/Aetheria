@@ -396,39 +396,23 @@ public class ActionGameManager : MonoBehaviour
             ActionBar.gameObject.SetActive(!_uiHidden);
         };
 
-        Input.Player.OverrideShutdown.performed += context =>
-        {
-            CurrentEntity.OverrideShutdown = !CurrentEntity.OverrideShutdown;
-        };
-
-        Input.Player.Ping.performed += context =>
-        {
-            CurrentEntity.Sensor?.Ping();
-        };
-
-        Input.Player.ToggleHeatsinks.performed += context =>
-        {
-            CurrentEntity.HeatsinksEnabled = !CurrentEntity.HeatsinksEnabled;
-            // TODO: SFX: Success/Fail
-        };
-
-        Input.Player.ToggleShield.performed += context =>
-        {
-            if (CurrentEntity.Shield != null)
-            {
-                CurrentEntity.Shield.Item.Enabled.Value = !CurrentEntity.Shield.Item.Enabled.Value;
-                // TODO: SFX: Success/Fail
-            }
-        };
+        // The switches and the ping are presses on the entity's command, flipped at the next step.
+        Input.Player.OverrideShutdown.performed += context => CurrentEntity.Command.ToggleOverrideShutdown();
+        Input.Player.Ping.performed += context => CurrentEntity.Command.Ping();
+        // TODO: SFX: Success/Fail
+        Input.Player.ToggleHeatsinks.performed += context => CurrentEntity.Command.ToggleHeatsinks();
+        // TODO: SFX: Success/Fail
+        Input.Player.ToggleShield.performed += context => CurrentEntity.Command.ToggleShield();
 
         // Flips the player's own stance on the current target between hostile and neutral. Going
         // neutral mid-fight safes weapons (Weapon.StanceAllowsFire); an unmarked/undetected target
-        // reads as non-hostile here, so the first press declares hostile.
+        // reads as non-hostile, so the first press declares hostile. The flip reads the stance when applied, so two
+        // presses in a step cancel.
         Input.Player.ToggleStance.performed += context =>
         {
             var target = CurrentEntity.Target.Value.Entity;
             if (target == null) return;
-            CurrentEntity.Command.Iff(target, !CurrentEntity.IsHostileTo(target));
+            CurrentEntity.Command.ToggleStance(target);
         };
 
         #region Targeting
@@ -483,7 +467,7 @@ public class ActionGameManager : MonoBehaviour
                     switch (dragAction)
                     {
                         case EquippedItemDragObject equippedItemDragAction:
-                            var trigger = equippedItemDragAction.EquippedItem.GetBehavior<IActivatedBehavior>();
+                            var trigger = equippedItemDragAction.EquippedItem.GetBehavior<ActivatedBehavior>();
                             if (trigger == null) return false;
                             slot.Binding = new ActionBarGearBinding(CurrentEntity, slot, equippedItemDragAction.EquippedItem, trigger);
                             return true;

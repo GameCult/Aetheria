@@ -87,10 +87,15 @@ public abstract class Behavior
     }
 }
 
-public interface IActivatedBehavior
+// A behaviour its pilot triggers. Only PilotApplier pulls and releases it, from the pilot's PilotCommand (Pull, Release),
+// so Activate and Deactivate are internal to the simulation: no script outside it triggers one in place.
+public abstract class ActivatedBehavior : Behavior
 {
-    void Activate();
-    void Deactivate();
+    protected ActivatedBehavior(BehaviorData data, EquippedItem item) : base(data, item) { }
+    protected ActivatedBehavior(BehaviorData data, ConsumableItemEffect consumable) : base(data, consumable) { }
+
+    internal abstract void Activate();
+    internal abstract void Deactivate();
 }
 
 public interface IEventBehavior

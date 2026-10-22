@@ -72,7 +72,7 @@ combat state cannot run without Unity.**
 - Player-only inputs, all plain entity writes that an agent could make:
   - `TractorPower` (`ActionGameManager.cs:1214-1216`);
   - `OverrideShutdown`, `HeatsinksEnabled`, shield `Enabled`, `Sensor.Ping` (`:339-362`);
-  - gear `IActivatedBehavior` (`ActionBarSlot.cs:159-168`);
+  - gear `ActivatedBehavior` (`ActionBarSlot.cs:159-168`);
   - consumables (`ActionBarSlot.cs:119-122`, `Entity.TryActivateConsumable`).
 - Player-only lifecycle actions. These are the orchestration this map moves:
   - interact, which means warp, dock or undock (`ActionGameManager.cs:298-320`);
@@ -1002,7 +1002,7 @@ mean we want to delete all the weapon types we created".
 | `move <x> <y>` / `look <x> <z>` / `tractor <0..1>` | pilot entity fields, as `ActionGameManager.cs:1189-1216` |
 | `target nearest\|none\|<entity#>` | `Pilot.Target.Value` |
 | `fire <group> on\|off` | `WeaponGroups[g].weapons` Activate/Deactivate, as `ActionBarSlot.cs:190-204` |
-| `gear <equipment#> on\|off` | `IActivatedBehavior` Activate/Deactivate |
+| `gear <equipment#> on\|off` | `ActivatedBehavior` Activate/Deactivate |
 | `pilot manual\|minion\|patrol\|goto station <i>\|goto wormhole <i>` | `Run.PilotAgent` |
 | `dock` / `undock` / `board <entity#>` / `warp` / `tow` | `Run.TryDock` / `Undock` / `Board` / `TryEnterWormhole` / `Tow` |
 | `hit <entity#> <damage> [hardpoint <k>]` | `Entity.ApplyHit` (Cut 2) |
