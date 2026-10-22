@@ -388,6 +388,7 @@ public class Zone
         foreach (var entity in entities) entity.Sense();
         _departures.Clear();
 
+        CargoTransfer.Step(this, deltaTime);
         StepMines(deltaTime);
         StepClouds(deltaTime);
         StepFloatingItems(deltaTime);

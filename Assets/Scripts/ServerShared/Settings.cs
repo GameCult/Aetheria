@@ -205,6 +205,8 @@ public class GameplaySettings
     public int WeaponGroupCount = 6;
     public float WarpDistance = 25;
     public float DockingDistance = 25;
+    // Units per second one pilot gives to a ship within DockingDistance; a commodity unit or one crafted item.
+    public float TransferRate = 2;
     public float ProductionPersonalityLerp = .05f;
     public float MessageDuration = 4f;
     public float TargetPersistenceDuration = 3;
