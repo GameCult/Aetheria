@@ -850,9 +850,10 @@ public sealed partial class MiningCut3Tests : IDisposable
                 existing.GenerationWeight = 0f;
                 cache.Upsert(existing);
             }
-            cache.Upsert(Kind("Gen A", 1f, 1f));
-            cache.Upsert(Kind("Gen B", 1f, 2f));
-            cache.Upsert(Kind("Gen C", 1f, 4f));
+            // Authored kinds have fixed keys; the pick orders kinds by key, so the fixture's keys are fixed too.
+            cache.Upsert(typeof(FieldKindData), Kind("Gen A", 1f, 1f), new CultRecordKey("field-kind:gen-a"));
+            cache.Upsert(typeof(FieldKindData), Kind("Gen B", 1f, 2f), new CultRecordKey("field-kind:gen-b"));
+            cache.Upsert(typeof(FieldKindData), Kind("Gen C", 1f, 4f), new CultRecordKey("field-kind:gen-c"));
             Galaxy galaxy;
             try
             {

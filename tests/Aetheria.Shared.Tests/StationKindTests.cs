@@ -343,9 +343,9 @@ public sealed class StationKindTests : IDisposable
             var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
                 authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), w.Cache, new PlayerSettings(),
                 Directory.CreateDirectory(Path.Combine(_root, "galaxy" + _worlds++, "Narrative")), _ => { }, null, 3);
-            var pack = ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, galaxy.IsPrelude, true);
-            return pack.Entities.OfType<OrbitalEntityPack>().Where(e => e.Kind.IsSet()).Select(e => e.Kind.Key.Value).ToArray();
+            return galaxy.Zones.Take(8).SelectMany(zone => ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
+                    authored.Read<PlanetSettings>("PlanetSettings"), galaxy, zone, zone == galaxy.Entrance && galaxy.IsPrelude, true)
+                .Entities.OfType<OrbitalEntityPack>().Where(e => e.Kind.IsSet()).Select(e => e.Kind.Key.Value)).ToArray();
         }
         var first = Kinds();
         Assert.True(first.Length >= 3, "the sample placed stations");
