@@ -359,14 +359,18 @@ public sealed class FlightTests : IDisposable
     }
 
     [Fact]
-    public void EachFactionFliesAFlightOfItsOwnAndUnaffiliatedShipsShareOne()
+    public void EachFactionFliesAFlightOfItsOwnAndEachUnaffiliatedShipFliesAlone()
     {
         Pilot(new Faction { Name = "One" });
         Pilot(new Faction { Name = "Two" });
         Pilot(null);
-        Pilot(null);
+        var alone = Pilot(null);
 
-        Assert.Equal(new[] { 1, 1, 2 }, _zone.Flights.Select(f => f.Count).OrderBy(c => c));
+        Assert.Equal(new[] { 1, 1, 1, 1 }, _zone.Flights.Select(f => f.Count).OrderBy(c => c));
+
+        _zone.Remove(alone);
+
+        Assert.Equal(3, _zone.Flights.Count());
     }
 
     [Fact]
