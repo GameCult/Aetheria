@@ -15,12 +15,12 @@ using float3 = CultMath.float3;
 // edges: a press is one pull and a let-go one release.
 public sealed partial class RunStartTests
 {
-    // East, west 200 away and a third 250 away, all seen by east once the zone has stepped.
+    // East, west 200 away and a third about 277 away, both ahead of east and seen by it once the zone has stepped.
     private (Zone arena, Ship east, Ship west, Ship third) PlayerSeamTrio()
     {
         Ship third = null;
         var (arena, east, west) = SeamPair(false, (stage, e, w) =>
-            third = stage.Place(EvLonginus(stage), float2(350, 0), facing: float2(-1, 0)) as Ship);
+            third = stage.Place(EvLonginus(stage), float2(-150, 120), facing: float2(1, 0)) as Ship);
         for (var step = 0; step < 600 && !(east.VisibleEntities.Contains(west) && east.VisibleEntities.Contains(third)); step++) arena.Update(SeamDt);
         Assert.Contains(west, east.VisibleEntities);
         Assert.Contains(third, east.VisibleEntities);

@@ -318,6 +318,7 @@ public sealed partial class RunStartTests
         var agent = arena.Agents.Single(a => a.Ship == east);
         var locks = east.Weapons.OfType<LockWeapon>().ToArray();
         Assert.NotEmpty(locks);
+        agent.Doctrine.MinHitProbability = 2; // its guns hold fire, so its aim settles and the lock completes
         var step = 0;
         for (; step < 3000 && !(SeamState(agent) is CombatState && locks.Any(l => l.IsLocked)); step++) arena.Update(SeamDt);
         Assert.True(locks.Any(l => l.IsLocked), $"locked by step {step}: {string.Join(",", locks.Select(l => l.Lock))}");
