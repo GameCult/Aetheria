@@ -309,8 +309,9 @@ public sealed class CargoTransferTests : IDisposable
     {
         // Grit stacks two to a stack, so three units are two stacks: the order is for the design, not the stack named.
         var (giver, receiver, _) = Alongside(0);
-        var grit = Commodity("Grit", 3);
+        var grit = Commodity("Grit", 2);
         Assert.True(giver.CargoBays[0].TryStore(grit));
+        Assert.True(giver.CargoBays[0].TryStore(Commodity("Grit", 1)));
         Assert.Equal(2, giver.CargoBays[0].ItemsOfType[grit.Data.Key].Count);
         giver.Command.Give(receiver, grit, 3);
 
