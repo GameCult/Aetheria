@@ -32,6 +32,8 @@ public sealed class CargoTransferTests : IDisposable
         _cache.Upsert(new CargoBayData { Name = "Pocket", Shape = new Shape(), InteriorShape = pocket, Price = 5, Durability = 4 });
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });
         _cache.Upsert(new SimpleCommodityData { Name = "Slag", Shape = new Shape(), Price = 1, MaxStack = 100 });
+        _cache.Upsert(new DockingBayData { Name = "Berth", Shape = new Shape(), InteriorShape = bay, MaxSize = new int2(2, 2), Price = 60, Durability = 6 });
+        _cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 400, Durability = 8 });
         _cache.FlushAsync().Wait();
 
         var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
@@ -149,5 +151,285 @@ public sealed class CargoTransferTests : IDisposable
 
         Assert.Equal(10, Units(from, ore));
         Assert.Equal(98, Units(to, ore));
+    }
+
+    // ---- The give verb ------------------------------------------------------------------------------------------
+
+    private const float Dt = .1f;
+
+    // Two ships in the zone, alongside each other, the giver holding `ore` units of Ore.
+    private (Ship Giver, Ship Receiver, SimpleCommodity Stack) Alongside(int ore, string receiverBay = "Crate")
+    {
+        var giver = ShipWith("Crate");
+        var receiver = ShipWith(receiverBay);
+        var stack = Commodity("Ore", ore);
+        Assert.True(giver.CargoBays[0].TryStore(stack));
+        giver.Position = new float3(0, 0, 0);
+        receiver.Position = new float3(5, 0, 0);
+        _zone.Admit(giver, piloted: false);
+        _zone.Admit(receiver, piloted: false);
+        return (giver, receiver, stack);
+    }
+
+    private static int Held(Entity entity, SimpleCommodity like) => entity.CargoBays.Sum(bay => Units(bay, like));
+
+    private void Steps(int count)
+    {
+        for (var i = 0; i < count; i++) _zone.Update(Dt);
+    }
+
+    [Fact]
+    public void GiveMovesAtTheRate()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 10);
+
+        for (var i = 1; i <= 10; i++)
+        {
+            Steps(1);
+            Assert.Equal(10, Held(giver, ore) + Held(receiver, ore));
+        }
+
+        // Rate 2 for one second: exactly two units, not one and not three.
+        Assert.Equal(2, Held(receiver, ore));
+        Assert.Equal(8, Held(giver, ore));
+        Assert.NotNull(giver.Giving);
+    }
+
+    [Fact]
+    public void GiveEndsDoneAtItsQuantity()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 3);
+
+        Steps(40);
+
+        Assert.Equal(3, Held(receiver, ore));
+        Assert.Equal(7, Held(giver, ore));
+        Assert.Null(giver.Giving);
+        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void GiveEndsOutOfRange()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        var range = _items.GameplaySettings.DockingDistance;
+        receiver.Position = new float3(range - 1, 0, 0);
+        giver.Command.Give(receiver, ore, 10);
+        Steps(10);
+        Assert.Equal(2, Held(receiver, ore));
+        Assert.Null(giver.LastGiveEnd);
+
+        receiver.Position = new float3(range + 1, 0, 0);
+        Steps(10);
+
+        Assert.Equal(2, Held(receiver, ore));
+        Assert.Null(giver.Giving);
+        Assert.Equal(GiveEnd.OutOfRange, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void GiveRangeIsMeasuredOnTheFlatPlane()
+    {
+        // The plane is xz: a ship far apart in y only is still alongside.
+        var (giver, receiver, ore) = Alongside(10);
+        receiver.Position = new float3(5, 1000, 0);
+        giver.Command.Give(receiver, ore, 10);
+        Steps(10);
+        Assert.Equal(2, Held(receiver, ore));
+    }
+
+    [Fact]
+    public void GiveEndsWhenTheReceiverLeaves()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 10);
+        Steps(10);
+        Assert.Equal(2, Held(receiver, ore));
+
+        _zone.Remove(receiver);
+        Steps(10);
+
+        Assert.Equal(8, Held(giver, ore));
+        Assert.Equal(2, Held(receiver, ore));
+        Assert.Null(giver.Giving);
+        Assert.Equal(GiveEnd.ReceiverGone, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void DockingEndsTheGiversGive()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        var station = new OrbitalEntity(_items, _zone, Mint("Hub"), default, new EntitySettings());
+        Assert.True(station.TryEquip(Mint("Berth"), new int2(1, 1)));
+        giver.Command.Give(receiver, ore, 10);
+        Steps(10);
+
+        Assert.NotNull(station.TryDock(giver));
+        Steps(10);
+
+        Assert.Null(giver.Giving);
+        Assert.Equal(GiveEnd.GiverDocked, giver.LastGiveEnd);
+        Assert.Equal(2, Held(receiver, ore));
+    }
+
+    [Fact]
+    public void GiveEndsOnAFullHold()
+    {
+        var (giver, receiver, ore) = Alongside(10, "Pocket");
+        Assert.True(receiver.CargoBays[0].TryStore(Commodity("Slag", 5)));
+        giver.Command.Give(receiver, ore, 10);
+
+        Steps(20);
+
+        Assert.Equal(10, Held(giver, ore));
+        Assert.Equal(0, Held(receiver, ore));
+        Assert.Null(giver.Giving);
+        Assert.Equal(GiveEnd.ReceiverFull, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void GiveEndsWhenNothingIsLeft()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 50);
+
+        Steps(100);
+
+        Assert.Equal(10, Held(receiver, ore));
+        Assert.Equal(0, Held(giver, ore));
+        Assert.Null(giver.Giving);
+        Assert.Equal(GiveEnd.NothingLeft, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void AGiveDrawsOnEveryStackOfTheDesign()
+    {
+        // Two stacks in two bays: the order is for the design, not for the stack it was named with.
+        var (giver, receiver, ore) = Alongside(3);
+        Assert.True(giver.TryEquip(Mint("Crate"), new int2(3, 3)));
+        Assert.True(giver.CargoBays[1].TryStore(Commodity("Ore", 4)));
+        giver.Command.Give(receiver, ore, 7);
+
+        Steps(60);
+
+        Assert.Equal(7, Held(receiver, ore));
+        Assert.Equal(0, Held(giver, ore));
+        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void AGivenCraftedItemIsThatInstance()
+    {
+        var (giver, receiver, _) = Alongside(0);
+        var first = Mint("Gun");
+        var second = Mint("Gun");
+        Assert.True(giver.CargoBays[0].TryStore(first));
+        Assert.True(giver.CargoBays[0].TryStore(second));
+        giver.Command.Give(receiver, second, 5);
+
+        Steps(20);
+
+        Assert.True(receiver.CargoBays[0].Cargo.ContainsKey(second));
+        Assert.False(receiver.CargoBays[0].Cargo.ContainsKey(first));
+        Assert.True(giver.CargoBays[0].Cargo.ContainsKey(first));
+        Assert.False(giver.CargoBays[0].Cargo.ContainsKey(second));
+        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void TheLastGivePressInAStepWins()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        var third = ShipWith("Crate");
+        third.Position = new float3(0, 0, 5);
+        _zone.Admit(third, piloted: false);
+
+        // A give then a stop leaves nothing, and nothing ended.
+        giver.Command.Give(receiver, ore, 10);
+        giver.Command.StopGiving();
+        Steps(1);
+        Assert.Null(giver.Giving);
+        Assert.Null(giver.LastGiveEnd);
+
+        // A stop then a give leaves the give.
+        giver.Command.StopGiving();
+        giver.Command.Give(receiver, ore, 10);
+        Steps(1);
+        Assert.Same(receiver, giver.Giving.Receiver);
+
+        // A second give in the same step replaces the first before it starts.
+        giver.Command.Give(receiver, ore, 10);
+        giver.Command.Give(third, ore, 10);
+        Steps(1);
+        Assert.Same(third, giver.Giving.Receiver);
+        Assert.Equal(GiveEnd.Stopped, giver.LastGiveEnd);
+
+        // A give in a later step replaces the one under way, which ends Stopped.
+        giver.Command.Give(receiver, ore, 10);
+        Steps(1);
+        Assert.Same(receiver, giver.Giving.Receiver);
+    }
+
+    [Fact]
+    public void StoppingEndsTheGiveAndKeepsWhatMoved()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 10);
+        Steps(10);
+        giver.Command.StopGiving();
+        Steps(10);
+
+        Assert.Null(giver.Giving);
+        Assert.Equal(GiveEnd.Stopped, giver.LastGiveEnd);
+        Assert.Equal(2, Held(receiver, ore));
+        Assert.Equal(8, Held(giver, ore));
+    }
+
+    [Fact]
+    public void AGiveToOneselfOrOfNothingIsIgnored()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 10);
+        Steps(1);
+        var order = giver.Giving;
+
+        giver.Command.Give(giver, ore, 5);
+        giver.Command.Give(receiver, ore, 0);
+        giver.Command.Give(receiver, ore, -3);
+        giver.Command.Give(null, ore, 5);
+        giver.Command.Give(receiver, null, 5);
+        Steps(1);
+
+        Assert.Same(order, giver.Giving);
+        Assert.Null(giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void AGiverStaysInTheZone()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Designate(new TargetRef(receiver));
+        receiver.Command.Designate(new TargetRef(giver));
+        giver.Command.Give(receiver, ore, 10);
+
+        Steps(20);
+
+        Assert.True(_zone.Entities.Contains(giver));
+        Assert.True(_zone.Entities.Contains(receiver));
+        Assert.Same(receiver, giver.Target.Value.Entity);
+        Assert.Same(giver, receiver.Target.Value.Entity);
+    }
+
+    [Fact]
+    public void NoOrderMovesNothing()
+    {
+        // No order, no work: a zone of ships that are not giving moves nothing.
+        var (giver, receiver, ore) = Alongside(10);
+        Steps(20);
+        Assert.Equal(10, Held(giver, ore));
+        Assert.Equal(0, Held(receiver, ore));
+        Assert.Null(giver.LastGiveEnd);
     }
 }
