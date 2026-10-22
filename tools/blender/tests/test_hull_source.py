@@ -739,8 +739,13 @@ class FrameCheckTests(unittest.TestCase):
     def test_a_mark_a_millimetre_off_is_the_same_place(self):
         self.assertEqual(self.built(line(), marks=[(-1, -1, 2.001)]).failed(), [])
 
-    def test_a_source_with_no_lines_and_no_marks_passes(self):
-        self.assertEqual(self.built("", marks=[]).failed(), [])
+    def test_a_source_with_no_lines_asks_for_no_marks_because_openscad_refuses_a_part_that_draws_nothing(self):
+        fixture = Fixture()
+        runner = fixture.runner()
+        asked = []
+        built = hs.build(lambda part: asked.append(part) or runner(part), fixture.read_library, "Ship", fixture.projector)
+        self.assertNotIn("marks", asked)
+        self.assertEqual(built.failed(), [])
 
     def test_the_detail_counts_the_lines_and_marks_that_disagree(self):
         built = self.built(line(), marks=[(5, 5, 2)])

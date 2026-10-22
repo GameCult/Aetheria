@@ -15,12 +15,14 @@ with it (a hull that redefines or shadows an included language fails a check):
              frame (lowpoly.scad lp_line under lp_at frames); layer is one of KIT_LAYERS
     <zone>   the zone's geometry, OFF; a donor's zone is named "<donor>:<zone>"
     emit:<id>, rad:<id>   the mesh of a thruster-emitter or radiator-mesh anchor
+    marks    OFF, a tiny cube at the first point of each kit line, drawn through the frame the geometry is drawn in (lp_line)
 
 Frame: Ship Root, metres, nose -Y, starboard -X, up +Z. build() also takes the hull's HullData.HullType ("Ship",
 "Station" or "Turret"), which the caller reads: the add-on from the bound package's ship.cc, the bench from its flag.
 Schematic lines (HullBuild.lines): the top-view silhouette first (OpenSCAD projection() of every zone mesh, the geometry Rasterise reads,
 read from the SVG it exports), then the kit's lines, each with a fixed RGBA from LINE_STYLE. A kit part is placed with
-lp_at so its line is emitted in the frame the geometry is; a source that echoes no lines has the silhouette alone.
+lp_at so its line is emitted in the frame the geometry is, and Build checks it: a line whose mark (the marks part) lies elsewhere
+was placed by something else. A source that echoes no lines has the silhouette alone.
 A faction language's proportions judge Ship hulls only; every hull's zones must fit the layout grid (hull_grid.MAX_CELLS
 cells of hull_grid.CELL_SIZE a side). The brief's role is prose and decides nothing. build() returns a HullBuild; the
 caller refuses on any failed check. Messages and check names are fixed text: nothing a hull source says is echoed back.
@@ -451,7 +453,9 @@ def build(runner, library, hull_type, projector):
     result.checks = [Check("the hull includes its faction's language files and changes none of them",
                            sorted(included, key=by_faction) == sorted(owned, key=by_faction), "")]
     result.checks += _checks(result, own, judge)
-    unmarked, stray = _frame_disagreements(kit_lines, parse_off(runner("marks")[0]))
+    # A source with no kit lines has no marks, and OpenSCAD refuses to export a part that drew nothing.
+    marks = parse_off(runner("marks")[0]) if kit_lines else Mesh([], [])
+    unmarked, stray = _frame_disagreements(kit_lines, marks)
     result.checks.append(Check("every kit line is drawn in the frame of its geometry", not (unmarked or stray),
                                f"{unmarked} lines and {stray} marks disagree"))
     return result
