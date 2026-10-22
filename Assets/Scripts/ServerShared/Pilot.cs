@@ -28,7 +28,8 @@ public readonly struct TurnCommand
 
 // The one input an entity's pilot gives it (its agent, the player, a scripted pilot): only own-ship vectors and handles the
 // pilot was given (ruling observation-sensors-only). Commands are per entity, never per Flight or side: a side may be one
-// ship (ruling brain-one-per-side-r2). PilotApplier.Apply is its only reader.
+// ship (ruling brain-one-per-side-r2). PilotApplier.Apply is the only writer of the entity's fields from it; the pilot
+// also reads back its own pending decisions this step (Designated, Pulls), because the entity still holds last step's.
 // Held fields persist until the pilot replaces them, so a pilot deciding below the sim rate keeps flying (ruling
 // lower-game-sim-rate); null leaves the field to whoever wrote it last. One-shots apply once, in order, and are cleared.
 public sealed class PilotCommand
