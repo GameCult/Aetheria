@@ -30,7 +30,10 @@ public sealed partial class RunStartTests
     // Then for staged knowledge (ruling repin-for-staged-knowledge), which moved it twice: the fighters are staged knowing
     // each other, so they engage at step 0 (f19b9992); and Follow now flies only on an anchor the pilot itself tracks, so
     // once the sensors drop the staged anchor the follower stops following it (ce81a426).
-    private const string TwoAiPinnedDigest = "ce81a426c40495e4b4b7b7f83ad23767cc781dce5523d713b4455e0aa5b7fe33";
+    // Repinned a third time, once, for two causes (sim-rate cut): the rules went step-exact (timers keep their overshoot,
+    // passive sensing decays exactly), which alone gives 4f4a1c8b88308d0a368527549f33baf0e157a056b4c0fd33aeb110b027b862e1
+    // at 60 Hz; and the game step is now SimClock.GameStep (30 Hz), 1800 steps of the same 60 simulated seconds.
+    private const string TwoAiPinnedDigest = "d5e16969d5366349f2cddeec53f7e8e8c69074dcf5aa7aabb365e9a91a34511f";
     private const float TwoAiSeconds = 60f;
 
     [Fact]
