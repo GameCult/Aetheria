@@ -56,7 +56,7 @@ public static class ScenarioPickerCapture
         var (menu, list, detail) = Build();
         menu.Dialog.gameObject.SetActive(false);
         list.Title.text = MainMenu.TitleSubtitle("new game", "scenarios");
-        ScenarioPicker.Show(list, detail, AllGroups(), _ => { }, () => { });
+        ScenarioPicker.Show(list, detail, AllGroups(), _ => { }, () => { }, menu.Dialog.Confirm);
         list.RefreshValues();
         detail.RefreshValues();
 
@@ -80,6 +80,7 @@ public static class ScenarioPickerCapture
         foreach (var text in list.transform.GetComponentsInChildren<TMPro.TMP_Text>())
             text.ForceMeshUpdate();
         Canvas.ForceUpdateCanvases();
+        list.Content.GetComponentInParent<ScrollRect>().onValueChanged.Invoke(Vector2.zero);
         camera.Render();
 
         var previous = RenderTexture.active;

@@ -68,7 +68,7 @@ public static class ScenarioPickerVerify
 
     private static Screen Build(bool oneGroup = false)
     {
-        var (_, list, detail) = ScenarioPickerCapture.Build();
+        var (menu, list, detail) = ScenarioPickerCapture.Build();
         // Build opens the scene afresh, which destroys the previous EventSystem.
         var events = new GameObject("verify EventSystem").AddComponent<EventSystem>();
         // Edit mode never calls OnEnable, which is what registers an EventSystem as current.
@@ -83,11 +83,11 @@ public static class ScenarioPickerVerify
         var groups = oneGroup
             ? new List<(string label, Scenario[] scenarios)> { ("modes", screen.A) }
             : new List<(string label, Scenario[] scenarios)> { ("modes", screen.A), ("development", screen.B), ("test arenas", screen.C) };
-        screen.Picker = ScenarioPicker.Show(list, detail, groups, screen.Launched.Add, () => screen.Backs++);
+        screen.Picker = ScenarioPicker.Show(list, detail, groups, screen.Launched.Add, () => screen.Backs++, menu.Dialog.Confirm);
         var buttons = list.GetComponentsInChildren<PropertyButton>(false).Where(button => !button.transform.IsChildOf(detail.transform)).Select(button => button.Button).ToArray();
         screen.Rows = buttons.Take(buttons.Length - 1).ToArray();
         screen.Back = buttons.Last();
-        screen.Launch = detail.GetComponentsInChildren<PropertyButton>(false).Single().Button;
+        screen.Launch = detail.GetComponentsInChildren<Button>(false).Single();
         return screen;
     }
 
@@ -174,20 +174,20 @@ public static class ScenarioPickerVerify
         var screen = Build();
         var first = DetailText(screen);
         Require(first.Contains("brief of Alpha") && first.Contains("7") && first.Contains("on"), $"Detail does not describe Alpha: {first}");
-        Require(screen.Detail.Title.text == MainMenu.TitleSubtitle("modes", "Alpha"), "Detail title is not the name and group.");
+        Require(first.Contains("modes") && first.Contains("Alpha"), "Detail heading is not the group and name.");
         Move(screen, MoveDirection.Down);
         Move(screen, MoveDirection.Down);
         var third = DetailText(screen);
         Require(third.Contains("brief of Gamma") && third.Contains("new each launch") && third.Contains("off"), $"Detail does not describe Gamma: {third}");
-        Require(screen.Detail.Title.text == MainMenu.TitleSubtitle("development", "Gamma"), "Detail title did not follow the selection.");
-        Require(screen.Detail.GetComponentsInChildren<PropertyButton>(false).Single().Button == screen.Launch, "Selecting rebuilt the Launch button.");
+        Require(third.Contains("development") && !third.Contains("Alpha"), "Detail heading did not follow the selection.");
+        Require(screen.Detail.GetComponentsInChildren<Button>(false).Single() == screen.Launch, "Selecting rebuilt the Launch button.");
     }
 
     private static void OneGroupHasNoSectionLabel()
     {
         var many = Build();
         var one = Build(oneGroup: true);
-        Require(many.List.Children == 5 + 3 + 1, $"Three groups should list 5 rows, 3 section labels and Back, not {many.List.Children} children.");
+        Require(many.List.Children == 5 + 3 + 2 + 1, $"Three groups should list 5 rows, 3 section labels, 2 spacers and Back, not {many.List.Children} children.");
         Require(one.List.Children == 2 + 1, $"One group should list its 2 rows and Back, not {one.List.Children} children.");
     }
 }

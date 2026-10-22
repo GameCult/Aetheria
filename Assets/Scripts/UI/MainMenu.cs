@@ -154,7 +154,7 @@ public class MainMenu : MonoBehaviour
         {
             ShowMain();
             Fade(false);
-        });
+        }, Dialog.Confirm);
     }
 
     // The only way into a new run: generates the scenario's galaxy off the main thread and enters the game, where
