@@ -307,22 +307,27 @@ public sealed partial class RunStartTests
         Assert.False(guns[1].Firing);
     }
 
-    // Combat pulls a locking launcher once it can fire, beside the groups it chooses (its locks add no group damage, so
-    // this pull is their only one). Breaks if Combat's lock pull is lost.
+    // Combat pulls a locking launcher once it can fire, beside the groups it chooses (a lock adds no group damage, so
+    // this pull is its only one). Breaks if Combat's lock pull is lost.
     [Fact]
     public void CombatPullsALockThatCanFire()
     {
-        var (arena, east, west) = SeamPair(true, half: 300); // beyond the launchers' minimum range
+        var (arena, east, west) = SeamPair(true);
         east.SetIff(west, true);
         west.SetIff(east, true);
         var agent = arena.Agents.Single(a => a.Ship == east);
         var locks = east.Weapons.OfType<LockWeapon>().ToArray();
         Assert.NotEmpty(locks);
-        for (var step = 0; step < 1800 && !(SeamState(agent) is CombatState && locks.Any(l => l.CanFire)); step++)
-            arena.Update(SeamDt);
+        var step = 0;
+        for (; step < 3000 && !(SeamState(agent) is CombatState && locks.All(l => l.IsLocked)); step++) arena.Update(SeamDt);
+        Assert.True(locks.All(l => l.IsLocked), $"locked by step {step}: {string.Join(",", locks.Select(l => l.Lock))}");
+        // The pair fights inside the launchers' minimum range: carry west out along east's aim, and let east's own update
+        // (no pilot) see the new range.
+        west.Position = east.Position + 600 * normalize(float3(east.Aim.x, 0, east.Aim.z));
+        east.Update(SeamDt);
         Assert.IsType<CombatState>(SeamState(agent));
         var ready = locks.Where(l => l.CanFire).ToArray();
-        Assert.NotEmpty(ready);
+        Assert.True(ready.Length > 0, $"range {east.TargetRange}, min {locks[0].MinRange}, locked {string.Join(",", locks.Select(l => l.Lock))}");
 
         agent.Update(SeamDt);
 
