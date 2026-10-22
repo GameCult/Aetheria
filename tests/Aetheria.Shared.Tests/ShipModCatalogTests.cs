@@ -49,6 +49,36 @@ public sealed class ShipModCatalogTests : IDisposable
         AssertOnlyTheDerivedFile();
     }
 
+    // A package's station kind is checked per package: a bad one is left out, named with its reason, and the derived catalog
+    // still opens. The shipped catalog's own check is unchanged.
+    [Fact]
+    public void ComposeExcludesPackagesWithBadStationKinds()
+    {
+        using (var cache = AetheriaStores.Open(Shipped, catalogWritable: true))
+        {
+            cache.Upsert(new StationKindData { Name = "Hub" });
+            cache.FlushAsync().Wait();
+        }
+        string kindKey;
+        using (var cache = AetheriaStores.Open(Shipped)) kindKey = cache.RefOf(cache.GetAll<StationKindData>().Single()).Key.Value;
+        var held = new CultRecordRef<StationKindData>(new CultRecordKey(kindKey));
+        WritePackage("mod.kindless", "Kindless", tweak: p => p.Hull.HullType = HullType.Station);
+        WritePackage("mod.unknown", "Unknown", tweak: p => { p.Hull.HullType = HullType.Station; p.Hull.Kind = new CultRecordRef<StationKindData>(new CultRecordKey("station-kind:nowhere")); });
+        WritePackage("mod.shipkind", "ShipKind", tweak: p => p.Hull.Kind = held);
+        WritePackage("mod.good", "GoodStation", tweak: p => { p.Hull.HullType = HullType.Station; p.Hull.Kind = held; });
+
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Equal(new[] { "mod.good" }, composition.Included);
+        Assert.Equal(new[] { "mod.kindless", "mod.shipkind", "mod.unknown" }, composition.Excluded.Select(e => e.Package).OrderBy(n => n, StringComparer.Ordinal));
+        Assert.Contains("no Kind", composition.Excluded.Single(e => e.Package == "mod.kindless").Reason);
+        Assert.Contains("names no station kind", composition.Excluded.Single(e => e.Package == "mod.unknown").Reason);
+        Assert.Contains("only a station hull has one", composition.Excluded.Single(e => e.Package == "mod.shipkind").Reason);
+        using var derived = AetheriaStores.Open(Derived);
+        Assert.Contains("GoodStation", derived.GetAll<HullData>().Select(hull => hull.Name));
+        Assert.DoesNotContain("Kindless", derived.GetAll<HullData>().Select(hull => hull.Name));
+    }
+
     // Correction 2 of the S0 map: the derived catalog held each mod hull twice, once as a HullData and once inside the
     // ship's authoring record. The hull is now one record, and the visual holds no hull.
     [Fact]

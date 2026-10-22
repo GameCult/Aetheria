@@ -329,6 +329,29 @@ public sealed class StationKindTests : IDisposable
         Assert.Equal(one, several);
     }
 
+    // A station's kind is a function of the zone's seed and the orbit's place in generation, not of a key the cache mints:
+    // the same zone generated again, through the real key minting, gives the same stations the same kinds in the same order.
+    [Fact]
+    public void SameSeedGivesTheSameStationKinds()
+    {
+        string[] Kinds()
+        {
+            var w = World.Make(this, zenithOffered: true);
+            foreach (var faction in new[] { w.Au, w.Zh, w.Lucent })
+                foreach (var kind in new[] { "mining", "shipyard", "depot", "power" }) w.Sell(faction, kind);
+            var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
+            var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
+                authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), w.Cache, new PlayerSettings(),
+                Directory.CreateDirectory(Path.Combine(_root, "galaxy" + _worlds++, "Narrative")), _ => { }, null, 3);
+            var pack = ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
+                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, galaxy.IsPrelude, true);
+            return pack.Entities.OfType<OrbitalEntityPack>().Where(e => e.Kind.IsSet()).Select(e => e.Kind.Key.Value).ToArray();
+        }
+        var first = Kinds();
+        Assert.True(first.Length >= 3, "the sample placed stations");
+        for (var run = 1; run < 6; run++) Assert.Equal(first, Kinds());
+    }
+
     [Fact]
     public void GeneratedZonesPlaceStationsByKind()
     {
@@ -389,10 +412,8 @@ public sealed class StationKindTests : IDisposable
         Assert.Equal(StationKindData.KeyOf("trade-hub").Value, cache.GetAll<HullData>().Single(h => h.Name == "Zenith").Kind.Key.Value);
     }
 
-    [Fact]
-    public void ShippedStandInsAreLive()
+    private static void AssertStandInsLive(CultCache cache)
     {
-        using var cache = AetheriaStores.Open(TestCatalog.Repo);
         foreach (var kind in cache.GetAll<StationKindData>())
             foreach (var standIn in kind.StandIns)
             {
@@ -404,5 +425,34 @@ public sealed class StationKindTests : IDisposable
                 Assert.Contains(standIn.Kind.Key, own);
                 Assert.NotEmpty(models);
             }
+    }
+
+    [Fact]
+    public void ShippedStandInsAreLive()
+    {
+        using var cache = AetheriaStores.Open(TestCatalog.Repo);
+        AssertStandInsLive(cache);
+    }
+
+    // The retirement check is not vacuous: given a stand-in it passes when the faction offers the kind it stands in with and
+    // not the owning kind, and fails when the faction has gained its own model of the owning kind or has no model to use.
+    [Fact]
+    public void StandInRetirementCheckCanFail()
+    {
+        var live = World.Make(this, zenithOffered: false);
+        live.Sell(live.Au, "mining");
+        live.StandIn("shipyard", live.Au, "mining");
+        Assert.Single(live.Cache.GetAll<StationKindData>().SelectMany(kind => kind.StandIns));
+        AssertStandInsLive(live.Cache);
+
+        var retired = World.Make(this, zenithOffered: false);
+        retired.Sell(retired.Au, "mining");
+        retired.Sell(retired.Au, "shipyard");
+        retired.StandIn("shipyard", retired.Au, "mining");
+        Assert.ThrowsAny<Exception>(() => AssertStandInsLive(retired.Cache));
+
+        var hollow = World.Make(this, zenithOffered: false);
+        hollow.StandIn("shipyard", hollow.Au, "mining");
+        Assert.ThrowsAny<Exception>(() => AssertStandInsLive(hollow.Cache));
     }
 }

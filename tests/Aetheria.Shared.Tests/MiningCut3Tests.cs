@@ -833,6 +833,49 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.True(belts > 0, "no seed generated a belt; the generation path went unexercised");
     }
 
+    // The kind of a belt is a function of the zone's seed, not of the key the cache mints for it: the same seed generated
+    // again, through the real key minting, gives the same belts the same kinds.
+    [Fact]
+    public void SameSeedGivesTheSameBeltKinds()
+    {
+        string[] Generate(uint seed, int run)
+        {
+            var dir = Path.Combine(_root, $"same{seed}-{run}");
+            Directory.CreateDirectory(dir);
+            var catalog = Path.Combine(dir, "Aetheria.cc");
+            File.Copy(TestCatalog.Repo, catalog);
+            using var cache = OpenShippedCatalogCopy(catalog, Path.Combine(dir, "run.cc"));
+            foreach (var existing in cache.GetAll<FieldKindData>().ToArray())
+            {
+                existing.GenerationWeight = 0f;
+                cache.Upsert(existing);
+            }
+            cache.Upsert(Kind("Gen A", 1f, 1f));
+            cache.Upsert(Kind("Gen B", 1f, 2f));
+            cache.Upsert(Kind("Gen C", 1f, 4f));
+            Galaxy galaxy;
+            try
+            {
+                galaxy = new Galaxy(RestoredHullsTests.TutorialGalaxySettings(), RestoredHullsTests.TutorialBackgroundSettings(),
+                    cache, new PlayerSettings(), new DirectoryInfo(dir), _ => { }, null, seed);
+            }
+            catch (Exception) { return null; }
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
+            return galaxy.Zones.Take(6).SelectMany(zone =>
+                    ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, isTutorial: zone == galaxy.Entrance)
+                        .Planets.Select(body => cache.Get(body)).OfType<AsteroidBeltData>().Select(belt => belt.Kind.Key.Value))
+                .ToArray();
+        }
+        for (uint seed = 1; seed <= 25; seed++)
+        {
+            var first = Generate(seed, 0);
+            if (first == null || first.Length < 4) continue;
+            for (var run = 1; run < 4; run++) Assert.Equal(first, Generate(seed, run));
+            return;
+        }
+        Assert.Fail("no seed generated enough belts; the generation path went unexercised");
+    }
+
     // ==== Mining Cut 3 fix batch (Soul's findings) ====
 
     // Q12 A ("launchers cannot mine") in the reach rule: reach counts only weapons that can mine (Weapon.CanMine).
