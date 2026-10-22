@@ -134,10 +134,11 @@ public class FieldKindData
 // Mining Cut 3 (Q16 B): the one owner of which kind a belt is.
 public static class FieldKinds
 {
-    // A weighted pick among the catalog's kinds, by a stable hash of the belt's key: the same belt and the same
-    // catalog always give the same kind. Kinds are ordered by key so the pick does not depend on store order.
+    // A weighted pick among the catalog's kinds, by a stable hash of the belt's site: the same site and the same
+    // catalog always give the same kind. Generation names a belt by the zone's seed and the belt's place in generation
+    // order (never by the key the cache mints, which differs every run); a belt saved without a kind is named by its key. Kinds are ordered by key so the pick does not depend on store order.
     // Unset when the catalog has no kind with positive weight.
-    public static CultRecordRef<FieldKindData> Assign(CultRecordKey field, CultCache catalog)
+    public static CultRecordRef<FieldKindData> Assign(string site, CultCache catalog)
     {
         var kinds = catalog.GetAll<FieldKindData>()
             .Where(kind => kind.GenerationWeight > 0f)
@@ -146,7 +147,7 @@ public static class FieldKinds
             .ToArray();
         if (kinds.Length == 0) return default;
 
-        var pick = field.Value.StableHash() / 4294967296.0 * kinds.Sum(kind => (double) kind.Weight);
+        var pick = site.StableHash() / 4294967296.0 * kinds.Sum(kind => (double) kind.Weight);
         foreach (var kind in kinds)
         {
             if (pick < kind.Weight) return new CultRecordRef<FieldKindData>(kind.Key);
@@ -157,10 +158,10 @@ public static class FieldKinds
 
     // Gives a belt with no kind its kind and saves it; a belt that has one keeps it, whatever the catalog now says.
     // Generation (ZoneGenerator) and first load (Zone) both call this, so there is one assignment rule.
-    public static void Ensure(CultRecordKey field, AsteroidBeltData belt, CultCache cache)
+    public static void Ensure(string site, AsteroidBeltData belt, CultCache cache)
     {
         if (belt.Kind.IsSet()) return;
-        belt.Kind = Assign(field, cache);
+        belt.Kind = Assign(site, cache);
         if (belt.Kind.IsSet()) cache.Upsert(belt);
     }
 }

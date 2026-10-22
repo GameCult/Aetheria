@@ -119,7 +119,7 @@ public static class ZoneGenerator
         pack.Orbits = planets.Select(planet => cache.RefOf(orbitMap[planet])).ToList();
 
         var beltOf = new Dictionary<GeneratorPlanet, AsteroidBeltData>();
-        pack.Planets = planets.Where(p=>!p.Empty).Select(planet =>
+        pack.Planets = planets.Where(p=>!p.Empty).Select((planet, index) =>
         {
 	        BodyType bodyType = planet.Belt ? BodyType.Asteroid :
 		        planet.Mass > zoneSettings.SunMass ? BodyType.Sun :
@@ -213,7 +213,7 @@ public static class ZoneGenerator
             var bodyKey = cache.Upsert(planetData).Key;
             planetData.Name = bodyKey.Value.Substring(0, 8);
             // Mining Cut 3 (Q16 B): a belt's field kind is chosen here, at generation, and saved with it.
-            if (planetData is AsteroidBeltData generatedBelt) FieldKinds.Ensure(bodyKey, generatedBelt, cache);
+            if (planetData is AsteroidBeltData generatedBelt) FieldKinds.Ensure($"{seed}:belt:{index}", generatedBelt, cache);
             return cache.Upsert(planetData);
         }).ToList();
 
@@ -239,7 +239,7 @@ public static class ZoneGenerator
             BodyData swarmBody = swarm;
             var swarmKey = cache.Upsert(swarmBody).Key;
             swarm.Name = swarmKey.Value.Substring(0, 8);
-            FieldKinds.Ensure(swarmKey, swarm, cache);
+            FieldKinds.Ensure($"{seed}:swarm:{swarmHosts.Count}", swarm, cache);
             pack.Planets.Add(cache.Upsert(swarmBody));
         }
 
@@ -268,7 +268,7 @@ public static class ZoneGenerator
             BodyData lanedBody = laned;
             var lanedKey = cache.Upsert(lanedBody).Key;
             laned.Name = lanedKey.Value.Substring(0, 8);
-            FieldKinds.Ensure(lanedKey, laned, cache);
+            FieldKinds.Ensure($"{seed}:lane:{shaped.Count}", laned, cache);
             pack.Planets.Add(cache.Upsert(lanedBody));
         }
 
@@ -420,7 +420,7 @@ public static class ZoneGenerator
 	        var orbit = selectedStationOrbits[i];
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(story.Faction).GenerateStationLoadout(
-		        StationKinds.Choose(cache, story.Faction, cache.RefOf(lagrangeOrbit).Key, itemManager.Log));
+		        StationKinds.Choose(cache, story.Faction, $"{seed}:station:{i}", itemManager.Log));
 	        if (station == null)
 	        {
 		        itemManager.Log($"Story station for {story.Faction?.Name} could not be generated; its story has nowhere to live!");
@@ -442,7 +442,7 @@ public static class ZoneGenerator
 
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout(
-		        StationKinds.Choose(cache, nearestFaction, cache.RefOf(lagrangeOrbit).Key, itemManager.Log));
+		        StationKinds.Choose(cache, nearestFaction, $"{seed}:station:{i}", itemManager.Log));
 	        if (station == null)
 	        {
 		        if (isTutorialEntrance)

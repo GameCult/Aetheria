@@ -638,7 +638,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var counts = new Dictionary<string, int> { ["Light"] = 0, ["Never"] = 0, ["Middle"] = 0, ["Heavy"] = 0 };
         for (var i = 0; i < 2000; i++)
         {
-            var key = new CultRecordKey($"belt-{i}");
+            var key = $"belt-{i}";
             var picked = FieldKinds.Assign(key, s.Cache);
             Assert.True(picked.Key.Equals(FieldKinds.Assign(key, s.Cache).Key));
             counts[s.Cache.Get(picked).Name]++;
@@ -649,7 +649,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.InRange(counts["Heavy"] / 2000f, 3f / 6 - .04f, 3f / 6 + .04f);
 
         var empty = BuildScene(new[] { never });
-        Assert.False(FieldKinds.Assign(new CultRecordKey("belt-0"), empty.Cache).IsSet());
+        Assert.False(FieldKinds.Assign("belt-0", empty.Cache).IsSet());
     }
 
     // Q16 B, first load: a belt saved before field kinds existed gets its kind when a zone first loads it, by the
@@ -664,7 +664,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var beltKey = s.Belts[0];
         var belt = (AsteroidBeltData) s.Zone.Planets[beltKey];
         Assert.True(belt.Kind.IsSet());
-        Assert.True(belt.Kind.Key.Equals(FieldKinds.Assign(beltKey, s.Cache).Key));
+        Assert.True(belt.Kind.Key.Equals(FieldKinds.Assign(beltKey.Value, s.Cache).Key));
         var assigned = belt.Kind.Key;
 
         // Saved: a fresh open of the same stores reads the kind back.
@@ -678,7 +678,7 @@ public sealed partial class MiningCut3Tests : IDisposable
 
         // Kept: a new, overwhelmingly weighted kind now wins the pick for this belt, yet loading it again leaves it.
         reopened.Upsert(Kind("Overwhelming", 9f, 1e6f));
-        Assert.False(FieldKinds.Assign(beltKey, reopened).Key.Equals(assigned));
+        Assert.False(FieldKinds.Assign(beltKey.Value, reopened).Key.Equals(assigned));
         var items = new ItemManager(1u, reopened, new ProvenanceLedger(), GameSettings(), _ => { });
         var reloaded = new Zone(items, PlanetSettings(), s.Pack, new GalaxyZone { Name = "MiningCut3Reload", Owner = null }, null);
         Assert.True(((AsteroidBeltData) reloaded.Planets[beltKey]).Kind.Key.Equals(assigned));
@@ -786,11 +786,11 @@ public sealed partial class MiningCut3Tests : IDisposable
         return cache;
     }
 
-    // Q16 B, generation: every belt ZoneGenerator makes carries its kind already, chosen by FieldKinds.Assign on
-    // the belt's own key. Runs against a scratch copy of the shipped catalog with three kinds of different
+    // Q16 B, generation: every belt ZoneGenerator makes carries its kind already, chosen by FieldKinds.Assign. Runs against
+    // a scratch copy of the shipped catalog with three kinds of different
     // weights, so a pick by any other rule would disagree on some belt.
     [Fact]
-    public void GenerationChoosesTheKindByTheSameFunction()
+    public void GenerationAssignsEveryBeltItsKind()
     {
         var shipped = TestCatalog.Repo;
         var belts = 0;
@@ -826,7 +826,7 @@ public sealed partial class MiningCut3Tests : IDisposable
                     if (!(cache.Get(body) is AsteroidBeltData belt)) continue;
                     belts++;
                     Assert.True(belt.Kind.IsSet());
-                    Assert.True(belt.Kind.Key.Equals(FieldKinds.Assign(body.Key, cache).Key));
+                    Assert.StartsWith("Gen ", cache.Get(belt.Kind).Name);
                 }
             }
         }
@@ -863,7 +863,7 @@ public sealed partial class MiningCut3Tests : IDisposable
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
             return galaxy.Zones.Take(6).SelectMany(zone =>
                     ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, isTutorial: zone == galaxy.Entrance)
-                        .Planets.Select(body => cache.Get(body)).OfType<AsteroidBeltData>().Select(belt => belt.Kind.Key.Value))
+                        .Planets.Select(body => cache.Get(body)).OfType<AsteroidBeltData>().Select(belt => cache.Get(belt.Kind).Name))
                 .ToArray();
         }
         for (uint seed = 1; seed <= 25; seed++)

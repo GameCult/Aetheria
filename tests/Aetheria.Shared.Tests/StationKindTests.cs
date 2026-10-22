@@ -224,7 +224,7 @@ public sealed class StationKindTests : IDisposable
         var seen = new HashSet<string>();
         for (var site = 0; site < 40; site++)
         {
-            var kind = StationKinds.Choose(world.Cache, world.Au, new CultRecordKey("site-" + site));
+            var kind = StationKinds.Choose(world.Cache, world.Au, "site-" + site);
             Assert.Contains(kind.Key.Value, kinds);
             seen.Add(kind.Key.Value);
             var pack = world.Generator(world.Au, (uint) site + 1).GenerateStationLoadout(kind);
@@ -281,12 +281,12 @@ public sealed class StationKindTests : IDisposable
         Assert.Empty(StationKinds.KindsOf(world.Cache, world.Lucent));
 
         var logged = new List<string>();
-        var kind = StationKinds.Choose(world.Cache, world.Lucent, new CultRecordKey("site"), logged.Add);
+        var kind = StationKinds.Choose(world.Cache, world.Lucent, "site", logged.Add);
         Assert.Equal(Kind("shipyard").Key, kind.Key);
         Assert.Single(logged);
         Assert.Contains(world.Lucent.Name, logged[0]);
         var anonymous = new List<string>();
-        StationKinds.Choose(world.Cache, null, new CultRecordKey("site"), anonymous.Add);
+        StationKinds.Choose(world.Cache, null, "site", anonymous.Add);
         Assert.Contains("This galaxy", Assert.Single(anonymous));
         world.StandIn("mining", world.Au, "shipyard");
         Assert.Equal(Kind("mining").Key, StationKinds.HullKindFor(world.Cache, null, Kind("mining")).Key);
@@ -304,7 +304,7 @@ public sealed class StationKindTests : IDisposable
         world.Sell(world.Au, "mining");
         world.Sell(world.Au, "shipyard");
         world.Sell(world.Au, "depot");
-        var keys = Enumerable.Range(0, 30).Select(i => new CultRecordKey("orbit-" + i)).ToArray();
+        var keys = Enumerable.Range(0, 30).Select(i => "orbit-" + i).ToArray();
         var first = keys.Select(key => StationKinds.Choose(world.Cache, world.Au, key).Key.Value).ToArray();
         Assert.Equal(first, keys.Reverse().Select(key => StationKinds.Choose(world.Cache, world.Au, key).Key.Value).Reverse().ToArray());
         Assert.True(first.Distinct().Count() > 1, "the stable hash spreads sites over the faction's kinds");
