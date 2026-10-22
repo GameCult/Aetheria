@@ -26,6 +26,16 @@ public readonly struct TurnCommand
     public float Resolve(Ship ship) => _toward ? Steering.Toward(ship, _heading) : _rate;
 }
 
+// The player's target presses, each answered by the entity's own chooser (Entity.TargetNext and the rest) when applied.
+public enum TargetVerb
+{
+    None,
+    UnderReticle,
+    NearestEnemy,
+    Next,
+    Previous
+}
+
 // The one input an entity's pilot gives it (its agent, the player, a scripted pilot): only own-ship vectors and handles the
 // pilot was given (ruling observation-sensors-only). Commands are per entity, never per Flight or side: a side may be one
 // ship (ruling brain-one-per-side-r2). PilotApplier.Apply is the only writer of the entity's fields from it; the pilot
@@ -37,12 +47,16 @@ public sealed class PilotCommand
     public TurnCommand? Turn;
     public float2? Movement;
     public float3? Aim;
+    public float? Tractor;
 
     internal readonly List<TargetRef> Designations = new List<TargetRef>();
     internal readonly List<EquippedItem> Selections = new List<EquippedItem>();
     internal readonly List<string> Hails = new List<string>();
     internal readonly List<ConsumableItemData> Uses = new List<ConsumableItemData>();
     internal readonly List<(IActivatedBehavior Behavior, bool Pull)> Triggers = new List<(IActivatedBehavior, bool)>();
+    internal readonly List<(Entity Other, bool? Hostile)> Iffs = new List<(Entity, bool?)>();
+    internal TargetVerb TargetVerb;
+    internal int AimCycles;
 
     public void Designate(TargetRef target) => Designations.Add(target);
     public void SelectItem(EquippedItem item) => Selections.Add(item);
@@ -50,6 +64,10 @@ public sealed class PilotCommand
     public void Use(ConsumableItemData consumable) => Uses.Add(consumable);
     public void Pull(IActivatedBehavior behavior) => Triggers.Add((behavior, true));
     public void Release(IActivatedBehavior behavior) => Triggers.Add((behavior, false));
+    // The last verb in a step wins.
+    public void Verb(TargetVerb verb) => TargetVerb = verb;
+    public void CycleAim() => AimCycles++;
+    public void Iff(Entity other, bool? hostile) => Iffs.Add((other, hostile));
 
     // The pilot's own pending decisions, which it reads back instead of the ship (that is last step's applied state).
     public TargetRef? Designated => Designations.Count > 0 ? Designations[Designations.Count - 1] : (TargetRef?) null;
@@ -69,12 +87,15 @@ public sealed class PilotCommand
         Hails.Clear();
         Uses.Clear();
         Triggers.Clear();
+        Iffs.Clear();
+        TargetVerb = TargetVerb.None;
+        AimCycles = 0;
     }
 }
 
 // The one writer of an entity's pilot-controlled fields, called only from Zone.Update. The order is a rule: the target
-// lands before its item is selected, and the aim before the triggers, so a pilot fires along the aim it commands this
-// step, as the player does.
+// lands (a designation, then a chooser verb) before its item is selected or the aim cycled, and the aim before the
+// triggers, so a pilot fires along the aim it commands this step.
 public static class PilotApplier
 {
     public static void Apply(Entity entity)
@@ -82,7 +103,16 @@ public static class PilotApplier
         var command = entity.Command;
         foreach (var target in command.Designations)
             if (!entity.Target.Value.Equals(target)) entity.SetTarget(target);
+        switch (command.TargetVerb)
+        {
+            case TargetVerb.UnderReticle: entity.TargetUnderReticle(); break;
+            case TargetVerb.NearestEnemy: entity.TargetNearestEnemy(); break;
+            case TargetVerb.Next: entity.TargetNext(); break;
+            case TargetVerb.Previous: entity.TargetPrevious(); break;
+        }
         foreach (var item in command.Selections) entity.TrySelectTargetItem(item);
+        for (var i = 0; i < command.AimCycles; i++) entity.CycleAim();
+        foreach (var (other, hostile) in command.Iffs) entity.SetIff(other, hostile);
         foreach (var hail in command.Hails) entity.SetMessage(hail);
         foreach (var consumable in command.Uses) entity.TryActivateConsumable(consumable);
         if (command.Aim is float3 aim) entity.Aim = aim;
@@ -94,6 +124,7 @@ public static class PilotApplier
             if (command.Turn is TurnCommand turn) ship.Turn = turn.Resolve(ship);
             if (command.Movement is float2 movement) ship.MovementDirection = movement;
         }
+        if (command.Tractor is float tractor) entity.TractorCommand = tractor;
         command.ClearOneShots();
     }
 }

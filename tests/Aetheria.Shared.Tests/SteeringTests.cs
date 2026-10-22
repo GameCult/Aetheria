@@ -88,8 +88,8 @@ public sealed class SteeringTests
         {
             ship.Direction = direction;
             var expected = Steering.Toward(ship, aim);
-            Assert.Equal(expected, held.Demand(ship, aim, axis));
-            Assert.Equal(expected, latched.Demand(ship, aim, axis));
+            Assert.Equal(expected, held.Demand(aim, axis).Resolve(ship));
+            Assert.Equal(expected, latched.Demand(aim, axis).Resolve(ship));
         }
     }
 
@@ -102,9 +102,9 @@ public sealed class SteeringTests
 
         foreach (var aim in new[] { float2(0, 1), float2(1, 0), float2(-1, -1) })
         {
-            Assert.Equal(.25f, helm.Demand(ship, aim, .25f));
-            Assert.Equal(1f, helm.Demand(ship, aim, 3f));
-            Assert.Equal(-1f, helm.Demand(ship, aim, -3f));
+            Assert.Equal(.25f, helm.Demand(aim, .25f).Resolve(ship));
+            Assert.Equal(1f, helm.Demand(aim, 3f).Resolve(ship));
+            Assert.Equal(-1f, helm.Demand(aim, -3f).Resolve(ship));
         }
 
         helm.Toggle();

@@ -13,6 +13,7 @@ public class HelmInput
 
     public void Toggle() => Latched = !Latched;
 
-    public float Demand(Ship ship, float2 aim, float turnAxis) =>
-        FaceAim ? Steering.Toward(ship, aim) : clamp(turnAxis, -1f, 1f);
+    // The turn the player commands: the aim heading, resolved against the hull at each sim step, or the turn axis.
+    public TurnCommand Demand(float2 aim, float turnAxis) =>
+        FaceAim ? TurnCommand.Toward(aim) : TurnCommand.OfRate(clamp(turnAxis, -1f, 1f));
 }
