@@ -880,7 +880,7 @@ public sealed class CargoTransferTests : IDisposable
     {
         var log = new List<string>();
         var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
-        var items = new ItemManager(1u, _cache, new ProvenanceLedger(), settings, log.Add);
+        var items = new ItemManager(1u, _cache, _items.Lots, settings, log.Add);
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var ship = ShipWith("Crate");
         Assert.True(ship.CargoBays[0].TryStore(Commodity("Slag", 4)));
