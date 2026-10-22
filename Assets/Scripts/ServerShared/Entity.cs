@@ -85,7 +85,7 @@ public abstract class Entity
 
     // Where the pilot points: reticle, lock cone, tractor, guided rounds, fire direction. Steers nothing; the
     // hull turns only by Ship.Turn.
-    public float3 Aim;
+    public float3 Aim { get; internal set; }
 
     // The entity's one pilot input, written by its one pilot (its agent, the player, a scripted pilot) and applied only by
     // PilotApplier in the zone step. Runtime only: never packed.
@@ -189,7 +189,7 @@ public abstract class Entity
     public bool OverrideShutdown { get; set; }
     
     // The pilot's tractor command (0..1); the Pickup behaviour spins its beam toward it.
-    public float TractorCommand;
+    public float TractorCommand { get; internal set; }
 
     // The beam's spun-up state: Pickup's, or 0 without one.
     public float TractorPower => GetBehavior<Pickup>()?.Power ?? 0f;
@@ -423,7 +423,7 @@ public abstract class Entity
     // (clearing the aim) or a revealed item (FireControl.IsRevealed: this entity saw it act) belonging to the current
     // Target. A fitted item the observer has only located is aimed as its mount, never as an item. Returns whether the
     // write took effect; a rejected non-null selection leaves the aim unchanged.
-    public bool TrySelectTargetItem(EquippedItem item)
+    internal bool TrySelectTargetItem(EquippedItem item)
     {
         if (item == null)
         {
@@ -442,7 +442,7 @@ public abstract class Entity
     // The aim slot's other writer: a mount of the hull this entity believes the Target to be (LayoutOf, by reference),
     // unless this entity perceived that mount's item destroyed (SeenDestroyed). Reads only observer state, so whether a
     // mount can be aimed at says nothing of the Target's truth (ruling cycle-skips-only-perceived-destroyed).
-    public bool TrySelectMount(HardpointData mount)
+    internal bool TrySelectMount(HardpointData mount)
     {
         if (!MountAimable(Target.Value.Entity, mount)) return false;
         AimedAt = AimTarget.OfMount(mount);
@@ -479,7 +479,7 @@ public abstract class Entity
 
     // The player's cycle key: steps the aim to the next AimCycle entry after the resolved one and wraps; an entry its
     // writer refuses (a revealed item since destroyed) is passed over; nothing to visit clears the aim.
-    public void CycleAim()
+    internal void CycleAim()
     {
         var subject = Target.Value.Entity;
         if (subject == null) return;
@@ -497,7 +497,7 @@ public abstract class Entity
     // Mining Cut 3 (docs/mining-cut-refresh.md): the one writer of Target, called by the player's handlers and the
     // agents alike. A chunk is taken only while this entity can see it, so a rock in darkness cannot be picked; an
     // entity is written as given, as every handler wrote it before. Returns whether the write took effect.
-    public bool SetTarget(TargetRef target)
+    internal bool SetTarget(TargetRef target)
     {
         if (target.Chunk is ChunkId chunk && !ChunkVisible(chunk)) return false;
         _target.Value = target;
@@ -567,7 +567,7 @@ public abstract class Entity
     // one writer. Candidates are visible ships at any range and visible chunks within mining reach.
 
     // The candidate nearest the look direction by planar angle; picking the held target again clears it.
-    public bool TargetUnderReticle()
+    internal bool TargetUnderReticle()
     {
         var look = float2(Aim.x, Aim.z);
         if (!PickTarget(new AngleKey(this, Position.xz, look), out var picked)) return false;
@@ -575,7 +575,7 @@ public abstract class Entity
     }
 
     // Enemies only, as it drives weapon lock; the nearest by distance.
-    public bool TargetNearestEnemy()
+    internal bool TargetNearestEnemy()
     {
         Entity nearest = null;
         var nearestDistance = float.PositiveInfinity;
@@ -594,10 +594,10 @@ public abstract class Entity
 
     // The next candidate after the current target by (planar distance, TargetRef), wrapping to the nearest; with
     // nothing targeted, the nearest.
-    public bool TargetNext() => CycleTarget(false);
+    internal bool TargetNext() => CycleTarget(false);
 
     // The reverse: the next one nearer, wrapping to the farthest; with nothing targeted, the farthest.
-    public bool TargetPrevious() => CycleTarget(true);
+    internal bool TargetPrevious() => CycleTarget(true);
 
     private bool CycleTarget(bool reverse)
     {
@@ -1246,7 +1246,7 @@ public abstract class Entity
 
     // Sets or clears a runtime-only IFF override deciding this entity's hostility toward another.
     // Pass null to clear the override and restore the derived (faction-based) rule.
-    public void SetIff(Entity other, bool? hostile)
+    internal void SetIff(Entity other, bool? hostile)
     {
         if (hostile.HasValue) _iffOverrides[other] = hostile.Value;
         else _iffOverrides.Remove(other);
@@ -1311,7 +1311,7 @@ public abstract class Entity
     public static bool IsDockingPermitted(FactionRelationship relationship, SecurityLevel securityLevel) => 
         (int) relationship - (int) securityLevel > 1;
 
-    public void ActivateConsumable(ConsumableItem item)
+    internal void ActivateConsumable(ConsumableItem item)
     {
         var effect = new ConsumableItemEffect(item, this);
         // The same hook Activate runs over Equipment: a behaviour that computes its targets there (StatModifier)
@@ -1350,7 +1350,7 @@ public abstract class Entity
     public bool HasActiveConsumable(Predicate<BehaviorData> kind) =>
         _activeConsumables.Any(e => e.Data.Behaviors.Any(b => kind(b)));
 
-    public bool TryActivateConsumable(ConsumableItemData data)
+    internal bool TryActivateConsumable(ConsumableItemData data)
     {
         // Death and docking Remove and Deactivate the ship while its agent keeps ticking.
         if (!_active) return false;

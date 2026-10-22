@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -25,10 +25,11 @@ public class Ship : Entity
     // [IgnoreMember] public Dictionary<Targetable, float> Contacts = new Dictionary<Targetable, float>();
     // [IgnoreMember] public Targetable Target;
     public Entity HomeEntity;
-    public float2 MovementDirection;
-    // The one facing command, -1..1, positive clockwise. Written each tick by the pilot (player input or the
-    // ship's agent); a heading becomes a demand only through Steering.Toward. Runtime only, never packed.
-    public float Turn;
+    // The pilot-controlled hull fields. PilotApplier, in the zone step, is their pilot-side writer, from the command the
+    // pilot (player input or the ship's agent) gave the entity; no Unity script can set them. Runtime only, never packed.
+    public float2 MovementDirection { get; internal set; }
+    // The one facing command, -1..1, positive clockwise; a heading becomes a demand only through Steering.Toward.
+    public float Turn { get; internal set; }
     public bool IsPlayerShip;
 
     private Thruster[] _allThrusters;
