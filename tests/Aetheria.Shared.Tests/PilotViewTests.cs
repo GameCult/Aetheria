@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using CultMath;
 using GameCult.Caching;
+using UniRx;
 using Xunit;
 
 // A side's brain reaches other ships only through its PilotView (Agents/PilotView.cs): handles it issued, tracks only
@@ -262,5 +263,57 @@ public sealed class PilotViewTests : IDisposable
             PilotApplier.Apply(member);
         }
         Assert.Equal(300f, member.Command.Aim.Value.z, 1);
+    }
+
+    // The hostile part of Sees is the member's own: a member holding a sidemate's enemy as friendly (a hail it answered, an
+    // IFF override) does not see it as an enemy, though it tracks it. Kills: Sees reading VisibleEntities.
+    [Fact]
+    public void AMemberThatHoldsASidematesEnemyAsFriendlyDoesNotSeeItAsOne()
+    {
+        var faction = new Faction { Name = "Plain" };
+        var a = Pilot(faction, -10);
+        var b = Pilot(faction, 10);
+        var x = Subject();
+        See(b, x);
+        a.EntityInfoGathered[x] = 1;
+        a.VisibleEntities.Add(x);
+        a.SetIff(x, false);
+        var view = ViewOf(a);
+        var handle = PilotView.Handle(x);
+
+        Assert.NotNull(view.TrackOf(a, handle));
+        Assert.True(view.Sees(b, handle));
+        Assert.False(view.Sees(a, handle));
+    }
+
+    // A view answers for its members only: every per-member read of a ship the view does not hold is empty, however much
+    // that ship knows, and a write for it changes nothing. One assertion per read, each killing its dropped membership check.
+    [Fact]
+    public void AViewAnswersNothingForAShipThatIsNotItsMember()
+    {
+        var a = Pilot(null, -200);
+        var outsider = Pilot(null, 200);
+        var x = Subject();
+        See(outsider, x);
+        outsider.SetIff(x, true);
+        x.PresencePermitted = Observable.Return(false).ToReadOnlyReactiveProperty();
+        outsider.Command.Designate(new TargetRef(x));
+        var handle = PilotView.Handle(x);
+        var view = ViewOf(a);
+        Assert.NotNull(outsider.IffOverride(x));
+        Assert.True(outsider.BelievesTrespassing(x));
+        Assert.True(outsider.VisibleEnemies.Contains(x));
+
+        Assert.Null(view.TrackOf(outsider, handle));
+        Assert.False(view.Sees(outsider, handle));
+        Assert.Null(view.IffOverride(outsider, handle));
+        Assert.Null(view.Info(outsider, handle));
+        Assert.False(view.BelievesTrespassing(outsider, handle));
+        Assert.Null(view.TargetOf(outsider));
+        PilotApplier.Apply(outsider);
+        Assert.Null(view.AppliedTargetOf(outsider));
+
+        view.Designate(outsider, null);
+        Assert.Null(outsider.Command.Designated);
     }
 }

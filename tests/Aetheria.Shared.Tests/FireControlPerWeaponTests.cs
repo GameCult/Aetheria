@@ -444,6 +444,52 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.Equal(expected, view.Intercept(r.Shooter, weapon, contact));
     }
 
+    // A view answers fire control only for a member that tracks the contact: the shooter outside the view, or having lost
+    // the track, gets no intercept, no reveals, no designated weapon, a refusal, and no shot; a write for a non-member
+    // changes nothing. The member that tracks is the positive control, answering as FireControl does. Kills: any of
+    // Intercept, WeaponReveals, Designated, Refuses, Fires or SelectItem answering without the member's own track or
+    // membership.
+    public enum Standing { TrackingMember, NotAMember, LostTheTrack }
+
+    [Theory]
+    [InlineData(Standing.TrackingMember)]
+    [InlineData(Standing.NotAMember)]
+    [InlineData(Standing.LostTheTrack)]
+    public void AViewAnswersFireControlOnlyForAMemberThatTracksTheContact(Standing standing)
+    {
+        var r = Build(velocity: 500f);
+        var targetGun = r.Target.Equipment.Single(i => i.Behaviors.OfType<Weapon>().Any());
+        r.Shooter.RecordReveal(r.Target, targetGun, SignatureChannel.LaunchFlash, targetGun.Data);
+        var view = standing == Standing.NotAMember ? new PilotView() : new PilotView(r.Shooter);
+        var contact = PilotView.Handle(r.Target);
+        var weapon = r.Gun.Weapon;
+        var reveal = new PilotView(r.Shooter).WeaponReveals(r.Shooter, contact).Single();
+        if (standing == Standing.LostTheTrack) r.Shooter.VisibleEntities.Remove(r.Target);
+        var minHit = 0f;
+
+        var intercept = view.Intercept(r.Shooter, weapon, contact);
+        var reveals = view.WeaponReveals(r.Shooter, contact);
+        view.SelectItem(r.Shooter, reveal.Id);
+        if (standing == Standing.TrackingMember)
+        {
+            Assert.NotNull(intercept);
+            Assert.Single(reveals);
+            Assert.True(view.Designated(r.Shooter, weapon, contact));
+            Assert.False(view.Refuses(r.Shooter, weapon, contact));
+            Assert.True(view.Fires(r.Shooter, weapon, contact, minHit, null));
+            Assert.Single(r.Shooter.Command.Selections);
+        }
+        else
+        {
+            Assert.Null(intercept);
+            Assert.Empty(reveals);
+            Assert.False(view.Designated(r.Shooter, weapon, contact));
+            Assert.True(view.Refuses(r.Shooter, weapon, contact));
+            Assert.False(view.Fires(r.Shooter, weapon, contact, minHit, null));
+            if (standing == Standing.NotAMember) Assert.Empty(r.Shooter.Command.Selections);
+        }
+    }
+
     private static void AssertAimsAtTarget(Rig r)
     {
         var toTarget = r.Target.Position - r.Shooter.Position;
