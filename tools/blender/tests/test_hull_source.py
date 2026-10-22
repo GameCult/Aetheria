@@ -750,7 +750,7 @@ class LineBuildTests(unittest.TestCase):
         _, built = self.built(line("outline", ((-1, 0, 1), (1, 0, 1))))
         self.assertEqual([l.layer for l in built.lines], ["silhouette", "outline"])
         self.assertEqual({p[2] for p in built.lines[0].points}, {3.0})
-        self.assertEqual({p[:2] for p in built.lines[0].points}, {(-3.0, -5.0), (3.0, -5.0), (3.0, 5.1), (-3.0, 5.1)})
+        self.assertEqual({p[:2] for p in built.lines[0].points}, {(-3.0, -5.0), (3.0, -5.0), (3.0, 5.0), (-3.0, 5.0)})
 
     def test_each_layer_carries_its_fixed_style(self):
         kit = "".join(line(layer) for layer in hs.KIT_LAYERS)
@@ -759,11 +759,11 @@ class LineBuildTests(unittest.TestCase):
         self.assertEqual(len({l.rgba() for l in built.lines}), 5)
         self.assertEqual(hs.LINE_STYLE["silhouette"], (1.0, 1.0, 1.0, 1.0))
 
-    def test_the_projector_is_given_every_zone_and_anchor_mesh_that_has_geometry(self):
+    def test_the_projector_is_given_every_zone_mesh_that_has_geometry_and_no_anchor_mesh(self):
         fixture, given = Fixture(), []
         hs.build(fixture.runner(), fixture.read_library, "Ship",
                  lambda meshes: given.append(len(meshes)) or fixture.projector(meshes))
-        self.assertEqual(given, [3])  # primary, secondary, emit:Th.A
+        self.assertEqual(given, [2])  # primary and secondary; the emitter mesh is not part of the layout's top view
 
     def test_a_kit_line_off_the_hull_fails_the_over_the_top_view_check_and_nothing_else(self):
         _, built = self.built(line(points=((0, 0, 2), (20, 0, 2))))

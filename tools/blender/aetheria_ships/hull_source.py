@@ -18,7 +18,7 @@ with it (a hull that redefines or shadows an included language fails a check):
 
 Frame: Ship Root, metres, nose -Y, starboard -X, up +Z. build() also takes the hull's HullData.HullType ("Ship",
 "Station" or "Turret"), which the caller reads: the add-on from the bound package's ship.cc, the bench from its flag.
-Schematic lines (HullBuild.lines): the top-view silhouette first (OpenSCAD projection() of every zone and anchor mesh,
+Schematic lines (HullBuild.lines): the top-view silhouette first (OpenSCAD projection() of every zone mesh, the geometry Rasterise reads,
 read from the SVG it exports), then the kit's lines, each with a fixed RGBA from LINE_STYLE. A kit part is placed with
 lp_at so its line is emitted in the frame the geometry is; a source that echoes no lines has the silhouette alone.
 A faction language's proportions judge Ship hulls only; every hull's zones must fit the layout grid (hull_grid.MAX_CELLS
@@ -384,7 +384,7 @@ def over_silhouette(point, contours):
 def build(runner, library, hull_type, projector):
     """Reads the hull source through runner (see Runner) and judges it against the languages library(faction) answers with
     (the ECHO text of that faction's own language file). projector (see Projector) answers the top-view contours of every
-    zone and anchor mesh, which become the silhouette line. hull_type is the hull's HullData.HullType name, which the caller
+    zone mesh, which become the silhouette line. hull_type is the hull's HullData.HullType name, which the caller
     reads; only a "Ship" is judged on the language's proportions. Raises HullSourceError, before reading anything, when
     hull_type is not one of ship_cc.HULL_TYPE_NAMES, and when the source cannot be read at all; otherwise returns a
     HullBuild whose failed() lists the checks it breaks."""
@@ -412,7 +412,7 @@ def build(runner, library, hull_type, projector):
     body_zone = f"{donor.faction}:{donor.body}" if donor else own.body
     result = HullBuild(brief, {language.faction: language for language in owned}, zones, colours, anchors, anchor_meshes,
                        own.glow, own.radiator, body_zone, hull_type)
-    meshes = [m for m in list(zones.values()) + list(anchor_meshes.values()) if m.triangles]
+    meshes = [m for m in zones.values() if m.triangles]  # the meshes Rasterise reads, so the underlay registers on the grid
     if meshes:
         top = max(v[2] for m in meshes for v in m.vertices)
         result.lines = [SchematicLine("silhouette", True, tuple((x, y, top) for x, y in contour)) for contour in projector(meshes)]
