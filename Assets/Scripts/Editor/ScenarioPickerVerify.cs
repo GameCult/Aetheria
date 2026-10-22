@@ -51,6 +51,8 @@ public static class ScenarioPickerVerify
             CancelAndBackAreOnePath();
             DetailPaneFollowsSelection();
             OneGroupHasNoSectionLabel();
+            LaunchesOnceHoweverItIsReached();
+            ArrowingThroughTheRealListKeepsTheSelectionVisible();
             Debug.Log("[ScenarioPickerVerify] ok");
             EditorApplication.Exit(0);
         }
@@ -66,7 +68,7 @@ public static class ScenarioPickerVerify
         if (!condition) throw new InvalidOperationException(what);
     }
 
-    private static Screen Build(bool oneGroup = false)
+    private static Screen Build(bool oneGroup = false, bool real = false)
     {
         var (menu, list, detail) = ScenarioPickerCapture.Build();
         // Build opens the scene afresh, which destroys the previous EventSystem.
@@ -80,7 +82,7 @@ public static class ScenarioPickerVerify
             B = new Scenario[] { new Fake("Gamma", ambient: false) },
             C = new Scenario[] { new Fake("Delta"), new Fake("Echo") }
         };
-        var groups = oneGroup
+        var groups = real ? ScenarioPickerCapture.AllGroups() : oneGroup
             ? new List<(string label, Scenario[] scenarios)> { ("modes", screen.A) }
             : new List<(string label, Scenario[] scenarios)> { ("modes", screen.A), ("development", screen.B), ("test arenas", screen.C) };
         screen.Picker = ScenarioPicker.Show(list, detail, groups, screen.Launched.Add, () => screen.Backs++, menu.Dialog.Confirm);
@@ -88,7 +90,41 @@ public static class ScenarioPickerVerify
         screen.Rows = buttons.Take(buttons.Length - 1).ToArray();
         screen.Back = buttons.Last();
         screen.Launch = detail.GetComponentsInChildren<Button>(false).Single();
+        if (real) Layout(menu, list, detail);
         return screen;
+    }
+
+    // A live 1920x1080 layout, as the game has one a frame after Show; edit mode has no frames, so it is forced here.
+    private static void Layout(MainMenu menu, PropertiesPanel list, PropertiesPanel detail)
+    {
+        menu.Dialog.gameObject.SetActive(false);
+        var canvas = menu.GetComponentInParent<Canvas>(true).rootCanvas;
+        var camera = new GameObject("verify camera").AddComponent<Camera>();
+        camera.targetTexture = new RenderTexture(1920, 1080, 24);
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera = camera;
+        canvas.planeDistance = 10;
+        canvas.gameObject.SetActive(true);
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform) canvas.transform);
+        foreach (var text in list.GetComponentsInChildren<TMP_Text>()) text.ForceMeshUpdate();
+        Canvas.ForceUpdateCanvases();
+        Scroll(list).onValueChanged.Invoke(Vector2.zero);
+    }
+
+    private static ScrollRect Scroll(PropertiesPanel list) => list.Content.GetComponentInParent<ScrollRect>();
+
+    // Wholly inside the viewport, in world space, and not hidden by FitViewport's CanvasGroup.
+    private static bool Shown(Button row, ScrollRect scroll)
+    {
+        var view = new Vector3[4];
+        ((RectTransform) scroll.viewport).GetWorldCorners(view);
+        var rect = new Vector3[4];
+        ((RectTransform) row.transform).GetWorldCorners(rect);
+        var alpha = 1f;
+        for (var t = row.transform; t != null && t != scroll.content; t = t.parent)
+            if (t.TryGetComponent<CanvasGroup>(out var group)) alpha = Mathf.Min(alpha, group.alpha);
+        return rect[0].y >= view[0].y - .01f && rect[1].y <= view[1].y + .01f && alpha == 1;
     }
 
     private static void Move(Screen screen, MoveDirection direction) =>
@@ -189,5 +225,39 @@ public static class ScenarioPickerVerify
         var one = Build(oneGroup: true);
         Require(many.List.Children == 5 + 3 + 2 + 1, $"Three groups should list 5 rows, 3 section labels, 2 spacers and Back, not {many.List.Children} children.");
         Require(one.List.Children == 2 + 1, $"One group should list its 2 rows and Back, not {one.List.Children} children.");
+    }
+
+    private static void LaunchesOnceHoweverItIsReached()
+    {
+        var screen = Build();
+        screen.Launch.onClick.Invoke();
+        screen.Launch.onClick.Invoke();
+        ExecuteEvents.Execute(screen.Launch.gameObject, new BaseEventData(EventSystem.current), ExecuteEvents.submitHandler);
+        Require(screen.Launched.Count == 1, $"Launch ran {screen.Launched.Count} times after a click, a second click and Submit.");
+        Require(screen.Launch.navigation.mode == Navigation.Mode.None && Scroll(screen.List).verticalScrollbar.navigation.mode == Navigation.Mode.None,
+            "The list scrollbar or Launch takes Unity navigation.");
+    }
+
+    // The real scenario groups overflow the list's viewport; every row the arrows reach must end wholly visible.
+    private static void ArrowingThroughTheRealListKeepsTheSelectionVisible()
+    {
+        var screen = Build(real: true);
+        var scroll = Scroll(screen.List);
+        var content = (RectTransform) scroll.content;
+        var viewport = (RectTransform) scroll.viewport;
+        Require(content.rect.height > viewport.rect.height + 1, $"The real list ({content.rect.height}) does not overflow its viewport ({viewport.rect.height}); the scroll rules are unmeasured.");
+        Require(Shown(screen.Rows[0], scroll), "The first row is not shown on Show.");
+        for (var i = 1; i < screen.Rows.Length; i++)
+        {
+            Move(screen, MoveDirection.Down);
+            Canvas.ForceUpdateCanvases();
+            Require(Shown(screen.Rows[i], scroll), $"Down to row {i} ({Selected(screen)}) left it hidden or cut off.");
+        }
+        for (var i = screen.Rows.Length - 2; i >= 0; i--)
+        {
+            Move(screen, MoveDirection.Up);
+            Canvas.ForceUpdateCanvases();
+            Require(Shown(screen.Rows[i], scroll), $"Up to row {i} ({Selected(screen)}) left it hidden or cut off.");
+        }
     }
 }

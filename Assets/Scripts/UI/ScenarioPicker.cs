@@ -6,6 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 // The New Game screen: scenario names on the left pane by group, the selected scenario's brief, seed and ambient on a
@@ -28,6 +29,8 @@ public sealed class ScenarioPicker
     private UnityAction<Vector2> _fit;
     private static readonly Color Accent = new Color(1, .4458f, .05f);
     private int _selected;
+    private bool _launched;
+    private bool _restoreDeselect;
 
     private ScenarioPicker(PropertiesPanel list, PropertiesPanel detail, Action<Scenario> launch, Action back)
     {
@@ -112,6 +115,7 @@ public sealed class ScenarioPicker
         picker._launchButton.OnCancelAsObservable().Subscribe(_ => picker.Back());
 
         picker.StyleScrollbars();
+        picker.HoldFocus();
         picker.Select(0);
         // Layout is not live until the frame after Show; edit mode has no frames.
         if (Application.isPlaying) Observable.NextFrame().Subscribe(_ => picker.FitViewport());
@@ -165,6 +169,8 @@ public sealed class ScenarioPicker
         {
             if (!_scroll.verticalScrollbar.TryGetComponent<Image>(out var track)) track = _scroll.verticalScrollbar.gameObject.AddComponent<Image>();
             track.color = new Color(Accent.r, Accent.g, Accent.b, .2f);
+            // A click on the bar selects it and takes focus off Launch, which would silence the arrows.
+            _scroll.verticalScrollbar.navigation = new Navigation { mode = Navigation.Mode.None };
         }
         _scroll.onValueChanged.RemoveAllListeners();
         _fit = _ => FitViewport();
@@ -233,16 +239,21 @@ public sealed class ScenarioPicker
         if (scroll == null || scroll.content == null) return;
         var (low, high) = ViewSpan(scroll);
         var rowBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(scroll.content, row);
-        var shift = rowBounds.max.y > high ? high - rowBounds.max.y
-            : rowBounds.min.y < low ? low - rowBounds.min.y : 0;
-        scroll.content.anchoredPosition -= new Vector2(0, shift);
+        var shift = rowBounds.max.y > high ? rowBounds.max.y - high
+            : rowBounds.min.y < low ? rowBounds.min.y - low : 0;
+        // Content moves against the row: a row above the viewport needs the content to move down, and the reverse.
+        scroll.content.anchoredPosition += new Vector2(0, shift);
         if (shift != 0) FitViewport();
     }
 
-    // Launches the selection; focus is cleared first so a repeated Enter or a second click cannot launch twice.
+    // Launches the selection, once: Enter, Submit and a mouse click all arrive here, and nothing launches again until
+    // the picker is shown afresh, however long the menu takes to fade out.
     private void Activate()
     {
+        if (_launched) return;
+        _launched = true;
         Focus(null);
+        ReleaseFocus();
         _launch(Selected);
     }
 
@@ -250,7 +261,24 @@ public sealed class ScenarioPicker
     private void Back()
     {
         Focus(null);
+        ReleaseFocus();
         _back();
+    }
+
+    // While the picker is up, a click on empty space must not drop focus from Launch, or the arrows and Enter go dead.
+    // The input module's flag is scene-wide, so the picker takes it for its own lifetime and gives it back on leaving.
+    private void HoldFocus()
+    {
+        if (EventSystem.current == null || !(EventSystem.current.currentInputModule is InputSystemUIInputModule module) || !module.deselectOnBackgroundClick) return;
+        module.deselectOnBackgroundClick = false;
+        _restoreDeselect = true;
+    }
+
+    private void ReleaseFocus()
+    {
+        if (!_restoreDeselect) return;
+        _restoreDeselect = false;
+        if (EventSystem.current != null && EventSystem.current.currentInputModule is InputSystemUIInputModule module) module.deselectOnBackgroundClick = true;
     }
 
     private static void Focus(GameObject target)
