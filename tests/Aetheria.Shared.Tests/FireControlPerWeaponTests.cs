@@ -400,6 +400,50 @@ public sealed class FireControlPerWeaponTests : IDisposable
         AssertAimsAtTarget(r);
     }
 
+    // A brain's fire-control readouts are FireControl's own answers on the resolved subject (A-one-sim), and its reveal
+    // list is the book's weapons in fitted order with Aimable = IsRevealed. Kills: a readout with its own arithmetic, a
+    // dropped aim, an intercept left at the planar height, a reveal list in book order.
+    [Fact]
+    public void ViewReadoutsAreFireControls()
+    {
+        var r = Build(velocity: 500f, targetLayerHeight: 40f);
+        var targetGun = r.Target.Equipment.Single(i => i.Behaviors.OfType<Weapon>().Any());
+        r.Shooter.RecordReveal(r.Target, targetGun, SignatureChannel.LaunchFlash, targetGun.Data);
+        var view = new PilotView(r.Shooter);
+        var contact = PilotView.Handle(r.Target);
+        var weapon = r.Gun.Weapon;
+        var minHit = r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability;
+
+        Assert.True(FireControl.Designated(weapon, r.Shooter, r.Target, out _));
+        Assert.True(view.Designated(r.Shooter, weapon, contact));
+        Assert.Equal(FireControl.Refuses(weapon, r.Shooter, r.Target), view.Refuses(r.Shooter, weapon, contact));
+        Assert.Equal(FireControl.AgentFires(weapon, r.Shooter, r.Target, minHit, AimTarget.None),
+            view.Fires(r.Shooter, weapon, contact, minHit, null));
+
+        var reveal = Assert.Single(view.WeaponReveals(r.Shooter, contact));
+        Assert.Same(targetGun.Data, reveal.Claimed);
+        Assert.Equal(FireControl.IsRevealed(r.Shooter, targetGun), reveal.Aimable);
+        Assert.True(reveal.Aimable);
+        Assert.Equal(FireControl.AgentFires(weapon, r.Shooter, r.Target, minHit, AimTarget.OfItem(targetGun)),
+            view.Fires(r.Shooter, weapon, contact, minHit, reveal.Id));
+        Assert.Equal(FireControl.AgentFires(weapon, r.Shooter, r.Target, 0f, AimTarget.OfItem(targetGun)),
+            view.Fires(r.Shooter, weapon, contact, 0f, reveal.Id));
+        Assert.Equal(FireControl.AgentFires(weapon, r.Shooter, r.Target, 2f, AimTarget.OfItem(targetGun)),
+            view.Fires(r.Shooter, weapon, contact, 2f, reveal.Id));
+
+        view.SelectItem(r.Shooter, reveal.Id);
+        view.SelectItem(r.Shooter, null);
+        PilotApplier.Apply(r.Shooter);
+
+        var expected = FireControl.PredictedIntercept(weapon, r.Shooter, r.Target);
+        r.Target.Position = new float3(r.Target.Position.x, 0, r.Target.Position.z);
+        expected = FireControl.PredictedIntercept(weapon, r.Shooter, r.Target);
+        var planarY = expected.y;
+        expected.y = r.Target.RideHeight(expected.xz);
+        Assert.NotEqual(planarY, expected.y);
+        Assert.Equal(expected, view.Intercept(r.Shooter, weapon, contact));
+    }
+
     private static void AssertAimsAtTarget(Rig r)
     {
         var toTarget = r.Target.Position - r.Shooter.Position;
