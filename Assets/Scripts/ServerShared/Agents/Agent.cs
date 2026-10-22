@@ -23,6 +23,9 @@ public class Agent
     private VelocityLimit _velocityLimit;
     
     public AgentTask Task { get; set; }
+    // What this pilot's side knows of other ships. A ship outside a flight is a side of one: a view over itself, until
+    // Flight.Join sets the flight's.
+    public PilotView View { get; set; }
     // Zone-scoped, from 1: the ordinal of this pilot's own dice, set by Zone.CreateAgent as it admits the pilot (0 for
     // an agent built outside a zone's admission).
     public uint Id { get; set; }
@@ -36,6 +39,7 @@ public class Agent
     public Agent(Ship ship, RoleDoctrine doctrine)
     {
         Ship = ship;
+        View = new PilotView(ship);
         Doctrine = doctrine;
         ItemManager = Ship.ItemManager;
         Settings = Ship.ItemManager.GameplaySettings;

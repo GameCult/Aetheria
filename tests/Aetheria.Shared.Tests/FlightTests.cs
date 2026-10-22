@@ -48,9 +48,17 @@ public sealed class FlightTests : IDisposable
         return track;
     }
 
+    // A follower holds the anchor as a handle and flies on it only while its side tracks it.
+    private static FollowTask Follows(Ship follower, Entity anchor, float standoff)
+    {
+        if (!follower.VisibleEntities.Contains(anchor)) follower.VisibleEntities.Add(anchor);
+        return new FollowTask { Anchor = PilotView.Handle(anchor), Standoff = standoff };
+    }
+
     private static void See(Ship member, Entity track)
     {
         member.EntityInfoGathered[track] = 1;
+        if (!member.VisibleEntities.Contains(track)) member.VisibleEntities.Add(track);
         member.VisibleEnemies.Add(track);
     }
 
@@ -254,7 +262,7 @@ public sealed class FlightTests : IDisposable
         {
             anchor.Position = ship.Position + anchorAt;
             var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
-                { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
+                { Task = Follows(ship, anchor, 100) };
             minion.Update(.1f);
             PilotApplier.Apply(minion.Ship);
             minion.Update(.1f);
@@ -279,7 +287,7 @@ public sealed class FlightTests : IDisposable
         for (var i = 0; i < 4; i++) minion.Update(.1f);
         Assert.IsType<MoveToOrbitState>(CurrentState(minion));
 
-        minion.Task = new FollowTask { Anchor = anchor, Standoff = 50 };
+        minion.Task = Follows(ship, anchor, 50);
         minion.Update(.1f);
         PilotApplier.Apply(minion.Ship);
 
@@ -544,12 +552,12 @@ public sealed class FlightTests : IDisposable
         See(member, far);
 
         Tick(.1f);
-        Assert.Same(near, ((FollowTask) _zone.Agents.Single().Task).Anchor);
+        Assert.Equal(PilotView.Handle(near), ((FollowTask) _zone.Agents.Single().Task).Anchor);
 
         near.Position = new float3(-900, 0, 0);
         far.Position = new float3(990, 0, 0);
         Tick(.1f);
-        Assert.Same(near, ((FollowTask) _zone.Agents.Single().Task).Anchor);
+        Assert.Equal(PilotView.Handle(near), ((FollowTask) _zone.Agents.Single().Task).Anchor);
     }
 
     // The held anchor leaves the picture: the member re-anchors on what is still held. Kills: the anchor rewritten only
@@ -563,12 +571,12 @@ public sealed class FlightTests : IDisposable
         See(member, near);
         See(member, far);
         Tick(.1f);
-        Assert.Same(near, ((FollowTask) _zone.Agents.Single().Task).Anchor);
+        Assert.Equal(PilotView.Handle(near), ((FollowTask) _zone.Agents.Single().Task).Anchor);
 
         member.VisibleEnemies.Remove(near);
         Tick(.1f);
 
-        Assert.Same(far, ((FollowTask) _zone.Agents.Single().Task).Anchor);
+        Assert.Equal(PilotView.Handle(far), ((FollowTask) _zone.Agents.Single().Task).Anchor);
     }
 
     [Fact]
@@ -586,7 +594,7 @@ public sealed class FlightTests : IDisposable
         member.VisibleEnemies.Remove(track);
         Tick(.1f);
         Assert.Same(patrol, agent.Task);
-        Assert.Equal(Flight.Phase.None, _zone.Flights.Single().PhaseOf(track));
+        Assert.Equal(Flight.Phase.None, _zone.Flights.Single().PhaseOf(PilotView.Handle(track)));
 
         member.Messages.Clear();
         See(member, track);
@@ -617,7 +625,7 @@ public sealed class FlightTests : IDisposable
             var ship = Pilot(null, -200, 50);
             anchor.Position = ship.Position + new float3(anchorX, 0, 0);
             var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
-                { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
+                { Task = Follows(ship, anchor, 100) };
             minion.Update(.1f);
             PilotApplier.Apply(minion.Ship);
             minion.Update(.1f);
@@ -639,7 +647,7 @@ public sealed class FlightTests : IDisposable
         var ship = Pilot(null);
         var anchor = Track();
         var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
-            { Task = new FollowTask { Anchor = anchor, Standoff = 50 } };
+            { Task = Follows(ship, anchor, 50) };
         minion.Update(.1f);
         PilotApplier.Apply(minion.Ship);
         minion.Update(.1f);
@@ -651,7 +659,7 @@ public sealed class FlightTests : IDisposable
         PilotApplier.Apply(minion.Ship);
         Assert.IsType<PatrolOrbitsState>(CurrentState(minion));
 
-        minion.Task = new FollowTask { Anchor = anchor, Standoff = 50 };
+        minion.Task = Follows(ship, anchor, 50);
         minion.Update(.1f);
         PilotApplier.Apply(minion.Ship);
         minion.Update(.1f);
@@ -700,7 +708,7 @@ public sealed class FlightTests : IDisposable
         Assert.All(sighted, m => Assert.Same(track, m.Target.Value.Entity));
         Assert.True(blind.Target.Value.IsNone);
         var task = Assert.IsType<FollowTask>(_zone.Agents.Single(a => a.Ship == blind).Task);
-        Assert.Same(track, task.Anchor);
+        Assert.Equal(PilotView.Handle(track), task.Anchor);
     }
 
     // The flight's engaged track outranks a hailed one a blind member does see, though that one is nearer. Both sit
@@ -718,14 +726,14 @@ public sealed class FlightTests : IDisposable
         See(blind, hailing);
         Tick(.1f);
         var task = Assert.IsType<FollowTask>(_zone.Agents.Single(a => a.Ship == blind).Task);
-        Assert.Same(hailing, task.Anchor); // nothing outranks it yet: the nearest held
+        Assert.Equal(PilotView.Handle(hailing), task.Anchor); // nothing outranks it yet: the nearest held
 
         sighted.SetIff(engaged, true);
         Tick(.1f);
 
         Assert.Same(engaged, sighted.Target.Value.Entity);
         task = Assert.IsType<FollowTask>(_zone.Agents.Single(a => a.Ship == blind).Task);
-        Assert.Same(engaged, task.Anchor);
+        Assert.Equal(PilotView.Handle(engaged), task.Anchor);
     }
 
     // Hail then engage is the production path of every graced doctrine: the member goes from FollowState into combat,
@@ -887,7 +895,7 @@ public sealed class FlightTests : IDisposable
         anchor.Position = ship.Position + new float3(0, 0, distance);
         anchor.Velocity = anchorVelocity;
         var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
-            { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
+            { Task = Follows(ship, anchor, 100) };
         minion.Update(.1f);
         PilotApplier.Apply(minion.Ship);
         minion.Update(.1f);

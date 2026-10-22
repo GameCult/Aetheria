@@ -586,7 +586,8 @@ public sealed class ConsumableAiTests : IDisposable
         s.Zone.Update(.05f);
         s.Zone.Update(.05f);
         Assert.True(s.Agent.Target.Value.IsNone);
-        agent.Task = new FollowTask { Anchor = s.Prey, Standoff = 100 };
+        if (!s.Agent.VisibleEntities.Contains(s.Prey)) s.Agent.VisibleEntities.Add(s.Prey);
+        agent.Task = new FollowTask { Anchor = PilotView.Handle(s.Prey), Standoff = 100 };
         for (var i = 0; i < 6 && !(s.State is FollowState); i++)
         {
             agent.Update(.05f);

@@ -145,7 +145,7 @@ public sealed class ScenarioStage
         var placement = _placed.FirstOrDefault(p => ReferenceEquals(p.Entity, entity));
         if (placement == null || !placement.Piloted) { _failures.Add($"approach: {entity?.Name ?? "no entity"} is not a placed, piloted ship"); return; }
         if (target == null) { _failures.Add("approach: no target to close on"); return; }
-        placement.Task = new FollowTask { Anchor = target, Standoff = 0f };
+        placement.Task = new FollowTask { Anchor = PilotView.Handle(target), Standoff = 0f };
     }
 
     // Items in the entity's first cargo bay, one per name. A name is an equippable or consumable design (open: the stage
