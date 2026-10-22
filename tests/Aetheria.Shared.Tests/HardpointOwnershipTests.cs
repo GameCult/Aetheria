@@ -264,7 +264,7 @@ public sealed partial class RunStartTests
         var shipHulls = LoadoutGenerator.SoldHulls(_cache).Where(h => h.HullType == HullType.Ship).Select(h => h.Name).ToList();
         var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
         var packs = shipHulls.SelectMany(name => Enumerable.Range(0, 2).Select(_ => generator.GenerateShipLoadout(h => h.Name == name)))
-            .Concat(Enumerable.Range(0, 4).Select(_ => generator.GenerateStationLoadout()))
+            .Concat(Enumerable.Range(0, 4).Select(_ => generator.GenerateStationLoadout(TestStationKinds.TradeHub)))
             .Concat(Enumerable.Range(0, 4).Select(_ => generator.GenerateTurretLoadout()))
             .ToList();
         var readers = 0;

@@ -419,7 +419,8 @@ public static class ZoneGenerator
 	        if (i >= selectedStationOrbits.Length) { itemManager.Log($"Story station for {story.Faction?.Name} has no rail clear of the bodies; its story has nowhere to live!"); continue; }
 	        var orbit = selectedStationOrbits[i];
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
-	        var station = GetLoadoutGenerator(story.Faction).GenerateStationLoadout();
+	        var station = GetLoadoutGenerator(story.Faction).GenerateStationLoadout(
+		        StationKinds.Choose(cache, story.Faction, cache.RefOf(lagrangeOrbit).Key, itemManager.Log));
 	        if (station == null)
 	        {
 		        itemManager.Log($"Story station for {story.Faction?.Name} could not be generated; its story has nowhere to live!");
@@ -440,7 +441,8 @@ public static class ZoneGenerator
 	        var security = (SecurityLevel) ((int) ((1f - pow(random.NextFloat(), factionPresence / 2f)) * 3f));
 
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
-	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout();
+	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout(
+		        StationKinds.Choose(cache, nearestFaction, cache.RefOf(lagrangeOrbit).Key, itemManager.Log));
 	        if (station == null)
 	        {
 		        if (isTutorialEntrance)

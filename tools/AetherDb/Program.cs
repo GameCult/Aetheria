@@ -61,9 +61,10 @@ public static class Program
             case "place-names":
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
                 return PlaceNamesCommand.Run(args.Skip(1).ToArray());
+            case "station-kinds": return StationKindsCatalog.Run(StationKindsCatalog.OpenCatalog(args.Contains("apply")), args.Contains("apply"), Console.Out);
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], assembly-from-maker [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], assembly-from-maker [apply], station-kinds [apply]");
                 return 1;
         }
     }
@@ -824,7 +825,7 @@ public static class Program
                 {
                     HullType.Ship => generator.GenerateShipLoadout(candidate => candidate == hull),
                     HullType.Turret => generator.GenerateTurretLoadout(),
-                    _ => generator.GenerateStationLoadout()
+                    _ => generator.GenerateStationLoadout(hull.Kind)
                 };
                 outcome = pack == null ? "NO LOADOUT (nothing suitable found)" : "ok";
                 if (pack == null) failures++;

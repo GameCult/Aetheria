@@ -74,9 +74,12 @@ public class LoadoutGenerator
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
     }
 
-    public OrbitalEntityPack GenerateStationLoadout()
+    // A station of one kind: the hull is drawn among the station hulls the kind calls for in this faction's hands
+    // (StationKinds.HullKindFor), so a faction with no model of the kind builds its stand-in's hull and keeps the kind.
+    public OrbitalEntityPack GenerateStationLoadout(CultRecordRef<StationKindData> kind)
     {
-        var (hullProduct, hullData) = RandomHull(HullType.Station);
+        var hullKind = StationKinds.HullKindFor(ItemManager.ItemData, Faction, kind);
+        var (hullProduct, hullData) = RandomHull(HullType.Station, hull => hull.Kind.Key.Equals(hullKind.Key));
         if(hullData==null)
         {
             ItemManager.Log("Unable to generate station loadout: no compatible hull found!");
@@ -85,6 +88,9 @@ public class LoadoutGenerator
         var hull = ItemManager.CreateInstance(hullProduct) as EquippableItem;
         var entity = new OrbitalEntity(ItemManager, null, hull, default, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
+        entity.Kind = kind;
+        // A stand-in hull keeps its own model but not its own name: the station is what its kind says it is.
+        if (!hullData.Kind.Key.Equals(kind.Key) && ItemManager.ItemData.Get(kind) is { } kindData) entity.Name = kindData.Name;
 
         // Hardpoint gear goes in first so the docking bay can only take space that gear left free
         EquipHardpoints(entity);

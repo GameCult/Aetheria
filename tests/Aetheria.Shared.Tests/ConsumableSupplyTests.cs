@@ -60,6 +60,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         public ItemManager Items;
         public Galaxy Galaxy;
         public Faction Maker;
+        public CultRecordRef<StationKindData> Kind;
         public LoadoutGenerator Generator(ref Random random) => new LoadoutGenerator(ref random, Items, Galaxy, null, Maker, .5f);
     }
 
@@ -84,8 +85,9 @@ public sealed class ConsumableSupplyTests : IDisposable
             maker = seed.Upsert(new Faction { Name = "Maker", ShortName = "MKR", Allegiance = { { ally, 1f } } });
 
             // Interior for the crate, the capacitor and the tractor beam every generated ship carries.
+            var hub = new CultRecordRef<StationKindData>(seed.Upsert(new StationKindData { Name = "Hub" }).Key);
             var skiff = seed.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(5, 3), Price = 100 });
-            var platform = seed.Upsert(new HullData { Name = "Platform", HullType = HullType.Station, Shape = Solid(5, 5), Price = 100 });
+            var platform = seed.Upsert(new HullData { Name = "Platform", HullType = HullType.Station, Kind = hub, Shape = Solid(5, 5), Price = 100 });
             // A hold with no cell cannot take a consumable.
             var crate = seed.Upsert(new CargoBayData
             {
@@ -107,7 +109,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             if (holds != Holds.Pinned)
             {
                 sold.Add(("Cutter", seed.Upsert(new HullData { Name = "Cutter", HullType = HullType.Ship, Shape = Solid(5, 3), Price = 100 }).Key));
-                sold.Add(("Outpost", seed.Upsert(new HullData { Name = "Outpost", HullType = HullType.Station, Shape = Solid(4, 4), Price = 100 }).Key));
+                sold.Add(("Outpost", seed.Upsert(new HullData { Name = "Outpost", HullType = HullType.Station, Kind = hub, Shape = Solid(4, 4), Price = 100 }).Key));
                 sold.Add(("Plate", seed.Upsert(new GearData { Name = "Plate", Hardpoint = HardpointType.Tool, Shape = Solid(2, 2), Price = 1 }).Key));
             }
 
@@ -155,7 +157,8 @@ public sealed class ConsumableSupplyTests : IDisposable
             Cache = cache,
             Items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { }),
             Galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { }),
-            Maker = cache.GetByName<Faction>("Maker")
+            Maker = cache.GetByName<Faction>("Maker"),
+            Kind = new CultRecordRef<StationKindData>(cache.GetAll<StationKindData>().Select(k => cache.RefOf(k).Key).Single())
         };
     }
 
@@ -193,7 +196,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         for (var i = 0; i < Seeds; i++)
         {
             var random = new Random(SeedOf(i));
-            var pack = rig.Generator(ref random).GenerateStationLoadout();
+            var pack = rig.Generator(ref random).GenerateStationLoadout(rig.Kind);
             Assert.NotEmpty(pack.CargoContents.SelectMany(bay => bay)); // the gear stock is read from the same pack
             var held = Consumables(pack);
             var hull = rig.Items.GetData(pack.Hull).Name;
@@ -255,7 +258,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         for (var i = 0; i < Seeds; i++)
         {
             var random = new Random(SeedOf(i));
-            if (Consumables(rig.Generator(ref random).GenerateStationLoadout()).Length > 0) stocked++;
+            if (Consumables(rig.Generator(ref random).GenerateStationLoadout(rig.Kind)).Length > 0) stocked++;
         }
         AssertWithinThreeSigma(stocked, Seeds, StationChance, "stations stocking a consumable past a refusing first bay");
     }
@@ -289,7 +292,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             items.Random = new Random(SeedOf(i));
             var random = new Random(SeedOf(i));
             var generator = new LoadoutGenerator(ref random, items, galaxy, galaxy.Entrance, null, .5f);
-            if (Consumables(generator.GenerateStationLoadout()).Length > 0) stations++;
+            if (Consumables(generator.GenerateStationLoadout(TestStationKinds.TradeHub)).Length > 0) stations++;
             if (Consumables(generator.GenerateShipLoadout()).Length > 0) ships++;
         }
         AssertWithinThreeSigma(stations, Seeds, StationChance, "shipped stations stocking a consumable");
@@ -327,7 +330,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             rig.Items.Random = new Random(99);
             var random = new Random(5);
             var generator = rig.Generator(ref random);
-            generator.GenerateStationLoadout();
+            generator.GenerateStationLoadout(rig.Kind);
             for (var i = 0; i < 3; i++) generator.GenerateShipLoadout();
             return Enumerable.Range(0, 4).Select(_ => generator.Random.NextFloat())
                 .Concat(Enumerable.Range(0, 4).Select(_ => rig.Items.Random.NextFloat())).ToArray();

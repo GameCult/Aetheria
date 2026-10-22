@@ -17,6 +17,8 @@ public class OrbitalEntity : Entity
     public float SecurityRadius;
     public LocationStory Story;
     public bool CanTow;
+    // What this station is for (StationKinds): its own fact, which under a stand-in hull differs from the hull's kind.
+    public CultRecordRef<StationKindData> Kind;
 
     public OrbitalEntity(ItemManager itemManager, Zone zone, EquippableItem hull, CultRecordKey orbit, EntitySettings settings) : base(itemManager, zone, hull, settings)
     {
