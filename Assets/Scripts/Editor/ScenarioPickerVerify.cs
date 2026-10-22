@@ -85,12 +85,14 @@ public static class ScenarioPickerVerify
         var groups = real ? ScenarioPickerCapture.AllGroups() : oneGroup
             ? new List<(string label, Scenario[] scenarios)> { ("modes", screen.A) }
             : new List<(string label, Scenario[] scenarios)> { ("modes", screen.A), ("development", screen.B), ("test arenas", screen.C) };
+        // The menu builds a panel while it is inactive and shows it afterwards; the picker must find its scroll all the same.
+        if (real) list.gameObject.SetActive(false);
         screen.Picker = ScenarioPicker.Show(list, detail, groups, screen.Launched.Add, () => screen.Backs++, menu.Dialog.Confirm);
         var buttons = list.GetComponentsInChildren<PropertyButton>(false).Where(button => !button.transform.IsChildOf(detail.transform)).Select(button => button.Button).ToArray();
         screen.Rows = buttons.Take(buttons.Length - 1).ToArray();
         screen.Back = buttons.Last();
         screen.Launch = detail.GetComponentsInChildren<Button>(false).Single();
-        if (real) Layout(menu, list, detail);
+        if (real) { list.gameObject.SetActive(true); Layout(menu, list, detail); }
         return screen;
     }
 

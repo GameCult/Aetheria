@@ -177,7 +177,8 @@ public sealed class ScenarioPicker
         _scroll.onValueChanged.AddListener(_fit);
     }
 
-    private static ScrollRect ScrollOf(PropertiesPanel panel) => (panel.Content ?? panel.transform).GetComponentInParent<ScrollRect>();
+    // The panel is inactive until the menu shows it, which is after Show builds it; an inactive ScrollRect still counts.
+    private static ScrollRect ScrollOf(PropertiesPanel panel) => (panel.Content ?? panel.transform).GetComponentInParent<ScrollRect>(true);
 
     // Hides every list entry the viewport only partly shows, so the list ends on a whole row instead of slicing text.
     private void FitViewport()
