@@ -23,7 +23,7 @@ public class MainMenu : MonoBehaviour
     public float FadeAlphaExponent = 2;
     public float FadePositionExponent = 2;
 
-    private (PropertiesPanel panel, CanvasGroup group) _currentMenu, _nextMenu;
+    private (PropertiesPanel panel, CanvasGroup group, PropertiesPanel detail) _currentMenu, _nextMenu;
     private bool _fadeFromRight;
     private float _fadeLerp;
     private bool _fading;
@@ -38,10 +38,14 @@ public class MainMenu : MonoBehaviour
         _panelPosition = PanelPrototype.transform.position;
         
         var panel1 = PanelPrototype.Instantiate<PropertiesPanel>();
-        _currentMenu = (panel1, panel1.GetComponent<CanvasGroup>());
+        var detail1 = PanelPrototype.Instantiate<PropertiesPanel>();
+        ScenarioPicker.Dock(detail1, panel1);
+        _currentMenu = (panel1, panel1.GetComponent<CanvasGroup>(), detail1);
         
         var panel2 = PanelPrototype.Instantiate<PropertiesPanel>();
-        _nextMenu = (panel2, panel2.GetComponent<CanvasGroup>());
+        var detail2 = PanelPrototype.Instantiate<PropertiesPanel>();
+        ScenarioPicker.Dock(detail2, panel2);
+        _nextMenu = (panel2, panel2.GetComponent<CanvasGroup>(), detail2);
 
         _currentMenu.panel.gameObject.SetActive(false);
         //_saveDirectory = ActionGameManager.GameDataDirectory.CreateSubdirectory("Saves");
@@ -74,7 +78,7 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private string TitleSubtitle(string title, string subtitle) => $"{title}\n<smallcaps><size=50%>{subtitle}";
+    public static string TitleSubtitle(string title, string subtitle) => $"{title}\n<smallcaps><size=50%>{subtitle}";
 
     private void Fade(bool fromRight)
     {
@@ -87,10 +91,18 @@ public class MainMenu : MonoBehaviour
 
     private static bool _exclusionsShown;
 
-    private void ShowMain()
+    // Starts the next screen on an empty panel with a title and its scenario detail pane hidden and empty.
+    private void Next(string title)
     {
         _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
+        _nextMenu.panel.Title.text = title;
+        _nextMenu.detail.Clear();
+        _nextMenu.detail.gameObject.SetActive(false);
+    }
+
+    private void ShowMain()
+    {
+        Next(TitleSubtitle("aetheria", "terminus"));
         if (ActionGameManager.CurrentGalaxy == null)
         {
             // No run is live: at the title, after death, or after a new run failed to start. A saved run exists only as
@@ -131,31 +143,18 @@ public class MainMenu : MonoBehaviour
     // to set up a run and the test arenas are listed only in editor and development builds.
     private void ShowScenarios()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("new game", "scenarios");
-        AddScenarios(Scenarios.Modes);
+        Next(TitleSubtitle("new game", "scenarios"));
+        var groups = new List<(string label, Scenario[] scenarios)> { ("modes", Scenarios.Modes) };
         if (Debug.isDebugBuild)
         {
-            _nextMenu.panel.AddSection("development");
-            AddScenarios(Scenarios.Development);
-            _nextMenu.panel.AddSection("test arenas");
-            AddScenarios(Scenarios.Tests);
+            groups.Add(("development", Scenarios.Development));
+            groups.Add(("test arenas", Scenarios.Tests));
         }
-        _nextMenu.panel.AddButton("Back",
-            () =>
-            {
-                ShowMain();
-                Fade(false);
-            });
-    }
-
-    private void AddScenarios(IEnumerable<Scenario> scenarios)
-    {
-        foreach (var scenario in scenarios)
+        ScenarioPicker.Show(_nextMenu.panel, _nextMenu.detail, groups, Launch, () =>
         {
-            _nextMenu.panel.AddButton(scenario.Name, () => Launch(scenario));
-            _nextMenu.panel.AddProperty(() => scenario.Brief);
-        }
+            ShowMain();
+            Fade(false);
+        }, Dialog.Confirm);
     }
 
     // The only way into a new run: generates the scenario's galaxy off the main thread and enters the game, where
@@ -263,8 +262,7 @@ public class MainMenu : MonoBehaviour
 
     private void ShowSettings()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = "settings";
+        Next("settings");
         _nextMenu.panel.AddButton("Gameplay",
             () =>
             {
@@ -299,8 +297,7 @@ public class MainMenu : MonoBehaviour
     
     private void ShowGameplaySettings()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("gameplay", "settings");
+        Next(TitleSubtitle("gameplay", "settings"));
         _nextMenu.panel.AddField("Name", 
             () => ActionGameManager.PlayerSettings.Name,
             s => ActionGameManager.PlayerSettings.Name = s);
@@ -322,8 +319,7 @@ public class MainMenu : MonoBehaviour
 
     private void ShowGraphicsSettings()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("graphics", "settings");
+        Next(TitleSubtitle("graphics", "settings"));
         _nextMenu.panel.AddField("Nebula Quality",
             () => (int)ActionGameManager.PlayerSettings.GraphicsSettings.NebulaQuality,
             i =>
@@ -347,8 +343,7 @@ public class MainMenu : MonoBehaviour
 
     private void ShowInputSettings()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("input", "settings");
+        Next(TitleSubtitle("input", "settings"));
         _nextMenu.panel.AddButton("Back",
             () =>
             {
@@ -359,8 +354,7 @@ public class MainMenu : MonoBehaviour
 
     private void ShowAudioSettings()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("audio", "settings");
+        Next(TitleSubtitle("audio", "settings"));
         _nextMenu.panel.AddButton("Back",
             () =>
             {
