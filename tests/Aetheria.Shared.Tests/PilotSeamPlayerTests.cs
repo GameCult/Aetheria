@@ -79,13 +79,16 @@ public sealed partial class RunStartTests
         arena.Update(SeamDt);
         Assert.Same(third, east.Target.Value.Entity);
 
-        // The reticle picks along the aim; picking the held target again would clear it.
+        // The reticle picks along the aim, and picking the held target again clears it (no other verb answers None here).
+        east.Command.Verb(TargetVerb.Previous);
+        arena.Update(SeamDt);
+        Assert.Same(west, east.Target.Value.Entity);
         east.Command.Aim = float3(-1, 0, 0);
         east.Command.Verb(TargetVerb.UnderReticle);
         arena.Update(SeamDt);
-        Assert.Same(west, east.Target.Value.Entity);
+        Assert.True(east.Target.Value.IsNone);
         arena.Update(SeamDt);
-        Assert.Same(west, east.Target.Value.Entity);
+        Assert.True(east.Target.Value.IsNone, "the reticle press is not replayed");
     }
 
     [Fact]
