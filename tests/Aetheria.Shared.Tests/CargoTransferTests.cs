@@ -321,7 +321,7 @@ public sealed class CargoTransferTests : IDisposable
     {
         var (giver, receiver, ore) = Alongside(10, "Bin");
         Assert.True(receiver.CargoBays[0].TryStore(Commodity("Slag", 5)));
-        Assert.True(receiver.TryEquip(Mint("Crate")));
+        Assert.True(receiver.TryEquip(Mint("Bin")));
         Assert.Equal(2, receiver.CargoBays.Count);
         giver.Command.Give(receiver, ore, 3);
 
