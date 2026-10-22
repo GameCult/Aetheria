@@ -31,6 +31,7 @@ public sealed class CargoTransferTests : IDisposable
         foreach (var cell in pocket.AllCoordinates) pocket[cell] = true;
         _cache.Upsert(new CargoBayData { Name = "Pocket", Shape = new Shape(), InteriorShape = pocket, Price = 5, Durability = 4 });
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });
+        _cache.Upsert(new SimpleCommodityData { Name = "Grit", Shape = new Shape(), Price = 1, MaxStack = 2 });
         _cache.Upsert(new SimpleCommodityData { Name = "Slag", Shape = new Shape(), Price = 1, MaxStack = 100 });
         _cache.Upsert(new DockingBayData { Name = "Berth", Shape = new Shape(), InteriorShape = bay, MaxSize = new int2(2, 2), Price = 60, Durability = 6 });
         _cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 400, Durability = 8 });
@@ -163,7 +164,7 @@ public sealed class CargoTransferTests : IDisposable
         var giver = ShipWith("Crate");
         var receiver = ShipWith(receiverBay);
         var stack = Commodity("Ore", ore);
-        Assert.True(giver.CargoBays[0].TryStore(stack));
+        if (ore > 0) Assert.True(giver.CargoBays[0].TryStore(stack));
         giver.Position = new float3(0, 0, 0);
         receiver.Position = new float3(5, 0, 0);
         _zone.Admit(giver, piloted: false);
@@ -306,16 +307,17 @@ public sealed class CargoTransferTests : IDisposable
     [Fact]
     public void AGiveDrawsOnEveryStackOfTheDesign()
     {
-        // Two stacks in two bays: the order is for the design, not for the stack it was named with.
-        var (giver, receiver, ore) = Alongside(3);
-        Assert.True(giver.TryEquip(Mint("Crate")));
-        Assert.True(giver.CargoBays[1].TryStore(Commodity("Ore", 4)));
-        giver.Command.Give(receiver, ore, 7);
+        // Grit stacks two to a stack, so three units are two stacks: the order is for the design, not the stack named.
+        var (giver, receiver, _) = Alongside(0);
+        var grit = Commodity("Grit", 3);
+        Assert.True(giver.CargoBays[0].TryStore(grit));
+        Assert.Equal(2, giver.CargoBays[0].ItemsOfType[grit.Data.Key].Count);
+        giver.Command.Give(receiver, grit, 3);
 
-        Steps(60);
+        Steps(40);
 
-        Assert.Equal(7, Held(receiver, ore));
-        Assert.Equal(0, Held(giver, ore));
+        Assert.Equal(3, Held(receiver, grit));
+        Assert.Equal(0, Held(giver, grit));
         Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
     }
 
