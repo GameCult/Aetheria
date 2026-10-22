@@ -301,6 +301,46 @@ public sealed partial class ContactRevealTests
         }
     }
 
+    // Rounds born in one step leave from where the shooter was at their own moment: the origins of two rounds of a step are
+    // apart by the shooter's velocity times the time between them.
+    [Fact]
+    public void RoundsOfOneStepLeaveFromWhereTheShooterWasAtTheirMoment()
+    {
+        var dt = 1f / 15f;
+        var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(.01f) }, new[] { "Targeting", "Reactor" });
+        ship.Velocity = float2(30, 0);
+        var gun = (InstantWeapon) Guns(ship)[0].Behaviors.Single(b => b is InstantWeapon);
+        var born = new List<(float step, float time, float x, float velocity)>();
+        gun.OnFire += id =>
+        {
+            if (_zone.TryGetShot(id, out var shot)) born.Add((_zone.Time, shot.FireTime, shot.FireOrigin.x, ship.Velocity.x));
+        };
+        ship.SetTarget(TargetRef.None);
+        for (var i = 0; i < 20; i++)
+        {
+            gun.Activate();
+            Tick(dt);
+        }
+        var pairs = 0;
+        for (var i = 1; i < born.Count; i++)
+        {
+            if (born[i].step != born[i - 1].step) continue;
+            pairs++;
+            var expected = born[i].velocity * (born[i].time - born[i - 1].time);
+            Assert.True(abs(born[i].x - born[i - 1].x - expected) < 1e-2f, $"round {i}: origins {born[i - 1].x} and {born[i].x}, expected {expected} apart");
+        }
+        Assert.True(pairs > 100, $"{pairs} pairs of rounds in one step");
+    }
+
+    // A cooldown of nothing is a gun as fast as the shortest cycle, not a step that never ends.
+    [Fact]
+    public void AGunWithNoCooldownFiresAtTheShortestCycle()
+    {
+        var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(0f) }, new[] { "Targeting", "Reactor" });
+        var rounds = HoldTrigger(ship, Guns(ship)[0], 1f / 30f, 1f);
+        Assert.True(abs(rounds.Count - 2000f) <= 1.01f, $"{rounds.Count} rounds in 1 s, expected 2000 +-1");
+    }
+
     // The cluster's cost: a point-defence battery of 0.005 s guns holding its trigger, every round a queued shot with its own
     // roll. The step wall time and the heap bytes per round are written beside the test for the report.
     [Fact, Trait("Category", "Slow")]
