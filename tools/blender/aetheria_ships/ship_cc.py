@@ -179,6 +179,16 @@ def replace_lines(path: str, cultlib_packages: str, lines: list[list[Any]]) -> i
     return len(lines)
 
 
+def clear_lines(path: str, cultlib_packages: str) -> int:
+    """Empties the line slot and nothing else; returns how many lines it held. replace_lines refuses an empty capture so a
+    failed capture never wipes a ship; this is the one deliberate way to leave a ship without lines."""
+    file = read(path, cultlib_packages)
+    held = len(file.ship.body[SCHEMATIC_LINES_SLOT] or [])
+    file.ship.body[SCHEMATIC_LINES_SLOT] = []
+    file.store.push(_stamped(file.ship, file.msgpack))
+    return held
+
+
 def replace_visual(path: str, cultlib_packages: str, expected_id: str, model_asset: str,
                    anchors: list[list[Any]]) -> int:
     """Writes the visual's model asset and anchor list (ShipAuthoring slots 2 and 3) and nothing else. Each anchor row is

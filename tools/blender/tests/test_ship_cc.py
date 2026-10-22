@@ -344,6 +344,22 @@ class ReplaceLinesTests(ShipFileCase):
             if slot != ship_cc.SCHEMATIC_LINES_SLOT:
                 self.assertEqual(before[slot], after[slot], f"slot {slot} changed")
 
+    def test_clear_lines_empties_only_the_line_slot(self):
+        ship_cc.replace_lines(self.path, PACKAGES, LINES)
+        before = self.ship()
+        self.assertEqual(len(LINES), ship_cc.clear_lines(self.path, PACKAGES))
+        after = self.ship()
+        self.assertEqual([], after[ship_cc.SCHEMATIC_LINES_SLOT])
+        for slot in range(len(before)):
+            if slot != ship_cc.SCHEMATIC_LINES_SLOT:
+                self.assertEqual(before[slot], after[slot], f"slot {slot} changed")
+
+    def test_replace_lines_still_refuses_an_empty_capture(self):
+        ship_cc.replace_lines(self.path, PACKAGES, LINES)
+        with self.assertRaises(ValueError):
+            ship_cc.replace_lines(self.path, PACKAGES, [])
+        self.assertEqual(LINES, self.ship()[ship_cc.SCHEMATIC_LINES_SLOT])
+
     def test_a_save_refreshes_the_stored_at_of_the_record_it_writes_and_only_that_one(self):
         stale = "2000-01-01T00:00:00+00:00"
         envelopes = self.envelopes()

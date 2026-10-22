@@ -23,7 +23,7 @@ import numpy
 from mathutils import Matrix, Vector
 
 from . import hull_grid, hull_source
-from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
+from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, clear_lines, decode_hardpoint,
                       encode_hardpoint, layout_revision, read, read_hull_type, read_layout, replace_layout, replace_lines,
                       product_makers, replace_visual, valid_ship_id)
 
@@ -1639,9 +1639,10 @@ def _build_hull_source(context, collection):
 
 def _schematic_lines(context, collection):
     """The ShipAuthoring.SchematicLines rows Package and Capture write, and the only source of them: her Grease Pencil
-    object if the collection has one (two or more are refused), else the lines Build recorded from the hull source's kit,
-    mapped through Ship Root's matrix_world (so after _frame_ship, the frame her strokes are captured in), else None and
-    the slot is left as it is."""
+    object if the collection has one (two or more are refused), else the lines Build recorded from the hull source's kit
+    while the hull is still Build's (not _hull_state art), mapped through Ship Root's matrix_world (so after _frame_ship,
+    the frame her strokes are captured in), else None and the slot is left as it is. Package alone clears the slot, at
+    the moment her art takes over."""
     pencils = [obj for obj in collection.all_objects if obj.type == "GREASEPENCIL"]
     if len(pencils) > 1:
         raise ValueError("Keep one Grease Pencil object: it is the ship's schematic")
@@ -1650,7 +1651,7 @@ def _schematic_lines(context, collection):
         return capture_grease_pencil(pencils[0], context.evaluated_depsgraph_get(), scene.frame_current,
                                      evaluated=scene.aetheria_capture_evaluated_lines)
     record = collection.get(HULL_LINES)
-    if record is None:
+    if record is None or _hull_state(collection) == HULL_ART:  # her art took over: Build's lines are a retired hull's
         return None
     root = _ship_root(collection)
     world = root.matrix_world if root is not None else Matrix.Identity(4)
@@ -1773,6 +1774,8 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             lines = _schematic_lines(context, collection)
             if lines is not None:
                 replace_lines(path, cultlib, lines)
+            elif _hull_state(collection) == HULL_ART:  # the lines in the slot are the retired hull's, not hers
+                clear_lines(path, cultlib)
             code, message = _aetherdb(context, "validate", path, ship_cc=path)
         except _EXPECTED as exc:
             scene.aetheria_package_report = f"Package failed: {_failure_text(exc)}"
