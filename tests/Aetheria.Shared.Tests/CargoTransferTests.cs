@@ -913,7 +913,7 @@ public sealed class CargoTransferTests : IDisposable
     // ---- Saves from before the bay capped a stack -------------------------------------------------------------
 
     // A pre-f0d7c12c purchase above MaxStack left a whole oversize stack in the hold. The save holds it as one stack.
-    private (Ship restored, List<string> log) RestoreWithOversize(string[] bays, int oversize, int fillerPerBay)
+    private (Ship restored, List<string> log) RestoreWithOversize(string[] bays, int oversize, int filler)
     {
         var log = new List<string>();
         var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
@@ -922,12 +922,12 @@ public sealed class CargoTransferTests : IDisposable
         var ship = new Ship(_items, _zone, Mint("Skiff"), new EntitySettings());
         for (var i = 0; i < bays.Length; i++) Assert.True(ship.TryEquip(Mint(bays[i]), new int2(1 + 2 * i, 1)));
         var pack = (ShipPack) EntitySerializer.Pack(ship);
-        // Bay 0 holds the oversize stack at (3,3) and `fillerPerBay` full Slag stacks in the other cells; later bays only filler.
+        // Bay 0 holds the oversize stack at (3,3) and `filler` full Slag stacks in the other cells; later bays are empty.
         for (var b = 0; b < bays.Length; b++)
         {
             var contents = new List<(int2, ItemInstance)>();
             if (b == 0) contents.Add((new int2(3, 3), Commodity("Ore", oversize)));
-            for (var n = 0; n < fillerPerBay; n++) contents.Add((new int2(n % 4, n / 4), Commodity("Slag", 100)));
+            for (var n = 0; n < (b == 0 ? filler : 0); n++) contents.Add((new int2(n % 4, n / 4), Commodity("Slag", 100)));
             pack.CargoContents[b] = contents.ToArray();
         }
         return ((Ship) EntitySerializer.Unpack(items, zone, pack), log);
