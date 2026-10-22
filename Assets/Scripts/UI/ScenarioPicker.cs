@@ -16,14 +16,18 @@ public sealed class ScenarioPicker
     private readonly List<string> _groupLabels = new List<string>();
     private readonly List<Button> _rows = new List<Button>();
     private readonly List<ColorBlock> _rowColors = new List<ColorBlock>();
+    private readonly List<Color> _rowFills = new List<Color>();
+    private readonly PropertiesPanel _list;
     private readonly PropertiesPanel _detail;
     private readonly Action<Scenario> _launch;
     private readonly Action _back;
     private Button _launchButton;
+    private static readonly Color Accent = new Color(1, .4458f, .05f);
     private int _selected;
 
-    private ScenarioPicker(PropertiesPanel detail, Action<Scenario> launch, Action back)
+    private ScenarioPicker(PropertiesPanel list, PropertiesPanel detail, Action<Scenario> launch, Action back)
     {
+        _list = list;
         _detail = detail;
         _launch = launch;
         _back = back;
@@ -33,7 +37,7 @@ public sealed class ScenarioPicker
     public Scenario Selected => _scenarios[_selected];
 
     // Parks the detail pane beside the list pane: a child of it, outside its layout, hidden until Show.
-    public static void Dock(PropertiesPanel detail, PropertiesPanel list, float width = 480, float gap = 16)
+    public static void Dock(PropertiesPanel detail, PropertiesPanel list, float width = 480, float gap = 128)
     {
         var rect = (RectTransform) detail.transform;
         rect.SetParent(list.transform, false);
@@ -50,7 +54,7 @@ public sealed class ScenarioPicker
     public static ScenarioPicker Show(PropertiesPanel list, PropertiesPanel detail,
         IReadOnlyList<(string label, Scenario[] scenarios)> groups, Action<Scenario> launch, Action back)
     {
-        var picker = new ScenarioPicker(detail, launch, back);
+        var picker = new ScenarioPicker(list, detail, launch, back);
         foreach (var group in groups)
         {
             if (groups.Count > 1) list.AddSection(group.label);
@@ -63,6 +67,7 @@ public sealed class ScenarioPicker
                 picker.Track(row.Button);
                 picker._rows.Add(row.Button);
                 picker._rowColors.Add(row.Button.colors);
+                picker._rowFills.Add(row.Button.targetGraphic.color);
             }
         }
         picker.Track(list.AddButton("Back", picker.Back).Button);
@@ -97,16 +102,28 @@ public sealed class ScenarioPicker
         _selected = Mathf.Clamp(index, 0, _scenarios.Count - 1);
         for (var i = 0; i < _rows.Count; i++)
         {
+            // The prefab tint barely moves the row colour, so the selected row is drawn in the menu accent.
             var colors = _rowColors[i];
-            if (i == _selected)
-            {
-                colors.normalColor = colors.highlightedColor;
-                colors.selectedColor = colors.highlightedColor;
-            }
+            if (i == _selected) colors.normalColor = Color.white;
             _rows[i].colors = colors;
+            _rows[i].targetGraphic.color = i == _selected ? Accent : _rowFills[i];
         }
-        _detail.Title.text = MainMenu.TitleSubtitle(Selected.Name, _groupLabels[_selected]);
+        _detail.Title.text = MainMenu.TitleSubtitle(_groupLabels[_selected], Selected.Name);
         Focus(_launchButton.gameObject);
+        Reveal((RectTransform) _rows[_selected].transform);
+    }
+
+    // Scrolls the list pane just far enough that the selected row is inside its viewport.
+    private void Reveal(RectTransform row)
+    {
+        var scroll = (_list.Content ?? _list.transform).GetComponentInParent<ScrollRect>();
+        if (scroll == null || scroll.content == null) return;
+        var view = scroll.viewport != null ? scroll.viewport : (RectTransform) scroll.transform;
+        var rowBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(scroll.content, row);
+        var viewBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(scroll.content, view);
+        var shift = rowBounds.max.y > viewBounds.max.y ? viewBounds.max.y - rowBounds.max.y
+            : rowBounds.min.y < viewBounds.min.y ? viewBounds.min.y - rowBounds.min.y : 0;
+        scroll.content.anchoredPosition -= new Vector2(0, shift);
     }
 
     // Launches the selection; focus is cleared first so a repeated Enter or a second click cannot launch twice.

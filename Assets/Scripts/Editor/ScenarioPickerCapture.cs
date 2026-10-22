@@ -8,9 +8,9 @@ using UnityEngine.UI;
 
 // A render of the New Game screen as the game builds it: the real Main Menu scene's panel prototype, docked and filled
 // by ScenarioPicker.Dock and ScenarioPicker.Show with every scenario group, on a plain dark background (the cloud
-// backdrop is a play-mode renderer). Writes <project>/Temp/scenario-picker.png at 1920x1080.
+// backdrop is a play-mode renderer). Writes <project>/Temp/scenario-picker.png at 1920x1080, or the path after -pngOut (Unity empties Temp on exit).
 //
-//   Unity -batchmode -projectPath <project> -executeMethod ScenarioPickerCapture.Run -logFile <log>
+//   Unity -batchmode -projectPath <project> -executeMethod ScenarioPickerCapture.Run [-pngOut <file>] -logFile <log>
 //
 // Needs a GPU device; do not pass -nographics or -quit: Run exits the Editor itself, 0 on success and 1 on any failure.
 public static class ScenarioPickerCapture
@@ -54,6 +54,8 @@ public static class ScenarioPickerCapture
     private static void Capture()
     {
         var (menu, list, detail) = Build();
+        menu.Dialog.gameObject.SetActive(false);
+        list.Title.text = MainMenu.TitleSubtitle("new game", "scenarios");
         ScenarioPicker.Show(list, detail, AllGroups(), _ => { }, () => { });
         list.RefreshValues();
         detail.RefreshValues();
@@ -75,6 +77,8 @@ public static class ScenarioPickerCapture
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform) list.transform);
         LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform) detail.transform);
+        foreach (var text in list.transform.GetComponentsInChildren<TMPro.TMP_Text>())
+            text.ForceMeshUpdate();
         Canvas.ForceUpdateCanvases();
         camera.Render();
 
@@ -93,6 +97,9 @@ public static class ScenarioPickerCapture
             throw new InvalidOperationException($"The capture is uniform: only {differing} pixels differ from the background.");
 
         var path = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Temp", "scenario-picker.png"));
+        var args = Environment.GetCommandLineArgs();
+        var outIndex = Array.IndexOf(args, "-pngOut");
+        if (outIndex >= 0) path = Path.GetFullPath(args[outIndex + 1]);
         Directory.CreateDirectory(Path.GetDirectoryName(path));
         File.WriteAllBytes(path, read.EncodeToPNG());
         Debug.Log($"[ScenarioPickerCapture] {path} ({differing} of {Width * Height} pixels differ from the background)");

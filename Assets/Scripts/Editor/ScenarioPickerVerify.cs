@@ -44,7 +44,6 @@ public static class ScenarioPickerVerify
     {
         try
         {
-            EventSystem.current = new GameObject("verify EventSystem").AddComponent<EventSystem>();
             SelectionFollowsClicksAndArrows();
             ArrowsStopAtTheEnds();
             LeftAndRightAreIgnored();
@@ -70,6 +69,10 @@ public static class ScenarioPickerVerify
     private static Screen Build(bool oneGroup = false)
     {
         var (_, list, detail) = ScenarioPickerCapture.Build();
+        // Build opens the scene afresh, which destroys the previous EventSystem.
+        var events = new GameObject("verify EventSystem").AddComponent<EventSystem>();
+        // Edit mode never calls OnEnable, which is what registers an EventSystem as current.
+        typeof(EventSystem).GetMethod("OnEnable", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(events, null);
         var screen = new Screen
         {
             List = list, Detail = detail,
@@ -81,10 +84,10 @@ public static class ScenarioPickerVerify
             ? new List<(string label, Scenario[] scenarios)> { ("modes", screen.A) }
             : new List<(string label, Scenario[] scenarios)> { ("modes", screen.A), ("development", screen.B), ("test arenas", screen.C) };
         screen.Picker = ScenarioPicker.Show(list, detail, groups, screen.Launched.Add, () => screen.Backs++);
-        var buttons = list.GetComponentsInChildren<PropertyButton>(true).Select(button => button.Button).ToArray();
+        var buttons = list.GetComponentsInChildren<PropertyButton>(false).Where(button => !button.transform.IsChildOf(detail.transform)).Select(button => button.Button).ToArray();
         screen.Rows = buttons.Take(buttons.Length - 1).ToArray();
         screen.Back = buttons.Last();
-        screen.Launch = detail.GetComponentsInChildren<PropertyButton>(true).Single().Button;
+        screen.Launch = detail.GetComponentsInChildren<PropertyButton>(false).Single().Button;
         return screen;
     }
 
@@ -114,10 +117,10 @@ public static class ScenarioPickerVerify
         Require(EventSystem.current.currentSelectedGameObject == screen.Launch.gameObject, "A click on a name took focus off Launch.");
         Require(screen.Rows.All(row => row.navigation.mode == Navigation.Mode.None) && screen.Launch.navigation.mode == Navigation.Mode.None
             && screen.Back.navigation.mode == Navigation.Mode.None, "A picker button still takes Unity navigation.");
-        var selected = screen.Rows[3].colors;
-        var other = screen.Rows[0].colors;
-        Require(selected.normalColor == selected.highlightedColor && other.normalColor != other.highlightedColor,
-            "Only the selected row is drawn highlighted.");
+        var accent = screen.Rows[3].targetGraphic.color;
+        Require(screen.Rows.Where((row, i) => i != 3).All(row => row.targetGraphic.color != accent), "Only the selected row is drawn in the accent.");
+        Move(screen, MoveDirection.Up);
+        Require(screen.Rows[2].targetGraphic.color == accent && screen.Rows[3].targetGraphic.color != accent, "The accent did not follow the selection.");
     }
 
     private static void ArrowsStopAtTheEnds()
@@ -163,7 +166,7 @@ public static class ScenarioPickerVerify
     private static string DetailText(Screen screen)
     {
         screen.Detail.RefreshValues();
-        return string.Join("|", screen.Detail.GetComponentsInChildren<TextMeshProUGUI>(true).Select(text => text.text));
+        return string.Join("|", screen.Detail.GetComponentsInChildren<TextMeshProUGUI>(false).Select(text => text.text));
     }
 
     private static void DetailPaneFollowsSelection()
@@ -171,13 +174,13 @@ public static class ScenarioPickerVerify
         var screen = Build();
         var first = DetailText(screen);
         Require(first.Contains("brief of Alpha") && first.Contains("7") && first.Contains("on"), $"Detail does not describe Alpha: {first}");
-        Require(screen.Detail.Title.text == MainMenu.TitleSubtitle("Alpha", "modes"), "Detail title is not the name and group.");
+        Require(screen.Detail.Title.text == MainMenu.TitleSubtitle("modes", "Alpha"), "Detail title is not the name and group.");
         Move(screen, MoveDirection.Down);
         Move(screen, MoveDirection.Down);
         var third = DetailText(screen);
         Require(third.Contains("brief of Gamma") && third.Contains("new each launch") && third.Contains("off"), $"Detail does not describe Gamma: {third}");
-        Require(screen.Detail.Title.text == MainMenu.TitleSubtitle("Gamma", "development"), "Detail title did not follow the selection.");
-        Require(screen.Detail.GetComponentsInChildren<PropertyButton>(true).Single().Button == screen.Launch, "Selecting rebuilt the Launch button.");
+        Require(screen.Detail.Title.text == MainMenu.TitleSubtitle("development", "Gamma"), "Detail title did not follow the selection.");
+        Require(screen.Detail.GetComponentsInChildren<PropertyButton>(false).Single().Button == screen.Launch, "Selecting rebuilt the Launch button.");
     }
 
     private static void OneGroupHasNoSectionLabel()
