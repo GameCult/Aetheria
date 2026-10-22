@@ -2664,17 +2664,13 @@ public class EquippedCargoBay : EquippedItem
             return false;
         }
 
-        // Whole or nothing: the target must be able to take the part before it leaves the stack.
-        var part = new SimpleCommodity { Data = item.Data, Quantity = min(quantity, item.Quantity), Rotation = item.Rotation };
-        if (!target.TryFindSpace(part, out _)) return false;
-
         var oldPos = Cargo[item];
         var newItem = Remove(item, quantity);
 
         // The part removed goes across, never the stack left behind.
         if (target.TryStore(newItem)) return true;
 
-        // The target refused after all: put the part back where it came from.
+        // Whole or nothing: TryStore takes all of the part or none of it, so a refusal puts the part back where it came from.
         TryStore(newItem, oldPos);
         return false;
     }

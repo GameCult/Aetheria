@@ -165,8 +165,9 @@ public sealed class CargoTransferTests : IDisposable
         var receiver = ShipWith(receiverBay);
         var stack = Commodity("Ore", ore);
         if (ore > 0) Assert.True(giver.CargoBays[0].TryStore(stack));
-        giver.Position = new float3(0, 0, 0);
-        receiver.Position = new float3(5, 0, 0);
+        // Off the origin, so a distance taken from the wrong sum or difference of positions shows.
+        giver.Position = new float3(-50, 0, 10);
+        receiver.Position = giver.Position + new float3(5, 0, 0);
         _zone.Admit(giver, piloted: false);
         _zone.Admit(receiver, piloted: false);
         return (giver, receiver, stack);
@@ -216,13 +217,13 @@ public sealed class CargoTransferTests : IDisposable
     {
         var (giver, receiver, ore) = Alongside(10);
         var range = _items.GameplaySettings.DockingDistance;
-        receiver.Position = new float3(range - 1, 0, 0);
+        receiver.Position = giver.Position + new float3(range - 1, 0, 0);
         giver.Command.Give(receiver, ore, 10);
         Steps(10);
         Assert.Equal(2, Held(receiver, ore));
         Assert.Null(giver.LastGiveEnd);
 
-        receiver.Position = new float3(range + 1, 0, 0);
+        receiver.Position = giver.Position + new float3(range + 1, 0, 0);
         Steps(10);
 
         Assert.Equal(2, Held(receiver, ore));
@@ -231,11 +232,64 @@ public sealed class CargoTransferTests : IDisposable
     }
 
     [Fact]
+    public void AReceiverExactlyAtTheDockingDistanceIsStillAlongside()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        receiver.Position = giver.Position + new float3(0, 0, _items.GameplaySettings.DockingDistance);
+        giver.Command.Give(receiver, ore, 10);
+        Steps(10);
+        Assert.Equal(2, Held(receiver, ore));
+        Assert.Null(giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void AStepOfExactlyOneUnitMovesOneUnit()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 10);
+        _zone.Update(1f / _items.GameplaySettings.TransferRate);
+        Assert.Equal(1, Held(receiver, ore));
+    }
+
+    [Fact]
+    public void ALongStepNeverMovesMoreThanTheQuantity()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 3);
+        _zone.Update(5f);
+        Assert.Equal(3, Held(receiver, ore));
+        Assert.Equal(7, Held(giver, ore));
+        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void AGiveOfOneMovesOne()
+    {
+        var (giver, receiver, ore) = Alongside(10);
+        giver.Command.Give(receiver, ore, 1);
+        Steps(20);
+        Assert.Equal(1, Held(receiver, ore));
+        Assert.Equal(GiveEnd.Done, giver.LastGiveEnd);
+    }
+
+    [Fact]
+    public void AGiveOfACraftedItemTheGiverDoesNotHoldEndsNothingLeft()
+    {
+        var (giver, receiver, _) = Alongside(0);
+        var gun = Mint("Gun");
+        Assert.True(receiver.CargoBays[0].TryStore(gun));
+        giver.Command.Give(receiver, gun, 1);
+        Steps(20);
+        Assert.Equal(GiveEnd.NothingLeft, giver.LastGiveEnd);
+        Assert.True(receiver.CargoBays[0].Cargo.ContainsKey(gun));
+    }
+
+    [Fact]
     public void GiveRangeIsMeasuredOnTheFlatPlane()
     {
         // The plane is xz: a ship far apart in y only is still alongside.
         var (giver, receiver, ore) = Alongside(10);
-        receiver.Position = new float3(5, 1000, 0);
+        receiver.Position = giver.Position + new float3(5, 1000, 0);
         giver.Command.Give(receiver, ore, 10);
         Steps(10);
         Assert.Equal(2, Held(receiver, ore));
@@ -346,7 +400,7 @@ public sealed class CargoTransferTests : IDisposable
     {
         var (giver, receiver, ore) = Alongside(10);
         var third = ShipWith("Crate");
-        third.Position = new float3(0, 0, 5);
+        third.Position = giver.Position + new float3(0, 0, 5);
         _zone.Admit(third, piloted: false);
 
         // A give then a stop leaves nothing, and nothing ended.

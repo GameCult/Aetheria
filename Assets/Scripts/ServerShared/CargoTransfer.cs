@@ -94,7 +94,7 @@ public static class CargoTransfer
                 order.Budget -= 1;
                 order.Remaining--;
             }
-            if (giver.Giving == order && order.Remaining == 0) End(giver, GiveEnd.Done);
+            if (order.Remaining == 0) End(giver, GiveEnd.Done);
         }
     }
 
