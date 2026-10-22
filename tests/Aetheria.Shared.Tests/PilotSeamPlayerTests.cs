@@ -131,6 +131,96 @@ public sealed partial class RunStartTests
         Assert.Equal(once.Mount, east.ResolvedAim.Mount);
     }
 
+    private void SeamReveal(Ship east, Ship west, out EquippedItem first, out EquippedItem second)
+    {
+        first = SeamGun(west).Item;
+        var one = first;
+        second = west.Weapons.Select(w => w.Item).First(i => i != one && i.Data.Name == one.Data.Name);
+        east.RecordReveal(west, first, SignatureChannel.Emission, west.ClaimOf(first));
+        east.RecordReveal(west, second, SignatureChannel.Emission, west.ClaimOf(second));
+    }
+
+    private static void SeamAimEqual(AimTarget expected, AimTarget actual)
+    {
+        Assert.Equal(expected.Item, actual.Item);
+        Assert.Equal(expected.Mount, actual.Mount);
+    }
+
+    private static bool SeamAimDiffers(AimTarget a, AimTarget b) => a.Item != b.Item || a.Mount != b.Mount;
+
+    // Every aim-cycle press in a step cycles: two presses step the aim twice, as two direct cycles did.
+    [Fact]
+    public void CycleAimCountsEveryPress()
+    {
+        var (arena, east, west, _) = PlayerSeamTrio();
+        SeamReveal(east, west, out var first, out _);
+        east.SetTarget(new TargetRef(west));
+        Assert.True(east.TrySelectTargetItem(first));
+        east.CycleAim();
+        var once = east.ResolvedAim;
+        east.CycleAim();
+        var twice = east.ResolvedAim;
+        Assert.True(SeamAimDiffers(once, twice), "fixture: a second cycle moves the aim on");
+
+        Assert.True(east.TrySelectTargetItem(first));
+        east.Command.CycleAim();
+        east.Command.CycleAim();
+        arena.Update(SeamDt);
+        SeamAimEqual(twice, east.ResolvedAim);
+    }
+
+    // Presses in one step apply in a fixed order, whatever order they came in: the designation, then the verb (answered
+    // from the designated target), then the item selection, then the aim cycles (stepping from the verb's target and the
+    // selected item). Each case is checked against both orders by direct calls, and fails if the two orders agree.
+    [Fact]
+    public void SameStepPressesApplyDesignationVerbSelectionCycle()
+    {
+        var (arena, east, west, third) = PlayerSeamTrio();
+        SeamReveal(east, west, out var first, out _);
+        void Reset(Entity target)
+        {
+            east.SetTarget(target == null ? TargetRef.None : new TargetRef(target));
+            Assert.True(east.TrySelectTargetItem(null));
+        }
+
+        // Next steps on from the designated west (to third), not from nothing (to west).
+        Reset(null);
+        east.Command.Verb(TargetVerb.Next);
+        east.Command.Designate(new TargetRef(west));
+        arena.Update(SeamDt);
+        Assert.Same(third, east.Target.Value.Entity);
+
+        // The cycle steps the aim on the target the verb chose.
+        Reset(null);
+        east.TargetNext();
+        east.CycleAim();
+        var verbThenCycle = east.ResolvedAim;
+        Reset(null);
+        east.CycleAim();
+        east.TargetNext();
+        Assert.True(SeamAimDiffers(verbThenCycle, east.ResolvedAim), "fixture: the verb and the cycle do not commute");
+        Reset(null);
+        east.Command.CycleAim();
+        east.Command.Verb(TargetVerb.Next);
+        arena.Update(SeamDt);
+        SeamAimEqual(verbThenCycle, east.ResolvedAim);
+
+        // The cycle steps on from the selected item.
+        Reset(west);
+        Assert.True(east.TrySelectTargetItem(first));
+        east.CycleAim();
+        var selectThenCycle = east.ResolvedAim;
+        Reset(west);
+        east.CycleAim();
+        Assert.True(east.TrySelectTargetItem(first));
+        Assert.True(SeamAimDiffers(selectThenCycle, east.ResolvedAim), "fixture: the selection and the cycle do not commute");
+        Reset(west);
+        east.Command.CycleAim();
+        east.Command.SelectItem(first);
+        arena.Update(SeamDt);
+        SeamAimEqual(selectThenCycle, east.ResolvedAim);
+    }
+
     // A trigger that counts its edges: a semi-auto fires once per Activate.
     private sealed class SeamTrigger : IActivatedBehavior
     {

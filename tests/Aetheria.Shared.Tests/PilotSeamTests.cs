@@ -335,6 +335,88 @@ public sealed partial class RunStartTests
         foreach (var launcher in ready) Assert.True(east.Command.Pulls(launcher), $"{launcher.Item.Data.Name} is pulled");
     }
 
+    // Combat lets go of a lock it pulled this step (beside the groups) when the chosen group's own decision refuses it. An
+    // unfused lock is priced on its hit probability, which no shot clears at MinHitProbability 2, and it was never firing,
+    // so only the pending pull (Command.Pulls) tells Combat to release it. Breaks if Combat's release guard reads Firing
+    // alone (Combat.cs).
+    [Fact]
+    public void CombatReleasesALockItPulledButWillNotFire()
+    {
+        var (arena, east, west) = SeamPair(true);
+        east.SetIff(west, true);
+        west.SetIff(east, true);
+        var agent = arena.Agents.Single(a => a.Ship == east);
+        var locks = east.Weapons.OfType<LockWeapon>().ToArray();
+        Assert.NotEmpty(locks);
+        agent.Doctrine.MinHitProbability = 2; // no unfused shot clears it
+        var step = 0;
+        for (; step < 3000 && !(SeamState(agent) is CombatState && locks.Any(l => l.IsLocked)); step++) arena.Update(SeamDt);
+        var launcher = locks.FirstOrDefault(l => l.IsLocked);
+        Assert.True(launcher != null, $"locked by step {step}");
+        var gunRange = east.Weapons.Where(w => !(w is LockWeapon)).Max(w => w.Range);
+        var distance = launcher.MinRange + 20;
+        Assert.True(distance < gunRange, $"fixture: the guns reach past the launcher's minimum range ({launcher.MinRange} vs {gunRange})");
+        west.Position = east.Position + distance * normalize(float3(east.Aim.x, 0, east.Aim.z));
+        east.Update(SeamDt);
+        Assert.IsType<CombatState>(SeamState(agent));
+        Assert.True(launcher.CanFire && !launcher.Firing, $"fixture: ready and idle (range {east.TargetRange}, lock {launcher.Lock})");
+
+        // Unfused, and in every group, so the chosen group decides it too.
+        var data = Assert.IsAssignableFrom<WeaponItemData>(launcher.Item.Data);
+        var radius = data.BlastRadius;
+        try
+        {
+            data.BlastRadius = 0;
+            foreach (var group in east.WeaponGroups)
+                if (!group.weapons.Contains(launcher)) group.weapons.Add(launcher);
+
+            agent.Update(SeamDt);
+
+            var mine = east.Command.Triggers.Where(t => ReferenceEquals(t.Behavior, launcher)).Select(t => t.Pull).ToArray();
+            Assert.True(mine.Contains(true), $"Combat pulls the ready lock: [{string.Join(",", mine)}]");
+            Assert.False(east.Command.Pulls(launcher), $"and lets go of it when the group's decision refuses it: [{string.Join(",", mine)}]");
+        }
+        finally
+        {
+            data.BlastRadius = radius;
+        }
+    }
+
+    // Combat prices each shot on the aim it commands this step, not the applied aim (last step's). With the applied aim
+    // cleared and MinHitProbability between the two prices, the gun's one trigger follows the commanded price. Breaks if
+    // Combat drops its aim from FireControl.AgentFires (Combat.cs).
+    [Fact]
+    public void CombatPricesFireOnTheCommandedAim()
+    {
+        var (arena, east, west) = SeamPair(true);
+        east.SetIff(west, true);
+        west.SetIff(east, true);
+        var agent = arena.Agents.Single(a => a.Ship == east);
+        for (var step = 0; step < 900 && !(SeamState(agent) is CombatState); step++) arena.Update(SeamDt);
+        Assert.IsType<CombatState>(SeamState(agent));
+        var revealed = SeamGun(west).Item;
+        east.EntityInfoGathered[west] = 1;
+        east.RecordReveal(west, revealed, SignatureChannel.Emission, west.ClaimOf(revealed));
+
+        agent.Update(SeamDt); // learn the item Combat aims at
+        var commanded = east.Command.Selections.LastOrDefault();
+        Assert.NotNull(commanded);
+        east.Command.ClearOneShots();
+        Assert.True(east.TrySelectTargetItem(null));
+        var gun = SeamGun(east);
+        var pCommanded = FireControl.HitProbability(gun, east, west, AimTarget.OfItem(commanded));
+        var pApplied = FireControl.HitProbability(gun, east, west);
+        Assert.True(abs(pCommanded - pApplied) > 1e-4f, $"fixture: the two aims price apart ({pCommanded} vs {pApplied})");
+        agent.Doctrine.MinHitProbability = (pCommanded + pApplied) / 2;
+        var fires = pCommanded > pApplied;
+        if (!fires) gun.Activate(); // held, so Combat must let go of it
+
+        agent.Update(SeamDt);
+
+        var (_, pull) = Assert.Single(east.Command.Triggers.Where(t => ReferenceEquals(t.Behavior, gun)));
+        Assert.Equal(fires, pull);
+    }
+
     // Pulls answers the pilot's last trigger for that behaviour this step, and nothing commanded is no pull.
     [Fact]
     public void PullsReadsTheLastTriggerForThatBehaviour()
