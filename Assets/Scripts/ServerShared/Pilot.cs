@@ -69,8 +69,9 @@ public sealed class PilotCommand
     public void Verb(TargetVerb verb) => TargetVerb = verb;
     public void CycleAim() => AimCycles++;
     public void Iff(Entity other, bool? hostile) => Iffs.Add((other, hostile, false));
-    // A press that flips the stance on `other` as it stands when applied, in order with Iff, so two in a step cancel.
-    public void ToggleStance(Entity other) => Iffs.Add((other, null, true));
+    // A press that flips the stance on the entity's target as both stand when applied, after the step's target verbs and in
+    // order with Iff, so two in a step cancel. With no target then, it does nothing.
+    public void ToggleStance() => Iffs.Add((null, null, true));
     // The entity's own switches, pressed: each press flips its switch when applied, so two in a step cancel.
     public void ToggleOverrideShutdown() => ShutdownOverrideToggles++;
     public void ToggleHeatsinks() => HeatsinkToggles++;
@@ -121,7 +122,11 @@ public static class PilotApplier
         }
         foreach (var item in command.Selections) entity.TrySelectTargetItem(item);
         for (var i = 0; i < command.AimCycles; i++) entity.CycleAim();
-        foreach (var (other, hostile, toggle) in command.Iffs) entity.SetIff(other, toggle ? !entity.IsHostileTo(other) : hostile);
+        foreach (var (other, hostile, toggle) in command.Iffs)
+        {
+            if (!toggle) entity.SetIff(other, hostile);
+            else if (entity.Target.Value.Entity is Entity target) entity.SetIff(target, !entity.IsHostileTo(target));
+        }
         for (var i = 0; i < command.ShutdownOverrideToggles; i++) entity.OverrideShutdown = !entity.OverrideShutdown;
         for (var i = 0; i < command.HeatsinkToggles; i++) entity.HeatsinksEnabled = !entity.HeatsinksEnabled;
         if (entity.Shield != null)

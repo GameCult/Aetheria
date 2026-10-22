@@ -406,14 +406,9 @@ public class ActionGameManager : MonoBehaviour
 
         // Flips the player's own stance on the current target between hostile and neutral. Going
         // neutral mid-fight safes weapons (Weapon.StanceAllowsFire); an unmarked/undetected target
-        // reads as non-hostile, so the first press declares hostile. The flip reads the stance when applied, so two
-        // presses in a step cancel.
-        Input.Player.ToggleStance.performed += context =>
-        {
-            var target = CurrentEntity.Target.Value.Entity;
-            if (target == null) return;
-            CurrentEntity.Command.ToggleStance(target);
-        };
+        // reads as non-hostile, so the first press declares hostile. The flip reads the target and its stance when applied,
+        // after the step's target presses, so two presses in a step cancel.
+        Input.Player.ToggleStance.performed += context => CurrentEntity.Command.ToggleStance();
 
         #region Targeting
 
