@@ -48,7 +48,7 @@ public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
     {
         if (_cooldown < 0)
         {
-            _cooldown = 1;
+            _cooldown += 1;
             return true;
         }
 
@@ -57,6 +57,8 @@ public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 
     public void Update(float delta)
     {
-        _cooldown -= delta / Evaluate(_data.Cooldown);
+        // A finished timer keeps what the last step overshot, at most one step, so the restart in Execute is exact.
+        var step = delta / Evaluate(_data.Cooldown);
+        _cooldown = max(_cooldown - step, -step);
     }
 }

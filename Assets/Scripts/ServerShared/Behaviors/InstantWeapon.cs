@@ -58,6 +58,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     protected float _cooldown; // Normalized
     private int _ammo = 0;
     protected bool _coolingDown;
+    // Seconds the last countdown ran past zero (less than one step). The next countdown starts that far along, so a held
+    // trigger fires Cooldown apart on average at any step, never floor(Cooldown/dt)+1 steps apart.
+    private float _overshoot;
 
     public float BurstCount { get; protected set; }
     public float BurstTime { get; protected set; }
@@ -183,6 +186,15 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // would ever fill this capacitor -- bypass it entirely rather than starving such an instance forever.
     protected bool TrySpendActivationEnergy() => Item == null || _capacitor.TrySpend(_capacitor.Capacity);
 
+    private float CountdownSpan => _data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown;
+
+    private float TakeOvershoot()
+    {
+        var overshoot = _overshoot;
+        _overshoot = 0;
+        return overshoot;
+    }
+
     private bool UseAmmo()
     {
         if (_data.MagazineSize <= 1) return true;
@@ -208,7 +220,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         if(hasAmmo)
         {
             OnReloadBegin?.Invoke();
-            _cooldown = 1;
+            _cooldown = 1 - TakeOvershoot() / _data.ReloadTime;
             _coolingDown = true;
             _firing = false;
         }
@@ -226,9 +238,11 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
         if (_coolingDown)
         {
-            _cooldown -= dt / (_data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown);
+            var span = CountdownSpan;
+            _cooldown -= dt / span;
             if (_cooldown < 0)
             {
+                _overshoot = -_cooldown * span;
                 _coolingDown = false;
                 if (_data.MagazineSize > 0 && _ammo == 0)
                 {
@@ -260,8 +274,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
                 if (!_burstStarted)
                 {
                     _burstStarted = true;
-                    _cooldown = 1 - dt / Cooldown;
-                    // The round starts the cooldown after this tick's decrement above: charge the tick to it, so the cadence stays Cooldown
+                    _cooldown = 1 - (dt + TakeOvershoot()) / CountdownSpan;
+                    // The round starts the cooldown after this tick's decrement above: charge the tick and the last
+                    // countdown's overshoot to it, so the cadence stays Cooldown
                     _coolingDown = true;
                 }
             }
