@@ -22,6 +22,7 @@
 //      zh_on_stern, zh_on_nose. In the mate frame local +Z is the outward normal and the part is sunk ZH_SINK into
 //      the skin, so nothing floats. Top/belly frames keep local +Y aft; wall/belt frames keep +Y aft with local +X
 //      pointing down the wall on either side (starboard mates are mirrors of port); stern/nose frames have local +Y down.
+//      Mates are lp_at frames: a part under a mate that draws lines (lp_line) emits them in the Ship Root frame.
 //   3. Zone routing: every zh_ module draws only the zone the global `part` names, so a hull writes its assembly once.
 //      A hull on a Zhestokost donor (HULL_DONOR == "zhestokost") names a donor zone 'zhestokost:<zone>'.
 //      Anchor meshes (zh_rad_vanes, zh_emitter) are not routed: call them inside the hull's rad:/emit: parts under
@@ -65,17 +66,17 @@ function zh_wall_tilt(secs, y) = let(s = zh_sec(secs, y)) atan2(s[4], s[2]*(1-ZH
 function zh_stern_pt(secs, x=0, v=0.5) = let(s = secs[len(secs)-1]) [x, s[0], s[3] + s[2]*v];
 function zh_nose_pt(secs, x=0, v=0.5) = let(s = secs[0]) [x, s[0], s[3] + s[2]*v];
 
-module zh_on_top(secs, y, u=0, sink=ZH_SINK) translate(zh_top(secs, y, u) - [0, 0, sink]) children();
-module zh_on_belly(secs, y, u=0, sink=ZH_SINK) translate(zh_belly(secs, y, u) + [0, 0, sink]) rotate([0, 180, 0]) children();
-module _zh_port(side) { if (side < 0) mirror([1, 0, 0]) children(); else children(); }
+module zh_on_top(secs, y, u=0, sink=ZH_SINK) lp_at(t=zh_top(secs, y, u) - [0, 0, sink]) children();
+module zh_on_belly(secs, y, u=0, sink=ZH_SINK) lp_at(t=zh_belly(secs, y, u) + [0, 0, sink], r=[0, 180, 0]) children();
 module zh_on_belt(secs, y, side=1, v=0.5, sink=ZH_SINK)
-  _zh_port(side) translate(zh_belt(secs, y, 1, v) - [sink, 0, 0]) rotate([0, 90, 0]) children();
+  lp_at(t=zh_belt(secs, y, 1, v) - [sink, 0, 0], r=[0, 90, 0], mx=side < 0) children();
 module zh_on_wall(secs, y, side=1, v=0.5, sink=ZH_SINK) {
   t = zh_wall_tilt(secs, y);
-  _zh_port(side) translate(zh_wall(secs, y, 1, v) - [cos(t), 0, sin(t)]*sink) rotate([0, 90 - t, 0]) children();
+  lp_at(t=zh_wall(secs, y, 1, v) - [cos(t), 0, sin(t)]*sink, r=[0, 90 - t, 0], mx=side < 0) children();
 }
-module zh_on_stern(secs, x=0, v=0.5, sink=ZH_SINK) translate(zh_stern_pt(secs, x, v) - [0, sink, 0]) rotate([-90, 0, 0]) children();
-module zh_on_nose(secs, x=0, v=0.5, sink=ZH_SINK) translate(zh_nose_pt(secs, x, v) + [0, sink, 0]) rotate([90, 0, 0]) rotate([0, 0, 180]) children();
+module zh_on_stern(secs, x=0, v=0.5, sink=ZH_SINK) lp_at(t=zh_stern_pt(secs, x, v) - [0, sink, 0], r=[-90, 0, 0]) children();
+module zh_on_nose(secs, x=0, v=0.5, sink=ZH_SINK)
+  lp_at(t=zh_nose_pt(secs, x, v) + [0, sink, 0], r=[90, 0, 0]) lp_at(r=[0, 0, 180]) children();
 // world point of a local offset under a mate (for anchors): top, belly, stern frames
 function zh_top_at(secs, y, u, o, sink=ZH_SINK) = zh_top(secs, y, u) - [0, 0, sink] + o;
 function zh_belly_at(secs, y, u, o, sink=ZH_SINK) = zh_belly(secs, y, u) + [0, 0, sink] + [-o[0], o[1], -o[2]];
