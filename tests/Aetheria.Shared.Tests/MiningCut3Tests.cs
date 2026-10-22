@@ -1051,7 +1051,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         }
         Assert.True(unsaturatedPings > 0, "no configuration saw a ping land unsaturated");
         var pingHash = Convert.ToHexString(SHA256.HashData(bytes.ToArray()));
-        Assert.True(pingHash == "REPIN", $"the ping-arm trace hash {pingHash}");
+        Assert.True(pingHash == "283A6129533784AE08FDA7D9FFA2BB0862FA8F64AD32C6726E80BC1138443FE3", $"the ping-arm trace hash {pingHash}");
     }
 
     // One observer and two reflecting ships in an empty zone, 80 ticks, a ping at tick 20 when `ping`.

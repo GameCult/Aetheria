@@ -188,7 +188,7 @@ public sealed partial class RunStartTests
     // Two piloted fighters about 900 apart, each approaching the other, hostile both ways; the player bare, unpiloted
     // and far from the fight. Steps TwoAiSeconds at `dt` (the game's step by default) and returns the SHA-256 of the joined
     // snapshots, the hull each fighter ends with and the sim time a hull first reaches zero (TwoAiSeconds when none does).
-    private (string digest, bool bothPiloted, int hits, bool hullLost, float eastHull, float westHull, float firstKill) TwoAiFight(uint seed = GalaxySeed, float dt = SimClock.GameStep)
+    private (string digest, bool bothPiloted, int hits, bool hullLost, float eastHull, float westHull, float firstKill, double stepSeconds) TwoAiFight(uint seed = GalaxySeed, float dt = SimClock.GameStep)
     {
         Ship east = null, west = null;
         var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
@@ -215,6 +215,7 @@ public sealed partial class RunStartTests
         var history = new StringBuilder();
         var firstKill = TwoAiSeconds;
         var steps = (int) MathF.Round(TwoAiSeconds / dt);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         for (var step = 0; step < steps; step++)
         {
             arena.Update(dt);
@@ -222,7 +223,7 @@ public sealed partial class RunStartTests
             if (firstKill == TwoAiSeconds && (east.Hull.Durability <= 0 || west.Hull.Durability <= 0)) firstKill = (step + 1) * dt;
         }
         var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(history.ToString()))).ToLowerInvariant();
-        return (digest, bothPiloted, hits, east.Hull.Durability + west.Hull.Durability < hullAtStart, east.Hull.Durability, west.Hull.Durability, firstKill);
+        return (digest, bothPiloted, hits, east.Hull.Durability + west.Hull.Durability < hullAtStart, east.Hull.Durability, west.Hull.Durability, firstKill, clock.Elapsed.TotalSeconds);
     }
 
     [Fact]
