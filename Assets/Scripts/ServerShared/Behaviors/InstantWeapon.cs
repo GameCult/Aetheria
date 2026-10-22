@@ -64,7 +64,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // The shooter asked for fire during this step (Activate): a weapon asked of for the whole step fires every round its
     // cooldown allows inside it, rather than one per step. Cleared when the step ends.
     private bool _pulled;
-    public string DiagBreak = ""; public int DiagRetriggers;
     // The shortest cycle a countdown divides by: a cooldown of zero would otherwise fire without end in one step.
     private const float ShortestCycle = .0005f;
 
@@ -305,7 +304,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             if (!refused && !_burstPaid && (!TrySpendActivationEnergy() || !UseAmmo(dt)))
             {
                 _burstRemaining = 0;
-                DiagBreak = $"spend failed charge={_capacitor.Charge} cap={_capacitor.Capacity}";
                 return false;
             }
             if (!refused)
@@ -342,11 +340,10 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         ended |= FinishCountdown(dt);
         // The trigger is held and the weapon is ready: the next burst starts now, at the moment the cooldown ended (what it
         // ran past zero is how long ago, at the step's end), or at the step's start when the weapon was already ready.
-        if (!Repeats || _burstRemaining > 0 || !CanFire || (retriggered && !_burstStarted)) { DiagBreak = $"cond Repeats={Repeats} rem={_burstRemaining} can={CanFire} re={retriggered} started={_burstStarted} cd={_cooldown} cooling={_coolingDown}"; break; }
+        if (!Repeats || _burstRemaining > 0 || !CanFire || (retriggered && !_burstStarted)) break;
         retriggered = true;
-        DiagRetriggers++;
         Trigger();
-        if (_burstRemaining == 0) { DiagBreak = "trigger refused"; break; }
+        if (_burstRemaining == 0) break;
         if (ended)
         {
             _burstTimer = TakeOvershoot();
