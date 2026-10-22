@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -428,21 +428,23 @@ public class ActionGameManager : MonoBehaviour
         {
             var target = CurrentEntity.Target.Value.Entity;
             if (target == null) return;
-            CurrentEntity.SetIff(target, !CurrentEntity.IsHostileTo(target));
+            CurrentEntity.Command.Iff(target, !CurrentEntity.IsHostileTo(target));
         };
 
         #region Targeting
 
-        // The reticle, nearest, next and previous presses each choose through Entity (mining target-queries cut):
-        // the rule lives with the entity, so the player, the test agent and any director pick alike.
-        Input.Player.TargetReticle.performed += context => CurrentEntity.TargetUnderReticle();
-        Input.Player.TargetNearest.performed += context => CurrentEntity.TargetNearestEnemy();
-        Input.Player.TargetNext.performed += context => CurrentEntity.TargetNext();
-        Input.Player.TargetPrevious.performed += context => CurrentEntity.TargetPrevious();
+        // The reticle, nearest, next and previous presses each command a verb; the applier chooses through Entity at the
+        // next step (mining target-queries cut): the rule lives with the entity, so the player, the test agent and any
+        // director pick alike.
+        Input.Player.TargetReticle.performed += context => CurrentEntity.Command.Verb(TargetVerb.UnderReticle);
+        Input.Player.TargetNearest.performed += context => CurrentEntity.Command.Verb(TargetVerb.NearestEnemy);
+        Input.Player.TargetNext.performed += context => CurrentEntity.Command.Verb(TargetVerb.Next);
+        Input.Player.TargetPrevious.performed += context => CurrentEntity.Command.Verb(TargetVerb.Previous);
 
         // Cut 2 (docs/fire-control-cut.md): steps the aim through the target's schematic rows -- every mount this ship
-        // has located, empty or not, minus the ones it saw destroyed. Decides nothing: the entity owns the cycle.
-        Input.Player.CycleTargetItem.performed += context => CurrentEntity.CycleAim();
+        // has located, empty or not, minus the ones it saw destroyed. Decides nothing: the entity owns the cycle, applied at
+        // the next step.
+        Input.Player.CycleTargetItem.performed += context => CurrentEntity.Command.CycleAim();
 
         #endregion
 
@@ -613,19 +615,9 @@ public class ActionGameManager : MonoBehaviour
                 console.AppendLogLine("usage: iff hostile|neutral|clear");
                 return;
             }
-            switch (mode)
-            {
-                case "hostile":
-                    _currentEntity.SetIff(target, true);
-                    break;
-                case "neutral":
-                    _currentEntity.SetIff(target, false);
-                    break;
-                case "clear":
-                    _currentEntity.SetIff(target, null);
-                    break;
-            }
-            console.AppendLogLine($"{target.Name}: {(_currentEntity.IsHostileTo(target) ? "hostile" : "neutral")}");
+            bool? hostile = mode == "hostile" ? true : mode == "neutral" ? false : (bool?) null;
+            _currentEntity.Command.Iff(target, hostile);
+            console.AppendLogLine($"{target.Name}: {mode} queued; it applies at the next step");
         });
 
         // Editor only: capturepreset "<name>" [replace] writes the piloted ship as a catalog preset. A multi-word name must
@@ -1324,7 +1316,7 @@ public class ActionGameManager : MonoBehaviour
                 var sensitivity = PlayerSettings.InputSettings.Sensitivity;
                 _entityYawPitch = float2(_entityYawPitch.x + look.x * sensitivity.x, clamp(_entityYawPitch.y + look.y * sensitivity.y, -.45f * PI, .45f * PI));
                 _viewDirection = mul(float3(0, 0, 1), CultMath.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
-                CurrentEntity.Aim = _viewDirection;
+                CurrentEntity.Command.Aim = _viewDirection;
                 HeatstrokePost.weight = saturate(unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));
                 var severeHeatstrokeLerp = saturate(unlerp(Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, 1, CurrentEntity.Heatstroke));
                 SevereHeatstrokePost.weight =
@@ -1334,9 +1326,9 @@ public class ActionGameManager : MonoBehaviour
                 _faceAimMark.enabled = _helm.Latched;
                 if(CurrentEntity is Ship ship)
                 {
-                    ship.MovementDirection = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
+                    ship.Command.Movement = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
                     _helm.Held = Input.Player.FaceAim.IsPressed();
-                    ship.Turn = _helm.Demand(ship, _viewDirection.xz, Input.Player.Turn.ReadValue<float>());
+                    ship.Command.Turn = _helm.Demand(_viewDirection.xz, Input.Player.Turn.ReadValue<float>());
                 }
 
                 UpdateMusic();
@@ -1351,7 +1343,7 @@ public class ActionGameManager : MonoBehaviour
                     TargetShieldsFill.fillAmount = target.Shield == null ? 0 : lerp(.25f, .75f, target.Shield.Progress);
                 }
 
-                CurrentEntity.TractorCommand = Input.Player.TractorBeam.ReadValue<float>();
+                CurrentEntity.Command.Tractor = Input.Player.TractorBeam.ReadValue<float>();
             }
         }
         // One clock steps the zone, paused or not: a paused frame feeds it no real time.

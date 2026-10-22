@@ -117,7 +117,7 @@ public class ActionBarConsumableBinding : ActionBarBinding
 
     public override void Activate()
     {
-        Entity.TryActivateConsumable(Target);
+        Entity.Command.Use(Target);
     }
 
     public override void Deactivate()
@@ -155,16 +155,17 @@ public class ActionBarGearBinding : ActionBarBinding
         else Slot.Icon.texture = ActionGameManager.Instance.Settings.GetIcon(data.HardpointType).texture;
     }
 
+    // The press and the let-go are each one trigger edge, applied at the next step; Active is the slot's display.
     public override void Activate()
     {
         Active = true;
-        Behavior.Activate();
+        Entity.Command.Pull(Behavior);
     }
 
     public override void Deactivate()
     {
         Active = false;
-        Behavior.Deactivate();
+        Entity.Command.Release(Behavior);
     }
 
     public override void Update()
@@ -190,7 +191,7 @@ public class ActionBarWeaponGroupBinding : ActionBarBinding
     {
         foreach (var weapon in Entity.WeaponGroups[Group].weapons)
         {
-            weapon.Activate();
+            Entity.Command.Pull(weapon);
         }
     }
 
@@ -198,7 +199,7 @@ public class ActionBarWeaponGroupBinding : ActionBarBinding
     {
         foreach (var weapon in Entity.WeaponGroups[Group].weapons)
         {
-            weapon.Deactivate();
+            Entity.Command.Release(weapon);
         }
     }
 
