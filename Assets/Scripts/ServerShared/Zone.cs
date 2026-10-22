@@ -299,11 +299,13 @@ public class Zone
         if (piloted) Agents.Add(CreateAgent((Ship) entity, task));
     }
 
-    // The one removal from this zone (death, dock, jump): membership and its death watch leave together. False, and
-    // nothing changes, when the entity is not a member. The caller deactivates; Remove does not.
+    // The one removal from this zone (death, dock, jump): membership and its death watch leave together, and so does the
+    // entity's give, which ends GiverGone unless a dock already ended it. False, and nothing changes, when the entity is
+    // not a member. The caller deactivates; Remove does not.
     public bool Remove(Entity entity)
     {
         if (!_entities.Remove(entity)) return false;
+        CargoTransfer.End(entity, GiveEnd.GiverGone);
         _deathWatches.Remove(entity, out var watch);
         watch.Dispose();
         foreach (var floating in FloatingItems)

@@ -15,7 +15,8 @@ public enum GiveEnd
     ReceiverGone,
     ReceiverFull,
     NothingLeft,
-    GiverDocked
+    GiverDocked,
+    GiverGone
 }
 
 // A pilot's standing offer of goods to a ship alongside. Runtime only: nothing about a give is saved.
