@@ -5,10 +5,12 @@ using GameCult.Caching;
 // Opens GameData/Aetheria.cc through AetheriaStores, the game's own store composition. The catalog attaches read-only
 // unless a command writes it, so a command that only reads cannot write. A station hull with no kind does not lock the
 // catalog: it is named to warn (stderr by default) and the commands that repair it stay reachable.
-public sealed class AetherDb
+public sealed class AetherDb : IDisposable
 {
     public string Root { get; }
     public CultCache Cache { get; }
+
+    public void Dispose() => Cache.Dispose();
 
     private AetherDb(string root, bool catalogWritable, bool withRun, Action<string> warn)
     {
