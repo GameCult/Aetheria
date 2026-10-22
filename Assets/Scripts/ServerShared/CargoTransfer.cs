@@ -110,7 +110,7 @@ public static class CargoTransfer
             }
             else if (bay.ItemsOfType.TryGetValue(order.Item.Data.Key, out var stacks))
             {
-                var stack = stacks.OfType<SimpleCommodity>().FirstOrDefault(s => s.Quantity > 0);
+                var stack = stacks.OfType<SimpleCommodity>().FirstOrDefault();
                 if (stack != null) return (bay, stack);
             }
         }

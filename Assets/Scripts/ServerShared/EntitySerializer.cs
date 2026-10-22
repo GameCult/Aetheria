@@ -47,6 +47,51 @@ public static class EntitySerializer
         return pack;
     }
 
+    // A saved stack goes back where it was. The bay refuses what cannot sit in it, and the refusal is logged, never
+    // silent: a stack below one unit (the typed -5 purchase of old saves) is dropped. A stack above its design's MaxStack
+    // (an ordinary purchase before the bay capped stacks, or a catalog MaxStack since lowered) is a legitimate save: its
+    // first MaxStack units go back where it was and the rest is returned to be placed by SpillOversize once every stack
+    // has its own cell, so a spill cannot take a cell a later stack was saved in.
+    private static void RestoreStack(ItemManager itemManager, EquippedCargoBay bay, int2 position, ItemInstance item,
+        List<(EquippedCargoBay home, SimpleCommodity rest)> spill)
+    {
+        if (item is SimpleCommodity commodity && commodity.Quantity > itemManager.GetData(commodity).MaxStack
+            && itemManager.GetData(commodity).MaxStack >= 1)
+        {
+            var maxStack = itemManager.GetData(commodity).MaxStack;
+            var first = new SimpleCommodity { Data = commodity.Data, Rotation = commodity.Rotation, Quantity = maxStack };
+            var rest = new SimpleCommodity { Data = commodity.Data, Rotation = commodity.Rotation, Quantity = commodity.Quantity - maxStack };
+            if (!bay.TryStore(first, position)) rest.Quantity += first.Quantity;
+            spill.Add((bay, rest));
+            return;
+        }
+        if (bay.TryStore(item, position)) return;
+        var quantity = item is SimpleCommodity c ? $" x{c.Quantity}" : "";
+        itemManager.Log($"Dropped a saved item the bay refused at {position}: {itemManager.GetData(item).Name}{quantity}");
+    }
+
+    // Places the units an oversize saved stack left over, in stacks of at most MaxStack: the stack's own bay first, then
+    // the entity's other bays. Only the units that fit nowhere are dropped, logged with their design and quantity.
+    private static void SpillOversize(ItemManager itemManager, IReadOnlyList<EquippedCargoBay> bays,
+        List<(EquippedCargoBay home, SimpleCommodity rest)> spill)
+    {
+        foreach (var (home, rest) in spill)
+        {
+            var maxStack = itemManager.GetData(rest).MaxStack;
+            var remaining = rest.Quantity;
+            while (remaining > 0)
+            {
+                var chunk = new SimpleCommodity { Data = rest.Data, Rotation = rest.Rotation, Quantity = Math.Min(remaining, maxStack) };
+                var placed = home.TryStore(chunk) || bays.Where(b => b != home).Any(b => b.TryStore(chunk));
+                // A refused store may still have topped up a stack; what is left in the chunk found no room.
+                remaining -= Math.Min(remaining, maxStack) - (placed ? 0 : chunk.Quantity);
+                if (placed) continue;
+                itemManager.Log($"Dropped saved units no bay has room for: {itemManager.GetData(rest).Name} x{remaining}");
+                break;
+            }
+        }
+    }
+
     public static Entity Unpack(ItemManager itemManager, Zone zone, EntityPack pack)
     {
         return pack switch
@@ -100,15 +145,18 @@ public static class EntitySerializer
                 entity.DockingBays[i].DockedShip = entity.Children[pack.DockingBayAssignments[i]] as Ship;
         }
 
+        var spill = new List<(EquippedCargoBay home, SimpleCommodity rest)>();
         for (var bayIndex = 0; bayIndex < pack.CargoContents.Length; bayIndex++)
             if(entity.CargoBays.Count >= bayIndex + 1)
                 foreach (var (position, item) in pack.CargoContents[bayIndex])
-                    entity.CargoBays[bayIndex].TryStore(item, position);
+                    RestoreStack(itemManager, entity.CargoBays[bayIndex], position, item, spill);
 
         for (var bayIndex = 0; bayIndex < pack.DockingBayContents.Length; bayIndex++)
             if(entity.DockingBays.Count >= bayIndex + 1)
                 foreach (var (position, item) in pack.DockingBayContents[bayIndex])
-                    entity.DockingBays[bayIndex].TryStore(item, position);
+                    RestoreStack(itemManager, entity.DockingBays[bayIndex], position, item, spill);
+
+        SpillOversize(itemManager, entity.CargoBays.Cast<EquippedCargoBay>().Concat(entity.DockingBays).ToList(), spill);
 
         entity.Temperature = pack.Temperature;
 
