@@ -50,8 +50,10 @@ public sealed partial class RunStartTests
         var sentinel = new float3(0, 0, 12345);
 
         Assert.NotNull(view.TrackOf(east, PilotView.Handle(west)));
+        for (var i = 0; i < 3; i++) arena.Update(1f / 60f);
+        Assert.NotNull(view.TrackOf(east, PilotView.Handle(west)));
         east.Command.Aim = sentinel;
-        arena.Update(.1f);
+        arena.Update(1f / 60f);
         Assert.NotEqual(sentinel, east.Command.Aim.Value);
 
         var steps = 0;
