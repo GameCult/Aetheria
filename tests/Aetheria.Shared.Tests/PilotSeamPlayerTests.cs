@@ -259,12 +259,16 @@ public sealed partial class RunStartTests
         Assert.NotNull(east.Sensor);
         var pings = 0;
         east.Sensor.OnPingStart += () => pings++;
-        for (var step = 0; step < 600; step++) arena.Update(SeamDt); // the ping's capacitor fills, before any switch is thrown
+        // The ping's cooldown runs out and its capacitor fills (over about as long again), before any switch is thrown.
+        var settle = 0;
+        for (; settle < 36000 && east.Sensor.Cooldown > 0; settle++) arena.Update(SeamDt);
+        Assert.True(east.Sensor.Cooldown <= 0, $"fixture: the ping cools down ({east.Sensor.Cooldown} after {settle} steps)");
+        for (var step = 0; step < settle + 600; step++) arena.Update(SeamDt);
         Assert.Equal(0, pings);
         east.Command.Ping();
         Assert.Equal(0, pings);
         arena.Update(SeamDt);
-        Assert.Equal(1, pings);
+        Assert.True(pings == 1, $"one ping at the step (cooldown {east.Sensor.Cooldown}, settled {settle} steps)");
         for (var step = 0; step < 10; step++) arena.Update(SeamDt);
         Assert.Equal(1, pings);
 
