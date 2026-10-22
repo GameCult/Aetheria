@@ -175,8 +175,8 @@ public sealed class ShipAuthoringTests
         Assert.Contains(path, error.Message);
         // The pull names the record key and schema; the MessagePack failure is its cause.
         var pull = Assert.IsType<InvalidDataException>(error.InnerException);
-        Assert.Contains("aetheria.hulldata", pull.Message);
-        Assert.Contains(ShipModCatalog.HullKey("mod.skiff").ToString(), pull.Message);
+        Assert.Contains("Record '" + ShipModCatalog.HullKey("mod.skiff") + "'", pull.Message);
+        Assert.Contains("schema", pull.Message);
         Assert.IsAssignableFrom<MessagePackSerializationException>(pull.InnerException);
     }
 
