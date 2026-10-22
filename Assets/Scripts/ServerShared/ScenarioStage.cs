@@ -50,6 +50,9 @@ public sealed class ScenarioStage
         public ScenarioStance Stance;
         public bool Piloted;
         public AgentTask Task;
+        // What the pilot already knows at the start: an entity its sensors hold a track of (Approach). Seeded through the
+        // sensors' own state at admission, so they may lose it honestly.
+        public Entity Knows;
     }
 
     // A hull fitted slot by slot: each slot a design or a product, the hull cell it goes in, and its rotation. A name is
@@ -137,7 +140,7 @@ public sealed class ScenarioStage
     }
 
     // The task a piloted entity starts on: it closes on the target and holds there (the flight's follow task, standoff
-    // nothing), in place of the patrol circuit the zone would draw for it. A check that rests on where a pilot goes states
+    // nothing), in place of the patrol circuit the zone would draw for it. The pilot starts knowing it (RunStart seeds a sensor track). A check that rests on where a pilot goes states
     // it here, so the pilot's course is the scenario's and not a draw. An entity that is not placed and piloted, or a
     // target that is not placed, is a failure.
     public void Approach(Entity entity, Entity target)
@@ -146,6 +149,7 @@ public sealed class ScenarioStage
         if (placement == null || !placement.Piloted) { _failures.Add($"approach: {entity?.Name ?? "no entity"} is not a placed, piloted ship"); return; }
         if (target == null) { _failures.Add("approach: no target to close on"); return; }
         placement.Task = new FollowTask { Anchor = PilotView.Handle(target), Standoff = 0f };
+        placement.Knows = target;
     }
 
     // Items in the entity's first cargo bay, one per name. A name is an equippable or consumable design (open: the stage

@@ -55,6 +55,12 @@ public static class RunStart
             player.SetIff(placed.Entity, hostile);
             arena.Admit(placed.Entity, placed.Piloted, placed.Task);
         }
+
+        // A start state includes what a pilot knows (ruling stage-states-pilot-knowledge): its anchor is tracked from the first
+        // step, by the sensors' own path (info gathered past the detection threshold), so they can lose it like any track.
+        foreach (var placed in stage.Placed)
+            if (placed.Knows != null && placed.Piloted)
+                placed.Entity.EntityInfoGathered[placed.Knows] = (itemManager.GameplaySettings.TargetDetectionInfoThreshold + 1f) / 2f;
         return new Staged { Player = player, Credits = stage.Credits, Entities = stage.Placed.Select(placed => placed.Entity).ToList() };
     }
 
