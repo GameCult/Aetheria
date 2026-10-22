@@ -148,10 +148,10 @@ public static class PilotApplier
         for (var i = 0; i < command.Pings; i++) entity.Sensor?.Ping();
         foreach (var hail in command.Hails) entity.SetMessage(hail);
         foreach (var consumable in command.Uses) entity.TryActivateConsumable(consumable);
-        if (command.GiveVerb is (Entity receiver, ItemInstance given, int quantity))
+        if (command.GiveVerb is { } give)
         {
-            if (receiver == null) CargoTransfer.End(entity, GiveEnd.Stopped);
-            else if (!ReferenceEquals(receiver, entity)) CargoTransfer.Begin(entity, new GiveOrder(receiver, given, quantity));
+            if (give.Receiver == null) CargoTransfer.End(entity, GiveEnd.Stopped);
+            else if (!ReferenceEquals(give.Receiver, entity)) CargoTransfer.Begin(entity, new GiveOrder(give.Receiver, give.Item, give.Quantity));
         }
         if (command.Aim is float3 aim) entity.Aim = aim;
         foreach (var (behavior, pull) in command.Triggers)
