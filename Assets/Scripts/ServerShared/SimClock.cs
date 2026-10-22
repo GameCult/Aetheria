@@ -17,7 +17,7 @@ public sealed class SimClock
     // Game steps per real second at design speed 1, and the sim seconds one step carries. The one owner of the game's
     // tick: every driver of a game history steps Zone.Update by GameStep. Design speed (ruling sim-speed-surface) will
     // set Step = DesignSpeed / TickRate in ForGame and nowhere else.
-    public const int TickRate = 60;
+    public const int TickRate = 30;
     public const float GameStep = 1f / TickRate;
 
     public static SimClock ForGame() => new SimClock(GameStep, TickRate);
