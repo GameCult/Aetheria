@@ -20,15 +20,16 @@ public sealed partial class RunStartTests
 {
     private const float SeamDt = 1f / 60f;
 
-    // Two Longinus 200 apart, facing each other, the bare player far away. Piloted ones get the zone's pilot.
-    private (Zone arena, Ship east, Ship west) SeamPair(bool piloted, Action<ScenarioStage, Ship, Ship> more = null)
+    // Two Longinus 2 * half apart (200 by default), facing each other, the bare player far away. Piloted ones get the
+    // zone's pilot.
+    private (Zone arena, Ship east, Ship west) SeamPair(bool piloted, Action<ScenarioStage, Ship, Ship> more = null, float half = 100)
     {
         Ship east = null, west = null;
         var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
-            east = stage.Place(EvLonginus(stage), float2(100, 0), facing: float2(-1, 0), piloted: piloted) as Ship;
-            west = stage.Place(EvLonginus(stage), float2(-100, 0), facing: float2(1, 0), piloted: piloted) as Ship;
+            east = stage.Place(EvLonginus(stage), float2(half, 0), facing: float2(-1, 0), piloted: piloted) as Ship;
+            west = stage.Place(EvLonginus(stage), float2(-half, 0), facing: float2(1, 0), piloted: piloted) as Ship;
             more?.Invoke(stage, east, west);
         }));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
@@ -255,6 +256,125 @@ public sealed partial class RunStartTests
         var along = FireControl.AimDirection(gun.Item, east);
         Assert.True(length(shots[0].TravelDirection - along) < 1e-4f, $"the shot flies {shots[0].TravelDirection}, the commanded aim {along}");
         Assert.True(dot(shots[0].TravelDirection, behind.xz) < 0, "not along the previous aim");
+    }
+
+    // A pull lands once and a release lands once: the trigger is let go at the step it is released, not held on.
+    [Fact]
+    public void AReleaseDeactivatesAtTheStep()
+    {
+        var (arena, east, _) = SeamPair(false);
+        for (var step = 0; step < 60; step++) arena.Update(SeamDt); // the gun comes online and off cooldown
+        var gun = SeamGun(east);
+
+        east.Command.Pull(gun);
+        PilotApplier.Apply(east);
+        Assert.True(gun.Firing);
+        Assert.Empty(east.Command.Triggers);
+
+        east.Command.Release(gun);
+        PilotApplier.Apply(east);
+        Assert.False(gun.Firing);
+        PilotApplier.Apply(east);
+        Assert.False(gun.Firing);
+    }
+
+    // Combat lets go of a weapon it will not fire only if that weapon is firing: of a group's two guns, the one firing is
+    // released and the idle one gets no trigger at all. Breaks if Combat's release guard or its Release is lost.
+    [Fact]
+    public void CombatReleasesOnlyAFiringWeaponItWillNotFire()
+    {
+        var (arena, east, west) = SeamPair(true);
+        east.SetIff(west, true);
+        west.SetIff(east, true);
+        var agent = arena.Agents.Single(a => a.Ship == east);
+        agent.Doctrine.MinHitProbability = 2; // no shot clears it, so Combat fires no unfused gun
+        for (var step = 0; step < 900 && !(SeamState(agent) is CombatState); step++) arena.Update(SeamDt);
+        Assert.IsType<CombatState>(SeamState(agent));
+        var guns = east.WeaponGroups.Single(g => g.weapons.Contains(SeamGun(east))).weapons.ToArray();
+        Assert.Equal(2, guns.Length);
+        Assert.All(guns, g => Assert.False(g.Firing));
+
+        guns[0].Activate(); // the pilot's earlier pull, still held
+        Assert.True(guns[0].Firing);
+        agent.Update(SeamDt);
+
+        var triggers = east.Command.Triggers.Where(t => guns.Any(g => ReferenceEquals(g, t.Behavior))).ToArray();
+        var (released, pull) = Assert.Single(triggers);
+        Assert.Same(guns[0], released);
+        Assert.False(pull);
+        PilotApplier.Apply(east);
+        Assert.False(guns[0].Firing);
+        Assert.False(guns[1].Firing);
+    }
+
+    // Combat pulls a locking launcher once it can fire, beside the groups it chooses (its locks add no group damage, so
+    // this pull is their only one). Breaks if Combat's lock pull is lost.
+    [Fact]
+    public void CombatPullsALockThatCanFire()
+    {
+        var (arena, east, west) = SeamPair(true, half: 300); // beyond the launchers' minimum range
+        east.SetIff(west, true);
+        west.SetIff(east, true);
+        var agent = arena.Agents.Single(a => a.Ship == east);
+        var locks = east.Weapons.OfType<LockWeapon>().ToArray();
+        Assert.NotEmpty(locks);
+        for (var step = 0; step < 1800 && !(SeamState(agent) is CombatState && locks.Any(l => l.CanFire)); step++)
+            arena.Update(SeamDt);
+        Assert.IsType<CombatState>(SeamState(agent));
+        var ready = locks.Where(l => l.CanFire).ToArray();
+        Assert.NotEmpty(ready);
+
+        agent.Update(SeamDt);
+
+        foreach (var launcher in ready) Assert.True(east.Command.Pulls(launcher), $"{launcher.Item.Data.Name} is pulled");
+    }
+
+    // Pulls answers the pilot's last trigger for that behaviour this step, and nothing commanded is no pull.
+    [Fact]
+    public void PullsReadsTheLastTriggerForThatBehaviour()
+    {
+        var (_, east, west) = SeamPair(false);
+        var gun = SeamGun(east);
+        var other = SeamGun(west);
+        Assert.False(east.Command.Pulls(gun));
+
+        east.Command.Pull(gun);
+        Assert.True(east.Command.Pulls(gun));
+        Assert.False(east.Command.Pulls(other));
+        east.Command.Pull(other);
+        Assert.True(east.Command.Pulls(gun));
+
+        east.Command.Release(gun);
+        Assert.False(east.Command.Pulls(gun));
+        Assert.True(east.Command.Pulls(other));
+    }
+
+    // The step a Minion's target is lost and its Flight designates another (the target-loss clear, then the Flight's
+    // designation), the Minion stays in combat and aims at the other that step, as it did when SetTarget landed before it
+    // decided. Breaks if the Minion's transition or Combat read only the applied target (Minion.cs, Combat.cs).
+    [Fact]
+    public void TheRetargetStepEngagesTheDesignatedOther()
+    {
+        Ship third = null;
+        var (arena, east, west) = SeamPair(true, (stage, e, w) =>
+            third = stage.Place(EvLonginus(stage), float2(350, 0), facing: float2(-1, 0)) as Ship);
+        east.SetIff(west, true);
+        west.SetIff(east, true);
+        east.SetIff(third, true);
+        var agent = arena.Agents.Single(a => a.Ship == east);
+        for (var step = 0; step < 900 && !(SeamState(agent) is CombatState); step++) arena.Update(SeamDt);
+        Assert.IsType<CombatState>(SeamState(agent));
+        Assert.Same(west, east.Target.Value.Entity);
+
+        east.SetTarget(TargetRef.None);
+        east.Command.Designate(new TargetRef(third));
+        agent.Update(SeamDt);
+
+        Assert.IsType<CombatState>(SeamState(agent));
+        var aim = normalize(east.Command.Aim.Value.xz);
+        var toThird = dot(aim, normalize(third.Position.xz - east.Position.xz));
+        var toWest = dot(aim, normalize(west.Position.xz - east.Position.xz));
+        Assert.True(toThird > toWest + .2f, $"aims at the designated target: toThird {toThird} toWest {toWest}");
     }
 
     [Fact]
