@@ -908,4 +908,59 @@ public sealed class CargoTransferTests : IDisposable
         Assert.Equal(new[] { 4 }, bay.Cargo.Keys.OfType<SimpleCommodity>().Select(c => c.Quantity).ToArray());
         Assert.Contains(log, l => l.Contains("-5") && l.Contains("Ore"));
     }
+
+    // ---- Saves from before the bay capped a stack -------------------------------------------------------------
+
+    // A pre-f0d7c12c purchase above MaxStack left a whole oversize stack in the hold. The save holds it as one stack.
+    private (Ship restored, List<string> log) RestoreWithOversize(string[] bays, int oversize, int fillerPerBay)
+    {
+        var log = new List<string>();
+        var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+        var items = new ItemManager(1u, _cache, _items.Lots, settings, log.Add);
+        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var ship = new Ship(_items, _zone, Mint("Skiff"), new EntitySettings());
+        for (var i = 0; i < bays.Length; i++) Assert.True(ship.TryEquip(Mint(bays[i]), new int2(1 + 2 * i, 1)));
+        var pack = (ShipPack) EntitySerializer.Pack(ship);
+        // Bay 0 holds the oversize stack at (3,3) and `fillerPerBay` full Slag stacks in the other cells; later bays only filler.
+        for (var b = 0; b < bays.Length; b++)
+        {
+            var contents = new List<(int2, ItemInstance)>();
+            if (b == 0) contents.Add((new int2(3, 3), Commodity("Ore", oversize)));
+            for (var n = 0; n < fillerPerBay; n++) contents.Add((new int2(n % 4, n / 4), Commodity("Slag", 100)));
+            pack.CargoContents[b] = contents.ToArray();
+        }
+        return ((Ship) EntitySerializer.Unpack(items, zone, pack), log);
+    }
+
+    [Fact]
+    public void ARestoredOversizeStackSplitsIntoMaxStackStacksInTheSameBay()
+    {
+        var (restored, log) = RestoreWithOversize(new[] { "Crate" }, 250, 0);
+
+        var ore = restored.CargoBays[0].Cargo.Keys.OfType<SimpleCommodity>().Select(c => c.Quantity).OrderByDescending(q => q).ToArray();
+        Assert.Equal(new[] { 100, 100, 50 }, ore);
+        Assert.DoesNotContain(log, l => l.Contains("Dropped"));
+    }
+
+    [Fact]
+    public void ARestoredOversizeStackSpillsToAnotherBayWhenItsOwnIsFull()
+    {
+        // Bay 0 has 15 cells of filler and the oversize stack's own cell: only 100 fits there.
+        var (restored, log) = RestoreWithOversize(new[] { "Crate", "Crate" }, 250, 15);
+
+        Assert.Equal(new[] { 100, 100, 50 }, restored.CargoBays.SelectMany(b => b.Cargo.Keys.OfType<SimpleCommodity>())
+            .Where(c => _cache.GetByName<SimpleCommodityData>("Ore").Name == _items.GetData(c).Name).Select(c => c.Quantity).OrderByDescending(q => q).ToArray());
+        Assert.Equal(1, restored.CargoBays[0].Cargo.Keys.OfType<SimpleCommodity>().Count(c => _items.GetData(c).Name == "Ore"));
+        Assert.DoesNotContain(log, l => l.Contains("Dropped"));
+    }
+
+    [Fact]
+    public void ARestoredOversizeStackDropsOnlyWhatFitsNowhereAndLogsIt()
+    {
+        var (restored, log) = RestoreWithOversize(new[] { "Crate" }, 250, 15);
+
+        Assert.Equal(new[] { 100 }, restored.CargoBays[0].Cargo.Keys.OfType<SimpleCommodity>()
+            .Where(c => _items.GetData(c).Name == "Ore").Select(c => c.Quantity).ToArray());
+        Assert.Contains(log, l => l.Contains("Ore") && l.Contains("150"));
+    }
 }
