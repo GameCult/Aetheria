@@ -735,31 +735,32 @@ public sealed class CargoTransferTests : IDisposable
     // ---- The lot a purchase delivers ---------------------------------------------------------------------------
 
     [Fact]
-    public void APurchaseChargesForEachLotItDelivers()
+    public void APurchaseOfAStackIsOneLotChargedForWhatItDelivers()
     {
-        // Grit stacks hold two. Five units are three lots, and each lot is charged for what it delivers.
-        var stock = Commodity("Grit", 5);
+        // Grit stacks hold two: a station stack of two is one lot.
+        var stock = Commodity("Grit", 2);
         var credits = 100;
         var delivered = new List<int>();
 
-        var result = StationServices.TryBuyLots(_items, stock, 5, ref credits, lot => { delivered.Add(lot); return true; });
+        var result = StationServices.TryBuyLots(_items, stock, 2, ref credits, lot => { delivered.Add(lot); return true; });
 
         Assert.Equal(BuyResult.Bought, result);
-        Assert.Equal(new[] { 2, 2, 1 }, delivered);
-        Assert.Equal(100 - 5, credits);
+        Assert.Equal(new[] { 2 }, delivered);
+        Assert.Equal(100 - 2, credits);
     }
 
     [Fact]
-    public void ARefusedLotLeavesEarlierLotsBoughtAndChargesNothingMore()
+    public void AStackAboveMaxStackFromOutsideABayIsRefusedBeforeAnythingMoves()
     {
         var stock = Commodity("Grit", 5);
         var credits = 100;
-        var lots = 0;
+        var delivered = 0;
 
-        var result = StationServices.TryBuyLots(_items, stock, 5, ref credits, lot => ++lots < 2);
+        var result = StationServices.TryBuyLots(_items, stock, 2, ref credits, lot => { delivered++; return true; });
 
         Assert.Equal(BuyResult.NoRoom, result);
-        Assert.Equal(100 - 2, credits);
+        Assert.Equal(0, delivered);
+        Assert.Equal(100, credits);
     }
 
     [Theory]

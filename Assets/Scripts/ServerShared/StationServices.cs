@@ -79,22 +79,14 @@ public static class StationServices
         return BuyResult.Bought;
     }
 
-    // The purchase of `quantity` units of a station stack, one lot of at most MaxStack at a time. The stock is the
-    // station's: a purchase of more than the stack holds, or of a stack that holds nothing, is refused before anything
-    // moves, so every lot is units the station has and `deliver` moves whole, and each lot is charged for the units it
-    // delivered. The first lot the player cannot take ends the purchase, with the lots before it bought.
+    // The purchase of `quantity` units of a station stack, delivered as one lot. A bay holds no stack above its
+    // design's MaxStack, so a stack the station holds is a lot already; a stack above it comes from outside a bay and is
+    // refused, as is a purchase of more than the stack holds or of a stack that holds nothing. All of that is refused
+    // before anything moves, so `deliver` moves units the station has and the charge is for the units it delivered.
     public static BuyResult TryBuyLots(ItemManager items, SimpleCommodity stock, int quantity, ref int credits, Func<int, bool> deliver)
     {
-        if (quantity < 1 || quantity > stock.Quantity) return BuyResult.NoRoom;
-        var maxStack = items.GetData(stock).MaxStack;
-        for (var remaining = quantity; remaining > 0;)
-        {
-            var lot = Math.Min(remaining, maxStack);
-            var result = TryBuy(items, stock, lot, ref credits, () => deliver(lot));
-            if (result != BuyResult.Bought) return result;
-            remaining -= lot;
-        }
-        return BuyResult.Bought;
+        if (quantity < 1 || quantity > stock.Quantity || stock.Quantity > items.GetData(stock).MaxStack) return BuyResult.NoRoom;
+        return TryBuy(items, stock, quantity, ref credits, () => deliver(quantity));
     }
 
     // The quantity a Buy Quantity field may hold: what was typed, at most what the credits cover and what the station
