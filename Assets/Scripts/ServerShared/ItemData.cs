@@ -322,7 +322,7 @@ public abstract class ItemData
 [CultDocument("aetheria.simplecommoditydata", "1"), Inspectable, MessagePackObject]
 public class SimpleCommodityData : ItemData
 {
-    // MessagePack keys 6, 7, 8, 10 and 11 belonged to removed resource-distribution fields; do not reuse them.
+    // MessagePack keys 6, 7, 8 and 11 belonged to removed resource-distribution fields, and key 10 to the removed stored Category; do not reuse them.
 
     [Inspectable, JsonProperty("maxStackSize"), Key(9)]
     public int MaxStack = 10;
