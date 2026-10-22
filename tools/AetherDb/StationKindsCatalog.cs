@@ -36,10 +36,10 @@ public static class StationKindsCatalog
 
     // The catalog opened without AetheriaStores.Open's checks: the catalog this command first runs on holds a station hull with no
     // kind, which StationKinds.Validate refuses, and this command is what gives it one.
-    public static CultCache OpenCatalog(bool apply)
+    public static CultCache OpenCatalog(bool apply, string catalogPath = null)
     {
         var cache = new CultCache();
-        cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), !apply), AetheriaStores.CatalogTypes);
+        cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath ?? Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), !apply), AetheriaStores.CatalogTypes);
         return cache;
     }
 
