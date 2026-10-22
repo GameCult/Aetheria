@@ -33,7 +33,13 @@ module lp_at(t=[0,0,0], r=[0,0,0], mx=false) {
   multmatrix(M) children();
 }
 // One schematic line: layer (outline, step, seam or fitting), points in the local frame, cyclic when it closes.
+// Part "marks" draws a LP_MARK cube at the line's first point through the CTM, the frame the geometry is drawn in, where
+// "lines" echoes the same point through $lp_m; hull_source compares the two, so a part placed by anything but lp_at
+// (a raw translate, rotate or mirror) shows as a line away from its geometry.
+LP_MARK = 0.002;
 module lp_line(layer, pts, cyclic=false) {
-  if (!is_undef(part) && part == "lines" && ($lp_m * [0, 0, 1, 0])[2] > 0.5)
-    echo(line = [layer, cyclic, [for (p = pts) lp_ap($lp_m, p)]]);
+  if (!is_undef(part) && ($lp_m * [0, 0, 1, 0])[2] > 0.5) {
+    if (part == "lines") echo(line = [layer, cyclic, [for (p = pts) lp_ap($lp_m, p)]]);
+    if (part == "marks") translate(pts[0]) cube(LP_MARK, center=true);
+  }
 }

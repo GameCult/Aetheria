@@ -63,6 +63,7 @@ LINE_STYLE = {"silhouette": (1.0, 1.0, 1.0, 1.0), "outline": (1.0, 1.0, 1.0, 0.7
 MIN_SILHOUETTE_AREA = 0.25  # m2, below which a projected contour is a sliver, not the hull
 LINE_EDGE_TOLERANCE = 0.3  # m, how far outside the silhouette's edge a kit line's point may lie
 DUPLICATE_CELL = 0.001  # m, kit lines whose points all agree to this are the same line
+MARK_TOLERANCE = 0.01  # m, how far a mark of the kit may lie from the start of its line
 
 # A projector answers a list of Meshes with the contours (lists of (x, y)) of their top-view union.
 Projector = Callable[[list], "list[list[tuple]]"]
@@ -347,6 +348,35 @@ def _triangles_xy(mesh):
     return [tuple(mesh.vertices[v][:2] for v in tri) for tri in mesh.triangles]
 
 
+def mark_centres(mesh):
+    """The centre of each connected piece of mesh: the kit's "marks" part draws one tiny cube per line start."""
+    parent = list(range(len(mesh.vertices)))
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for triangle in mesh.triangles:
+        for corner in triangle[1:]:
+            parent[root(corner)] = root(triangle[0])
+    pieces = {}
+    for i in {corner for triangle in mesh.triangles for corner in triangle}:
+        pieces.setdefault(root(i), []).append(mesh.vertices[i])
+    return [tuple((min(v[a] for v in vs) + max(v[a] for v in vs)) / 2 for a in range(3)) for vs in pieces.values()]
+
+
+def _frame_disagreements(kit, marks):
+    """(lines with no mark at their first point, marks that start no line). The kit echoes a line in the frame lp_at tracks
+    and draws its mark in the frame the geometry is drawn in; they agree unless a part was placed by anything but lp_at."""
+    starts = [line.points[0] for line in kit]
+    centres = mark_centres(marks)
+    near = lambda a, b: all(abs(x - y) <= MARK_TOLERANCE for x, y in zip(a, b))
+    return (sum(not any(near(start, c) for c in centres) for start in starts),
+            sum(not any(near(c, start) for start in starts) for c in centres))
+
+
 def _language(library, faction):
     """The language of factions/<faction>.scad, which owns it: exactly one echo, naming that faction."""
     (language,) = _exactly_one(read_languages(library(faction)), "language")
@@ -421,6 +451,9 @@ def build(runner, library, hull_type, projector):
     result.checks = [Check("the hull includes its faction's language files and changes none of them",
                            sorted(included, key=by_faction) == sorted(owned, key=by_faction), "")]
     result.checks += _checks(result, own, judge)
+    unmarked, stray = _frame_disagreements(kit_lines, parse_off(runner("marks")[0]))
+    result.checks.append(Check("every kit line is drawn in the frame of its geometry", not (unmarked or stray),
+                               f"{unmarked} lines and {stray} marks disagree"))
     return result
 
 
