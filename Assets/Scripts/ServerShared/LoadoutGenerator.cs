@@ -200,11 +200,8 @@ public class LoadoutGenerator
         var candidates = ItemManager.ItemData.GetAll<FactionProductData>()
             .Select(product => (product, design: ItemManager.ItemData.Get(product.Design) as T))
             .Where(entry =>
-                entry.design != null &&
-                entry.design.Price > 0 &&
-                entry.product.Manufacturer.IsSet() &&
                 // A not-offered product is never a candidate, so the any-manufacturer fallback below cannot reach it either.
-                IsOffered(ItemManager.ItemData, entry.product) &&
+                IsDrawable(ItemManager.ItemData, entry.product, entry.design) &&
                 (!(entry.design is EquippableItemData equippable) || HasHome(equippable, hulls)) &&
                 (filter?.Invoke(entry.design) ?? true))
             .ToArray();
@@ -245,6 +242,12 @@ public class LoadoutGenerator
         IsOffered(ItemManager.ItemData, product) && (
             Galaxy == null || Faction == null ||
             ItemManager.ItemData.Get(product.Manufacturer) == Faction || Faction.Allegiance.ContainsKey(product.Manufacturer));
+
+    // Whether a product can be drawn for its design at all: the design resolves, has a price, the product names a maker and is
+    // offered. The one definition of 'a maker offers this design'; AvailableProducts selects by it and StationKinds decides which
+    // station kinds a hull can be drawn for by it, so a kind is kept exactly when a hull of it can be drawn.
+    public static bool IsDrawable(CultCache items, FactionProductData product, CraftedItemData design) =>
+        design != null && design.Price > 0 && product.Manufacturer.IsSet() && IsOffered(items, product);
 
     // Whether a product is on the market at all (ruling off-market-is-unoffered-product). The one reader of NotOffered. A bin is
     // offered only if both it and its line are (ruling bin-inherits-line-offered); the catalog read guarantees a bin's line exists.

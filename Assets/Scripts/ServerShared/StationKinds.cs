@@ -138,17 +138,17 @@ public static class StationKinds
 
     // The hull kinds some maker offers: the pool a station can always be drawn from.
     private static HashSet<string> OfferedKinds(CultCache catalog) =>
-        new HashSet<string>(
-            catalog.GetAll<FactionProductData>().Where(product => LoadoutGenerator.IsOffered(catalog, product))
-                .Select(product => catalog.Get(product.Design) as HullData)
-                .Where(hull => hull != null && hull.HullType == HullType.Station && hull.Kind.IsSet())
-                .Select(hull => hull.Kind.Key.Value), StringComparer.Ordinal);
+        new HashSet<string>(DrawableStationProducts(catalog).Select(entry => entry.hull.Kind.Key.Value), StringComparer.Ordinal);
 
     private static IEnumerable<HullData> OfferedStationHulls(CultCache catalog, Faction faction) =>
+        DrawableStationProducts(catalog).Where(entry => catalog.Get(entry.product.Manufacturer) == faction).Select(entry => entry.hull);
+
+    // The station hulls a hull draw can reach (LoadoutGenerator.IsDrawable, the one definition), with the product that sells each.
+    private static IEnumerable<(FactionProductData product, HullData hull)> DrawableStationProducts(CultCache catalog) =>
         catalog.GetAll<FactionProductData>()
-            .Where(product => LoadoutGenerator.IsOffered(catalog, product) && catalog.Get(product.Manufacturer) == faction)
-            .Select(product => catalog.Get(product.Design) as HullData)
-            .Where(hull => hull != null && hull.HullType == HullType.Station && hull.Kind.IsSet());
+            .Select(product => (product, hull: catalog.Get(product.Design) as HullData))
+            .Where(entry => entry.hull != null && entry.hull.HullType == HullType.Station && entry.hull.Kind.IsSet() &&
+                LoadoutGenerator.IsDrawable(catalog, entry.product, entry.hull));
 
     private static CultRecordRef<StationKindData>[] Ordered(IEnumerable<string> keys) =>
         keys.OrderBy(key => key, StringComparer.Ordinal).Select(key => new CultRecordRef<StationKindData>(new CultRecordKey(key))).ToArray();
