@@ -248,7 +248,7 @@ public class ActionGameManager : MonoBehaviour
     
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
-    public static SimClock Clock { get; } = new SimClock(1f / 60f);
+    public static SimClock Clock { get; } = SimClock.ForGame();
     private bool _zoneEntered;
 
     private readonly (float2 direction, string name)[] _directions = {

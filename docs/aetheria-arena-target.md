@@ -85,7 +85,8 @@ Harness:
 
 - `A-pure`: A match is a pure function of (code revision, catalog revision, scenario id, match seed, brain ids per
   side, host determinism class). The same inputs give the same per-tick state digest, in any process, run alone or
-  in a batch.
+  in a batch. The step is part of the code revision: `SimClock.GameStep`, never a
+  driver's own literal.
 - `A-no-clock`: No input to a match comes from the wall clock, process identity, hash-code ordering of reference
   types, or a stream another subsystem advances. Every draw a match reaches comes from `SimulationDice` (or a successor
   owner) keyed by a structured seed. A missing seed is refused, never defaulted to the clock.
@@ -169,10 +170,17 @@ No cell is empty. The Scenario row exposes a gap: `Name` is today's only identit
 3. **View seam.** Add a `PilotView` built from sensors and book. Brains lose their live `Ship`, `Zone` and `ItemManager`
    references. `Flight` and `Minion` become `DoctrineBrain` behind an `IBrain` registry. Aiming moves to the view if
    `observation-fidelity` rules for it.
-4. **Replay.** The recorder writes inputs, commands and digests every N ticks as CultCache. The replayer reproduces
+4. **Sim rate** (ruling `lower-game-sim-rate`, map `docs/aetheria-arena-sim-rate-map.md`, spec `cut-sim-rate.r1`).
+   - One game tick, `SimClock.TickRate`, lowered for game and arena alike, so `A-one-sim` holds unchanged.
+   - Before it, timers carry their overshoot and passive sensing decays exactly, so content authored in seconds means the
+     same thing at any tick.
+   - The two-AI digest is repinned once, at the game step, for those two causes.
+   - It lands before replay and the runner, so recorded digests and measured throughput are at the real rate.
+   - The rate is the one question `sim-tick-rate` decides, then the equivalence test, then her playtest.
+5. **Replay.** The recorder writes inputs, commands and digests every N ticks as CultCache. The replayer reproduces
    them and names the first divergent tick. Replay tests read an existing match.
-5. **Runner.** `AetherDb arena`: a scenario, two brain ids and a seed range produce results and replays in a given
+6. **Runner.** `AetherDb arena`: a scenario, two brain ids and a seed range produce results and replays in a given
    directory. It runs in Yggdrasil's dotnet container, with two-ship throughput measured and recorded.
-6. **First tournament.** Round-robin over two or more brains (`DoctrineBrain` plus one variant) and the combat
+7. **First tournament.** Round-robin over two or more brains (`DoctrineBrain` plus one variant) and the combat
    scenarios, with enough seeds per pairing. Ratings are derived with confidence intervals, and the results document
    is ready to feed `aetheria-matchups`.

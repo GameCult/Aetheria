@@ -354,6 +354,7 @@ public sealed partial class ContactRevealTests : IDisposable
         capacitor.AddCharge(1000f);
         ship.SetTarget(TargetRef.None);
         gun.Activate();
+        gun.Deactivate();
         for (var i = 0; i < 10; i++)
         {
             Tick(.1f);
@@ -1277,6 +1278,7 @@ public sealed partial class ContactRevealTests : IDisposable
         ((InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(killerGun)).AddCharge(1000f);
         killer.SetTarget(TargetRef.None);
         killerGun.Activate();
+        killerGun.Deactivate();
         for (var ticks = 0; !killed && ticks < 20; ticks++) Tick(.1f);
         Assert.True(killed, "fixture: the kill lands inside a tick");
         Assert.False(_zone.Entities.Contains(e), "fixture: the kill took the subject out of the zone");

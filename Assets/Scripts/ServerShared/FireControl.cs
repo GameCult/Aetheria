@@ -698,7 +698,11 @@ public static class FireControl
     // Damage * interval, through this exact same freeze-and-queue path (a flight time of zero, since a beam's
     // authored Velocity is 0, commits and resolves in the tick it fires -- R4's short-flight degradation,
     // unchanged). Every other caller keeps reading the frozen weapon.Damage it always did.
-    public static int Fire(Weapon weapon, EquippedItem item, Entity source, float? damageOverride = null)
+    // Rounds per step (ruling rounds-per-step): a gun fires every round its cooldown allows in a step, so a round is born
+    // `age` seconds before the step's end, where the shooter and its target were then (carried back along their velocities).
+    // FireTime, the origin, the target's frozen pose and the arrival and commit times all follow, so a presenter draws the round
+    // from where it left and the commit measures the target's stray from the line it was fired along.
+    public static int Fire(Weapon weapon, EquippedItem item, Entity source, float? damageOverride = null, float age = 0f)
     {
         var zone = source.Zone;
         if (IsMineLayer(weapon))
@@ -708,7 +712,7 @@ public static class FireControl
         }
         // Mining Cut 3: a chunk target fires as an untargeted round until Cut 4 routes shots at chunks.
         var target = source.Target.Value.Entity;
-        var now = zone.Time;
+        var now = zone.Time - age;
 
         // R1's engage gate and the shooter-side probability, evaluated now and frozen: nothing at commit time
         // re-reads a stat, an info level or a range. Cut 12.2: PFire no longer carries the spread/hull share --
@@ -724,14 +728,14 @@ public static class FireControl
         var burstPosition = solution.BurstPosition;
         var fuse = solution.Fuse;
         var blastRadius = solution.BlastRadius;
-        var origin = source.Position;
+        var origin = source.Position - float3(source.Velocity.x, 0, source.Velocity.y) * age;
 
         var targetVelocity = float3.zero;
         var targetPosition = origin;
         if (engaged != null)
         {
             targetVelocity = float3(engaged.Velocity.x, 0, engaged.Velocity.y);
-            targetPosition = engaged.Position;
+            targetPosition = engaged.Position - targetVelocity * age;
         }
         var flightTime = weapon.Velocity > .01f ? solution.FlightDistance / weapon.Velocity : 0f;
 
@@ -779,7 +783,12 @@ public static class FireControl
         // point is decided at its commit (CommitBurst), which reads it there. Each shot reads it once.
         if (!shot.DeliveredAtCommit) Deliver(ref shot, solution.BurstReach);
 
-        zone.PendingShots.Add(shot);
+        // The queue is in fire-time order, ties in shot-id order (ids rise as shots are made): Step walks it oldest first. Rounds
+        // of one step are born shooter by shooter, so a later shooter's earlier round goes in before an earlier shooter's later one.
+        var queue = zone.PendingShots;
+        var place = queue.Count;
+        while (place > 0 && queue[place - 1].FireTime > shot.FireTime) place--;
+        queue.Insert(place, shot);
         return shot.ShotId;
     }
 
@@ -845,7 +854,10 @@ public static class FireControl
         if (shots.Count == 0) return;
 
         var now = zone.Time;
-        for (var i = shots.Count - 1; i >= 0; i--)
+        // Commits walk the queue in fire-time order, oldest first (Fire keeps it in it). Shots queued while the walk runs are
+        // left to the next step.
+        List<(float Arrival, int Id)> arrived = null;
+        for (int i = 0, end = shots.Count; i < end;)
         {
             var shot = shots[i];
 
@@ -859,6 +871,7 @@ public static class FireControl
                 // target is gone. Republishing the committed outcome here used to put a hit marker on a corpse.
                 var miss = MakeOutcome(shot, ShotResult.Miss, false, false, int2.zero, float2.zero, 0f, now);
                 shots.RemoveAt(i);
+                end--;
                 if (!shot.Committed) zone.ShotCommitted.OnNext(miss);
                 zone.ShotResolved.OnNext(miss);
                 continue;
@@ -879,16 +892,41 @@ public static class FireControl
 
             if (shot.Committed && now >= shot.ArrivalTime)
             {
-                // Cut 12.4(b) (docs/fire-control-cut.md, "Which model a shot uses"): Apply is the one owner of
-                // which model a shot uses, through its own switch on the frozen Fuse -- Step has no damage
-                // branch left. A direct hit, a proximity burst and a contact or delayed blast all arrive here
-                // the same way; only Apply decides what that means.
-                // Removed first: Apply reaches damage observers (user code), and a shot left in the queue by one
-                // that throws would resolve, and hurt, again on every later tick.
-                shots.RemoveAt(i);
-                Apply(zone, shot);
-                zone.ShotResolved.OnNext(shot.Outcome);
+                (arrived ??= new List<(float, int)>()).Add((shot.ArrivalTime, shot.ShotId));
             }
+            i++;
+        }
+        if (arrived == null) return;
+
+        // The rounds that arrive in this step apply in arrival order, ties in shot-id order (ids rise as shots are made), so
+        // which of them breaks a shield or lands a kill follows when each hit, not the order the shooters were stepped in or the
+        // order their rounds left.
+        arrived.Sort((a, b) => a.Arrival != b.Arrival ? a.Arrival.CompareTo(b.Arrival) : a.Id.CompareTo(b.Id));
+        foreach (var (_, id) in arrived)
+        {
+            var i = shots.FindIndex(q => q.ShotId == id);
+            if (i < 0) continue;
+            var shot = shots[i];
+
+            var targetGone = shot.Target != null && !zone.Entities.Contains(shot.Target);
+            if (targetGone)
+            {
+                // As in the commit walk: a shot whose target left the zone in this step resolves as a miss.
+                var miss = MakeOutcome(shot, ShotResult.Miss, false, false, int2.zero, float2.zero, 0f, now);
+                shots.RemoveAt(i);
+                zone.ShotResolved.OnNext(miss);
+                continue;
+            }
+
+            // Cut 12.4(b) (docs/fire-control-cut.md, "Which model a shot uses"): Apply is the one owner of
+            // which model a shot uses, through its own switch on the frozen Fuse -- Step has no damage
+            // branch left. A direct hit, a proximity burst and a contact or delayed blast all arrive here
+            // the same way; only Apply decides what that means.
+            // Removed first: Apply reaches damage observers (user code), and a shot left in the queue by one
+            // that throws would resolve, and hurt, again on every later tick.
+            shots.RemoveAt(i);
+            Apply(zone, shot);
+            zone.ShotResolved.OnNext(shot.Outcome);
         }
     }
 

@@ -34,7 +34,7 @@ public sealed class SimClockTests
     {
         foreach (var frames in new[] { new[] { 1f / 60 }, Irregular, new[] { .09f, .004f, 0f, 3f } })
         {
-            var clock = new SimClock(1f / 60f);
+            var clock = new SimClock(1f / 60f, 60);
             var passed = Drive(clock, frames, 500);
             Assert.True(passed.Count >= 500);
             Assert.All(passed, dt => Assert.Equal(clock.Step, dt));
@@ -47,7 +47,7 @@ public sealed class SimClockTests
     public void StepsFollowRealTime()
     {
         // Ten real seconds of irregular frames.
-        var clock = new SimClock(1f / 60f);
+        var clock = new SimClock(1f / 60f, 60);
         var elapsed = 0.0;
         for (var frame = 0; elapsed < 10.0; frame++)
         {
@@ -71,7 +71,7 @@ public sealed class SimClockTests
     [Fact]
     public void AHitchIsClamped()
     {
-        var clock = new SimClock(1f / 60f);
+        var clock = new SimClock(1f / 60f, 60);
         var ran = clock.Advance(5f, _ => { });
         Assert.Equal(6, ran);
         Assert.Equal(6, clock.Steps);
@@ -80,7 +80,7 @@ public sealed class SimClockTests
     [Fact]
     public void AStepCannotResetItsClock()
     {
-        var clock = new SimClock(1f / 60f);
+        var clock = new SimClock(1f / 60f, 60);
         Assert.Throws<InvalidOperationException>(() => clock.Advance(1f / 60f, _ => clock.Reset()));
         clock.Advance(.005f, _ => { });
         Assert.True(clock.Lead > 0);
@@ -92,7 +92,7 @@ public sealed class SimClockTests
     [Fact]
     public void PauseFeedsNothing()
     {
-        var clock = new SimClock(1f / 60f);
+        var clock = new SimClock(1f / 60f, 60);
         clock.Advance(.025f, _ => { });
         var lead = clock.Lead;
         var steps = clock.Steps;
@@ -124,14 +124,14 @@ public sealed class SimClockTests
     [Fact]
     public void ABadClockIsRefusedByFieldName()
     {
-        Assert.Equal("step", Assert.Throws<ArgumentOutOfRangeException>(() => new SimClock(0f)).ParamName);
+        Assert.Equal("step", Assert.Throws<ArgumentOutOfRangeException>(() => new SimClock(0f, 60)).ParamName);
         Assert.Equal("stepsPerRealSecond", Assert.Throws<ArgumentOutOfRangeException>(() => new SimClock(1f, 0f)).ParamName);
     }
 }
 
 public sealed partial class RunStartTests
 {
-    private const float ClockFrame = 1f / 60f;
+    private const float ClockFrame = SimClock.GameStep;
     private const int HistorySteps = 1800;
 
     // The Duel launched as the game launches it, its item random reseeded so play draws the same numbers every time.
@@ -173,7 +173,7 @@ public sealed partial class RunStartTests
     // Feeds the zone through one SimClock with the frames cycled, snapshotting every step until HistorySteps have run.
     private static List<string> History(Zone zone, float[] frames)
     {
-        var clock = new SimClock(1f / 60f);
+        var clock = new SimClock(1f / 60f, 60);
         var shots = new List<string>();
         using var _ = zone.ShotResolved.Subscribe(outcome => shots.Add($"{outcome.ShotId}:{outcome.Result}"));
         var history = new List<string>();

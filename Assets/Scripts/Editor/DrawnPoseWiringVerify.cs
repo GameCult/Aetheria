@@ -159,7 +159,7 @@ namespace Aetheria.EditorTools
                 MaxRange = 1e6f, FireRange = 1e6f, CommitTime = 1e5f, ArrivalTime = 2e5f
             };
             var projectile = new GameObject("Wiring Round").AddComponent<Projectile>();
-            projectile.Launch(zone, shot, new Vector3(0, 0, 0));
+            projectile.Launch(null, zone, shot, new Vector3(0, 0, 0));
             yield return null;
 
             zone.Update(.5f);

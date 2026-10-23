@@ -30,8 +30,21 @@ public sealed partial class RunStartTests
     // Then for staged knowledge (ruling repin-for-staged-knowledge), which moved it twice: the fighters are staged knowing
     // each other, so they engage at step 0 (f19b9992); and Follow now flies only on an anchor the pilot itself tracks, so
     // once the sensors drop the staged anchor the follower stops following it (ce81a426).
-    private const string TwoAiPinnedDigest = "ce81a426c40495e4b4b7b7f83ad23767cc781dce5523d713b4455e0aa5b7fe33";
-    private const int TwoAiSteps = 3600;
+    // Repinned a third time, once, for two causes (sim-rate cut): the rules went step-exact (timers keep their overshoot,
+    // passive sensing decays exactly), which alone gives 4f4a1c8b88308d0a368527549f33baf0e157a056b4c0fd33aeb110b027b862e1
+    // at 60 Hz; and the game step is now SimClock.GameStep (30 Hz), 1800 steps of the same 60 simulated seconds: d5e16969d5366349f2cddeec53f7e8e8c69074dcf5aa7aabb365e9a91a34511f.
+    // Repinned a fourth time, once (rounds-per-step): a round is born at its due moment inside its step, so its FireTime, origin
+    // and frozen target pose are carried back by its age (a pull's first round leaves at the step's start, not its end) and
+    // its commit and arrival times follow. Rebasing onto master moved nothing (d5e16969 measured at the rebased h1 head).
+    // Repinned a fifth time, once (h3): the shot queue is kept in fire-time order and resolved oldest first, ties by shot id, so within a step a
+    // later shooter's earlier round resolves before an earlier shooter's later one (19710609 before). The trigger being the weapon's own state moved nothing
+    // (measured alone: 19710609).
+    // Repinned a sixth time, once (h5): a step commits its due shots in fire-time order, then applies the arrived ones in arrival
+    // order, ties by shot id, so every commit of a step precedes its applies (it was commit then apply, shot by shot, in fire
+    // order). The two parts measured: commit-then-apply split alone a1318ee0, with the arrival sort 55ecd858; the old walk at the
+    // h5 head, rebased onto master, still measures 108c93dc, so the rebase and the fire-mode property moved nothing.
+    private const string TwoAiPinnedDigest = "55ecd858875ca6a5418d6badd40e71d9bbd363ca782843005483a308bcf07d74";
+    private const float TwoAiSeconds = 60f;
 
     [Fact]
     public void ItemManagerRefusesSeedZero()
@@ -186,8 +199,9 @@ public sealed partial class RunStartTests
     }
 
     // Two piloted fighters about 900 apart, each approaching the other, hostile both ways; the player bare, unpiloted
-    // and far from the fight. Steps 3600 times at 1/60 s and returns the SHA-256 of the joined snapshots.
-    private (string digest, bool bothPiloted, int hits, bool hullLost) TwoAiFight()
+    // and far from the fight. Steps TwoAiSeconds at `dt` (the game's step by default) and returns the SHA-256 of the joined
+    // snapshots, the hull each fighter ends with and the sim time a hull first reaches zero (TwoAiSeconds when none does).
+    private (string digest, bool bothPiloted, int hits, bool hullLost, float eastHull, float westHull, float firstKill, double stepSeconds) TwoAiFight(uint seed = GalaxySeed, float dt = SimClock.GameStep)
     {
         Ship east = null, west = null;
         var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
@@ -197,7 +211,7 @@ public sealed partial class RunStartTests
             west = stage.Place(EvLonginus(stage), float2(-450, 0), facing: float2(1, 0), piloted: true) as Ship;
             stage.Approach(east, west);
             stage.Approach(west, east);
-        }));
+        }, seed));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         east.SetIff(west, true);
         west.SetIff(east, true);
@@ -212,13 +226,17 @@ public sealed partial class RunStartTests
             if (outcome.Hit) hits++;
         });
         var history = new StringBuilder();
-        for (var step = 0; step < TwoAiSteps; step++)
+        var firstKill = TwoAiSeconds;
+        var steps = (int) MathF.Round(TwoAiSeconds / dt);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        for (var step = 0; step < steps; step++)
         {
-            arena.Update(1f / 60f);
+            arena.Update(dt);
             history.Append(Snapshot(arena, shots)).Append('\n');
+            if (firstKill == TwoAiSeconds && (east.Hull.Durability <= 0 || west.Hull.Durability <= 0)) firstKill = (step + 1) * dt;
         }
         var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(history.ToString()))).ToLowerInvariant();
-        return (digest, bothPiloted, hits, east.Hull.Durability + west.Hull.Durability < hullAtStart);
+        return (digest, bothPiloted, hits, east.Hull.Durability + west.Hull.Durability < hullAtStart, east.Hull.Durability, west.Hull.Durability, firstKill, clock.Elapsed.TotalSeconds);
     }
 
     [Fact]

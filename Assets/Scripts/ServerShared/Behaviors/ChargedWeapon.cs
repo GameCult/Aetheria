@@ -157,8 +157,7 @@ public class ChargedWeapon : InstantWeapon
             if (_data.FailureCharge > 1 && _charge > _data.FailureCharge)
             {
                 _charging = false;
-                _cooldown = 1;
-                _coolingDown = true;
+                StartCountdown();
                 _charge = 0;
                 OnFailed?.Invoke();
                 CauseDamage(_data.FailureDamage);

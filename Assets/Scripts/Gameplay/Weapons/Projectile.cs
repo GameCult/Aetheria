@@ -24,19 +24,16 @@ public class Projectile : MonoBehaviour
     private CultMath.float3 _barrel;
     private ShotOutcome _known;
     private bool _alive;
-    private CompositeDisposable _binding;
+    private ProjectileManager _owner;
 
     // Takes the shot as the sim holds it, the zone whose sim time it is drawn at, and where the barrel is as this round is first seen.
-    public void Launch(Zone zone, PendingShot shot, Vector3 barrel)
+    public void Launch(ProjectileManager owner, Zone zone, PendingShot shot, Vector3 barrel)
     {
+        _owner = owner;
         _zone = zone;
         _shot = shot;
         _barrel = new CultMath.float3(barrel.x, barrel.y, barrel.z);
         _known = null;
-        _binding?.Dispose();
-        _binding = new CompositeDisposable(
-            zone.ShotCommitted.Where(o => o.ShotId == shot.ShotId).Subscribe(Committed),
-            zone.ShotResolved.Where(o => o.ShotId == shot.ShotId).Subscribe(Resolve));
         _alive = true;
         transform.forward = new Vector3(shot.TravelDirection.x, 0, shot.TravelDirection.y);
         Draw();
@@ -56,14 +53,14 @@ public class Projectile : MonoBehaviour
     }
 
     // The sim's commit: the record it holds now (a contact burst's arrival is shortened here) and what it decided.
-    private void Committed(ShotOutcome outcome)
+    internal void Committed(ShotOutcome outcome)
     {
         if (_zone.TryGetShot(outcome.ShotId, out var record)) _shot = record;
         _known = outcome;
     }
 
     // The simulation's verdict. A round that hit or burst is drawn at its end and stops; a miss keeps flying.
-    private void Resolve(ShotOutcome outcome)
+    internal void Resolve(ShotOutcome outcome)
     {
         if (!_alive) return;
         _known = outcome;
@@ -78,16 +75,14 @@ public class Projectile : MonoBehaviour
     private void Finish()
     {
         _alive = false;
-        _binding?.Dispose();
-        _binding = null;
+        _owner?.Forget(_shot.ShotId);
         StartCoroutine(Fade());
     }
 
     void OnDisable()
     {
         _alive = false;
-        _binding?.Dispose();
-        _binding = null;
+        _owner?.Forget(_shot.ShotId);
     }
 
     IEnumerator Fade()
