@@ -191,8 +191,7 @@ public static class EconomyCommand
             {
                 if (new FileInfo(catalogPath).IsReadOnly)
                 {
-                    output.WriteLine("
-The batches are refused: Aetheria.cc is read-only. Clear the read-only flag, or check it out, and run again. The catalog is unchanged.");
+                    output.WriteLine("\nThe batches are refused: Aetheria.cc is read-only. Clear the read-only flag, or check it out, and run again. The catalog is unchanged.");
                     return 1;
                 }
                 File.Copy(trial, staged);
@@ -201,8 +200,7 @@ The batches are refused: Aetheria.cc is read-only. Clear the read-only flag, or 
             }
             catch (Exception e) when (e is UnauthorizedAccessException || e is IOException)
             {
-                output.WriteLine($"
-The batches are refused: Aetheria.cc could not be replaced ({e.Message}). Something holds the file: close Unity and any other editor or tool that has it open, then run again. The catalog is unchanged.");
+                output.WriteLine($"\nThe batches are refused: Aetheria.cc could not be replaced ({e.Message}). Something holds the file: close Unity and any other editor or tool that has it open, then run again. The catalog is unchanged.");
                 return 1;
             }
             finally { if (File.Exists(staged)) File.Delete(staged); }
