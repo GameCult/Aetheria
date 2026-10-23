@@ -53,14 +53,13 @@ public sealed class EconomyAuthor
 // EconomyChecks owns every rule; this command only calls it.
 public static class EconomyCommand
 {
-    // The invariants whose faults on a record a batch wrote refuse it. The rest (a missing sink, no consumer demand, a commodity
+    // The invariants whose faults the batches introduce refuse them. The rest (a missing sink, no consumer demand, a commodity
     // with no recipe yet) are completeness: reported, and settled by the batch that closes the chain.
     private static readonly string[] Shape =
         { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
-    private const string Usage = "economy report | author <batch>... [apply]
-A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
+    private const string Usage = "economy report | author <batch>... [apply]\nA batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
 
     public static int Run(string[] args)
     {
