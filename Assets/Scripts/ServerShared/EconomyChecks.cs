@@ -19,8 +19,12 @@ public sealed class EconomyFault
     public readonly string Record;
     public readonly string Message;
 
-    public EconomyFault(string invariant, string record, string message)
+    // A fault only because the chain has not written the record yet (a commodity with no recipe). Reported, never a refusal.
+    public readonly bool Pending;
+
+    public EconomyFault(string invariant, string record, string message, bool pending = false)
     {
+        Pending = pending;
         Invariant = invariant;
         Record = record;
         Message = message;
@@ -68,7 +72,7 @@ public static class EconomyChecks
         StoredRecipes(catalog).Select(pair => (pair.Key, Sound(pair.Recipe)));
 
     private static RecipeData Sound(RecipeData recipe) =>
-        recipe.Inputs != null && recipe.Upkeep != null && recipe.Fills != null && !recipe.Inputs.Contains(null) && !recipe.Upkeep.Contains(null)
+        recipe.Inputs != null && recipe.Upkeep != null && recipe.Fills != null && !recipe.Inputs.Contains(null) && !recipe.Upkeep.Contains(null) && !recipe.Fills.Contains(null)
             ? recipe
             : new RecipeData
             {
@@ -76,7 +80,7 @@ public static class EconomyChecks
                 StationKind = recipe.StationKind, LoreHook = recipe.LoreHook,
                 Inputs = (recipe.Inputs ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
                 Upkeep = (recipe.Upkeep ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
-                Fills = recipe.Fills ?? new List<string>()
+                Fills = (recipe.Fills ?? new List<string>()).Where(f => f != null).ToList()
             };
 
     private static IEnumerable<ItemData> Commodities(CultCache catalog) =>
@@ -89,7 +93,7 @@ public static class EconomyChecks
         void Add(string record, string message) => faults.Add(new EconomyFault(LRecipe, record, message));
         foreach (var item in Commodities(catalog))
             if (Recipes.RecipeOf(catalog, item) == null)
-                Add(catalog.RefOf(item).Key.Value, $"Commodity '{item.Name}' has no recipe.");
+                faults.Add(new EconomyFault(LRecipe, catalog.RefOf(item).Key.Value, $"Commodity '{item.Name}' has no recipe.", pending: true));
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var product in catalog.GetAll<FactionProductData>().Where(p => LoadoutGenerator.IsOffered(catalog, p)))
         {
@@ -97,7 +101,13 @@ public static class EconomyChecks
             if (design == null || (design is HullData hull && (hull.HullType == HullType.Station || hull.HullType == HullType.Turret))) continue;
             var key = catalog.RefOf(design).Key.Value;
             if (seen.Add(key) && Recipes.RecipeOf(catalog, design) == null)
-                Add(key, $"Offered design '{design.Name}' has no recipe.");
+                faults.Add(new EconomyFault(LRecipe, key, $"Offered design '{design.Name}' has no recipe.", pending: true));
+        }
+        foreach (var market in catalog.GetAll<OutsideMarketData>())
+        {
+            var marketKey = catalog.RefOf(market).Key.Value;
+            if (market.Rows == null) Add(marketKey, "Rows is null; an outside market holds a list, empty when it trades nothing.");
+            else if (market.Rows.Contains(null)) Add(marketKey, "Rows holds a null entry.");
         }
         var kindsPlaced = new HashSet<string>(catalog.GetAll<Faction>().SelectMany(f => StationKinds.KindsOf(catalog, f)).Select(k => k.Key.Value), StringComparer.Ordinal);
         foreach (var (key, stored) in StoredRecipes(catalog))
@@ -107,6 +117,7 @@ public static class EconomyChecks
                 if (list == null) Add(key, $"{name} is null; a recipe holds a list, empty when it takes nothing.");
                 else if (list.Contains(null)) Add(key, $"{name} holds a null entry.");
             if (stored.Fills == null) Add(key, "Fills is null; a recipe holds a list, empty when it fills no role.");
+            else if (stored.Fills.Contains(null)) Add(key, "Fills holds a null entry.");
             var output = catalog.Get(recipe.Output);
             if (output == null) { Add(key, "Output names no item this catalog holds."); continue; }
             if (key != RecipeData.KeyOf(recipe.Output.Key).Value)
@@ -147,7 +158,7 @@ public static class EconomyChecks
 
     private static (HashSet<string> Sells, HashSet<string> Buys) Gate(CultCache catalog)
     {
-        var rows = catalog.GetAll<OutsideMarketData>().SelectMany(market => market.Rows).ToList();
+        var rows = catalog.GetAll<OutsideMarketData>().SelectMany(market => market.Rows ?? new List<OutsideMarketRow>()).Where(r => r != null).ToList();
         return (new HashSet<string>(rows.Where(r => r.Sells).Select(r => r.Commodity.Key.Value), StringComparer.Ordinal),
             new HashSet<string>(rows.Where(r => r.Buys).Select(r => r.Commodity.Key.Value), StringComparer.Ordinal));
     }
