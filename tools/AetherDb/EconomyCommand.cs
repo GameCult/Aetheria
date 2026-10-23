@@ -112,12 +112,18 @@ public static class EconomyCommand
     // record) refuses; faults the catalog already held print and do not.
     public static int Author(string catalogPath, IReadOnlyList<EconomyBatch> batches, bool apply, TextWriter output, CultDocumentRegistry registry = null)
     {
+        if (apply && new FileInfo(catalogPath).IsReadOnly)
+        {
+            output.WriteLine("The batches are refused: Aetheria.cc is read-only. Clear the read-only flag, or check it out, and run again. The catalog is unchanged.");
+            return 1;
+        }
         var scratch = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-economy-" + Guid.NewGuid().ToString("N"))).FullName;
         try
         {
             var trial = Path.Combine(scratch, "Aetheria.cc");
             var fingerprint = Fingerprint(catalogPath);
             File.Copy(catalogPath, trial);
+            new FileInfo(trial).IsReadOnly = false;
             Dictionary<string, EconomyFault> held;
             HashSet<string> recipesHeld;
             Dictionary<string, byte[]> original;
@@ -189,11 +195,6 @@ public static class EconomyCommand
             var staged = catalogPath + ".economy-" + Guid.NewGuid().ToString("N");
             try
             {
-                if (new FileInfo(catalogPath).IsReadOnly)
-                {
-                    output.WriteLine("\nThe batches are refused: Aetheria.cc is read-only. Clear the read-only flag, or check it out, and run again. The catalog is unchanged.");
-                    return 1;
-                }
                 File.Copy(trial, staged);
                 if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(staged, File.GetUnixFileMode(catalogPath));
                 File.Replace(staged, catalogPath, null);
