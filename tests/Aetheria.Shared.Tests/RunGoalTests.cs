@@ -624,7 +624,7 @@ public sealed partial class RunStartTests
         var galaxy = DemoGalaxy(1);
         var hull = SoldShipHulls().OrderBy(h => h.Name, StringComparer.Ordinal).First();
         StoreLoadout(new Loadout { Name = "Aaa Decoy", Hull = _cache.RefOf(hull) });
-        if (dangling) Zhestokost(galaxy).BossLoadout = new CultRecordRef<Loadout>(Loadouts.KeyOf("CANARY-7f3a"));
+        Zhestokost(galaxy).BossLoadout = dangling ? new CultRecordRef<Loadout>(Loadouts.KeyOf("CANARY-7f3a")) : default;
         var log = new List<string>();
         var items = LoggingItems(log);
         var pack = BossZonePack(galaxy, items, galaxy.Exit);

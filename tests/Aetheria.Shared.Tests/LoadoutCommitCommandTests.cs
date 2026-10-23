@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Linq;
@@ -36,6 +37,9 @@ public sealed class LoadoutCommitCommandTests : IDisposable
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
         return cache;
     }
+
+    // The loadouts these tests wrote: the shipped catalog already holds the demo boss's, which no command here touches.
+    private static IEnumerable<Loadout> OwnLoadouts(CultCache cache) => cache.GetAll<Loadout>().Where(loadout => loadout.Name != "Nakovalnya Boss");
 
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
@@ -111,7 +115,7 @@ public sealed class LoadoutCommitCommandTests : IDisposable
         Assert.StartsWith("Test boss: committed, hull ", output);
 
         using var cache = Open();
-        var loadout = Assert.Single(cache.GetAll<Loadout>());
+        var loadout = Assert.Single(OwnLoadouts(cache));
         Assert.Equal(Loadouts.KeyOf("Test boss"), cache.RefOf(loadout).Key);
         var product = cache.GetAll<FactionProductData>().Single(p => p.Name == fit.hullProduct);
         Assert.Equal(cache.RefOf(product).Key, loadout.HullProduct.Key);
@@ -136,7 +140,7 @@ public sealed class LoadoutCommitCommandTests : IDisposable
 
         Assert.Equal(0, Run(out _, "Test boss", fit.hullProduct, fit.openSlot, "--replace"));
         using var cache = Open();
-        var loadout = Assert.Single(cache.GetAll<Loadout>());
+        var loadout = Assert.Single(OwnLoadouts(cache));
         Assert.False(Assert.Single(loadout.Slots).Product.IsSet());
         Assert.True(loadout.WeaponGroups == null || loadout.WeaponGroups.Length == 0);
     }
@@ -196,7 +200,7 @@ public sealed class LoadoutCommitCommandTests : IDisposable
         Assert.DoesNotContain(canary, output);
         Assert.Equal(before, Hash(CatalogPath));
         using var after = Open();
-        Assert.Empty(after.GetAll<Loadout>());
+        Assert.Empty(OwnLoadouts(after));
     }
 
     // Ruling catalog-is-a-package-stack: a hull product only a package under Mods holds resolves, because names resolve
@@ -213,7 +217,7 @@ public sealed class LoadoutCommitCommandTests : IDisposable
         Assert.StartsWith("Package boss: committed, hull Loadout Commit Skiff (Loadout Commit Skiff Mk I), 0 slots", output);
 
         using var after = Open();
-        var loadout = Assert.Single(after.GetAll<Loadout>());
+        var loadout = Assert.Single(OwnLoadouts(after));
         Assert.Equal(ShipModCatalog.HullKey(PackageId), loadout.Hull.Key);
         Assert.StartsWith("mod-product:" + PackageId + ":", loadout.HullProduct.Key.Value);
         Assert.Null(after.Get(loadout.Hull));
