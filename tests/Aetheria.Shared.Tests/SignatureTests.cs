@@ -172,7 +172,7 @@ public sealed class SignatureTests : IDisposable
         }
         r.Ship.SetTarget(TargetRef.None);
         r.Weapon.Activate();
-        r.Weapon.Deactivate();
+        if (r.Weapon is InstantWeapon) r.Weapon.Deactivate(); // a gun is tapped; a beam burns while held
         for (var i = 0; i < 5; i++) r.Zone.Update(.1f);
     }
 
