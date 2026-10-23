@@ -36,7 +36,10 @@ public sealed partial class RunStartTests
     // Repinned a fourth time, once (rounds-per-step): a round is born at its due moment inside its step, so its FireTime, origin
     // and frozen target pose are carried back by its age (a pull's first round leaves at the step's start, not its end) and
     // its commit and arrival times follow. Rebasing onto master moved nothing (d5e16969 measured at the rebased h1 head).
-    private const string TwoAiPinnedDigest = "1971060955717cabd4543d70c031562a5a101dbadb71b9bcd0bc1bfb3e89dd94";
+    // Repinned a fifth time, once (h3): the shot queue is kept in fire-time order and resolved oldest first, ties by shot id, so within a step a
+    // later shooter's earlier round resolves before an earlier shooter's later one (19710609 before). The trigger being the weapon's own state moved nothing
+    // (measured alone: 19710609).
+    private const string TwoAiPinnedDigest = "108c93dc1b280d044d7ed3a5ade9f32f9dc76185989b25c5293ba1a86ab95632";
     private const float TwoAiSeconds = 60f;
 
     [Fact]
