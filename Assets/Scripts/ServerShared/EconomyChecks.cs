@@ -59,8 +59,25 @@ public static class EconomyChecks
         return new EconomyReport(faults, Deep(catalog));
     }
 
-    private static IEnumerable<(string Key, RecipeData Recipe)> AllRecipes(CultCache catalog) =>
+    private static IEnumerable<(string Key, RecipeData Recipe)> StoredRecipes(CultCache catalog) =>
         catalog.GetAll<RecipeData>().Select(recipe => (catalog.RefOf(recipe).Key.Value, recipe)).OrderBy(pair => pair.Item1, StringComparer.Ordinal);
+
+    // Every rule but Recipe reads recipes through here, so a list a record holds as null (or with a null entry) reads as the list
+    // without it; Recipe alone names the malformation. The stored document is never changed.
+    private static IEnumerable<(string Key, RecipeData Recipe)> AllRecipes(CultCache catalog) =>
+        StoredRecipes(catalog).Select(pair => (pair.Key, Sound(pair.Recipe)));
+
+    private static RecipeData Sound(RecipeData recipe) =>
+        recipe.Inputs != null && recipe.Upkeep != null && recipe.Fills != null && !recipe.Inputs.Contains(null) && !recipe.Upkeep.Contains(null)
+            ? recipe
+            : new RecipeData
+            {
+                Output = recipe.Output, OutputCount = recipe.OutputCount, Cycle = recipe.Cycle, Workforce = recipe.Workforce,
+                StationKind = recipe.StationKind, LoreHook = recipe.LoreHook,
+                Inputs = (recipe.Inputs ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
+                Upkeep = (recipe.Upkeep ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
+                Fills = recipe.Fills ?? new List<string>()
+            };
 
     private static IEnumerable<ItemData> Commodities(CultCache catalog) =>
         catalog.GetAll<ItemData>().Where(Recipes.IsCommodity).OrderBy(item => catalog.RefOf(item).Key.Value, StringComparer.Ordinal);
@@ -83,8 +100,13 @@ public static class EconomyChecks
                 Add(key, $"Offered design '{design.Name}' has no recipe.");
         }
         var kindsPlaced = new HashSet<string>(catalog.GetAll<Faction>().SelectMany(f => StationKinds.KindsOf(catalog, f)).Select(k => k.Key.Value), StringComparer.Ordinal);
-        foreach (var (key, recipe) in AllRecipes(catalog))
+        foreach (var (key, stored) in StoredRecipes(catalog))
         {
+            var recipe = Sound(stored);
+            foreach (var (list, name) in new[] { (stored.Inputs, "Inputs"), (stored.Upkeep, "Upkeep") })
+                if (list == null) Add(key, $"{name} is null; a recipe holds a list, empty when it takes nothing.");
+                else if (list.Contains(null)) Add(key, $"{name} holds a null entry.");
+            if (stored.Fills == null) Add(key, "Fills is null; a recipe holds a list, empty when it fills no role.");
             var output = catalog.Get(recipe.Output);
             if (output == null) { Add(key, "Output names no item this catalog holds."); continue; }
             if (!catalog.RefOf(recipe).Key.Equals(RecipeData.KeyOf(recipe.Output.Key)))
