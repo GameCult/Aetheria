@@ -118,11 +118,14 @@ public static class EconomyCommand
             var trial = Path.Combine(scratch, "Aetheria.cc");
             var fingerprint = Fingerprint(catalogPath);
             File.Copy(catalogPath, trial);
-            HashSet<(string, string)> held;
+            Dictionary<string, EconomyFault> held;
+            HashSet<string> recipesHeld;
             Dictionary<string, byte[]> original;
             using (var cache = AetheriaStores.Open(catalogPath, registry: registry))
             {
-                held = new HashSet<(string, string)>(EconomyChecks.Check(cache).Faults.Select(f => (f.Invariant, f.Record)));
+                held = new Dictionary<string, EconomyFault>(StringComparer.Ordinal);
+                foreach (var fault in EconomyChecks.Check(cache).Faults) held[Identity(fault)] = fault;
+                recipesHeld = new HashSet<string>(cache.GetAll<RecipeData>().Select(r => cache.RefOf(r).Key.Value), StringComparer.Ordinal);
                 original = Records(cache);
             }
             var touched = new List<string>();
@@ -161,13 +164,15 @@ public static class EconomyCommand
                 foreach (var (id, bytes) in trialRecords)
                     if (!original.TryGetValue(id, out var was)) status[KeyOf(id)] = "added";
                     else if (!was.AsSpan().SequenceEqual(bytes)) status[KeyOf(id)] = "changed";
+                foreach (var id in original.Keys)
+                    if (!trialRecords.ContainsKey(id)) status[KeyOf(id)] = "removed";
                 var listed = touched.Concat(status.Keys.OrderBy(k => k, StringComparer.Ordinal).Where(k => !touched.Contains(k))).ToList();
                 foreach (var key in listed) output.WriteLine($"{(status.TryGetValue(key, out var s) ? s : "unchanged")} {key}");
-                output.WriteLine($"{status.Values.Count(v => v == "added")} added, {status.Values.Count(v => v == "changed")} changed, {listed.Count - status.Count} unchanged");
+                output.WriteLine($"{status.Values.Count(v => v == "added")} added, {status.Values.Count(v => v == "changed")} changed, {status.Values.Count(v => v == "removed")} removed, {listed.Count - status.Count} unchanged");
                 var report = EconomyChecks.Check(cache);
                 PrintFaults(report, output);
                 PrintDepth(report, output);
-                var introduced = report.Faults.Where(fault => Shape.Contains(fault.Invariant) && !fault.Pending && !held.Contains((fault.Invariant, fault.Record))).ToArray();
+                var introduced = report.Faults.Where(fault => Shape.Contains(fault.Invariant) && Introduced(fault, held, recipesHeld)).ToArray();
                 if (introduced.Length > 0)
                 {
                     output.WriteLine($"\nThe batch is refused: {introduced.Length} shape faults the batches introduce.");
@@ -182,8 +187,24 @@ public static class EconomyCommand
                 }
             }
             var staged = catalogPath + ".economy-" + Guid.NewGuid().ToString("N");
-            File.Copy(trial, staged);
-            try { File.Replace(staged, catalogPath, null); }
+            try
+            {
+                if (new FileInfo(catalogPath).IsReadOnly)
+                {
+                    output.WriteLine("
+The batches are refused: Aetheria.cc is read-only. Clear the read-only flag, or check it out, and run again. The catalog is unchanged.");
+                    return 1;
+                }
+                File.Copy(trial, staged);
+                if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(staged, File.GetUnixFileMode(catalogPath));
+                File.Replace(staged, catalogPath, null);
+            }
+            catch (Exception e) when (e is UnauthorizedAccessException || e is IOException)
+            {
+                output.WriteLine($"
+The batches are refused: Aetheria.cc could not be replaced ({e.Message}). Something holds the file: close Unity and any other editor or tool that has it open, then run again. The catalog is unchanged.");
+                return 1;
+            }
             finally { if (File.Exists(staged)) File.Delete(staged); }
             output.WriteLine($"\nWrote {written} records to Aetheria.cc");
             return 0;
@@ -192,6 +213,19 @@ public static class EconomyCommand
         {
             try { Directory.Delete(scratch, true); } catch (IOException) { }
         }
+    }
+
+    // A fault is the same fault by rule, record and message, so fixing one fault on a record cannot hide a new one there. L-productive
+    // is one fault per cycle: its identity is the cycle's member set, and the same cycle with a higher radius is a worse fault.
+    private static string Identity(EconomyFault fault) =>
+        fault.Members != null ? fault.Invariant + "|" + string.Join(",", fault.Members) : fault.Invariant + "|" + fault.Record + "|" + fault.Message;
+
+    private static bool Introduced(EconomyFault fault, Dictionary<string, EconomyFault> held, HashSet<string> recipesHeld)
+    {
+        // "No recipe" is pending for a commodity that had none; it refuses where the batch took away a recipe the catalog held.
+        if (fault.Pending) return recipesHeld.Contains(RecipeData.KeyOf(new CultRecordKey(fault.Record)).Value);
+        if (!held.TryGetValue(Identity(fault), out var was)) return true;
+        return fault.Members != null && fault.Radius > was.Radius + 1e-9;
     }
 
     private static readonly MessagePackSerializerOptions Wire = CultDocumentMessagePackSerialization.OptionsFor(typeof(ItemData).Assembly);

@@ -22,8 +22,15 @@ public sealed class EconomyFault
     // A fault only because the chain has not written the record yet (a commodity with no recipe). Reported, never a refusal.
     public readonly bool Pending;
 
-    public EconomyFault(string invariant, string record, string message, bool pending = false)
+    // L-productive only: every good the carrying cycle holds (sorted) and the spectral radius. The fault's identity is the member
+    // set; a radius that rises is a worse fault of the same identity.
+    public readonly IReadOnlyList<string> Members;
+    public readonly double Radius;
+
+    public EconomyFault(string invariant, string record, string message, bool pending = false, IReadOnlyList<string> members = null, double radius = 0)
     {
+        Members = members;
+        Radius = radius;
         Pending = pending;
         Invariant = invariant;
         Record = record;
@@ -304,7 +311,8 @@ public static class EconomyChecks
             string Name(int i) => i == labour ? "labour" : names[i];
             var order = CycleOrder(final, n, component);
             faults.Add(new EconomyFault(LProductive, Name(order[0]),
-                $"The goods cannot sustain themselves: spectral radius {rho:0.######} is not below 1, carried by {string.Join(" -> ", order.Select(Name))}."));
+                $"The goods cannot sustain themselves: spectral radius {rho:0.######} is not below 1, carried by {string.Join(" -> ", order.Select(Name))}.",
+                members: order.Select(Name).OrderBy(name => name, StringComparer.Ordinal).ToArray(), radius: rho));
         }
         return faults;
     }
