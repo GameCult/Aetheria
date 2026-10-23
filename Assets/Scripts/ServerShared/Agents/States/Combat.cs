@@ -163,14 +163,14 @@ public class CombatState : BaseState
 
     public override void OnExitState() => ReleaseUnwanted();
 
-    // The AI's trigger level for an AutoWeapon is what it pulls this step: the weapon holds a down trigger until it is
-    // released, so every held one this step does not pull is let go, whether the target is gone, untracked, out of reach,
+    // The AI's trigger level for an AutoWeapon is what it commands this step: the weapon holds a down trigger until it is
+    // released, so every held one this step has no command for is let go, whether the target is gone, untracked, out of reach,
     // its group is not the pick, or Combat has ended. A plain gun is tapped and lets go of itself.
     private void ReleaseUnwanted()
     {
         var command = _agent.Ship.Command;
         foreach (var weapon in _agent.Ship.Weapons)
-            if (weapon is AutoWeapon && weapon.Firing && !command.Pulls(weapon)) command.Release(weapon);
+            if (weapon is AutoWeapon && weapon.Firing && !command.Commands(weapon)) command.Release(weapon);
     }
 
     // Overdrive to close a distant target ahead, through the same consumable gate as the vent (Agent.VentOnTrack).

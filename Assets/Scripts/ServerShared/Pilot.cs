@@ -94,6 +94,14 @@ public sealed class PilotCommand
     // The pilot's own pending decisions, which it reads back instead of the ship (that is last step's applied state).
     public TargetRef? Designated => Designations.Count > 0 ? Designations[Designations.Count - 1] : (TargetRef?) null;
 
+    // Whether this pilot has commanded a trigger, pull or release, for `behavior` this step.
+    public bool Commands(ActivatedBehavior behavior)
+    {
+        foreach (var trigger in Triggers)
+            if (ReferenceEquals(trigger.Behavior, behavior)) return true;
+        return false;
+    }
+
     // Whether the last trigger this pilot commanded for `behavior` this step is a pull.
     public bool Pulls(ActivatedBehavior behavior)
     {
