@@ -86,6 +86,14 @@ public sealed class StationKindTests : IDisposable
             return hull;
         }
 
+        // Takes a sold hull's price to zero, or its product's maker away: the hull is still on a product but no hull draw can reach it.
+        public void Unsellable(HullData hull, bool unsetMaker)
+        {
+            var product = Cache.GetAll<FactionProductData>().Single(p => Cache.Get(p.Design) == hull);
+            if (unsetMaker) { product.Manufacturer = default; Cache.Upsert(product); }
+            else { hull.Price = 0; Cache.Upsert(hull); }
+        }
+
         public void StandIn(string kindId, Faction faction, string asKindId)
         {
             var kind = Cache.Get(Kind(kindId));
@@ -273,6 +281,34 @@ public sealed class StationKindTests : IDisposable
         }
     }
 
+    // A faction that places a kind through a stand-in no maker offers cannot field it: the kind is out of its pool and it falls back
+    // exactly as a faction with no kinds does. Once any maker offers the stand-in's hull kind, the faction keeps its kind.
+    [Fact]
+    public void FactionWhoseStandInNoMakerOffersFallsBackToAnyMaker()
+    {
+        var world = World.Make(this, zenithOffered: false);
+        world.Sell(world.Au, "shipyard");
+        world.StandIn("mining", world.Lucent, "depot");
+        Assert.Equal(new[] { Kind("mining").Key }, StationKinds.KindsOf(world.Cache, world.Lucent).Select(kind => kind.Key));
+
+        var logged = new List<string>();
+        var kind = StationKinds.Choose(world.Cache, world.Lucent, "site", logged.Add);
+        Assert.Equal(Kind("shipyard").Key, kind.Key);
+        Assert.Contains(world.Lucent.Name, Assert.Single(logged));
+        var pack = world.Generator(world.Lucent).GenerateStationLoadout(kind);
+        Assert.NotNull(pack);
+        Assert.Equal(Kind("shipyard").Key, world.HullOf(pack).Kind.Key);
+
+        world.Sell(world.Au, "depot");
+        var kept = new List<string>();
+        var placed = StationKinds.Choose(world.Cache, world.Lucent, "site", kept.Add);
+        Assert.Equal(Kind("mining").Key, placed.Key);
+        Assert.Empty(kept);
+        var depotStation = world.Generator(world.Lucent).GenerateStationLoadout(placed);
+        Assert.NotNull(depotStation);
+        Assert.Equal(Kind("depot").Key, world.HullOf(depotStation).Kind.Key);
+    }
+
     [Fact]
     public void FactionWithoutModelsFallsBack()
     {
@@ -358,11 +394,14 @@ public sealed class StationKindTests : IDisposable
         var w = World.Make(this, zenithOffered: true);
         w.Sell(w.Au, "mining");
         w.Sell(w.Au, "shipyard");
+        w.StandIn("depot", w.Lucent, "power");
+        w.StandIn("depot", w.Zh, "power");
         var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
         var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
             authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), w.Cache, new PlayerSettings(),
             Directory.CreateDirectory(Path.Combine(_root, "zones", "Narrative")), _ => { }, null, 5);
         var stations = 0;
+        var fallbacks = 0;
         foreach (var galaxyZone in galaxy.Zones.Take(8))
         {
             var pack = ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
@@ -373,11 +412,102 @@ public sealed class StationKindTests : IDisposable
                 Assert.True(station.Kind.IsSet(), "a placed station has a kind");
                 Assert.Equal(station.Kind.Key, w.HullOf(station).Kind.Key);
                 var faction = w.Cache.Get(station.Faction);
-                var kinds = StationKinds.KindsOf(w.Cache, faction);
-                if (kinds.Length > 0) Assert.Contains(station.Kind.Key.Value, kinds.Select(kind => kind.Key.Value));
+                var fieldable = OracleFieldableKinds(w.Cache, faction);
+                if (fieldable.Count > 0) Assert.Contains(station.Kind.Key.Value, fieldable);
+                else
+                {
+                    fallbacks++;
+                    Assert.Contains(station.Kind.Key.Value, OracleOfferedKinds(w.Cache));
+                }
             }
         }
+        Assert.True(fallbacks > 0, "the sample seated a faction that could field none of its kinds, by the fallback");
         Assert.True(stations > 0, "the sample generated stations");
+    }
+
+    // An oracle for what a hull draw can reach, read straight off the records and independent of StationKinds and LoadoutGenerator:
+    // a station hull with a kind and a price, sold by an unbinned product that names a maker and is not off the market.
+    private static IEnumerable<(CultRecordKey maker, string kind)> OracleSoldStationKinds(CultCache cache) =>
+        cache.GetAll<FactionProductData>()
+            .Where(p => !p.NotOffered && p.Bin == null && p.Manufacturer.IsSet())
+            .Select(p => (p, hull: cache.Get(p.Design) as HullData))
+            .Where(e => e.hull != null && e.hull.HullType == HullType.Station && e.hull.Kind.IsSet() && e.hull.Price > 0)
+            .Select(e => (e.p.Manufacturer.Key, e.hull.Kind.Key.Value));
+
+    private static HashSet<string> OracleOfferedKinds(CultCache cache) => OracleSoldStationKinds(cache).Select(e => e.kind).ToHashSet();
+
+    // The kinds a faction can field: those it has its own model of, and those it stands in on whose stand-in kind some maker sells.
+    private static HashSet<string> OracleFieldableKinds(CultCache cache, Faction faction)
+    {
+        var offered = OracleOfferedKinds(cache);
+        var own = OracleSoldStationKinds(cache).Where(e => e.maker.Equals(cache.RefOf(faction).Key)).Select(e => e.kind).ToHashSet();
+        foreach (var kind in cache.GetAll<StationKindData>())
+            foreach (var standIn in kind.StandIns.Where(entry => cache.Get(entry.Faction) == faction))
+                if (offered.Contains(standIn.Kind.Key.Value)) own.Add(cache.RefOf(kind).Key.Value);
+        return own;
+    }
+
+    // Choose keeps a kind exactly when GenerateStationLoadout can draw a hull of it: a hull sold at Price 0, or by a product with no
+    // maker, is no hull a draw reaches, so a faction standing in on its kind is not seated on it. The tutorial entrance still gets a station.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AKindIsKeptExactlyWhenAHullOfItCanBeDrawn(bool unsetMaker)
+    {
+        var world = World.Make(this, zenithOffered: false);
+        world.Sell(world.Au, "mining");
+        var unsold = world.Sell(world.Au, "shipyard");
+        world.Unsellable(unsold, unsetMaker);
+        // No hull draw reaches it: a station of its kind cannot be generated for anyone.
+        Assert.Null(world.Generator(world.Au).GenerateStationLoadout(Kind("shipyard")));
+        Assert.Null(world.Generator(world.Lucent).GenerateStationLoadout(Kind("shipyard")));
+        world.StandIn("mining", world.Lucent, "shipyard");
+        world.StandIn("mining", world.Zh, "shipyard");
+
+        foreach (var faction in new[] { world.Au, world.Lucent, world.Zh })
+            for (var site = 0; site < 12; site++)
+            {
+                var kind = StationKinds.Choose(world.Cache, faction, "site-" + site);
+                Assert.Equal(Kind("mining").Key, kind.Key);
+                Assert.NotNull(world.Generator(faction).GenerateStationLoadout(kind));
+            }
+
+        var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
+        var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
+            authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), world.Cache, new PlayerSettings(),
+            Directory.CreateDirectory(Path.Combine(_root, "galaxy" + _worlds++, "Narrative")), _ => { }, null, 5);
+        var entrance = ZoneGenerator.GenerateZone(world.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
+            authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, galaxy.IsPrelude, true);
+        Assert.Contains(entrance.Entities.OfType<OrbitalEntityPack>(), e => world.HullOf(e).HullType == HullType.Station);
+    }
+
+    // A faction with one kind it can field and one it cannot places only the one it can, and never takes the fallback.
+    [Fact]
+    public void AFactionWithSomeKindsFieldablePlacesOnlyThose()
+    {
+        var world = World.Make(this, zenithOffered: false);
+        world.Sell(world.Au, "shipyard");
+        world.StandIn("mining", world.Lucent, "shipyard");
+        world.StandIn("depot", world.Lucent, "power");
+        Assert.Equal(2, StationKinds.KindsOf(world.Cache, world.Lucent).Length);
+
+        var logged = new List<string>();
+        for (var site = 0; site < 40; site++)
+            Assert.Equal(Kind("mining").Key, StationKinds.Choose(world.Cache, world.Lucent, "site-" + site, logged.Add).Key);
+        Assert.Empty(logged);
+    }
+
+    // The fallback pool is every kind some maker offers, spread over sites, not the first of them.
+    [Fact]
+    public void TheFallbackSpreadsSitesOverEveryOfferedKind()
+    {
+        var world = World.Make(this, zenithOffered: false);
+        world.Sell(world.Au, "mining");
+        world.Sell(world.Au, "shipyard");
+        world.Sell(world.Au, "depot");
+        var chosen = Enumerable.Range(0, 40).Select(site => StationKinds.Choose(world.Cache, world.Lucent, "site-" + site).Key.Value).ToHashSet();
+        Assert.Equal(new[] { Kind("depot"), Kind("mining"), Kind("shipyard") }.Select(kind => kind.Key.Value).OrderBy(k => k, StringComparer.Ordinal),
+            chosen.OrderBy(k => k, StringComparer.Ordinal));
     }
 
     [Fact]
@@ -405,26 +535,41 @@ public sealed class StationKindTests : IDisposable
         var ids = new[]
         {
             "mining", "volatiles", "agriculture", "processing", "fabrication", "shipyard", "depot", "trade-hub", "residential",
-            "habitat-support", "urban", "administrative", "power", "research", "salvage", "black-market", "waystation"
+            "habitat-support", "urban", "administrative", "power", "research", "salvage", "black-market", "waystation", "munitions-works"
         };
         Assert.Equal(ids.Select(id => StationKindData.KeyOf(id).Value).OrderBy(key => key, StringComparer.Ordinal),
             cache.GetAll<StationKindData>().Select(kind => cache.RefOf(kind).Key.Value).OrderBy(key => key, StringComparer.Ordinal));
         Assert.Equal(StationKindData.KeyOf("trade-hub").Value, cache.GetAll<HullData>().Single(h => h.Name == "Zenith").Kind.Key.Value);
     }
 
-    private static void AssertStandInsLive(CultCache cache)
+    // Every stand-in is judged from the catalog: its target is a real kind; the faction owns no model of the kind it stands in for; and
+    // the stand-in is live (the faction can field the kind) exactly when some maker sells a hull of the target kind. A stand-in
+    // no maker can field is not a defect: the generator drops the kind from the faction's pool and seats it by the any-maker
+    // fallback, logged (StationKinds.Choose). Returns how many stand-ins were live, so a caller can see the catalog's state.
+    private static int AssertStandInsLive(CultCache cache)
     {
+        var live = 0;
         foreach (var kind in cache.GetAll<StationKindData>())
             foreach (var standIn in kind.StandIns)
             {
                 var faction = cache.Get(standIn.Faction);
-                var models = StationKinds.KindsOf(cache, faction);
-                var own = cache.GetAll<FactionProductData>().Where(p => cache.Get(p.Manufacturer) == faction && LoadoutGenerator.IsOffered(cache, p))
-                    .Select(p => cache.Get(p.Design) as HullData).Where(h => h != null && h.HullType == HullType.Station).Select(h => h.Kind.Key).ToArray();
-                Assert.DoesNotContain(cache.RefOf(kind).Key, own);
-                Assert.Contains(standIn.Kind.Key, own);
-                Assert.NotEmpty(models);
+                var owning = cache.RefOf(kind).Key.Value;
+                Assert.NotNull(cache.Get(standIn.Kind));
+                Assert.DoesNotContain(owning, OracleSoldStationKinds(cache).Where(e => e.maker.Equals(cache.RefOf(faction).Key)).Select(e => e.kind));
+                var carried = OracleOfferedKinds(cache).Contains(standIn.Kind.Key.Value);
+                var fieldable = StationKinds.FieldableKindsOf(cache, faction).Select(k => k.Key.Value).Contains(owning);
+                Assert.Equal(carried, fieldable);
+                if (carried) { live++; continue; }
+                if (StationKinds.FieldableKindsOf(cache, faction).Length > 0) continue;
+                var logged = new List<string>();
+                var seated = StationKinds.Choose(cache, faction, "site", logged.Add);
+                if (OracleOfferedKinds(cache).Count > 0)
+                {
+                    Assert.Single(logged);
+                    Assert.Contains(seated.Key.Value, OracleOfferedKinds(cache));
+                }
             }
+        return live;
     }
 
     [Fact]
@@ -434,16 +579,17 @@ public sealed class StationKindTests : IDisposable
         AssertStandInsLive(cache);
     }
 
-    // The retirement check is not vacuous: given a stand-in it passes when the faction offers the kind it stands in with and
-    // not the owning kind, and fails when the faction has gained its own model of the owning kind or has no model to use.
+    // The stand-in check is not vacuous: a stand-in passes live when the faction can field the kind it stands in with and has no model
+    // of the owning kind; fails when the faction has gained its own model of the owning kind; is dead, with the fallback observed,
+    // when no maker sells the target kind (a retarget to a kind no hull carries included); and is caught if its target is no kind.
     [Fact]
-    public void StandInRetirementCheckCanFail()
+    public void StandInCheckCanFail()
     {
         var live = World.Make(this, zenithOffered: false);
         live.Sell(live.Au, "mining");
         live.StandIn("shipyard", live.Au, "mining");
-        Assert.Single(live.Cache.GetAll<StationKindData>().SelectMany(kind => kind.StandIns));
-        AssertStandInsLive(live.Cache);
+        Assert.Single(live.Cache.GetAll<StationKindData>().SelectMany(kind => kind.StandIns), standIn => live.Cache.Get(standIn.Faction) == live.Au);
+        Assert.Equal(1, AssertStandInsLive(live.Cache));
 
         var retired = World.Make(this, zenithOffered: false);
         retired.Sell(retired.Au, "mining");
@@ -451,8 +597,19 @@ public sealed class StationKindTests : IDisposable
         retired.StandIn("shipyard", retired.Au, "mining");
         Assert.ThrowsAny<Exception>(() => AssertStandInsLive(retired.Cache));
 
-        var hollow = World.Make(this, zenithOffered: false);
-        hollow.StandIn("shipyard", hollow.Au, "mining");
-        Assert.ThrowsAny<Exception>(() => AssertStandInsLive(hollow.Cache));
+        var nowhere = World.Make(this, zenithOffered: false);
+        nowhere.Sell(nowhere.Au, "mining");
+        nowhere.StandIn("shipyard", nowhere.Lucent, "power");
+        Assert.Equal(0, AssertStandInsLive(nowhere.Cache));
+        var logged = new List<string>();
+        Assert.Equal(Kind("mining").Key, StationKinds.Choose(nowhere.Cache, nowhere.Lucent, "site", logged.Add).Key);
+        Assert.Single(logged);
+
+        var missing = World.Make(this, zenithOffered: false);
+        missing.Sell(missing.Au, "mining");
+        missing.StandIn("shipyard", missing.Zh, "mining");
+        var kind = missing.Cache.Get(Kind("shipyard"));
+        kind.StandIns[0].Kind = Kind("no-such-kind");
+        Assert.ThrowsAny<Exception>(() => AssertStandInsLive(missing.Cache));
     }
 }

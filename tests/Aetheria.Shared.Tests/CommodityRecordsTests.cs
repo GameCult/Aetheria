@@ -13,8 +13,8 @@ public sealed class CommodityRecordsTests
     public void ShippedCatalogOpensWithTheRetiredKeysGone()
     {
         using var cache = RestoredHullsTests.OpenCatalog();
-        Assert.Equal(13, cache.GetAll<SimpleCommodityData>().Count());
-        Assert.Equal(51, cache.GetAll<CompoundCommodityData>().Count());
+        Assert.Equal(22, cache.GetAll<SimpleCommodityData>().Count());
+        Assert.Equal(63, cache.GetAll<CompoundCommodityData>().Count());
         Assert.Contains(cache.GetAll<SimpleCommodityData>(), c => c.Name == "Ammo");
         Assert.All(cache.GetAll<CompoundCommodityData>(), c => Assert.False(string.IsNullOrEmpty(c.Name)));
     }

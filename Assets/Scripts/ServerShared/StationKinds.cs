@@ -52,35 +52,47 @@ public static class StationKinds
         return Ordered(kinds);
     }
 
-    // A station's kind: a stable pick among the faction's kinds by the station's site, which generation names by the zone's
-    // seed and the station's place in its orbit order (never by a key the cache mints). It draws nothing from any random
-    // stream, so adding the kind to generation moves no other roll. A faction with no kinds falls back to any kind some
-    // offered station hull carries, logged, and the hull draw then falls back to any maker. Unset when the catalog has none.
+    // The kinds this faction places that a station can be drawn for: those whose hull kind (its own model, else its stand-in's) some
+    // maker offers. A stand-in whose model has not landed leaves its kind out.
+    public static CultRecordRef<StationKindData>[] FieldableKindsOf(CultCache catalog, Faction faction) =>
+        KindsOf(catalog, faction).Where(kind => HasModel(catalog, faction, kind) || LiveStandIn(catalog, faction, kind).IsSet()).ToArray();
+
+    // A station's kind: a stable pick among the faction's kinds it can field, by the station's site, which generation names by the
+    // zone's seed and the station's place in its orbit order (never by a key the cache mints). It draws nothing from any random
+    // stream, so adding the kind to generation moves no other roll. A kind the faction places but cannot field (neither its own
+    // model nor a stand-in's hull kind is carried by any offered station hull) is not in the pool; a faction left with no kind to
+    // field falls back to any kind some offered station hull carries, logged, and the hull draw then falls back to any maker.
+    // Unset when the catalog has none.
     public static CultRecordRef<StationKindData> Choose(CultCache catalog, Faction faction, string site, Action<string> log = null)
     {
-        var pool = KindsOf(catalog, faction);
+        var pool = FieldableKindsOf(catalog, faction);
         if (pool.Length == 0)
         {
-            pool = Ordered(new HashSet<string>(
-                catalog.GetAll<FactionProductData>().Where(product => LoadoutGenerator.IsOffered(catalog, product))
-                    .Select(product => catalog.Get(product.Design) as HullData)
-                    .Where(hull => hull != null && hull.HullType == HullType.Station && hull.Kind.IsSet())
-                    .Select(hull => hull.Kind.Key.Value), StringComparer.Ordinal));
+            pool = Ordered(OfferedKinds(catalog));
             if (pool.Length == 0) return default;
-            log?.Invoke($"{faction?.Name ?? "This galaxy"} builds no station kind; placing a station of any kind some maker offers.");
+            log?.Invoke($"{faction?.Name ?? "This galaxy"} builds no station kind it can field; placing a station of any kind some maker offers.");
         }
         return pool[(int) (site.StableHash() % (uint) pool.Length)];
     }
 
     // The kind of hull a faction builds for a station kind: the kind itself when the faction offers a model of it (a model
-    // wins over a stale stand-in), else the kind its stand-in names, else the kind itself (the hull draw then falls back to
-    // any maker).
+    // wins over a stale stand-in), else the kind its stand-in names when some maker offers that, else the kind itself (the hull
+    // draw then falls back to any maker).
     public static CultRecordRef<StationKindData> HullKindFor(CultCache catalog, Faction faction, CultRecordRef<StationKindData> kind)
     {
-        if (!kind.IsSet()) return kind;
-        if (OfferedStationHulls(catalog, faction).Any(hull => hull.Kind.Key.Equals(kind.Key))) return kind;
+        if (!kind.IsSet() || HasModel(catalog, faction, kind)) return kind;
+        var standIn = LiveStandIn(catalog, faction, kind);
+        return standIn.IsSet() ? standIn : kind;
+    }
+
+    private static bool HasModel(CultCache catalog, Faction faction, CultRecordRef<StationKindData> kind) =>
+        OfferedStationHulls(catalog, faction).Any(hull => hull.Kind.Key.Equals(kind.Key));
+
+    // The kind the faction's stand-in names for this kind, when some maker offers a hull of it; else unset.
+    private static CultRecordRef<StationKindData> LiveStandIn(CultCache catalog, Faction faction, CultRecordRef<StationKindData> kind)
+    {
         var standIn = catalog.Get(kind)?.StandIns.FirstOrDefault(entry => catalog.Get(entry.Faction) == faction);
-        return standIn != null && standIn.Kind.IsSet() ? standIn.Kind : kind;
+        return standIn != null && standIn.Kind.IsSet() && OfferedKinds(catalog).Contains(standIn.Kind.Key.Value) ? standIn.Kind : default;
     }
 
     // What is wrong with a hull's kind, or null: a Station hull names a kind the catalog holds, and no other hull names one.
@@ -130,11 +142,19 @@ public static class StationKinds
         }
     }
 
+    // The hull kinds some maker offers: the pool a station can always be drawn from.
+    private static HashSet<string> OfferedKinds(CultCache catalog) =>
+        new HashSet<string>(DrawableStationProducts(catalog).Select(entry => entry.hull.Kind.Key.Value), StringComparer.Ordinal);
+
     private static IEnumerable<HullData> OfferedStationHulls(CultCache catalog, Faction faction) =>
+        DrawableStationProducts(catalog).Where(entry => catalog.Get(entry.product.Manufacturer) == faction).Select(entry => entry.hull);
+
+    // The station hulls a hull draw can reach (LoadoutGenerator.IsDrawable, the one definition), with the product that sells each.
+    private static IEnumerable<(FactionProductData product, HullData hull)> DrawableStationProducts(CultCache catalog) =>
         catalog.GetAll<FactionProductData>()
-            .Where(product => LoadoutGenerator.IsOffered(catalog, product) && catalog.Get(product.Manufacturer) == faction)
-            .Select(product => catalog.Get(product.Design) as HullData)
-            .Where(hull => hull != null && hull.HullType == HullType.Station && hull.Kind.IsSet());
+            .Select(product => (product, hull: catalog.Get(product.Design) as HullData))
+            .Where(entry => entry.hull != null && entry.hull.HullType == HullType.Station && entry.hull.Kind.IsSet() &&
+                LoadoutGenerator.IsDrawable(catalog, entry.product, entry.hull));
 
     private static CultRecordRef<StationKindData>[] Ordered(IEnumerable<string> keys) =>
         keys.OrderBy(key => key, StringComparer.Ordinal).Select(key => new CultRecordRef<StationKindData>(new CultRecordKey(key))).ToArray();
