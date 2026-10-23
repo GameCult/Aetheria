@@ -456,7 +456,11 @@ public sealed class StationKindTests : IDisposable
     {
         var world = World.Make(this, zenithOffered: false);
         world.Sell(world.Au, "mining");
-        world.Unsellable(world.Sell(world.Au, "shipyard"), unsetMaker);
+        var unsold = world.Sell(world.Au, "shipyard");
+        world.Unsellable(unsold, unsetMaker);
+        // No hull draw reaches it: a station of its kind cannot be generated for anyone.
+        Assert.Null(world.Generator(world.Au).GenerateStationLoadout(Kind("shipyard")));
+        Assert.Null(world.Generator(world.Lucent).GenerateStationLoadout(Kind("shipyard")));
         world.StandIn("mining", world.Lucent, "shipyard");
         world.StandIn("mining", world.Zh, "shipyard");
 
@@ -603,7 +607,7 @@ public sealed class StationKindTests : IDisposable
 
         var missing = World.Make(this, zenithOffered: false);
         missing.Sell(missing.Au, "mining");
-        missing.StandIn("shipyard", missing.Lucent, "mining");
+        missing.StandIn("shipyard", missing.Zh, "mining");
         var kind = missing.Cache.Get(Kind("shipyard"));
         kind.StandIns[0].Kind = Kind("no-such-kind");
         Assert.ThrowsAny<Exception>(() => AssertStandInsLive(missing.Cache));
