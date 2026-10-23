@@ -234,13 +234,58 @@ public sealed partial class RunStartTests
         }
     }
 
-    // No generated fallback (rulings boss-gear-is-a-loadout, demo-boss-hull-invented): the shipped catalog authors no boss Loadout,
-    // so Zhestokost has no boss. The refusal happens before anything is drawn.
+    // The demo as shipped (follow-up zhestokost-boss-loadout): Zhestokost's Faction.BossLoadout names the committed Nakovalnya
+    // Loadout, and a demo run reaches a built Nakovalnya carrying exactly that Loadout's cells, nothing drawn from the market.
+    // The gate stays shut while it lives and opens when it dies.
+    [Fact]
+    public void The_shipped_demo_boss_is_Zhestokosts_Nakovalnya_loadout()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var loadout = Loadouts.BossOf(_cache, antagonist, out var refusal);
+        Assert.Equal(BossRefusal.None, refusal);
+        Assert.Equal("Nakovalnya Boss", loadout.Name);
+        Assert.Equal("Nakovalnya", _cache.Get(loadout.Hull).Name);
+        Assert.Equal(26, loadout.Slots.Count);
+
+        var hull = _cache.Get(loadout.Hull);
+        Assert.DoesNotContain(hull, LoadoutGenerator.SoldHulls(_cache));
+
+        foreach (var seed in new uint[] { 7, 8, 9 })
+        {
+            var log = new List<string>();
+            var items = LoggingItems(log);
+            var pack = BossZonePack(galaxy, items, galaxy.Exit, seed: seed);
+            Assert.True(pack.BossSpawned, string.Join("; ", log));
+            var boss = Assert.Single(pack.Entities, entity => entity.Boss);
+            Assert.Same(antagonist, _cache.Get(boss.Faction));
+            Assert.Equal("Nakovalnya", HullName(items, boss));
+            // A design-only slot takes the brand its faction can get (ruling loadout-product-optional-context-chooses), so the
+            // cell is compared by position, rotation and design; a slot that pins a product must be built with that product.
+            static string Placed(string cell) => string.Join(",", cell.Split(',').Take(4));
+            Assert.Equal(LoadoutCells(loadout).Select(Placed), Cells(items, boss).Select(Placed));
+            foreach (var pinned in LoadoutCells(loadout).Where(cell => !cell.EndsWith(",-")))
+                Assert.Contains(pinned, Cells(items, boss));
+            // No other ship in the zone flies the boss hull: the market never draws it.
+            Assert.DoesNotContain(pack.Entities, entity => !entity.Boss && entity is ShipPack && HullName(items, entity) == "Nakovalnya");
+        }
+
+        var exit = ZoneOf(galaxy, galaxy.Exit);
+        var nakovalnya = Assert.Single(exit.Entities, entity => entity.IsBoss);
+        Assert.True(RunGoal.BossAlive(exit));
+        Assert.False(RunGoal.ExitOpen(exit));
+        nakovalnya.HeatstrokeDeath.OnNext(Unit.Default);
+        Assert.True(RunGoal.ExitOpen(exit));
+    }
+
+    // No generated fallback (rulings boss-gear-is-a-loadout, demo-boss-hull-invented): a faction that sets no boss Loadout has no
+    // boss. The refusal happens before anything is drawn.
     [Fact]
     public void Boss_without_a_boss_loadout_is_refused()
     {
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
+        antagonist.BossLoadout = default;
         Assert.Null(Loadouts.BossOf(_cache, antagonist, out var refusal));
         Assert.Equal(BossRefusal.Unset, refusal);
 
@@ -333,9 +378,10 @@ public sealed partial class RunStartTests
     [Fact]
     public void Main_galaxy_bosses_are_factions_with_a_boss_loadout()
     {
+        var factions = _cache.GetAll<Faction>().OrderBy(faction => faction.Name, StringComparer.Ordinal).ToArray();
+        foreach (var faction in factions) faction.BossLoadout = default;
         Assert.Empty(RunStart.Generate(new MainGalaxy(), Inputs(() => 1)).BossZones);
 
-        var factions = _cache.GetAll<Faction>().OrderBy(faction => faction.Name, StringComparer.Ordinal).ToArray();
         factions[0].BossLoadout = new CultRecordRef<Loadout>(Loadouts.KeyOf("No Such Loadout"));
         Assert.Empty(RunStart.Generate(new MainGalaxy(), Inputs(() => 1)).BossZones);
 
@@ -431,7 +477,7 @@ public sealed partial class RunStartTests
     public void Exit_open_only_in_the_exit_zone()
     {
         var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
-        // The shipped catalog sets no boss Loadout, so the main galaxy places no boss: give a faction one and a boss zone that is
+        // Give a faction a boss Loadout and a boss zone that is
         // not the exit, as the generator would for a faction with a boss Loadout. This Loadout pins its hull's brand, so any faction
         // builds it whatever it can get.
         var faction = galaxy.Factions.First();
