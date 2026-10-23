@@ -31,6 +31,21 @@ public class InstantWeaponData : WeaponData
         return new InstantWeapon(this, item);
     }
 
+    // The shortest cooldown a plain (semi-automatic) gun may be authored with, 0.1 s: about ten presses a second. A faster one
+    // is a fire-as-fast-as-you-can-press mechanic, unfriendly to accessibility and a special case for the AI (ruling
+    // fire-mode-is-the-design); a gun that cycles faster is an AutoWeapon.
+    public const float ShortestSemiAutoCooldown = .1f;
+
+    // The plain guns of a catalog that cycle faster than a finger should have to: one fault line per gun.
+    public static IEnumerable<string> SemiAutoFaults(IEnumerable<GearData> catalog)
+    {
+        foreach (var gear in catalog)
+            foreach (var behavior in gear.Behaviors)
+                if (behavior.GetType() == typeof(InstantWeaponData) && behavior is InstantWeaponData plain &&
+                    Math.Min(plain.Cooldown.Min, plain.Cooldown.Max) < ShortestSemiAutoCooldown)
+                    yield return $"{gear.Name}: a plain gun with a {Math.Min(plain.Cooldown.Min, plain.Cooldown.Max):0.###} s cooldown, below {ShortestSemiAutoCooldown} s; make it an AutoWeapon or slow it";
+    }
+
     // The one formula of an instant weapon's damage per second at a range; the live weapon calls it with its evaluated
     // stats, the design with its rated ones. A burst's round carries its share of the totals: PerRound, the one divisor
     // UpdateStats and the rated read both use.
@@ -92,11 +107,10 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // manager can bind its presentation to the one shot it belongs to instead of applying damage itself.
     public event Action<int> OnFire;
 
-    // Whether the trigger is down, so a cooldown that ends inside a step starts the next burst inside it. The trigger is the
-    // weapon's own state, set by Activate and cleared by Deactivate (a player's press and let-go, an agent's pull and
-    // release), never inferred from how often it was pulled: a tap fires one burst, and a held trigger fires every round
-    // its cooldown allows, at any step length.
-    private bool Repeats => _firing;
+    // Whether a down trigger keeps firing: a plain gun is semi-automatic, one burst per press (a held key does not repeat, and
+    // an agent presses it again each time it is ready); an AutoWeapon repeats while its trigger is held, every round its
+    // cooldown allows at any step length. Fire mode is authored by the kind of the weapon (ruling fire-mode-is-the-design).
+    protected virtual bool Repeats => false;
 
     public virtual void ResetEvents()
     {
