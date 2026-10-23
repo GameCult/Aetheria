@@ -368,4 +368,155 @@ public sealed class EconomyCommandTests
         f.EditRecipe("commodity:plate", r => r.Fills.Add(null));
         Assert.Contains(EconomyChecks.Check(f.Cache).Faults, x => x.Invariant == EconomyChecks.LRecipe && x.Record == "recipe:commodity:plate" && x.Message.Contains("Fills"));
     }
+
+    [Fact]
+    public void FixingOneFaultOnARecordDoesNotHideANewOneThere()
+    {
+        using var f = EconomyFixture.Healthy();
+        f.EditRecipe("commodity:plate", r => r.Upkeep.Add(null));
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        var key = RecipeData.KeyOf(new CultRecordKey(EconomyFixture.Key("plate")));
+        var code = Author(f, true, out var output, a => { var r = a.Catalog.Get<RecipeData>(key); r.Upkeep.RemoveAll(x => x == null); r.Cycle = 0; a.Put(r, key); });
+        Assert.Equal(1, code);
+        Assert.Contains("Cycle is not a finite number above zero", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
+    private static EconomyFixture HeldLoop()
+    {
+        var f = EconomyFixture.Healthy();
+        f.Good("loopa", inputs: new[] { ("loopb", 1) });
+        f.Good("loopb", inputs: new[] { ("loopa", 2) });
+        return f;
+    }
+
+    [Theory]
+    [InlineData("worsen")]
+    [InlineData("move")]
+    [InlineData("grow")]
+    [InlineData("disjoint")]
+    public void AHeldUnproductiveCatalogRefusesABatchThatWorsensMovesOrGrowsTheCycle(string how)
+    {
+        using var f = HeldLoop();
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        Action<EconomyAuthor> batch = how switch
+        {
+            "worsen" => a => Good(f, a, "loopb", inputs: new[] { ("loopa", 50) }),
+            "move" => a => { Good(f, a, "loopb"); Good(f, a, "loopz", inputs: new[] { ("loopa", 9) }); Good(f, a, "loopa", inputs: new[] { ("loopz", 1) }); },
+            "grow" => a => { Good(f, a, "loopy", inputs: new[] { ("loopa", 7) }); Good(f, a, "loopa", inputs: new[] { ("loopb", 1), ("loopy", 7) }); },
+            _ => a => { Good(f, a, "loopc", inputs: new[] { ("loopd", 5) }); Good(f, a, "loopd", inputs: new[] { ("loopc", 5) }); }
+        };
+        var code = Author(f, true, out var output, batch);
+        Assert.Equal(1, code);
+        Assert.Contains("L-productive", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
+    [Fact]
+    public void AHeldUnproductiveCatalogStillAppliesABatchThatLeavesTheCycleAlone()
+    {
+        using var f = HeldLoop();
+        var code = Author(f, true, out var output, a => Good(f, a, "coal"));
+        Assert.Equal(0, code);
+        Assert.Contains("Wrote 2 records", output);
+    }
+
+    private static void Seed(EconomyFixture f, string id)
+    {
+        var key = new CultRecordKey(EconomyFixture.Key(id));
+        f.Cache.Upsert(typeof(SimpleCommodityData), new SimpleCommodityData { Name = id }, key);
+        f.Cache.Upsert(typeof(RecipeData), new RecipeData { Output = EconomyFixture.Item(key.Value), StationKind = f.Mill, LoreHook = "a good", Inputs = new List<CommodityCount>() }, RecipeData.KeyOf(key));
+    }
+
+    [Fact]
+    public void RemovingACommodityAndItsRecipeIsListedAndApplies()
+    {
+        using var f = EconomyFixture.Healthy();
+        Seed(f, "tar");
+        var key = new CultRecordKey(EconomyFixture.Key("tar"));
+        var code = Author(f, true, out var output, a => { a.Catalog.Remove(RecipeData.KeyOf(key)); a.Catalog.Remove(key); });
+        Assert.Equal(0, code);
+        Assert.Contains("removed commodity:tar", output);
+        Assert.Contains("removed recipe:commodity:tar", output);
+        Assert.Contains("2 removed", output);
+        Assert.Contains("Wrote 2 records", output);
+        Assert.DoesNotContain("Nothing to write", output);
+        using var after = Read(f);
+        Assert.Null(after.Get<RecipeData>(RecipeData.KeyOf(key)));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RemovingARecipeAloneIsARefusedLRecipeFault(bool alongsideAnAddition)
+    {
+        using var f = EconomyFixture.Healthy();
+        Seed(f, "tar");
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        var key = new CultRecordKey(EconomyFixture.Key("tar"));
+        var code = Author(f, true, out var output, a => { a.Catalog.Remove(RecipeData.KeyOf(key)); if (alongsideAnAddition) Good(f, a, "coal"); });
+        Assert.Equal(1, code);
+        Assert.Contains("L-recipe commodity:tar", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
+    [Fact]
+    public void ANewCommodityWithNoRecipeYetIsStillPending()
+    {
+        using var f = EconomyFixture.Healthy();
+        var code = Author(f, true, out var output, a => a.Put(new SimpleCommodityData { Name = "coal" }, new CultRecordKey(EconomyFixture.Key("coal"))));
+        Assert.Equal(0, code);
+        Assert.Contains("Wrote 1 records", output);
+    }
+
+    [Fact]
+    public void AReadOnlyCatalogIsARefusalOnEveryPlatformAndStaysIntact()
+    {
+        using var f = EconomyFixture.Healthy();
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        File.SetAttributes(f.CatalogPath, FileAttributes.ReadOnly);
+        try
+        {
+            var code = Author(f, true, out var output, a => Good(f, a, "coal"));
+            Assert.Equal(1, code);
+            Assert.Contains("read-only", output);
+            Assert.DoesNotContain("   at ", output);
+            Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+        }
+        finally { File.SetAttributes(f.CatalogPath, FileAttributes.Normal); }
+    }
+
+    [Fact]
+    public void ACatalogHeldOpenWithoutDeleteSharingIsANamedRefusalAndStaysIntact()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var f = EconomyFixture.Healthy();
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        using (new FileStream(f.CatalogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        {
+            var code = Author(f, true, out var output, a => Good(f, a, "coal"));
+            Assert.Equal(1, code);
+            Assert.Contains("close Unity", output);
+            Assert.DoesNotContain("   at ", output);
+        }
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(f.CatalogPath), "*.economy-*"));
+    }
+
+    [Fact]
+    public void TheSwapKeepsTheCatalogsFileMode()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var f = EconomyFixture.Healthy();
+        Flush(f);
+        var mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead;
+        File.SetUnixFileMode(f.CatalogPath, mode);
+        Assert.Equal(0, Author(f, true, out _, a => Good(f, a, "coal")));
+        Assert.Equal(mode, File.GetUnixFileMode(f.CatalogPath));
+    }
 }
