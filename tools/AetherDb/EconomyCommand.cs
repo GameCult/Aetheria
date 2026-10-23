@@ -183,19 +183,8 @@ public static class EconomyCommand
             }
             var staged = catalogPath + ".economy-" + Guid.NewGuid().ToString("N");
             File.Copy(trial, staged);
-            try
-            {
-                if (Fingerprint(catalogPath) != fingerprint)
-                {
-                    output.WriteLine("The batches are refused: Aetheria.cc changed before the checked copy could replace it.");
-                    return 1;
-                }
-                File.Replace(staged, catalogPath, null);
-            }
-            finally
-            {
-                if (File.Exists(staged)) File.Delete(staged);
-            }
+            try { File.Replace(staged, catalogPath, null); }
+            finally { if (File.Exists(staged)) File.Delete(staged); }
             output.WriteLine($"\nWrote {written} records to Aetheria.cc");
             return 0;
         }
