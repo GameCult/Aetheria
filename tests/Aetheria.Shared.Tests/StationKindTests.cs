@@ -401,7 +401,7 @@ public sealed class StationKindTests : IDisposable
                 Assert.True(station.Kind.IsSet(), "a placed station has a kind");
                 Assert.Equal(station.Kind.Key, w.HullOf(station).Kind.Key);
                 var faction = w.Cache.Get(station.Faction);
-                var kinds = StationKinds.KindsOf(w.Cache, faction);
+                var kinds = StationKinds.FieldableKindsOf(w.Cache, faction);
                 if (kinds.Length > 0) Assert.Contains(station.Kind.Key.Value, kinds.Select(kind => kind.Key.Value));
             }
         }
@@ -433,12 +433,17 @@ public sealed class StationKindTests : IDisposable
         var ids = new[]
         {
             "mining", "volatiles", "agriculture", "processing", "fabrication", "shipyard", "depot", "trade-hub", "residential",
-            "habitat-support", "urban", "administrative", "power", "research", "salvage", "black-market", "waystation"
+            "habitat-support", "urban", "administrative", "power", "research", "salvage", "black-market", "waystation", "munitions-works"
         };
         Assert.Equal(ids.Select(id => StationKindData.KeyOf(id).Value).OrderBy(key => key, StringComparer.Ordinal),
             cache.GetAll<StationKindData>().Select(kind => cache.RefOf(kind).Key.Value).OrderBy(key => key, StringComparer.Ordinal));
         Assert.Equal(StationKindData.KeyOf("trade-hub").Value, cache.GetAll<HullData>().Single(h => h.Name == "Zenith").Kind.Key.Value);
     }
+
+    // Factions whose first station model has not landed (ruling faction-station-models): their stand-ins name the kind that model
+    // will be and are not yet live. The generator seats such a faction by the any-maker fallback (StationKinds.Choose). Each is
+    // checked to still own no station hull, so the exemption ends the day a model lands.
+    private static readonly string[] AwaitingFirstModel = { "Zhestokost" };
 
     private static void AssertStandInsLive(CultCache cache)
     {
@@ -446,6 +451,12 @@ public sealed class StationKindTests : IDisposable
             foreach (var standIn in kind.StandIns)
             {
                 var faction = cache.Get(standIn.Faction);
+                if (AwaitingFirstModel.Contains(faction.Name))
+                {
+                    Assert.DoesNotContain(cache.GetAll<FactionProductData>(), p => cache.Get(p.Manufacturer) == faction && LoadoutGenerator.IsOffered(cache, p)
+                        && cache.Get(p.Design) is HullData { HullType: HullType.Station });
+                    continue;
+                }
                 var models = StationKinds.KindsOf(cache, faction);
                 var own = cache.GetAll<FactionProductData>().Where(p => cache.Get(p.Manufacturer) == faction && LoadoutGenerator.IsOffered(cache, p))
                     .Select(p => cache.Get(p.Design) as HullData).Where(h => h != null && h.HullType == HullType.Station).Select(h => h.Kind.Key).ToArray();
@@ -470,7 +481,7 @@ public sealed class StationKindTests : IDisposable
         var live = World.Make(this, zenithOffered: false);
         live.Sell(live.Au, "mining");
         live.StandIn("shipyard", live.Au, "mining");
-        Assert.Single(live.Cache.GetAll<StationKindData>().SelectMany(kind => kind.StandIns));
+        Assert.Single(live.Cache.GetAll<StationKindData>().SelectMany(kind => kind.StandIns), standIn => live.Cache.Get(standIn.Faction) == live.Au);
         AssertStandInsLive(live.Cache);
 
         var retired = World.Make(this, zenithOffered: false);
