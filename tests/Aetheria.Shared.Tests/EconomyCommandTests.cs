@@ -118,12 +118,12 @@ public sealed class EconomyCommandTests
         Assert.Equal(0, Author(f, true, out _, coal));
         var bytes = File.ReadAllBytes(f.CatalogPath);
         Assert.Equal(0, Author(f, true, out var again, coal));
-        Assert.Contains("0 added, 0 changed, 2 unchanged", again);
+        Assert.Contains("0 added, 0 changed, 0 removed, 2 unchanged", again);
         Assert.Contains("Nothing to write.", again);
         Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
 
         Assert.Equal(0, Author(f, true, out var revised, a => Good(f, a, "coal", lore: "black rock", fills: new[] { "Plate" })));
-        Assert.Contains("0 added, 1 changed, 1 unchanged", revised);
+        Assert.Contains("0 added, 1 changed, 0 removed, 1 unchanged", revised);
         using var after = Read(f);
         Assert.Equal("black rock", after.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:coal"))).LoreHook);
         Assert.Equal("a good", after.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:ore"))).LoreHook);
@@ -137,7 +137,7 @@ public sealed class EconomyCommandTests
         var code = Author(f, true, out var output, a => Good(f, a, "tar", lore: " "), a => Good(f, a, "coal"));
         Assert.Equal(0, code);
         Assert.Contains("L-lore", output);
-        Assert.Contains("2 added, 0 changed, 2 unchanged", output);
+        Assert.Contains("2 added, 0 changed, 0 removed, 2 unchanged", output);
         using var after = Read(f);
         Assert.NotNull(after.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:coal"))));
     }
