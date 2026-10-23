@@ -183,9 +183,9 @@ public sealed class FlowFieldTests : IDisposable
         // Zone.Flow and the lowered scroll are one zone-time value: the flow at p is the law evaluated at the zone's
         // own FlowScroll, after any run of steps (a flow that ran ahead of or behind the shader's scroll differs here).
         var zone = ZoneWith(Flow(), 3.25);
-        for (var step = 0; step < 90; step++)
+        for (var step = 0; step < System.MathF.Round(1.5f / SimClock.GameStep); step++)
         {
-            zone.Update(1f / 60f);
+            zone.Update(SimClock.GameStep);
             foreach (var p in Probes) AssertClose(FlowField.Global(Flow(), p, zone.FlowScroll), zone.Flow(p), 1e-4f);
         }
     }

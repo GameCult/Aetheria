@@ -119,16 +119,16 @@ public sealed partial class RunStartTests
 
     private static CrossingPass FlyPass(Zone arena, Ship player, Entity crosser)
     {
-        for (var tick = 0; tick < 60 * CrossingSeconds; tick++)
+        for (var tick = 0; tick < System.MathF.Round(CrossingSeconds / SimClock.GameStep); tick++)
         {
             var before = crosser.Position - player.Position;
-            arena.Update(1f / 60f);
+            arena.Update(SimClock.GameStep);
             var after = crosser.Position - player.Position;
             if (before.x < 0 && after.x >= 0)
             {
                 var at = float2(after.x, after.z);
                 var relative = crosser.Velocity - player.Velocity;
-                return new CrossingPass(true, (tick + 1) / 60f, at, length(relative), abs(at.x * relative.y - at.y * relative.x) / dot(at, at));
+                return new CrossingPass(true, (tick + 1) * SimClock.GameStep, at, length(relative), abs(at.x * relative.y - at.y * relative.x) / dot(at, at));
             }
         }
 

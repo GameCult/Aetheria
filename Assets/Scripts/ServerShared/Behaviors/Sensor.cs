@@ -145,7 +145,7 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         {
             _pinging = true;
             _pingZone = Entity.Zone;
-            _pingCooldown = 1;
+            _pingCooldown += 1;
             _pingLerp = 0;
             _pingRadius = 0;
             _reached.Clear();
@@ -180,8 +180,14 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
             if (_pingLerp > 1) EndPing();
         }
 
-        _pingCooldown -= dt / Evaluate(_data.PingCooldown);
+        // A finished timer keeps what the last step overshot, at most one step, so the restart in Ping is exact.
+        var pingStep = dt / Evaluate(_data.PingCooldown);
+        _pingCooldown = max(_pingCooldown - pingStep, -pingStep);
         
+        var infoDecay = ItemManager.GameplaySettings.TargetInfoDecay;
+        var decay = exp(-infoDecay * dt);
+        var settle = infoDecay > 0 ? (1 - decay) / infoDecay : dt;
+
         var forward = Direction.xz;
         foreach (var entity in Entity.Zone.Entities)
         {
@@ -221,14 +227,16 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
                 credit += Gain(entity.Visibility, sensitivity, response, sqrt(r.IlluminatedRange * dist), dt, true, sqrt(r.IlluminatedObscuration * obscuration));
             }
 
+            // The exact decay at this step: x <- x e^(-k dt) + (G / k)(1 - e^(-k dt)) for the passive gain G per second,
+            // which settles at G / k (Entity.PassiveInfo) at every dt. A ping's credit is an impulse added first.
             if (heard)
-                next = saturate(previous + credit);
+                next = saturate(previous + credit) * decay;
             else
             {
                 var angle = acos(dot(forward, normalize(diff)));
-                next = saturate(previous + Gain(entity.Visibility, sensitivity, _data.SensitivityCurve.Evaluate(angle / PI), dist, dt, false, obscuration));
+                var passive = Gain(entity.Visibility, sensitivity, _data.SensitivityCurve.Evaluate(angle / PI), dist, 1f, false, obscuration);
+                next = saturate(previous * decay + passive * settle);
             }
-            next *= 1 - ItemManager.GameplaySettings.TargetInfoDecay * dt;
             //Context.Log($"{entity.Name} visibility {(int)(previous * 100)}% -> {(int)(next * 100)}%");
             Entity.EntityInfoGathered[entity] = next;
         }

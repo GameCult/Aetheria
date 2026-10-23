@@ -168,6 +168,7 @@ public sealed class MineTests : IDisposable
     {
         var before = lab.Zone.Mines.Count;
         lab.Weapon.Activate();
+        lab.Weapon.Deactivate();
         lab.Zone.Update(dt);
         Assert.Equal(before + 1, lab.Zone.Mines.Count);
         return lab.Zone.Mines.Last();
@@ -515,8 +516,8 @@ public sealed class MineTests : IDisposable
     [Fact]
     public void LayingIsDeterministicAndFillsItsSpread()
     {
-        var a = Build(spread: 40f, velocity: 5f, cooldown: .01f, layerFaction: A);
-        var b = Build(spread: 40f, velocity: 5f, cooldown: .01f, layerFaction: A);
+        var a = Build(spread: 40f, velocity: 5f, cooldown: .199f, layerFaction: A);
+        var b = Build(spread: 40f, velocity: 5f, cooldown: .199f, layerFaction: A);
         var angles = new List<float>();
         using var sub = a.Zone.Mines.ObserveAdd().Subscribe(e =>
         {
@@ -532,6 +533,7 @@ public sealed class MineTests : IDisposable
             foreach (var lab in new[] { a, b })
             {
                 lab.Weapon.Activate();
+                lab.Weapon.Deactivate();
                 lab.Zone.Update(.1f);
                 lab.Zone.Update(.1f);
             }
@@ -803,6 +805,7 @@ public sealed class MineTests : IDisposable
         lab.Zone.Log = log.Add;
 
         lab.Weapon.Activate();
+        lab.Weapon.Deactivate();
         lab.Zone.Update(.1f);
 
         Assert.Empty(lab.Zone.Mines);

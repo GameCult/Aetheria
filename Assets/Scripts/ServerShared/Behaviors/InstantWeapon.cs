@@ -21,14 +21,39 @@ public class InstantWeaponData : WeaponData
     [Inspectable, JsonProperty("ammoInterval"), Key(20)]  
     public bool SingleAmmoBurst;
 
+    // The fire mode, the one fact creation and the semi-auto catalog check both read: an automatic gun fires every round its
+    // cooldown allows while its trigger is held, every other kind is semi-automatic (a press fires one burst).
+    [IgnoreMember]
+    public virtual bool Automatic => false;
+
     public override Behavior CreateInstance(EquippedItem item)
     {
-        return new InstantWeapon(this, item);
+        return Automatic ? new AutoWeapon(this, item) : new InstantWeapon(this, item);
     }
 
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
-        return new InstantWeapon(this, item);
+        return Automatic ? new AutoWeapon(this, item) : new InstantWeapon(this, item);
+    }
+
+    // The shortest cooldown a plain (semi-automatic) gun may be authored with, 0.1 s: about ten presses a second. A faster one
+    // is a fire-as-fast-as-you-can-press mechanic, unfriendly to accessibility and a special case for the AI (ruling
+    // fire-mode-is-the-design); a gun that cycles faster is an AutoWeapon.
+    public const float ShortestSemiAutoCooldown = .1f;
+
+    // The semi-automatic weapons of a catalog (gear and consumables, every kind that is not Automatic: plain, guided, mine,
+    // launcher, charged) that cycle faster than a finger should have to: one fault line per weapon.
+    public static IEnumerable<string> SemiAutoFaults(IEnumerable<ItemData> catalog)
+    {
+        foreach (var item in catalog)
+        {
+            var behaviors = (item as GearData)?.Behaviors ?? (item as ConsumableItemData)?.Behaviors;
+            if (behaviors == null) continue;
+            foreach (var behavior in behaviors)
+                if (behavior is InstantWeaponData weapon && !weapon.Automatic &&
+                    Math.Min(weapon.Cooldown.Min, weapon.Cooldown.Max) < ShortestSemiAutoCooldown)
+                    yield return $"{item.Name}: a {weapon.GetType().Name} with a {Math.Min(weapon.Cooldown.Min, weapon.Cooldown.Max):0.###} s cooldown, below {ShortestSemiAutoCooldown} s; make it an AutoWeapon or slow it";
+        }
     }
 
     // The one formula of an instant weapon's damage per second at a range; the live weapon calls it with its evaluated
@@ -58,6 +83,11 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     protected float _cooldown; // Normalized
     private int _ammo = 0;
     protected bool _coolingDown;
+    // Seconds the last countdown ran past zero (less than one step). The next countdown starts that far along, so a held
+    // trigger fires Cooldown apart on average at any step, never floor(Cooldown/dt)+1 steps apart.
+    private float _overshoot;
+    // The shortest cycle a countdown divides by: a cooldown of zero would otherwise fire without end in one step.
+    private const float ShortestCycle = .0005f;
 
     public float BurstCount { get; protected set; }
     public float BurstTime { get; protected set; }
@@ -86,6 +116,11 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // Cut 3 (docs/fire-control-cut.md): carries the ShotId FireControl.Fire assigned, so a Unity effect
     // manager can bind its presentation to the one shot it belongs to instead of applying damage itself.
     public event Action<int> OnFire;
+
+    // Whether a down trigger keeps firing: a plain gun is semi-automatic, one burst per press (a held key does not repeat, and
+    // an agent presses it again each time it is ready); an AutoWeapon repeats while its trigger is held, every round its
+    // cooldown allows at any step length. Fire mode is authored by the kind of the weapon (ruling fire-mode-is-the-design).
+    protected virtual bool Repeats => false;
 
     public virtual void ResetEvents()
     {
@@ -165,11 +200,15 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         _capacitor.UpdateStats(perShotEnergy, cooldown, rateOverride: RateOverride);
     }
 
+    // What the capacitor asks the bus for this step: a weapon held through it may fire several rounds in it, so it asks for
+    // the step's whole inflow; any other tops up to one activation.
+    private float Fill(float dt) => Repeats ? _capacitor.RequestedStepFill(dt) : _capacitor.RequestedFill(dt);
+
     // Cut 4: the request PowerBus needs before Execute runs, mirroring EnergyDraw's IPowerConsumer pattern.
     public float PowerRequest(float dt)
     {
         RefreshInputCapacitor();
-        return _capacitor.RequestedFill(dt);
+        return Fill(dt);
     }
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense. The ruling's own example of what
@@ -183,7 +222,40 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // would ever fill this capacitor -- bypass it entirely rather than starving such an instance forever.
     protected bool TrySpendActivationEnergy() => Item == null || _capacitor.TrySpend(_capacitor.Capacity);
 
-    private bool UseAmmo()
+    // Ends the countdown once it is below zero, keeping what it ran past zero (at most one step) for the next one.
+    // True when it ended the countdown now.
+    private bool FinishCountdown(float dt)
+    {
+        if (!_coolingDown || !(_cooldown < 0)) return false;
+        _overshoot = min(-_cooldown * CountdownSpan, dt);
+        _coolingDown = false;
+        if (_data.MagazineSize > 0 && _ammo == 0)
+        {
+            _ammo = _data.MagazineSize;
+            OnReloadComplete?.Invoke();
+        }
+        else
+            OnCooldownComplete?.Invoke();
+        return true;
+    }
+
+    private float CountdownSpan => max(ShortestCycle, _data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown);
+
+    // A countdown that starts outside a round (a charge failing) carries the last one's overshoot like every restart.
+    protected void StartCountdown()
+    {
+        _cooldown = 1 - TakeOvershoot() / CountdownSpan;
+        _coolingDown = true;
+    }
+
+    private float TakeOvershoot()
+    {
+        var overshoot = _overshoot;
+        _overshoot = 0;
+        return overshoot;
+    }
+
+    private bool UseAmmo(float dt)
     {
         if (_data.MagazineSize <= 1) return true;
         
@@ -208,7 +280,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         if(hasAmmo)
         {
             OnReloadBegin?.Invoke();
-            _cooldown = 1;
+            _cooldown = 1 - (_burstTimer + TakeOvershoot()) / _data.ReloadTime;
             _coolingDown = true;
             _firing = false;
         }
@@ -219,28 +291,31 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
 
     public override bool Execute(float dt)
     {
+        try { return Step(dt); }
+        finally { _capacitor.Settle(); }
+    }
+
+    // One step of rounds. A round is due at a moment inside the step (_burstTimer is how long ago, at the step's end), and a
+    // cooldown that ends inside the step while the trigger is held starts the next burst at that moment, so a gun fires
+    // every round its cooldown allows in a step, each with its own roll, however short the cooldown or long the step.
+    private bool Step(float dt)
+    {
         base.Execute(dt);
         // Cut 4: this tick's grant, read back via Item.PowerSupply -- Item is non-null here because a null-Item
         // instance never reaches PowerBus.Step (see TrySpendActivationEnergy) and so never accrues charge.
         if (Item != null)
-            _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
+            _capacitor.AddStepCharge(Fill(dt) * Item.PowerSupply, dt);
+        var ended = false;
+        var retriggered = false;
         if (_coolingDown)
         {
-            _cooldown -= dt / (_data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown);
-            if (_cooldown < 0)
-            {
-                _coolingDown = false;
-                if (_data.MagazineSize > 0 && _ammo == 0)
-                {
-                    _ammo = _data.MagazineSize;
-                    OnReloadComplete?.Invoke();
-                }
-                else
-                    OnCooldownComplete?.Invoke();
-            }
+            _cooldown -= dt / CountdownSpan;
+            ended = FinishCountdown(dt);
         }
 
         _burstTimer += dt;
+        while (true)
+        {
         while (_burstRemaining > 0 && _burstTimer > 0)
         {
             // A fused round whose arming distance Range cannot reach is refused, per round, before anything is
@@ -249,7 +324,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             var refused = FireControl.Refuses(this, Entity);
             // Ammo and energy are consumed here, per round, or once per burst at its first unrefused round
             // (SingleAmmoBurst). UseAmmo returns false when triggering reload; cancel firing if that is the case
-            if (!refused && !_burstPaid && (!TrySpendActivationEnergy() || !UseAmmo()))
+            if (!refused && !_burstPaid && (!TrySpendActivationEnergy() || !UseAmmo(dt)))
             {
                 _burstRemaining = 0;
                 return false;
@@ -260,8 +335,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
                 if (!_burstStarted)
                 {
                     _burstStarted = true;
-                    _cooldown = 1 - dt / Cooldown;
-                    // The round starts the cooldown after this tick's decrement above: charge the tick to it, so the cadence stays Cooldown
+                    _cooldown = 1 - (_burstTimer + TakeOvershoot()) / CountdownSpan;
+                    // The round starts the cooldown after this tick's decrement above: charge the tick and the last
+                    // countdown's overshoot to it, so the cadence stays Cooldown
                     _coolingDown = true;
                 }
             }
@@ -277,11 +353,26 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             // whole expression, argument included, whenever OnFire has no subscriber (a headless run with no
             // Unity EntityInstance wiring, docs/headless-playground-cut.md), so a shot silently never fired.
             // Evaluate it into a local first.
-            var shotId = FireControl.Fire(this, Item, Entity);
+            var shotId = FireControl.Fire(this, Item, Entity, age: _burstTimer + _burstInterval);
             OnFire?.Invoke(shotId);
             CauseWearDamage(1);
             AddHeat(Heat);
             Entity.SetSignature(this, SignatureChannel.LaunchFlash, Visibility, Item);
+        }
+        // A cooldown shorter than the step it started in is over in that step.
+        ended |= FinishCountdown(dt);
+        // The trigger is held and the weapon is ready: the next burst starts now, at the moment the cooldown ended (what it
+        // ran past zero is how long ago, at the step's end), or at the step's start when the weapon was already ready.
+        if (!Repeats || _burstRemaining > 0 || !CanFire || (retriggered && !_burstStarted)) break;
+        retriggered = true;
+        Trigger();
+        if (_burstRemaining == 0) break;
+        if (ended)
+        {
+            _burstTimer = TakeOvershoot();
+            ended = false;
+        }
+        else _burstTimer = dt;
         }
         return true;
     }

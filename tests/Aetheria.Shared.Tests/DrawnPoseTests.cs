@@ -171,7 +171,7 @@ public sealed class DrawnPoseTests : IDisposable
     {
         var w = Build();
         var ship = new Ship(w.Items, w.Zone, w.Hull, new EntitySettings());
-        var clock = new SimClock(1f / 60f);
+        var clock = new SimClock(1f / 60f, 60);
         var xs = new List<float>();
         var ys = new List<float>();
         var leads = new List<float>();

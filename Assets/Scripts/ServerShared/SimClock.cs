@@ -14,11 +14,19 @@ public sealed class SimClock
     // catch-up steps.
     public const float MaxFrameSeconds = .1f;
 
+    // Game steps per real second at design speed 1, and the sim seconds one step carries. The one owner of the game's
+    // tick: every driver of a game history steps Zone.Update by GameStep. Design speed (ruling sim-speed-surface) will
+    // set Step = DesignSpeed / TickRate in ForGame and nowhere else.
+    public const int TickRate = 30;
+    public const float GameStep = 1f / TickRate;
+
+    public static SimClock ForGame() => new SimClock(GameStep, TickRate);
+
     private readonly double _period;
     private double _accumulator;
     private bool _advancing;
 
-    public SimClock(float step, float stepsPerRealSecond = 60)
+    public SimClock(float step, float stepsPerRealSecond)
     {
         if (!(step > 0)) throw new ArgumentOutOfRangeException(nameof(step));
         if (!(stepsPerRealSecond > 0)) throw new ArgumentOutOfRangeException(nameof(stepsPerRealSecond));

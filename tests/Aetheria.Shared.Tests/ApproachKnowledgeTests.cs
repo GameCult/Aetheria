@@ -30,12 +30,12 @@ public sealed partial class RunStartTests
         var view = arena.Agents.Single(a => a.Ship == east).View;
         var startGap = east.Position.x - west.Position.x;
 
-        arena.Update(1f / 60f);
-        arena.Update(1f / 60f);
+        arena.Update(SimClock.GameStep);
+        arena.Update(SimClock.GameStep);
 
         Assert.NotNull(view.TrackOf(east, PilotView.Handle(west)));
         Assert.True(east.Velocity.x < -.5f, $"the follower thrusts toward its anchor from the first steps (vx {east.Velocity.x})");
-        for (var i = 0; i < 120; i++) arena.Update(1f / 60f);
+        for (var i = 0; i < System.MathF.Round(2f / SimClock.GameStep); i++) arena.Update(SimClock.GameStep);
         Assert.True(east.Position.x - west.Position.x < startGap - 20f, "the follower closed on its anchor");
     }
 
@@ -50,10 +50,10 @@ public sealed partial class RunStartTests
         var sentinel = new float3(0, 0, 12345);
 
         Assert.NotNull(view.TrackOf(east, PilotView.Handle(west)));
-        for (var i = 0; i < 3; i++) arena.Update(1f / 60f);
+        for (var i = 0; i < 3; i++) arena.Update(SimClock.GameStep);
         Assert.NotNull(view.TrackOf(east, PilotView.Handle(west)));
         east.Command.Aim = sentinel;
-        arena.Update(1f / 60f);
+        arena.Update(SimClock.GameStep);
         Assert.NotEqual(sentinel, east.Command.Aim.Value);
 
         var steps = 0;
