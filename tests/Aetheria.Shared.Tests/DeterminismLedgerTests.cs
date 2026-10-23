@@ -43,7 +43,12 @@ public sealed partial class RunStartTests
     // order, ties by shot id, so every commit of a step precedes its applies (it was commit then apply, shot by shot, in fire
     // order). The two parts measured: commit-then-apply split alone a1318ee0, with the arrival sort 55ecd858; the old walk at the
     // h5 head, rebased onto master, still measures 108c93dc, so the rebase and the fire-mode property moved nothing.
-    private const string TwoAiPinnedDigest = "55ecd858875ca6a5418d6badd40e71d9bbd363ca782843005483a308bcf07d74";
+    // Repinned a seventh time, once (h6), for two Combat changes, each of which moves the digest alone (Soul measured them against
+    // 55ecd858, the digest before): a held AutoWeapon stays a candidate between its rounds (the sweep disabled: b559789a), and Combat lets
+    // go of a held weapon it no longer commands (target gone, untracked, another group the pick, Combat ended), where a held gun fired on
+    // until a later step selected its group (the candidate change reverted: d9493bbe). Both together: the digest below. Releasing a beam or a
+    // lock the same way (h7) moved nothing.
+    private const string TwoAiPinnedDigest = "85e85c46cfc66693c819dd294ad02f3cd0eae5486c8f152a97e2e2787f854274";
     private const float TwoAiSeconds = 60f;
 
     [Fact]
