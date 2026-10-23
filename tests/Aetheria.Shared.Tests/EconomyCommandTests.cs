@@ -93,7 +93,7 @@ public sealed class EconomyCommandTests
         var code = Author(f, true, out var output, a =>
         {
             Good(f, a, "coal");
-            Good(f, a, "steel", inputs: new[] { ("coal", 1), ("plate", 1) }, fills: new[] { "Plate" });
+            Good(f, a, "steel", inputs: new[] { ("coal", 2) }, fills: new[] { "Plate" });
         });
         Assert.Equal(0, code);
         Assert.Contains("0 faults", output);
