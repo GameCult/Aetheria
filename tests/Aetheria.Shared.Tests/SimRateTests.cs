@@ -42,14 +42,15 @@ public sealed partial class ContactRevealTests
 
     // A gun of its own cooldown, bottomless magazine, so only the cooldown paces it. Upserted by name into the open catalog.
     // Automatic by default, as a gun that holds is; a semi-automatic one is the plain InstantWeaponData.
-    private string GunWithCooldown(float cooldown, bool auto = true)
+    private string GunWithCooldown(float cooldown, bool auto = true, float velocity = 0f)
     {
-        var name = $"{(auto ? "Auto" : "Gun")}@{cooldown:R}";
+        var name = $"{(auto ? "Auto" : "Gun")}@{cooldown:R}{(velocity > 0 ? $"v{velocity:R}" : "")}";
         if (_openCache.GetByName<ItemData>(name) != null) return name;
         InstantWeaponData data = auto
             ? new AutoWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(cooldown) }
             : new InstantWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(cooldown) };
         var gun = Armed(data, 0);
+        gun.Velocity = Const(velocity);
         gun.Energy = Const(1); // the fixture reactor pays a round a hundredth of a second apart; the rounds-per-step tests top up nothing
         _openCache.Upsert(new WeaponItemData
         {
@@ -452,6 +453,39 @@ public sealed partial class ContactRevealTests
             Assert.True(sources.Zip(sources.Skip(1), (x, y) => x != y).Count(changed => changed) > 1, $"step {step}: one shooter's rounds resolved as a block");
         }
         Assert.True(checkedSteps >= 4);
+    }
+
+    // Within a step, rounds apply in the order they arrive, not the order they were fired: a slow gun's earlier rounds and a
+    // fast gun's later ones that land in the same step apply by when each lands. Equal moments go by shot id.
+    [Fact]
+    public void RoundsOfOneStepApplyInArrivalOrderWhateverTheirFlightTimes()
+    {
+        var dt = 1f / 30f;
+        var slow = Add(float3(0, 0, 0), new[] { GunWithCooldown(.01f, velocity: 100f) }, new[] { "Targeting", "Reactor" });
+        var fast = Add(float3(5, 0, 0), new[] { GunWithCooldown(.01f) }, new[] { "Targeting", "Reactor" });
+        var guns = new[] { slow, fast }.Select(s => (InstantWeapon) Guns(s)[0].Behaviors.Single(x => x is InstantWeapon)).ToArray();
+        var fired = new Dictionary<int, (float fire, float arrival)>();
+        foreach (var gun in guns)
+            gun.OnFire += id => { if (_zone.TryGetShot(id, out var shot)) fired[id] = (shot.FireTime, shot.ArrivalTime); };
+        foreach (var s in new[] { slow, fast }) s.SetTarget(TargetRef.None);
+        var order = new List<int>();
+        _zone.ShotResolved.Subscribe(outcome => order.Add(outcome.ShotId));
+        var inverted = 0;
+        for (var step = 0; step < 40; step++)
+        {
+            foreach (var gun in guns) { CapacitorOf(gun).AddStepCharge(1000f, dt); gun.Activate(); }
+            order.Clear();
+            Tick(dt);
+            for (var i = 1; i < order.Count; i++)
+            {
+                var before = (fired[order[i - 1]].arrival, order[i - 1]);
+                var after = (fired[order[i]].arrival, order[i]);
+                Assert.True(before.CompareTo(after) < 0, $"step {step}: shot {order[i - 1]} (arrives {before.Item1:R}) applied before shot {order[i]} (arrives {after.Item1:R})");
+                if (fired[order[i - 1]].fire > fired[order[i]].fire) inverted++;
+            }
+        }
+        // The guns really differ: rounds were applied out of fire order, which fire-order resolution would not do.
+        Assert.True(inverted > 10, $"{inverted} rounds applied ahead of an earlier-fired one");
     }
 
     // Rounds born in one step leave from where the shooter was at their own moment: the origins of two rounds of a step are

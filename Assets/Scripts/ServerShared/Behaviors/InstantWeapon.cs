@@ -21,14 +21,19 @@ public class InstantWeaponData : WeaponData
     [Inspectable, JsonProperty("ammoInterval"), Key(20)]  
     public bool SingleAmmoBurst;
 
+    // The fire mode, the one fact creation and the semi-auto catalog check both read: an automatic gun fires every round its
+    // cooldown allows while its trigger is held, every other kind is semi-automatic (a press fires one burst).
+    [IgnoreMember]
+    public virtual bool Automatic => false;
+
     public override Behavior CreateInstance(EquippedItem item)
     {
-        return new InstantWeapon(this, item);
+        return Automatic ? new AutoWeapon(this, item) : new InstantWeapon(this, item);
     }
 
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
-        return new InstantWeapon(this, item);
+        return Automatic ? new AutoWeapon(this, item) : new InstantWeapon(this, item);
     }
 
     // The shortest cooldown a plain (semi-automatic) gun may be authored with, 0.1 s: about ten presses a second. A faster one
@@ -36,14 +41,19 @@ public class InstantWeaponData : WeaponData
     // fire-mode-is-the-design); a gun that cycles faster is an AutoWeapon.
     public const float ShortestSemiAutoCooldown = .1f;
 
-    // The plain guns of a catalog that cycle faster than a finger should have to: one fault line per gun.
-    public static IEnumerable<string> SemiAutoFaults(IEnumerable<GearData> catalog)
+    // The semi-automatic weapons of a catalog (gear and consumables, every kind that is not Automatic: plain, guided, mine,
+    // launcher, charged) that cycle faster than a finger should have to: one fault line per weapon.
+    public static IEnumerable<string> SemiAutoFaults(IEnumerable<ItemData> catalog)
     {
-        foreach (var gear in catalog)
-            foreach (var behavior in gear.Behaviors)
-                if (behavior.GetType() == typeof(InstantWeaponData) && behavior is InstantWeaponData plain &&
-                    Math.Min(plain.Cooldown.Min, plain.Cooldown.Max) < ShortestSemiAutoCooldown)
-                    yield return $"{gear.Name}: a plain gun with a {Math.Min(plain.Cooldown.Min, plain.Cooldown.Max):0.###} s cooldown, below {ShortestSemiAutoCooldown} s; make it an AutoWeapon or slow it";
+        foreach (var item in catalog)
+        {
+            var behaviors = (item as GearData)?.Behaviors ?? (item as ConsumableItemData)?.Behaviors;
+            if (behaviors == null) continue;
+            foreach (var behavior in behaviors)
+                if (behavior is InstantWeaponData weapon && !weapon.Automatic &&
+                    Math.Min(weapon.Cooldown.Min, weapon.Cooldown.Max) < ShortestSemiAutoCooldown)
+                    yield return $"{item.Name}: a {weapon.GetType().Name} with a {Math.Min(weapon.Cooldown.Min, weapon.Cooldown.Max):0.###} s cooldown, below {ShortestSemiAutoCooldown} s; make it an AutoWeapon or slow it";
+        }
     }
 
     // The one formula of an instant weapon's damage per second at a range; the live weapon calls it with its evaluated

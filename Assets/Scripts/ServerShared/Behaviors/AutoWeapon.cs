@@ -9,10 +9,8 @@ using static CultMath.math;
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class AutoWeaponData : InstantWeaponData
 {
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new AutoWeapon(this, item);
-    }
+    [IgnoreMember]
+    public override bool Automatic => true;
 }
 
 // A fully automatic gun: it fires every round its cooldown allows while its trigger is held, from the press (Activate)

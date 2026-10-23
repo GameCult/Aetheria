@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GameCult.Caching;
@@ -23,7 +25,7 @@ public sealed class SemiAutoCatalogTests
         using var cache = new CultCache(TestCatalog.Registry());
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog, true), AetheriaStores.CatalogTypes);
         var gear = cache.GetAll<GearData>().ToArray();
-        Assert.Empty(InstantWeaponData.SemiAutoFaults(gear));
+        Assert.Empty(InstantWeaponData.SemiAutoFaults(cache.GetAll<ItemData>()));
         // The check reads a catalog that holds guns, and the two automatic ones are AutoWeapons.
         foreach (var name in new[] { "Slug Rifle", "Long Slug Rifle" })
             Assert.IsType<AutoWeaponData>(gear.Single(g => g.Name == name).Behaviors.Single(b => b is InstantWeaponData));
@@ -46,5 +48,39 @@ public sealed class SemiAutoCatalogTests
         Assert.Equal(2, faults.Length);
         Assert.Contains(faults, f => f.StartsWith("Fast:"));
         Assert.Contains(faults, f => f.StartsWith("Wide:"));
+    }
+
+    // Fire mode is one property of the weapon's data: every kind but AutoWeaponData is semi-automatic, and the floor holds each of
+    // them, as gear or as a consumable. An automatic gun is exempt wherever it is carried.
+    public static IEnumerable<object[]> Kinds() => new[]
+    {
+        new object[] { "plain", (Func<InstantWeaponData>) (() => new InstantWeaponData()) },
+        new object[] { "guided", (Func<InstantWeaponData>) (() => new GuidedWeaponData()) },
+        new object[] { "mine", (Func<InstantWeaponData>) (() => new MineLayerData()) },
+        new object[] { "launcher", (Func<InstantWeaponData>) (() => new LauncherData()) },
+        new object[] { "charged", (Func<InstantWeaponData>) (() => new ChargedWeaponData { CanFireEarly = true }) },
+    };
+
+    [Theory, MemberData(nameof(Kinds))]
+    public void TheFloorRefusesEverySemiAutoKindBelowItAsGearOrConsumable(string kind, Func<InstantWeaponData> make)
+    {
+        InstantWeaponData At(float cooldown) { var data = make(); data.Cooldown = Const(cooldown); return data; }
+        Assert.False(make().Automatic);
+        var floor = InstantWeaponData.ShortestSemiAutoCooldown;
+        var slow = At(floor);
+        var fast = At(floor / 2);
+        Assert.Empty(InstantWeaponData.SemiAutoFaults(new ItemData[] { Gun(kind, slow), new ConsumableItemData { Name = kind + " dose", Behaviors = { slow } } }));
+        var faults = InstantWeaponData.SemiAutoFaults(new ItemData[] { Gun(kind, fast), new ConsumableItemData { Name = kind + " dose", Behaviors = { fast } } }).ToArray();
+        Assert.Equal(2, faults.Length);
+        Assert.Contains(faults, f => f.StartsWith(kind + ":"));
+        Assert.Contains(faults, f => f.StartsWith(kind + " dose:"));
+    }
+
+    [Fact]
+    public void AnAutomaticGunIsExemptAsGearOrConsumable()
+    {
+        var auto = new AutoWeaponData { Cooldown = Const(.01f) };
+        Assert.True(auto.Automatic);
+        Assert.Empty(InstantWeaponData.SemiAutoFaults(new ItemData[] { Gun("Auto", auto), new ConsumableItemData { Name = "Auto dose", Behaviors = { auto } } }));
     }
 }

@@ -854,9 +854,9 @@ public static class FireControl
         if (shots.Count == 0) return;
 
         var now = zone.Time;
-        // In fire-time order, oldest first (the queue is kept in it by Fire), so which of a step's rounds breaks a shield or
-        // lands a kill follows sim time, not the order the shooters were stepped in. Shots queued while this walk runs are
+        // Commits walk the queue in fire-time order, oldest first (Fire keeps it in it). Shots queued while the walk runs are
         // left to the next step.
+        List<(float Arrival, int Id)> arrived = null;
         for (int i = 0, end = shots.Count; i < end;)
         {
             var shot = shots[i];
@@ -892,19 +892,41 @@ public static class FireControl
 
             if (shot.Committed && now >= shot.ArrivalTime)
             {
-                // Cut 12.4(b) (docs/fire-control-cut.md, "Which model a shot uses"): Apply is the one owner of
-                // which model a shot uses, through its own switch on the frozen Fuse -- Step has no damage
-                // branch left. A direct hit, a proximity burst and a contact or delayed blast all arrive here
-                // the same way; only Apply decides what that means.
-                // Removed first: Apply reaches damage observers (user code), and a shot left in the queue by one
-                // that throws would resolve, and hurt, again on every later tick.
-                shots.RemoveAt(i);
-                end--;
-                Apply(zone, shot);
-                zone.ShotResolved.OnNext(shot.Outcome);
-                continue;
+                (arrived ??= new List<(float, int)>()).Add((shot.ArrivalTime, shot.ShotId));
             }
             i++;
+        }
+        if (arrived == null) return;
+
+        // The rounds that arrive in this step apply in arrival order, ties in shot-id order (ids rise as shots are made), so
+        // which of them breaks a shield or lands a kill follows when each hit, not the order the shooters were stepped in or the
+        // order their rounds left.
+        arrived.Sort((a, b) => a.Arrival != b.Arrival ? a.Arrival.CompareTo(b.Arrival) : a.Id.CompareTo(b.Id));
+        foreach (var (_, id) in arrived)
+        {
+            var i = shots.FindIndex(q => q.ShotId == id);
+            if (i < 0) continue;
+            var shot = shots[i];
+
+            var targetGone = shot.Target != null && !zone.Entities.Contains(shot.Target);
+            if (targetGone)
+            {
+                // As in the commit walk: a shot whose target left the zone in this step resolves as a miss.
+                var miss = MakeOutcome(shot, ShotResult.Miss, false, false, int2.zero, float2.zero, 0f, now);
+                shots.RemoveAt(i);
+                zone.ShotResolved.OnNext(miss);
+                continue;
+            }
+
+            // Cut 12.4(b) (docs/fire-control-cut.md, "Which model a shot uses"): Apply is the one owner of
+            // which model a shot uses, through its own switch on the frozen Fuse -- Step has no damage
+            // branch left. A direct hit, a proximity burst and a contact or delayed blast all arrive here
+            // the same way; only Apply decides what that means.
+            // Removed first: Apply reaches damage observers (user code), and a shot left in the queue by one
+            // that throws would resolve, and hurt, again on every later tick.
+            shots.RemoveAt(i);
+            Apply(zone, shot);
+            zone.ShotResolved.OnNext(shot.Outcome);
         }
     }
 
