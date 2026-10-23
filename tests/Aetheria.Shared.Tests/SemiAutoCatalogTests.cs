@@ -83,4 +83,17 @@ public sealed class SemiAutoCatalogTests
         Assert.True(auto.Automatic);
         Assert.Empty(InstantWeaponData.SemiAutoFaults(new ItemData[] { Gun("Auto", auto), new ConsumableItemData { Name = "Auto dose", Behaviors = { auto } } }));
     }
+
+    // The floor is the 0.1 s constant itself, not a function of the tick: a 0.08 s semi-auto gun is refused at a step length
+    // whose own multiple (2 x GameStep at 30 Hz is 0.067 s) would let it through, and refused at the constant's edge from
+    // below however the step moves. Kills: SemiAutoFaults comparing against a step-derived value.
+    [Fact]
+    public void TheFloorIsTheConstantNotAMultipleOfTheStep()
+    {
+        Assert.NotEqual(InstantWeaponData.ShortestSemiAutoCooldown, SimClock.GameStep * 2f);
+        Assert.True(SimClock.GameStep * 2f < .08f, "fixture: a step-derived floor would let 0.08 s through");
+        Assert.Single(InstantWeaponData.SemiAutoFaults(new[] { Gun("Eighty", new InstantWeaponData { Cooldown = Const(.08f) }) }));
+        Assert.Single(InstantWeaponData.SemiAutoFaults(new[] { Gun("Just under", new InstantWeaponData { Cooldown = Const(.0999f) }) }));
+        Assert.Empty(InstantWeaponData.SemiAutoFaults(new[] { Gun("Just over", new InstantWeaponData { Cooldown = Const(.1001f) }) }));
+    }
 }
