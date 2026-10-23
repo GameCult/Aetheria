@@ -1112,6 +1112,29 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.False(gun.Firing);
     }
 
+    // The target stands but its group is no longer a candidate (it moved out of the gun's reach): the held gun is let go
+    // the same step, not left to fire at the last aim. Kills: Combat's release sweep after its group pick being lost.
+    [Fact]
+    public void CombatReleasesAHeldAutoWeaponWhoseTargetMovesOutOfReach()
+    {
+        var r = Build(auto: true);
+        var gun = (InstantWeapon) r.Gun.Weapon;
+        var rounds = 0;
+        gun.OnFire += _ => rounds++;
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+        const float dt = 1f / 30f;
+        for (var i = 0; i < 90; i++) r.Zone.Update(dt);
+        Assert.True(gun.Firing, "control: the pilot holds the gun while the target is in reach");
+
+        r.Target.Position = r.Shooter.Position + float3(0, 0, 500);
+        r.Zone.Update(dt);
+        var after = rounds;
+
+        Assert.False(gun.Firing);
+        for (var i = 0; i < 30; i++) r.Zone.Update(dt);
+        Assert.Equal(after, rounds);
+    }
+
     // A held AutoWeapon is cooling between its rounds because it is firing: its group is not dropped for cooling down, or
     // the trigger would be let go and pressed again at step granularity. Kills: releasing a held gun whose cooldown is
     // running while its target stands.
