@@ -6,7 +6,7 @@ using GameCult.Caching;
 
 // A small writable catalog for the economy tests: one maker that places one station kind (Mill), and builders for commodities,
 // gear, hulls, recipes and the outside market. Keys are readable: commodity:<id>, gear:<id>, hull:<id>.
-internal sealed class EconomyFixture : IDisposable
+public sealed class EconomyFixture : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "aetheria-economy-" + Guid.NewGuid().ToString("N"));
     public string CatalogPath => Path.Combine(_dir, "Aetheria.cc");
