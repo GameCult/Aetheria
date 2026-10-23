@@ -54,11 +54,8 @@ public static class StationKinds
 
     // The kinds this faction places that a station can be drawn for: those whose hull kind (its own model, else its stand-in's) some
     // maker offers. A stand-in whose model has not landed leaves its kind out.
-    public static CultRecordRef<StationKindData>[] FieldableKindsOf(CultCache catalog, Faction faction)
-    {
-        var offered = OfferedKinds(catalog);
-        return KindsOf(catalog, faction).Where(kind => offered.Contains(HullKindFor(catalog, faction, kind).Key.Value)).ToArray();
-    }
+    public static CultRecordRef<StationKindData>[] FieldableKindsOf(CultCache catalog, Faction faction) =>
+        KindsOf(catalog, faction).Where(kind => HasModel(catalog, faction, kind) || LiveStandIn(catalog, faction, kind).IsSet()).ToArray();
 
     // A station's kind: a stable pick among the faction's kinds it can field, by the station's site, which generation names by the
     // zone's seed and the station's place in its orbit order (never by a key the cache mints). It draws nothing from any random
@@ -79,14 +76,23 @@ public static class StationKinds
     }
 
     // The kind of hull a faction builds for a station kind: the kind itself when the faction offers a model of it (a model
-    // wins over a stale stand-in), else the kind its stand-in names, else the kind itself (the hull draw then falls back to
-    // any maker).
+    // wins over a stale stand-in), else the kind its stand-in names when some maker offers that, else the kind itself (the hull
+    // draw then falls back to any maker).
     public static CultRecordRef<StationKindData> HullKindFor(CultCache catalog, Faction faction, CultRecordRef<StationKindData> kind)
     {
-        if (!kind.IsSet()) return kind;
-        if (OfferedStationHulls(catalog, faction).Any(hull => hull.Kind.Key.Equals(kind.Key))) return kind;
+        if (!kind.IsSet() || HasModel(catalog, faction, kind)) return kind;
+        var standIn = LiveStandIn(catalog, faction, kind);
+        return standIn.IsSet() ? standIn : kind;
+    }
+
+    private static bool HasModel(CultCache catalog, Faction faction, CultRecordRef<StationKindData> kind) =>
+        OfferedStationHulls(catalog, faction).Any(hull => hull.Kind.Key.Equals(kind.Key));
+
+    // The kind the faction's stand-in names for this kind, when some maker offers a hull of it; else unset.
+    private static CultRecordRef<StationKindData> LiveStandIn(CultCache catalog, Faction faction, CultRecordRef<StationKindData> kind)
+    {
         var standIn = catalog.Get(kind)?.StandIns.FirstOrDefault(entry => catalog.Get(entry.Faction) == faction);
-        return standIn != null && standIn.Kind.IsSet() ? standIn.Kind : kind;
+        return standIn != null && standIn.Kind.IsSet() && OfferedKinds(catalog).Contains(standIn.Kind.Key.Value) ? standIn.Kind : default;
     }
 
     // What is wrong with a hull's kind, or null: a Station hull names a kind the catalog holds, and no other hull names one.
