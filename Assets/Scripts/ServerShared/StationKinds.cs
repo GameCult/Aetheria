@@ -52,6 +52,14 @@ public static class StationKinds
         return Ordered(kinds);
     }
 
+    // The kinds this faction places that a station can be drawn for: those whose hull kind (its own model, else its stand-in's) some
+    // maker offers. A stand-in whose model has not landed leaves its kind out.
+    public static CultRecordRef<StationKindData>[] FieldableKindsOf(CultCache catalog, Faction faction)
+    {
+        var offered = OfferedKinds(catalog);
+        return KindsOf(catalog, faction).Where(kind => offered.Contains(HullKindFor(catalog, faction, kind).Key.Value)).ToArray();
+    }
+
     // A station's kind: a stable pick among the faction's kinds it can field, by the station's site, which generation names by the
     // zone's seed and the station's place in its orbit order (never by a key the cache mints). It draws nothing from any random
     // stream, so adding the kind to generation moves no other roll. A kind the faction places but cannot field (neither its own
@@ -60,11 +68,10 @@ public static class StationKinds
     // Unset when the catalog has none.
     public static CultRecordRef<StationKindData> Choose(CultCache catalog, Faction faction, string site, Action<string> log = null)
     {
-        var offered = OfferedKinds(catalog);
-        var pool = KindsOf(catalog, faction).Where(kind => offered.Contains(HullKindFor(catalog, faction, kind).Key.Value)).ToArray();
+        var pool = FieldableKindsOf(catalog, faction);
         if (pool.Length == 0)
         {
-            pool = Ordered(offered);
+            pool = Ordered(OfferedKinds(catalog));
             if (pool.Length == 0) return default;
             log?.Invoke($"{faction?.Name ?? "This galaxy"} builds no station kind it can field; placing a station of any kind some maker offers.");
         }
