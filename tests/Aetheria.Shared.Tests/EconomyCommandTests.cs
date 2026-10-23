@@ -394,6 +394,7 @@ public sealed class EconomyCommandTests
     [Theory]
     [InlineData("worsen")]
     [InlineData("move")]
+    [InlineData("move-lower")]
     [InlineData("grow")]
     [InlineData("disjoint")]
     public void AHeldUnproductiveCatalogRefusesABatchThatWorsensMovesOrGrowsTheCycle(string how)
@@ -405,6 +406,7 @@ public sealed class EconomyCommandTests
         {
             "worsen" => a => Good(f, a, "loopb", inputs: new[] { ("loopa", 50) }),
             "move" => a => { Good(f, a, "loopb"); Good(f, a, "loopz", inputs: new[] { ("loopa", 9) }); Good(f, a, "loopa", inputs: new[] { ("loopz", 1) }); },
+            "move-lower" => a => { Good(f, a, "loopb"); Good(f, a, "loopz", inputs: new[] { ("loopa", 1) }); Good(f, a, "loopa", inputs: new[] { ("loopz", 1) }); },
             "grow" => a => { Good(f, a, "loopy", inputs: new[] { ("loopa", 7) }); Good(f, a, "loopa", inputs: new[] { ("loopb", 1), ("loopy", 7) }); },
             _ => a => { Good(f, a, "loopc", inputs: new[] { ("loopd", 5) }); Good(f, a, "loopd", inputs: new[] { ("loopc", 5) }); }
         };
