@@ -39,7 +39,11 @@ public sealed partial class RunStartTests
     // Repinned a fifth time, once (h3): the shot queue is kept in fire-time order and resolved oldest first, ties by shot id, so within a step a
     // later shooter's earlier round resolves before an earlier shooter's later one (19710609 before). The trigger being the weapon's own state moved nothing
     // (measured alone: 19710609).
-    private const string TwoAiPinnedDigest = "108c93dc1b280d044d7ed3a5ade9f32f9dc76185989b25c5293ba1a86ab95632";
+    // Repinned a sixth time, once (h5): a step commits its due shots in fire-time order, then applies the arrived ones in arrival
+    // order, ties by shot id, so every commit of a step precedes its applies (it was commit then apply, shot by shot, in fire
+    // order). The two parts measured: commit-then-apply split alone a1318ee0, with the arrival sort 55ecd858; the old walk at the
+    // h5 head, rebased onto master, still measures 108c93dc, so the rebase and the fire-mode property moved nothing.
+    private const string TwoAiPinnedDigest = "55ecd858875ca6a5418d6badd40e71d9bbd363ca782843005483a308bcf07d74";
     private const float TwoAiSeconds = 60f;
 
     [Fact]
