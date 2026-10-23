@@ -264,4 +264,108 @@ public sealed class EconomyCommandTests
 
     [Fact]
     public void AnUnknownSubcommandFails() => Assert.Equal(1, EconomyCommand.Run(new[] { "bogus" }));
+
+    private static CultRecordKey K(string id) => new CultRecordKey(EconomyFixture.Key(id));
+
+    private static string FaultsOf(CultCache catalog, string invariant) =>
+        string.Join(";", EconomyChecks.Check(catalog).Faults.Where(x => x.Invariant == invariant).Select(x => x.Record));
+
+    [Fact]
+    public void ACycleClosedByALaterBatchIsRefusedEvenThoughTheFaultNamesAnEarlierBatchsRecord()
+    {
+        using var f = EconomyFixture.Healthy();
+        Assert.Equal(0, Author(f, true, out _, a =>
+        {
+            a.Put(new CompoundCommodityData { Name = "loopb" }, K("loopb"));
+            Good(f, a, "loopa", inputs: new[] { ("loopb", 1) });
+        }));
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        var code = Author(f, true, out var output, a => Good(f, a, "loopb", inputs: new[] { ("loopa", 2) }));
+        Assert.Equal(1, code);
+        Assert.Contains("refused", output);
+        Assert.Contains("L-productive", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
+    [Fact]
+    public void AnInPlaceEditThroughTheCatalogIsReportedChangedAndCheckedBeforeItIsWritten()
+    {
+        using var f = EconomyFixture.Healthy();
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        var plate = RecipeData.KeyOf(K("plate"));
+        var code = Author(f, true, out var output, a =>
+        {
+            var held = a.Catalog.Get<RecipeData>(plate);
+            held.LoreHook = " ";
+            a.Put(held, plate);
+        });
+        Assert.Equal(1, code);
+        Assert.Contains("changed recipe:commodity:plate", output);
+        Assert.Contains("L-lore", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
+    [Fact]
+    public void ABatchRunsOnceAndWhatIsWrittenIsWhatWasChecked()
+    {
+        using var f = EconomyFixture.Healthy();
+        var runs = 0;
+        var code = Author(f, true, out _, a =>
+        {
+            runs++;
+            Good(f, a, "tin", lore: runs == 1 ? "a good" : " ");
+        });
+        Assert.Equal(0, code);
+        Assert.Equal(1, runs);
+        using var after = Read(f);
+        Assert.Equal("a good", after.Get<RecipeData>(RecipeData.KeyOf(K("tin"))).LoreHook);
+        Assert.DoesNotContain(EconomyChecks.Check(after).Faults, x => x.Invariant == EconomyChecks.LLore);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ABatchThatWritesTheRealCatalogIsRefusedByName(bool apply)
+    {
+        using var f = EconomyFixture.Healthy();
+        var code = Author(f, apply, out var output, a => File.AppendAllText(f.CatalogPath, "x"));
+        Assert.Equal(1, code);
+        Assert.Contains("Aetheria.cc changed during the trial", output);
+        Assert.DoesNotContain("Dry run", output);
+    }
+
+    [Fact]
+    public void ABatchThatThrowsIsARefusalNamingItWithNoStackTrace()
+    {
+        using var f = EconomyFixture.Healthy();
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        var code = Author(f, true, out var output, a => Good(f, a, "zinc"), a => throw new IOException("boom"));
+        Assert.Equal(1, code);
+        Assert.Contains("The batch Lambda is refused: boom", output);
+        Assert.DoesNotContain("   at ", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ANullOutsideMarketRowsOrRowIsANamedFaultNotAThrow(bool rowsNull)
+    {
+        using var f = EconomyFixture.Healthy();
+        f.Cache.Upsert(typeof(OutsideMarketData), new OutsideMarketData { Name = "gate", Rows = rowsNull ? null : new List<OutsideMarketRow> { null } }, OutsideMarketData.KeyOf("gate"));
+        var report = EconomyChecks.Check(f.Cache);
+        Assert.Contains(report.Faults, x => x.Invariant == EconomyChecks.LRecipe && x.Record == "outside-market:gate");
+        Assert.Equal(1, EconomyCommand.Report(f.Cache, new StringWriter()));
+    }
+
+    [Fact]
+    public void ANullEntryInFillsIsAnLRecipeFault()
+    {
+        using var f = EconomyFixture.Healthy();
+        f.EditRecipe("commodity:plate", r => r.Fills.Add(null));
+        Assert.Contains(EconomyChecks.Check(f.Cache).Faults, x => x.Invariant == EconomyChecks.LRecipe && x.Record == "recipe:commodity:plate" && x.Message.Contains("Fills"));
+    }
 }
