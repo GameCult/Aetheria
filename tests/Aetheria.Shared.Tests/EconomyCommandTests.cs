@@ -416,6 +416,28 @@ public sealed class EconomyCommandTests
         Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ANewUnproductiveCycleBelowTheHeldRadiusIsRefusedAloneOrBesideALoweringOfTheHeldCycle(bool alsoLowerHeld)
+    {
+        using var f = EconomyFixture.Healthy();
+        f.Good("loopa", inputs: new[] { ("loopb", 2) });
+        f.Good("loopb", inputs: new[] { ("loopa", 4) });
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        var code = Author(f, true, out var output, a =>
+        {
+            if (alsoLowerHeld) Good(f, a, "loopb", inputs: new[] { ("loopa", 2) });
+            Good(f, a, "loopc", inputs: new[] { ("loopd", 1) });
+            Good(f, a, "loopd", inputs: new[] { ("loope", 1) });
+            Good(f, a, "loope", inputs: new[] { ("loopc", 2) });
+        });
+        Assert.Equal(1, code);
+        Assert.Contains("L-productive", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
     [Fact]
     public void AHeldCycleWhoseRadiusFallsStillApplies()
     {
@@ -518,6 +540,23 @@ public sealed class EconomyCommandTests
         }
         Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
         Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(f.CatalogPath), "*.economy-*"));
+    }
+
+    [Fact]
+    public void ACatalogHeldOpenForWritingIsANamedRefusalAndStaysIntact()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var f = EconomyFixture.Healthy();
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        using (new FileStream(f.CatalogPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+        {
+            var code = Author(f, true, out var output, a => Good(f, a, "coal"));
+            Assert.Equal(1, code);
+            Assert.Contains("close Unity", output);
+            Assert.DoesNotContain("   at ", output);
+        }
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
     }
 
     [Fact]

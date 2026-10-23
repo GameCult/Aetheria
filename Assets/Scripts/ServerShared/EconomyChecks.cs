@@ -304,11 +304,11 @@ public static class EconomyChecks
         }
 
         var final = Build(pick, 0);
-        var (rho, component) = Radius(final, n);
         var faults = new List<EconomyFault>();
-        if (rho >= 1 - Margin)
+        string Name(int i) => i == labour ? "labour" : names[i];
+        foreach (var (rho, component) in Radii(final, n))
         {
-            string Name(int i) => i == labour ? "labour" : names[i];
+            if (rho < 1 - Margin) continue;
             var order = CycleOrder(final, n, component);
             faults.Add(new EconomyFault(LProductive, Name(order[0]),
                 $"The goods cannot sustain themselves: spectral radius {rho:0.######} is not below 1, carried by {string.Join(" -> ", order.Select(Name))}.",
@@ -336,9 +336,9 @@ public static class EconomyChecks
         return u;
     }
 
-    // The spectral radius of a nonnegative matrix: the largest over its strongly connected components that hold a cycle, each by
-    // power iteration on A + I (primitive when irreducible). An edge j -> i is a nonzero A[i, j]. Also the component carrying it.
-    private static (double Rho, List<int> Component) Radius(double[,] a, int n)
+    // The spectral radius of every strongly connected component of a nonnegative matrix, each by power iteration on A + I
+    // (primitive when irreducible). An edge j -> i is a nonzero A[i, j]. A component with no cycle has radius 0.
+    private static List<(double Rho, List<int> Component)> Radii(double[,] a, int n)
     {
         var reach = new bool[n, n];
         for (var i = 0; i < n; i++)
@@ -350,8 +350,7 @@ public static class EconomyChecks
                     for (var j = 0; j < n; j++)
                         if (reach[k, j]) reach[i, j] = true;
         var done = new bool[n];
-        var best = 0.0;
-        var bestComponent = new List<int>();
+        var radii = new List<(double, List<int>)>();
         for (var start = 0; start < n; start++)
         {
             if (done[start]) continue;
@@ -359,9 +358,9 @@ public static class EconomyChecks
             foreach (var i in component) done[i] = true;
             var rho = Irreducible(a, component);
             if (double.IsNaN(rho)) rho = double.PositiveInfinity;
-            if (rho > best) { best = rho; bestComponent = component; }
+            radii.Add((rho, component));
         }
-        return (best, bestComponent);
+        return radii;
     }
 
     private static double Irreducible(double[,] a, List<int> nodes)

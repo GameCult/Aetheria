@@ -121,18 +121,25 @@ public static class EconomyCommand
         try
         {
             var trial = Path.Combine(scratch, "Aetheria.cc");
-            var fingerprint = Fingerprint(catalogPath);
-            File.Copy(catalogPath, trial);
-            new FileInfo(trial).IsReadOnly = false;
+            string fingerprint;
             Dictionary<string, EconomyFault> held;
             HashSet<string> recipesHeld;
             Dictionary<string, byte[]> original;
-            using (var cache = AetheriaStores.Open(catalogPath, registry: registry))
+            try
             {
+                fingerprint = Fingerprint(catalogPath);
+                File.Copy(catalogPath, trial);
+                new FileInfo(trial).IsReadOnly = false;
+                using var cache = AetheriaStores.Open(catalogPath, registry: registry);
                 held = new Dictionary<string, EconomyFault>(StringComparer.Ordinal);
                 foreach (var fault in EconomyChecks.Check(cache).Faults) held[Identity(fault)] = fault;
                 recipesHeld = new HashSet<string>(cache.GetAll<RecipeData>().Select(r => cache.RefOf(r).Key.Value), StringComparer.Ordinal);
                 original = Records(cache);
+            }
+            catch (Exception e) when (e is UnauthorizedAccessException || e is IOException)
+            {
+                output.WriteLine(Held("read", e));
+                return 1;
             }
             var touched = new List<string>();
             int written;
@@ -213,6 +220,10 @@ public static class EconomyCommand
             try { Directory.Delete(scratch, true); } catch (IOException) { }
         }
     }
+
+    // Something holds Aetheria.cc open: a refusal that names the holder to close, never an exception.
+    private static string Held(string verb, Exception e) =>
+        $"The batches are refused: Aetheria.cc could not be {verb} ({e.Message}). Something holds the file: close Unity and any other editor or tool that has it open, then run again. The catalog is unchanged.";
 
     // A fault is the same fault by rule, record and message, so fixing one fault on a record cannot hide a new one there. L-productive
     // is one fault per cycle: its identity is the cycle's member set, and the same cycle with a higher radius is a worse fault.
