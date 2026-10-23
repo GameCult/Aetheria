@@ -52,22 +52,21 @@ public static class StationKinds
         return Ordered(kinds);
     }
 
-    // A station's kind: a stable pick among the faction's kinds by the station's site, which generation names by the zone's
-    // seed and the station's place in its orbit order (never by a key the cache mints). It draws nothing from any random
-    // stream, so adding the kind to generation moves no other roll. A faction with no kinds falls back to any kind some
-    // offered station hull carries, logged, and the hull draw then falls back to any maker. Unset when the catalog has none.
+    // A station's kind: a stable pick among the faction's kinds it can field, by the station's site, which generation names by the
+    // zone's seed and the station's place in its orbit order (never by a key the cache mints). It draws nothing from any random
+    // stream, so adding the kind to generation moves no other roll. A kind the faction places but cannot field (neither its own
+    // model nor a stand-in's hull kind is carried by any offered station hull) is not in the pool; a faction left with no kind to
+    // field falls back to any kind some offered station hull carries, logged, and the hull draw then falls back to any maker.
+    // Unset when the catalog has none.
     public static CultRecordRef<StationKindData> Choose(CultCache catalog, Faction faction, string site, Action<string> log = null)
     {
-        var pool = KindsOf(catalog, faction);
+        var offered = OfferedKinds(catalog);
+        var pool = KindsOf(catalog, faction).Where(kind => offered.Contains(HullKindFor(catalog, faction, kind).Key.Value)).ToArray();
         if (pool.Length == 0)
         {
-            pool = Ordered(new HashSet<string>(
-                catalog.GetAll<FactionProductData>().Where(product => LoadoutGenerator.IsOffered(catalog, product))
-                    .Select(product => catalog.Get(product.Design) as HullData)
-                    .Where(hull => hull != null && hull.HullType == HullType.Station && hull.Kind.IsSet())
-                    .Select(hull => hull.Kind.Key.Value), StringComparer.Ordinal));
+            pool = Ordered(offered);
             if (pool.Length == 0) return default;
-            log?.Invoke($"{faction?.Name ?? "This galaxy"} builds no station kind; placing a station of any kind some maker offers.");
+            log?.Invoke($"{faction?.Name ?? "This galaxy"} builds no station kind it can field; placing a station of any kind some maker offers.");
         }
         return pool[(int) (site.StableHash() % (uint) pool.Length)];
     }
@@ -129,6 +128,14 @@ public static class StationKinds
             }
         }
     }
+
+    // The hull kinds some maker offers: the pool a station can always be drawn from.
+    private static HashSet<string> OfferedKinds(CultCache catalog) =>
+        new HashSet<string>(
+            catalog.GetAll<FactionProductData>().Where(product => LoadoutGenerator.IsOffered(catalog, product))
+                .Select(product => catalog.Get(product.Design) as HullData)
+                .Where(hull => hull != null && hull.HullType == HullType.Station && hull.Kind.IsSet())
+                .Select(hull => hull.Kind.Key.Value), StringComparer.Ordinal);
 
     private static IEnumerable<HullData> OfferedStationHulls(CultCache catalog, Faction faction) =>
         catalog.GetAll<FactionProductData>()

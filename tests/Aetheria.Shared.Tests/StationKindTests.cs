@@ -273,6 +273,34 @@ public sealed class StationKindTests : IDisposable
         }
     }
 
+    // A faction that places a kind through a stand-in no maker offers cannot field it: the kind is out of its pool and it falls back
+    // exactly as a faction with no kinds does. Once any maker offers the stand-in's hull kind, the faction keeps its kind.
+    [Fact]
+    public void FactionWhoseStandInNoMakerOffersFallsBackToAnyMaker()
+    {
+        var world = World.Make(this, zenithOffered: false);
+        world.Sell(world.Au, "shipyard");
+        world.StandIn("mining", world.Lucent, "depot");
+        Assert.Equal(new[] { Kind("mining").Key }, StationKinds.KindsOf(world.Cache, world.Lucent).Select(kind => kind.Key));
+
+        var logged = new List<string>();
+        var kind = StationKinds.Choose(world.Cache, world.Lucent, "site", logged.Add);
+        Assert.Equal(Kind("shipyard").Key, kind.Key);
+        Assert.Contains(world.Lucent.Name, Assert.Single(logged));
+        var pack = world.Generator(world.Lucent).GenerateStationLoadout(kind);
+        Assert.NotNull(pack);
+        Assert.Equal(Kind("shipyard").Key, world.HullOf(pack).Kind.Key);
+
+        world.Sell(world.Au, "depot");
+        var kept = new List<string>();
+        var placed = StationKinds.Choose(world.Cache, world.Lucent, "site", kept.Add);
+        Assert.Equal(Kind("mining").Key, placed.Key);
+        Assert.Empty(kept);
+        var depotStation = world.Generator(world.Lucent).GenerateStationLoadout(placed);
+        Assert.NotNull(depotStation);
+        Assert.Equal(Kind("depot").Key, world.HullOf(depotStation).Kind.Key);
+    }
+
     [Fact]
     public void FactionWithoutModelsFallsBack()
     {
