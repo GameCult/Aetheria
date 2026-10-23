@@ -109,7 +109,7 @@ public static class EconomyChecks
             if (stored.Fills == null) Add(key, "Fills is null; a recipe holds a list, empty when it fills no role.");
             var output = catalog.Get(recipe.Output);
             if (output == null) { Add(key, "Output names no item this catalog holds."); continue; }
-            if (!catalog.RefOf(recipe).Key.Equals(RecipeData.KeyOf(recipe.Output.Key)))
+            if (key != RecipeData.KeyOf(recipe.Output.Key).Value)
                 Add(key, "The recipe's key is not recipe:<output key>; one recipe per output is its key.");
             if (recipe.OutputCount <= 0) Add(key, "OutputCount is not above zero.");
             if (!float.IsFinite(recipe.Cycle) || recipe.Cycle <= 0) Add(key, "Cycle is not a finite number above zero.");
