@@ -122,27 +122,112 @@ public sealed class LoadoutTests : IDisposable
         Assert.True(!File.Exists(Player) || !SchemaNames(Player).Contains("aetheria.loadout"));
     }
 
-    // The shipped catalog never references a mod: a mod may be uninstalled, and a preset naming one would dangle. The
-    // refusal is at the only writer, so no caller (the editor command included) can get one into the file.
+    // The catalog is a stack of packages (ruling catalog-is-a-package-stack): a preset may name a package's design, hull or
+    // slot, and the only writer commits it under the package's key. Whether the design resolves is decided where the preset is
+    // built, not here.
     [Theory]
     [InlineData("hull", "mod-hull:mod.skiff")]
     [InlineData("slot", "mod-hull:mod.skiff")]
     [InlineData("slot", "mod-ship:mod.skiff")]
-    public void APresetNamingAModDesignIsRefusedAndNothingIsWritten(string where, string key)
+    public void APresetNamingAPackageDesignIsCommitted(string where, string key)
     {
-        var mod = new CultRecordRef<EquippableItemData>(new CultRecordKey(key));
         using var cache = Open();
         var loadout = HandBuilt(cache);
         if (where == "hull") loadout.Hull = new CultRecordRef<HullData>(new CultRecordKey(key));
-        else loadout.Slots[1].Design = mod;
+        else loadout.Slots[1].Design = new CultRecordRef<EquippableItemData>(new CultRecordKey(key));
+
+        Assert.True(Loadouts.Commit(Catalog, loadout, replace: false));
+
+        using var reopened = Open();
+        var written = Assert.Single(reopened.GetAll<Loadout>());
+        Assert.Equal(key, (where == "hull" ? written.Hull.Key : written.Slots[1].Design.Key).Value);
+    }
+
+    // With bossOf, one commit writes the loadout and makes it that faction's boss: Faction.BossLoadout names its key.
+    [Fact]
+    public void ABossCommitWritesTheLoadoutAndTheFactionsBossReference()
+    {
+        using (var cache = Open())
+            Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false, cache.RefOf(cache.GetByName<Faction>("Maker"))));
+
+        using (var cache = Open())
+        {
+            var loadout = Assert.Single(cache.GetAll<Loadout>());
+            Assert.Equal(Loadouts.KeyOf("Skiff build"), cache.RefOf(loadout).Key);
+            Assert.Same(loadout, Loadouts.BossOf(cache, cache.GetByName<Faction>("Maker"), out var refusal));
+            Assert.Equal(BossRefusal.None, refusal);
+        }
+    }
+
+    // The loadout and the boss reference are one batch: when the faction changed on disk after the commit's cache read it,
+    // the commit returns false and neither lands, though the loadout alone would have; the other writer's change survives.
+    [Fact]
+    public void ABossCommitOverAFactionChangedOnDiskWritesNeitherTheLoadoutNorTheReference()
+    {
+        Loadout loadout;
+        CultRecordRef<Faction> maker;
+        using (var read = Open())
+        {
+            loadout = HandBuilt(read);
+            maker = read.RefOf(read.GetByName<Faction>("Maker"));
+        }
+
+        using (var stale = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            Assert.NotNull(stale.Get(maker));
+            using (var other = AetheriaStores.Open(Catalog, catalogWritable: true))
+            {
+                var fresh = other.Get(maker);
+                Assert.True(other.Commit(batch =>
+                {
+                    batch.Expect(maker.Key, fresh);
+                    fresh.ShortName = "NEW";
+                    batch.Upsert(typeof(Faction), fresh, maker.Key);
+                }));
+            }
+
+            Assert.False(Loadouts.Commit(stale, loadout, replace: false, maker));
+        }
+
+        using var after = Open();
+        Assert.Empty(after.GetAll<Loadout>());
+        var faction = after.Get(maker);
+        Assert.Equal("NEW", faction.ShortName);
+        Assert.False(faction.BossLoadout.IsSet());
+    }
+
+    // The commit is conditional on the record at KeyOf(Name) too: a loadout written under that name after this cache read the
+    // catalog is not overwritten, even with replace set, and the second commit reports false.
+    [Fact]
+    public void ACommitOverALoadoutWrittenAfterTheReadWritesNothing()
+    {
+        Loadout loadout;
+        using (var read = Open())
+            loadout = HandBuilt(read);
+
+        using (var stale = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            Assert.Empty(stale.GetAll<Loadout>());
+            Assert.True(Loadouts.Commit(Catalog, loadout, replace: false));
+            Assert.False(Loadouts.Commit(stale, loadout, replace: true, default));
+        }
+
+        using var after = Open();
+        Assert.Single(after.GetAll<Loadout>());
+    }
+
+    // A boss faction the catalog does not hold is refused before anything is written.
+    [Fact]
+    public void ABossCommitNamingNoFactionIsRefusedAndNothingIsWritten()
+    {
         var before = Hash(Catalog);
-
-        var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(Catalog, loadout, replace: false));
-
-        Assert.Contains("names mod designs", error.Message);
-        Assert.Contains(key, error.Message);
+        using (var cache = Open())
+        {
+            var error = Assert.Throws<InvalidOperationException>(() =>
+                Loadouts.Commit(Catalog, HandBuilt(cache), replace: false, new CultRecordRef<Faction>(new CultRecordKey("faction:absent"))));
+            Assert.Contains("boss faction is not in the catalog", error.Message);
+        }
         Assert.Equal(before, Hash(Catalog));
-        Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false));
     }
 
     // Recapturing a name refuses without replace and leaves the file untouched; with replace it replaces, never duplicates.

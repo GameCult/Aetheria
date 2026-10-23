@@ -96,20 +96,28 @@ public static class Loadouts
         _ => ""
     };
 
-    // The only writer of Loadout records. It opens its own short-lived cache over the catalog file, writable, and disposes it
-    // after the one commit. No other cache is touched, so no catalog instance play holds (or has mutated) can reach the
-    // file; a cache that already has the catalog open sees the loadout only once it reloads.
-    // Throws and writes nothing when the loadout names a mod design (hull or slot), when the file is missing (capture never creates a catalog), when a loadout of this name
-    // exists under another key, or when one exists under KeyOf(Name) and replace is not set. The commit is conditional
-    // on the record at KeyOf(Name), so a loadout changed on disk since this open is not clobbered: returns false then.
-    public static bool Commit(string catalogPath, Loadout loadout, bool replace)
+    // The only writer of Loadout records, and of the Faction.BossLoadout that names one. It opens its own short-lived cache
+    // over the catalog file, writable, and disposes it after the one commit. No other cache is touched, so no catalog
+    // instance play holds (or has mutated) can reach the file; a cache that already has the catalog open sees the loadout
+    // only once it reloads. The catalog is a stack of packages, the shipped content included (ruling
+    // catalog-is-a-package-stack), so a loadout may name any design the stack holds; one whose package is later removed fails
+    // closed where it is built, with its reason logged. With bossOf set, the same batch makes the loadout that faction's boss
+    // (Faction.BossLoadout), so the loadout and the reference land together or not at all.
+    // Throws and writes nothing when the file is missing (capture never creates a catalog), when bossOf names no faction in
+    // it, when a loadout of this name exists under another key, or when one exists under KeyOf(Name) and replace is not set.
+    // The commit is conditional on the record at KeyOf(Name) and on the faction, so a record changed on disk since this open
+    // is not clobbered: returns false then, and neither is written.
+    public static bool Commit(string catalogPath, Loadout loadout, bool replace, CultRecordRef<Faction> bossOf = default)
     {
-        var modDesigns = new[] { loadout.Hull.Key }.Concat(loadout.Slots.Select(slot => slot.Design.Key)).Where(ShipModCatalog.IsModKey).Select(key => key.Value).Distinct().ToArray();
-        if (modDesigns.Length > 0)
-            throw new InvalidOperationException($"Loadout '{loadout.Name}' names mod designs ({string.Join(", ", modDesigns)}); the shipped catalog never references a mod, so a mod ship cannot be captured as a loadout.");
         if (!File.Exists(catalogPath))
             throw new InvalidOperationException($"Catalog {catalogPath} does not exist; a loadout commit never creates one.");
         using var cache = AetheriaStores.Open(catalogPath, catalogWritable: true);
+        return Commit(cache, loadout, replace, bossOf);
+    }
+
+    // The one batch Commit(path, ...) makes, over a writable catalog cache the caller opened.
+    internal static bool Commit(CultCache cache, Loadout loadout, bool replace, CultRecordRef<Faction> bossOf)
+    {
         var key = KeyOf(loadout.Name);
         var namesake = cache.GetAll<Loadout>().FirstOrDefault(other => other.Name == loadout.Name && !cache.RefOf(other).Key.Equals(key));
         if (namesake != null)
@@ -117,10 +125,17 @@ public static class Loadouts
         var existing = cache.Get<Loadout>(key);
         if (existing != null && !replace)
             throw new InvalidOperationException($"Loadout '{loadout.Name}' already exists; replace it explicitly.");
+        var boss = bossOf.IsSet()
+            ? cache.Get(bossOf) ?? throw new InvalidOperationException($"Loadout '{loadout.Name}': the boss faction is not in the catalog.")
+            : null;
         return cache.Commit(batch =>
         {
             batch.Expect(key, existing);
             batch.Upsert(typeof(Loadout), loadout, key);
+            if (boss == null) return;
+            batch.Expect(bossOf.Key, boss);
+            boss.BossLoadout = new CultRecordRef<Loadout>(key);
+            batch.Upsert(boss.GetType(), boss, bossOf.Key);
         });
     }
 

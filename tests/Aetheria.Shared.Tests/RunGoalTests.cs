@@ -687,6 +687,47 @@ public sealed partial class RunStartTests
         foreach (var faction in AllFactionNames()) AssertUnbuildableBossIsAsIfAbsent(faction, loadout => MoveOut(loadout, 3));
     }
 
+    // Ruling catalog-is-a-package-stack: a boss Loadout committed on a package's hull, and the package then removed (the one
+    // uninstall). The catalog still resolves (the shipped file, nothing thrown), so the game boots; the Loadout and the
+    // faction's reference to it survive in the shipped file, and the boss zone fails closed with the reason ZoneGenerator logs.
+    [Fact]
+    public void A_boss_loadout_on_a_removed_package_hull_still_boots_and_leaves_the_zone_without_a_boss()
+    {
+        const string id = "mod.removedboss";
+        var work = Path.Combine(_root, "removed-package");
+        var shipped = Path.Combine(work, "GameData", "Aetheria.cc");
+        var mods = Path.Combine(work, "GameData", "Mods");
+        Directory.CreateDirectory(mods);
+        File.Copy(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"), shipped);
+        ShipFixture.WritePackage(mods, id, "Removed Boss Hull");
+        var installed = TestCatalog.Resolve(shipped, mods, Directory.CreateDirectory(Path.Combine(work, "installed")).FullName);
+        Assert.NotEqual(shipped, installed);
+
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var boss = new Loadout { Name = "Removed Package Boss", Hull = new CultRecordRef<HullData>(ShipModCatalog.HullKey(id)), WeaponGroups = new int[0][] };
+        Assert.True(Loadouts.Commit(shipped, boss, replace: false, _cache.RefOf(antagonist)));
+        ShipModCatalog.RemovePackage(mods, id);
+
+        var booted = TestCatalog.Resolve(shipped, mods, Directory.CreateDirectory(Path.Combine(work, "booted")).FullName);
+        Assert.Equal(shipped, booted);
+        Loadout survived;
+        using (var catalog = AetheriaStores.Open(booted))
+        {
+            survived = Loadouts.BossOf(catalog, catalog.GetAll<Faction>().Single(f => f.Name == antagonist.Name), out var refusal);
+            Assert.Equal(BossRefusal.None, refusal);
+            Assert.Null(catalog.Get(survived.Hull));
+        }
+
+        StoreLoadout(survived);
+        SetBoss(antagonist, survived);
+        var log = new List<string>();
+        var pack = BossZonePack(galaxy, LoggingItems(log), galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        Assert.Contains(log, line => line.Contains("boss Loadout Removed Package Boss cannot be built") && line.Contains($"design {ShipModCatalog.HullKey(id)} is not in the catalog"));
+    }
+
     // A design-only slot asks the chooser, which draws its faction's stream; the fit is decided before it is asked.
     [Fact]
     public void An_unbuildable_boss_loadout_with_design_only_slots_leaves_the_zone_as_if_it_had_no_boss()

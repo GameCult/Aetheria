@@ -25,7 +25,8 @@ public static class ShipModCatalog
 
     public static CultRecordKey ProductKey(string id, CultRecordKey maker) => new CultRecordKey("mod-product:" + id + ":" + maker.Value);
 
-    // A key the mods own. The shipped catalog and its authored records never reference one: a mod may be uninstalled.
+    // A key a package owns. Any record may reference one (ruling catalog-is-a-package-stack); one whose package is removed
+    // fails closed where it is read.
     public static bool IsModKey(CultRecordKey key) =>
         key.IsSet() && (key.Value.StartsWith("mod-hull:", StringComparison.Ordinal) || key.Value.StartsWith("mod-ship:", StringComparison.Ordinal) || key.Value.StartsWith("mod-product:", StringComparison.Ordinal));
 
