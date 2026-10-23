@@ -108,6 +108,7 @@ public static class ShipModCatalog
                         Exclude(directory, $"hull name '{hull.Name}' collides with an existing catalog item.");
                     if (shipIds.Contains(ship.Id))
                         Exclude(directory, $"ship ID collides with an existing catalog ship authoring record.");
+                    if (StationKinds.HullKindFault(cache, hull) is { } kindFault) Exclude(directory, kindFault);
                     foreach (var product in package.Products)
                     {
                         if (!factionKeys.Contains(product.Manufacturer.Key))

@@ -549,6 +549,12 @@ public class HullData : EquippableItemData
     [Inspectable, JsonProperty("visual"), Key(32)]
     public CultRecordRef<ShipAuthoring> Visual;
 
+    // What a station hull is built to be (StationKinds): set on every Station hull and on no other. The hull names its kind
+    // and the kind names no hull, so a package can add a faction's model of a kind without editing any kind record.
+    // Key 33 is the next free key.
+    [Inspectable, JsonProperty("kind"), Key(33)]
+    public CultRecordRef<StationKindData> Kind;
+
     // The farthest corner of any occupied hull cell from the centre of mass the schematic frame uses, in world
     // units: a true bound on how far the hull reaches from its position (the half-diagonal of the bounding box is not,
     // as FireControl.Detonate's comment records). A cell at (x, y) spans x +/- .5 and y +/- .5.

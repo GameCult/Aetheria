@@ -318,7 +318,7 @@ public sealed partial class RunStartTests
             var ship = generator.GenerateShipLoadout();
             Assert.NotNull(ship);
             Assert.NotEqual(hull.Name, HullName(items, ship));
-            var station = generator.GenerateStationLoadout();
+            var station = generator.GenerateStationLoadout(TestStationKinds.TradeHub);
             Assert.DoesNotContain(EntitySerializer.Items(station), item => items.GetData(item).Name == hull.Name);
             Assert.Null(generator.ChooseProduct(hull));
             Assert.Null(generator.GenerateShipLoadout(candidate => candidate == hull));

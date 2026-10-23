@@ -638,7 +638,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var counts = new Dictionary<string, int> { ["Light"] = 0, ["Never"] = 0, ["Middle"] = 0, ["Heavy"] = 0 };
         for (var i = 0; i < 2000; i++)
         {
-            var key = new CultRecordKey($"belt-{i}");
+            var key = $"belt-{i}";
             var picked = FieldKinds.Assign(key, s.Cache);
             Assert.True(picked.Key.Equals(FieldKinds.Assign(key, s.Cache).Key));
             counts[s.Cache.Get(picked).Name]++;
@@ -649,7 +649,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.InRange(counts["Heavy"] / 2000f, 3f / 6 - .04f, 3f / 6 + .04f);
 
         var empty = BuildScene(new[] { never });
-        Assert.False(FieldKinds.Assign(new CultRecordKey("belt-0"), empty.Cache).IsSet());
+        Assert.False(FieldKinds.Assign("belt-0", empty.Cache).IsSet());
     }
 
     // Q16 B, first load: a belt saved before field kinds existed gets its kind when a zone first loads it, by the
@@ -664,7 +664,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var beltKey = s.Belts[0];
         var belt = (AsteroidBeltData) s.Zone.Planets[beltKey];
         Assert.True(belt.Kind.IsSet());
-        Assert.True(belt.Kind.Key.Equals(FieldKinds.Assign(beltKey, s.Cache).Key));
+        Assert.True(belt.Kind.Key.Equals(FieldKinds.Assign(beltKey.Value, s.Cache).Key));
         var assigned = belt.Kind.Key;
 
         // Saved: a fresh open of the same stores reads the kind back.
@@ -678,7 +678,7 @@ public sealed partial class MiningCut3Tests : IDisposable
 
         // Kept: a new, overwhelmingly weighted kind now wins the pick for this belt, yet loading it again leaves it.
         reopened.Upsert(Kind("Overwhelming", 9f, 1e6f));
-        Assert.False(FieldKinds.Assign(beltKey, reopened).Key.Equals(assigned));
+        Assert.False(FieldKinds.Assign(beltKey.Value, reopened).Key.Equals(assigned));
         var items = new ItemManager(1u, reopened, new ProvenanceLedger(), GameSettings(), _ => { });
         var reloaded = new Zone(items, PlanetSettings(), s.Pack, new GalaxyZone { Name = "MiningCut3Reload", Owner = null }, null);
         Assert.True(((AsteroidBeltData) reloaded.Planets[beltKey]).Kind.Key.Equals(assigned));
@@ -786,11 +786,11 @@ public sealed partial class MiningCut3Tests : IDisposable
         return cache;
     }
 
-    // Q16 B, generation: every belt ZoneGenerator makes carries its kind already, chosen by FieldKinds.Assign on
-    // the belt's own key. Runs against a scratch copy of the shipped catalog with three kinds of different
+    // Q16 B, generation: every belt ZoneGenerator makes carries its kind already, chosen by FieldKinds.Assign. Runs against
+    // a scratch copy of the shipped catalog with three kinds of different
     // weights, so a pick by any other rule would disagree on some belt.
     [Fact]
-    public void GenerationChoosesTheKindByTheSameFunction()
+    public void GenerationAssignsEveryBeltItsKind()
     {
         var shipped = TestCatalog.Repo;
         var belts = 0;
@@ -826,11 +826,55 @@ public sealed partial class MiningCut3Tests : IDisposable
                     if (!(cache.Get(body) is AsteroidBeltData belt)) continue;
                     belts++;
                     Assert.True(belt.Kind.IsSet());
-                    Assert.True(belt.Kind.Key.Equals(FieldKinds.Assign(body.Key, cache).Key));
+                    Assert.StartsWith("Gen ", cache.Get(belt.Kind).Name);
                 }
             }
         }
         Assert.True(belts > 0, "no seed generated a belt; the generation path went unexercised");
+    }
+
+    // The kind of a belt is a function of the zone's seed, not of the key the cache mints for it: the same seed generated
+    // again, through the real key minting, gives the same belts the same kinds.
+    [Fact]
+    public void SameSeedGivesTheSameBeltKinds()
+    {
+        string[] Generate(uint seed, int run)
+        {
+            var dir = Path.Combine(_root, $"same{seed}-{run}");
+            Directory.CreateDirectory(dir);
+            var catalog = Path.Combine(dir, "Aetheria.cc");
+            File.Copy(TestCatalog.Repo, catalog);
+            using var cache = OpenShippedCatalogCopy(catalog, Path.Combine(dir, "run.cc"));
+            foreach (var existing in cache.GetAll<FieldKindData>().ToArray())
+            {
+                existing.GenerationWeight = 0f;
+                cache.Upsert(existing);
+            }
+            // Authored kinds have fixed keys; the pick orders kinds by key, so the fixture's keys are fixed too.
+            cache.Commit(batch => batch.Upsert(typeof(FieldKindData), Kind("Gen A", 1f, 1f), new CultRecordKey("field-kind:gen-a")));
+            cache.Commit(batch => batch.Upsert(typeof(FieldKindData), Kind("Gen B", 1f, 2f), new CultRecordKey("field-kind:gen-b")));
+            cache.Commit(batch => batch.Upsert(typeof(FieldKindData), Kind("Gen C", 1f, 4f), new CultRecordKey("field-kind:gen-c")));
+            Galaxy galaxy;
+            try
+            {
+                galaxy = new Galaxy(RestoredHullsTests.TutorialGalaxySettings(), RestoredHullsTests.TutorialBackgroundSettings(),
+                    cache, new PlayerSettings(), new DirectoryInfo(dir), _ => { }, null, seed);
+            }
+            catch (Exception) { return null; }
+            var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
+            return galaxy.Zones.Take(6).SelectMany(zone =>
+                    ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, isTutorial: zone == galaxy.Entrance)
+                        .Planets.Select(body => cache.Get(body)).OfType<AsteroidBeltData>().Select(belt => cache.Get(belt.Kind).Name))
+                .ToArray();
+        }
+        for (uint seed = 1; seed <= 25; seed++)
+        {
+            var first = Generate(seed, 0);
+            if (first == null || first.Length < 4) continue;
+            for (var run = 1; run < 4; run++) Assert.Equal(first, Generate(seed, run));
+            return;
+        }
+        Assert.Fail("no seed generated enough belts; the generation path went unexercised");
     }
 
     // ==== Mining Cut 3 fix batch (Soul's findings) ====

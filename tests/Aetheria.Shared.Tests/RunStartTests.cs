@@ -107,7 +107,7 @@ public sealed partial class RunStartTests : IDisposable
         var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
         for (var i = 0; i < 8; i++)
         {
-            var station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout());
+            var station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout(TestStationKinds.TradeHub));
             Assert.True(station.Equipment.Count(IsHeater) == 1, $"station {i} carries {station.Equipment.Count(IsHeater)} heaters");
             Assert.True(station.Equipment.Any(item => item.Behaviors.OfType<Reactor>().Any()), $"station {i} has no reactor");
         }
@@ -168,7 +168,7 @@ public sealed partial class RunStartTests : IDisposable
             var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, galaxy.Entrance, faction, .5f);
             for (var i = 0; i < 3; i++)
             {
-                var station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout());
+                var station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout(TestStationKinds.TradeHub));
                 Assert.True(station.Equipment.Count(IsHeater) == 1, $"{faction.Name} station {i}: no heater");
                 Assert.True(station.Equipment.Any(item => item.Behaviors.OfType<Reactor>().Any()), $"{faction.Name} station {i}: no reactor");
                 var unreachable = Made(station).Where(made => made.product == null || !generator.IsAvailable(made.product)).ToList();
@@ -219,7 +219,7 @@ public sealed partial class RunStartTests : IDisposable
         Entity station = null;
         for (var i = 0; i < 8; i++)
         {
-            station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout());
+            station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout(TestStationKinds.TradeHub));
             Assert.True(station.Equipment.Any(item => item.Behaviors.OfType<Reactor>().Any()), $"station {i}: no reactor");
             var foreign = Made(station).Where(made => made.product == null || !generator.IsAvailable(made.product) ||
                                                       made.product.Manufacturer.Key.Equals(_cache.RefOf(zhestokost).Key)).ToList();
@@ -313,7 +313,7 @@ public sealed partial class RunStartTests : IDisposable
             .OrderBy(design => design.Shape.Coordinates.Length).ThenBy(design => design.Name, StringComparer.Ordinal).First();
         var shape = new Shape(bay.Shape.Width + 2, bay.Shape.Height + 2);
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
-        var cramped = new HullData { Name = "Cramped Station", HullType = HullType.Station, Shape = shape, Durability = 100, Mass = 1000, Price = 1 };
+        var cramped = new HullData { Name = "Cramped Station", HullType = HullType.Station, Kind = TestStationKinds.TradeHub, Shape = shape, Durability = 100, Mass = 1000, Price = 1 };
         _cache.Upsert(cramped);
         _cache.Upsert(new FactionProductData
         {
@@ -323,7 +323,7 @@ public sealed partial class RunStartTests : IDisposable
             hull.Price = 0; // generation offers no zero-price design, so the cramped hull is the only station
         var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
 
-        var failure = Assert.Throws<InvalidLoadoutException>(() => generator.GenerateStationLoadout());
+        var failure = Assert.Throws<InvalidLoadoutException>(() => generator.GenerateStationLoadout(TestStationKinds.TradeHub));
         Assert.Contains("heater", failure.Message);
     }
 

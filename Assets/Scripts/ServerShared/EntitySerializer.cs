@@ -16,7 +16,8 @@ public static class EntitySerializer
             {
                 Orbit = new CultRecordRef<OrbitData>(orbital.OrbitData),
                 SecurityLevel = orbital.SecurityLevel,
-                SecurityRadius = orbital.SecurityRadius
+                SecurityRadius = orbital.SecurityRadius,
+                Kind = orbital.Kind
             };
         else if (entity is Ship ship)
             pack = new ShipPack
@@ -120,6 +121,7 @@ public static class EntitySerializer
         Restore(itemManager, zone, pack, entity);
         entity.SecurityLevel = pack.SecurityLevel;
         entity.SecurityRadius = pack.SecurityRadius;
+        entity.Kind = pack.Kind;
         if (pack.Story >= 0) entity.Story = zone.GalaxyZone.Locations[pack.Story];
         return entity;
     }
@@ -214,6 +216,7 @@ public class OrbitalEntityPack : EntityPack
     [Key(18)] public int Story = -1;
     [Key(19)] public SecurityLevel SecurityLevel;
     [Key(20)] public float SecurityRadius;
+    [Key(22)] public CultRecordRef<StationKindData> Kind;
 }
 
 [MessagePackObject,
@@ -237,7 +240,7 @@ public abstract class EntityPack
     [Key(14)] public EntitySettings Settings;
     [Key(15)] public CultRecordRef<Faction> Faction;
     [Key(16)] public int[][] WeaponGroups;
-    // Keys 17-20 belong to the subclasses; the base's next free key is 21.
+    // Keys 17-20 belong to the subclasses; the base's next free key is 23 (Boss is 21, the orbital pack's Kind is 22).
     [Key(21)] public bool Boss;
 
     private int _price;

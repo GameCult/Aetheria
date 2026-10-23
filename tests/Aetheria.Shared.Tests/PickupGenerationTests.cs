@@ -37,7 +37,7 @@ public sealed partial class RunStartTests
         // Stations and turrets share the interior outfitting and get none.
         for (var i = 0; i < 4; i++)
         {
-            Assert.Equal(0, PickupGear(generator.GenerateStationLoadout()));
+            Assert.Equal(0, PickupGear(generator.GenerateStationLoadout(TestStationKinds.TradeHub)));
             Assert.Equal(0, PickupGear(generator.GenerateTurretLoadout()));
         }
         Assert.All(main.arena.Pack.Entities.Where(pack => !(pack is ShipPack)), pack => Assert.Equal(0, PickupGear(pack)));

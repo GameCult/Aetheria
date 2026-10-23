@@ -196,7 +196,7 @@ public class Zone
                 case AsteroidBeltData belt:
                     // Mining Cut 3 (Q16 B): a belt from before field kinds existed gets its kind here, once, by
                     // the rule generation uses, and keeps it.
-                    FieldKinds.Ensure(body.Key, belt, cache);
+                    FieldKinds.Ensure(body.Key.Value, belt, cache);
                     AsteroidBelts[body.Key] = new AsteroidBelt(belt);
                     break;
                 case SunData sun:
