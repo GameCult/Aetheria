@@ -41,11 +41,15 @@ public sealed partial class ContactRevealTests
     private static readonly float[] Cooldowns = { .25f, .13f };
 
     // A gun of its own cooldown, bottomless magazine, so only the cooldown paces it. Upserted by name into the open catalog.
-    private string GunWithCooldown(float cooldown)
+    // Automatic by default, as a gun that holds is; a semi-automatic one is the plain InstantWeaponData.
+    private string GunWithCooldown(float cooldown, bool auto = true)
     {
-        var name = $"Gun@{cooldown:R}";
+        var name = $"{(auto ? "Auto" : "Gun")}@{cooldown:R}";
         if (_openCache.GetByName<ItemData>(name) != null) return name;
-        var gun = Armed(new InstantWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(cooldown) }, 0);
+        InstantWeaponData data = auto
+            ? new AutoWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(cooldown) }
+            : new InstantWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(cooldown) };
+        var gun = Armed(data, 0);
         gun.Energy = Const(1); // the fixture reactor pays a round a hundredth of a second apart; the rounds-per-step tests top up nothing
         _openCache.Upsert(new WeaponItemData
         {
@@ -307,72 +311,109 @@ public sealed partial class ContactRevealTests
 
     private InputCapacitor CapacitorOf(InstantWeapon gun) => (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(gun);
 
-    // A press that is let go before the step runs fires one burst, whatever the cooldown and the tick: the trigger is the
-    // weapon's state, not a pulse once per step. The press goes through the pilot's command (the player's action bar and the
-    // agents' Combat both do) and straight to the weapon (a turret does).
+    // A press that is let go before the step runs fires one burst, whatever the cooldown, the tick and the kind of gun: the
+    // trigger is the weapon's state, not a pulse once per step. The press goes through the pilot's command (the player's
+    // action bar and the agents' Combat both do) and straight to the weapon (a turret does).
     [Fact]
     public void ATapFiresOneBurstAtEveryRate()
     {
-        foreach (var cooldown in new[] { .01f, .025f, .1f })
-            foreach (var viaCommand in new[] { false, true })
+        foreach (var auto in new[] { false, true })
+            foreach (var cooldown in auto ? new[] { .01f, .025f, .1f } : new[] { .1f, .25f })
+                foreach (var viaCommand in new[] { false, true })
+                    foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 15f })
+                    {
+                        var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(cooldown, auto) }, new[] { "Targeting", "Reactor" });
+                        var gun = (InstantWeapon) Guns(ship)[0].Behaviors.Single(b => b is InstantWeapon);
+                        var capacitor = CapacitorOf(gun);
+                        var rounds = 0;
+                        gun.OnFire += _ => rounds++;
+                        ship.SetTarget(TargetRef.None);
+                        capacitor.AddStepCharge(1000f, dt);
+                        if (viaCommand)
+                        {
+                            ship.Command.Pull(gun);
+                            ship.Command.Release(gun);
+                        }
+                        else
+                        {
+                            gun.Activate();
+                            gun.Deactivate();
+                        }
+                        for (var step = 0; step < (int) MathF.Round(1f / dt); step++)
+                        {
+                            capacitor.AddStepCharge(1000f, dt);
+                            Tick(dt);
+                        }
+                        Assert.True(rounds == 1, $"auto {auto} cooldown {cooldown} at dt {dt}, command {viaCommand}: {rounds} rounds from one tap, expected 1");
+                    }
+    }
+
+    // A trigger pressed once and held: an AutoWeapon delivers the authored cadence (the rounds of ten seconds are the same at
+    // 15, 30 and 60 Hz) and stops when the trigger is let go; a plain gun is semi-automatic and fires its one burst however
+    // long the key stays down.
+    [Fact]
+    public void AHeldTriggerFiresPerTheKindOfGun()
+    {
+        foreach (var auto in new[] { false, true })
+            foreach (var cooldown in auto ? new[] { .01f, .1f } : new[] { .1f, .25f })
                 foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 15f })
                 {
-                    var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(cooldown) }, new[] { "Targeting", "Reactor" });
+                    var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(cooldown, auto) }, new[] { "Targeting", "Reactor" });
                     var gun = (InstantWeapon) Guns(ship)[0].Behaviors.Single(b => b is InstantWeapon);
                     var capacitor = CapacitorOf(gun);
                     var rounds = 0;
                     gun.OnFire += _ => rounds++;
                     ship.SetTarget(TargetRef.None);
                     capacitor.AddStepCharge(1000f, dt);
-                    if (viaCommand)
+                    gun.Activate();
+                    for (var step = 0; step < (int) MathF.Round(10f / dt); step++)
                     {
-                        ship.Command.Pull(gun);
-                        ship.Command.Release(gun);
+                        capacitor.AddStepCharge(1000f, dt);
+                        Tick(dt);
                     }
-                    else
-                    {
-                        gun.Activate();
-                        gun.Deactivate();
-                    }
+                    var expected = auto ? 10f / cooldown : 1f;
+                    Assert.True(abs(rounds - expected) <= (auto ? 1.01f : 0f), $"auto {auto} cooldown {cooldown} at dt {dt}: {rounds} rounds held 10 s, expected {expected}");
+                    gun.Deactivate();
+                    var held = rounds;
                     for (var step = 0; step < (int) MathF.Round(1f / dt); step++)
                     {
                         capacitor.AddStepCharge(1000f, dt);
                         Tick(dt);
                     }
-                    Assert.True(rounds == 1, $"cooldown {cooldown} at dt {dt}, command {viaCommand}: {rounds} rounds from one tap, expected 1");
+                    Assert.True(rounds - held <= 1, $"auto {auto} cooldown {cooldown} at dt {dt}: {rounds - held} rounds after the trigger was let go");
                 }
     }
 
-    // A trigger pulled once and held, as the player's key and a turret's pull are, delivers the authored cadence: the rounds
-    // of ten seconds are the same at 15, 30 and 60 Hz, and the weapon stops when the trigger is let go.
+    // An agent's Combat pulls every weapon it means to fire each step. A plain gun it taps: each pull is a press, and the gun
+    // fires when it is ready, its authored cadence on average at any tick. An AutoWeapon it holds: the pulls land on a
+    // trigger already down. Both deliver the cadence; the plain one stops when the pulls stop, with no release needed.
     [Fact]
-    public void AHeldTriggerFiresTheAuthoredCadenceAtEveryRate()
+    public void CombatTapsAPlainGunAndHoldsAnAutoWeapon()
     {
-        foreach (var cooldown in new[] { .01f, .1f })
+        foreach (var auto in new[] { false, true })
             foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 15f })
             {
-                var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(cooldown) }, new[] { "Targeting", "Reactor" });
+                var ship = Add(float3(0, 0, 0), new[] { GunWithCooldown(.1f, auto) }, new[] { "Targeting", "Reactor" });
                 var gun = (InstantWeapon) Guns(ship)[0].Behaviors.Single(b => b is InstantWeapon);
                 var capacitor = CapacitorOf(gun);
                 var rounds = 0;
                 gun.OnFire += _ => rounds++;
                 ship.SetTarget(TargetRef.None);
-                capacitor.AddStepCharge(1000f, dt);
-                gun.Activate();
                 for (var step = 0; step < (int) MathF.Round(10f / dt); step++)
                 {
                     capacitor.AddStepCharge(1000f, dt);
+                    ship.Command.Pull(gun);
                     Tick(dt);
                 }
-                Assert.True(abs(rounds - 10f / cooldown) <= 1.01f, $"cooldown {cooldown} at dt {dt}: {rounds} rounds held 10 s, expected {10f / cooldown} +-1");
-                gun.Deactivate();
-                var held = rounds;
+                Assert.True(abs(rounds - 100f) <= 1.01f, $"auto {auto} at dt {dt}: {rounds} rounds pulled each step for 10 s, expected 100 +-1");
+                var pulled = rounds;
                 for (var step = 0; step < (int) MathF.Round(1f / dt); step++)
                 {
                     capacitor.AddStepCharge(1000f, dt);
+                    if (auto) ship.Command.Release(gun);
                     Tick(dt);
                 }
-                Assert.True(rounds - held <= 1, $"cooldown {cooldown} at dt {dt}: {rounds - held} rounds after the trigger was let go");
+                Assert.True(rounds - pulled <= 1, $"auto {auto} at dt {dt}: {rounds - pulled} rounds after the pulls stopped");
             }
     }
 
