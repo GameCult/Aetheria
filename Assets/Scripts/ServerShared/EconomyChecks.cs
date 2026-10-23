@@ -337,11 +337,11 @@ public static class EconomyChecks
                 for (var c = 0; c < m; c++) next[r] += a[nodes[r], nodes[c]] * x[c];
             }
             var norm = next.Max();
-            for (var r = 0; r < m; r++) next[r] /= norm;
-            var settled = Math.Abs(norm - lambda) < 1e-14;
+            var moved = 0.0;
+            for (var r = 0; r < m; r++) { next[r] /= norm; moved = Math.Max(moved, Math.Abs(next[r] - x[r])); }
             lambda = norm;
             x = next;
-            if (settled) break;
+            if (moved < 1e-15) break;
         }
         return lambda - 1;
     }
