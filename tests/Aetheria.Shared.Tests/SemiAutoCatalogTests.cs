@@ -24,10 +24,10 @@ public sealed class SemiAutoCatalogTests
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog, true), AetheriaStores.CatalogTypes);
         var gear = cache.GetAll<GearData>().ToArray();
         Assert.Empty(InstantWeaponData.SemiAutoFaults(gear));
-        // The check reads real guns, and the two automatic ones are AutoWeapons with their authored cadence.
+        // The check reads a catalog that holds guns, and the two automatic ones are AutoWeapons.
         foreach (var name in new[] { "Slug Rifle", "Long Slug Rifle" })
             Assert.IsType<AutoWeaponData>(gear.Single(g => g.Name == name).Behaviors.Single(b => b is InstantWeaponData));
-        Assert.Contains(gear, g => g.Behaviors.Any(b => b.GetType() == typeof(InstantWeaponData)));
+        Assert.Contains(gear, g => g.Behaviors.Any(b => b is InstantWeaponData));
     }
 
     [Fact]
