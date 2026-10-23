@@ -1041,6 +1041,101 @@ public sealed class FireControlPerWeaponTests : IDisposable
         if (shots == 0) Assert.Equal(60, readyTicks);
     }
 
+    // ==== The AI's trigger level for an AutoWeapon ====
+
+    public enum Loss { NoTarget, Untracked }
+
+    private static void LoseTheTarget(Rig r, Loss loss)
+    {
+        if (loss == Loss.NoTarget) r.Shooter.SetTarget(TargetRef.None);
+        else r.Shooter.VisibleEntities.Remove(r.Target);
+    }
+
+    // A pilot that pulled an AutoWeapon and then loses its target, or its track of it, lets the trigger go: the weapon holds
+    // a down trigger until told otherwise, and an early return that issued no release left it firing on at nothing. Through
+    // the whole agent (Combat, then the transition out of it), and through Combat's Update alone. Kills: Combat never
+    // releasing, releasing only when the target is gone (not when it is untracked), releasing a step late.
+    [Theory]
+    [InlineData(Loss.NoTarget)]
+    [InlineData(Loss.Untracked)]
+    public void ACombatPilotThatLosesItsTargetReleasesItsHeldAutoWeaponAndItFiresNoMore(Loss loss)
+    {
+        var r = Build(auto: true);
+        var gun = (InstantWeapon) r.Gun.Weapon;
+        var rounds = 0;
+        gun.OnFire += _ => rounds++;
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+        const float dt = 1f / 30f;
+        for (var i = 0; i < 90; i++) r.Zone.Update(dt);
+        Assert.True(gun.Firing, "control: the pilot holds the gun while it has a target");
+        Assert.True(rounds >= 2, $"control: {rounds} rounds in 3 s at a 1 s cooldown");
+
+        LoseTheTarget(r, loss);
+        r.Zone.Update(dt);
+        var after = rounds;
+        Assert.False(gun.Firing, "the trigger is let go the step the target is lost");
+        for (var i = 0; i < 90; i++) r.Zone.Update(dt);
+        Assert.Equal(after, rounds);
+    }
+
+    [Theory]
+    [InlineData(Loss.NoTarget)]
+    [InlineData(Loss.Untracked)]
+    public void CombatUpdateReleasesAHeldAutoWeaponWhenItHasNoTargetOrNoTrack(Loss loss)
+    {
+        var r = Build(auto: true);
+        var gun = (InstantWeapon) r.Gun.Weapon;
+        var combat = new CombatState(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+        gun.Activate();
+        Assert.True(gun.Firing, "control: the trigger is down");
+        LoseTheTarget(r, loss);
+
+        combat.Update(.1f);
+        r.Zone.Update(.1f);
+
+        Assert.False(gun.Firing);
+    }
+
+    // Combat's end lets go of what it held, wherever the end comes from.
+    [Fact]
+    public void CombatExitReleasesAHeldAutoWeapon()
+    {
+        var r = Build(auto: true);
+        var gun = (InstantWeapon) r.Gun.Weapon;
+        var combat = new CombatState(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+        gun.Activate();
+        Assert.True(gun.Firing, "control: the trigger is down");
+
+        combat.OnExitState();
+        r.Zone.Update(.1f);
+
+        Assert.False(gun.Firing);
+    }
+
+    // A held AutoWeapon is cooling between its rounds because it is firing: its group is not dropped for cooling down, or
+    // the trigger would be let go and pressed again at step granularity. Kills: releasing a held gun whose cooldown is
+    // running while its target stands.
+    [Fact]
+    public void CombatKeepsAnAutoWeaponHeldThroughItsCooldownWhileTheTargetStands()
+    {
+        var r = Build(auto: true);
+        var gun = (InstantWeapon) r.Gun.Weapon;
+        var rounds = 0;
+        gun.OnFire += _ => rounds++;
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+        const float dt = 1f / 30f;
+        for (var i = 0; i < 60; i++) r.Zone.Update(dt);
+        var cooling = 0;
+        for (var i = 0; i < 240; i++)
+        {
+            r.Zone.Update(dt);
+            Assert.True(gun.Firing, $"step {i}: the held gun was let go with its target standing");
+            if (!gun.CanFire) cooling++;
+        }
+        Assert.True(cooling > 100, $"{cooling} of 240 steps spent cooling");
+        Assert.InRange(rounds, 8, 10);
+    }
+
     // Kills: Trigger that leaves _burstStarted true from the previous burst, so the next burst reads as started
     // (and ready) before its first round has flown.
     [Fact]

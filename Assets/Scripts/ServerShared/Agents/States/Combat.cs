@@ -47,9 +47,9 @@ public class CombatState : BaseState
         // only a contact a member tracks has a track to fly on, so an untracked target is no target here.
         var view = _agent.View;
         var target = view.TargetOf(_agent.Ship);
-        if (target == null) return;
+        if (target == null) { ReleaseUnwanted(); return; }
         var track = view.TrackOf(_agent.Ship, target.Value);
-        if (track == null) return;
+        if (track == null) { ReleaseUnwanted(); return; }
         
         _availableGroups.Clear();
         _availableLockingWeapons.Clear();
@@ -88,7 +88,9 @@ public class CombatState : BaseState
                     view.Designated(_agent.Ship, weapon, target.Value) &&
                     !view.Refuses(_agent.Ship, weapon, target.Value) &&
                     (weapon is ConstantWeapon ||
-                     weapon is InstantWeapon instantWeapon && instantWeapon.CanFire))
+                     // A held AutoWeapon stays a candidate between its rounds (it is cooling because it is firing), so the
+                     // group it belongs to is judged by the same Fires verdict below, not dropped for cooling down.
+                     weapon is InstantWeapon instantWeapon && (instantWeapon.CanFire || weapon is AutoWeapon && weapon.Firing)))
                 {
                     if(weapon is LockWeapon lockWeapon)
                         _availableLockingWeapons.Add(lockWeapon);
@@ -151,11 +153,24 @@ public class CombatState : BaseState
                     _agent.Ship.Command.Release(weapon);
             }
         }
+        ReleaseUnwanted();
         _agent.Ship.Command.Aim = toTarget;
         _agent.Ship.Command.Turn = TurnCommand.Toward(toTarget.xz);
         _agent.Accelerate(movementDirection * _agent.TopSpeed, true);//selectedGroup >= 0);
 
         // Fire charged guns!
+    }
+
+    public override void OnExitState() => ReleaseUnwanted();
+
+    // The AI's trigger level for an AutoWeapon is what it pulls this step: the weapon holds a down trigger until it is
+    // released, so every held one this step does not pull is let go, whether the target is gone, untracked, out of reach,
+    // its group is not the pick, or Combat has ended. A plain gun is tapped and lets go of itself.
+    private void ReleaseUnwanted()
+    {
+        var command = _agent.Ship.Command;
+        foreach (var weapon in _agent.Ship.Weapons)
+            if (weapon is AutoWeapon && weapon.Firing && !command.Pulls(weapon)) command.Release(weapon);
     }
 
     // Overdrive to close a distant target ahead, through the same consumable gate as the vent (Agent.VentOnTrack).
