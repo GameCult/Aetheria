@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using GameCult.Caching;
-using MessagePack;
+using System.Reflection;
 
 // Makes the named plain guns fully automatic (ruling fire-mode-is-the-design): each one's InstantWeaponData becomes an
 // AutoWeaponData carrying every authored stat unchanged, so cadence and damage do not move. A gun that is already an
@@ -21,8 +21,12 @@ public static class AutoGunsCatalog
             var index = gear.Behaviors.FindIndex(b => b.GetType() == typeof(InstantWeaponData));
             if (index < 0) { output.WriteLine($"{name}: no plain gun, kept"); continue; }
             var plain = (InstantWeaponData) gear.Behaviors[index];
-            var bytes = MessagePackSerializer.Serialize(typeof(InstantWeaponData), plain);
-            gear.Behaviors[index] = MessagePackSerializer.Deserialize<AutoWeaponData>(bytes);
+            var auto = new AutoWeaponData();
+            // AutoWeaponData adds no member of its own: every field of the plain gun, from every base, carries over.
+            for (var type = typeof(InstantWeaponData); type != null; type = type.BaseType)
+                foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                    field.SetValue(auto, field.GetValue(plain));
+            gear.Behaviors[index] = auto;
             output.WriteLine($"{name}: InstantWeaponData -> AutoWeaponData (cooldown {plain.Cooldown.Max:0.###} s)");
             changed.Add(gear);
         }
