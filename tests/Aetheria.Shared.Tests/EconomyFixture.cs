@@ -143,3 +143,10 @@ public sealed class EconomyFixture : IDisposable
         return f;
     }
 }
+
+internal static class EconomyUpserts
+{
+    // A write under a readable key: the cache's own keyed write, completed synchronously.
+    public static CultRecordKey Upsert(this CultCache cache, Type type, object document, CultRecordKey key) =>
+        cache.UpsertAsync(type, document, key).GetAwaiter().GetResult();
+}
