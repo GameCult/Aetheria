@@ -185,6 +185,20 @@ public sealed class EconomyCommandTests
     }
 
     [Fact]
+    public void AnEditNamingTwoItemsIsARefusalAndNothingIsWritten()
+    {
+        using var f = EconomyFixture.Healthy();
+        f.Cache.Upsert(typeof(SimpleCommodityData), new SimpleCommodityData { Name = "twin" }, new CultRecordKey("commodity:twin-a"));
+        f.Cache.Upsert(typeof(SimpleCommodityData), new SimpleCommodityData { Name = "twin" }, new CultRecordKey("commodity:twin-b"));
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        var code = Author(f, true, out var output, a => a.Edit<SimpleCommodityData>("twin", i => i.Price = 3));
+        Assert.Equal(1, code);
+        Assert.Contains("2 SimpleCommodityData records are named 'twin'", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
+    [Fact]
     public void AnEditChangesOnlyTheNamedItem()
     {
         using var f = EconomyFixture.Healthy();
