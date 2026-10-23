@@ -43,7 +43,10 @@ public sealed partial class RunStartTests
     // order, ties by shot id, so every commit of a step precedes its applies (it was commit then apply, shot by shot, in fire
     // order). The two parts measured: commit-then-apply split alone a1318ee0, with the arrival sort 55ecd858; the old walk at the
     // h5 head, rebased onto master, still measures 108c93dc, so the rebase and the fire-mode property moved nothing.
-    private const string TwoAiPinnedDigest = "55ecd858875ca6a5418d6badd40e71d9bbd363ca782843005483a308bcf07d74";
+    // Repinned a seventh time, once (h6): Combat is the one owner of the AI's trigger level for an AutoWeapon, and lets go of a held one it
+    // no longer commands (target gone, untracked, another group the pick, Combat ended), where a held gun fired on until a later
+    // step selected its group (55ecd858 before).
+    private const string TwoAiPinnedDigest = "85e85c46cfc66693c819dd294ad02f3cd0eae5486c8f152a97e2e2787f854274";
     private const float TwoAiSeconds = 60f;
 
     [Fact]

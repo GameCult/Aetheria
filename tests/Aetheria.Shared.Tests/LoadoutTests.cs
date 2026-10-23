@@ -967,6 +967,32 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(1f, effect.Evaluate(undeclared), 3);
     }
 
+    // Creating a behaviour reads the fire mode from the data wherever the weapon is carried: a consumable's automatic gun is an
+    // AutoWeapon that repeats, every other kind a plain semi-automatic InstantWeapon. Kills: the consumable CreateInstance
+    // ignoring Automatic.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreatingABehaviourFromAConsumableHonoursAutomatic(bool automatic)
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+        InstantWeaponData gun = automatic ? new AutoWeaponData() : new InstantWeaponData();
+        var consumableRef = cache.Upsert(new ConsumableItemData { Name = "Dose", Duration = 10, Behaviors = { gun } });
+        cache.FlushAsync().Wait();
+
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
+        var ship = new Ship(items, null, hullItem, new EntitySettings());
+        var consumableItem = (ConsumableItem) items.CreateInstance(items.CreateLot(cache.Get(consumableRef), maker, .5f));
+
+        var behavior = new ConsumableItemEffect(consumableItem, ship).Behaviors.Single();
+
+        Assert.True(automatic == (behavior is AutoWeapon), $"automatic {automatic}: created a {behavior.GetType().Name}");
+        Assert.IsAssignableFrom<InstantWeapon>(behavior);
+    }
+
     // F4: CreateLot(product) fills each of the design's roles from the product's own per-role spread
     // (FactionProductData.Roles), not the design-wide default.
     [Fact]
