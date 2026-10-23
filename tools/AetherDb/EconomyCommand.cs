@@ -14,30 +14,23 @@ public abstract class EconomyBatch
     public abstract void Author(EconomyAuthor author);
 }
 
-// What a batch writes through. Every write is compared with the stored record and counted as added, changed or unchanged; an
-// unchanged record is not written.
+// What a batch writes through. The command compares the trial catalog with the original on disk, so a write here is only recorded
+// by key, in the order the batch made it.
 public sealed class EconomyAuthor
 {
-    private static readonly MessagePackSerializerOptions Wire = CultDocumentMessagePackSerialization.OptionsFor(typeof(ItemData).Assembly);
     private readonly CultCache _catalog;
-    private readonly List<(string Status, string Key)> _results = new List<(string, string)>();
+    private readonly List<string> _touched = new List<string>();
 
     public EconomyAuthor(CultCache catalog) => _catalog = catalog;
 
-    public IReadOnlyList<(string Status, string Key)> Results => _results;
-
-    // The keys of the records this author added or changed.
-    public IEnumerable<string> Written => _results.Where(r => r.Status != "unchanged").Select(r => r.Key);
+    // The keys this author wrote, in order, once each.
+    public IReadOnlyList<string> Touched => _touched;
 
     // The catalog as the batch has left it so far, for a batch that builds on its own earlier writes.
     public CultCache Catalog => _catalog;
 
     // Writes a record under a key: a new commodity, a recipe, a station kind, an outside market.
-    public void Put<T>(T document, CultRecordKey key) where T : class
-    {
-        var held = _catalog.Get<T>(key);
-        Record(key, held == null ? null : Bytes(typeof(T), held), typeof(T), document);
-    }
+    public void Put<T>(T document, CultRecordKey key) where T : class => Write(typeof(T), document, key);
 
     // Edits the one item of that name and type. A name that matches no item or several is an error the command reports.
     public void Edit<T>(string name, Action<T> edit) where T : ItemData
@@ -45,20 +38,15 @@ public sealed class EconomyAuthor
         var named = _catalog.GetAll<T>().Where(item => item.Name == name).ToArray();
         if (named.Length != 1)
             throw new InvalidOperationException(named.Length == 0 ? $"The catalog holds no {typeof(T).Name} named '{name}'." : $"{named.Length} {typeof(T).Name} records are named '{name}'.");
-        var key = _catalog.RefOf(named[0]).Key;
-        var before = Bytes(named[0].GetType(), named[0]);
         edit(named[0]);
-        Record(key, before, named[0].GetType(), named[0]);
+        Write(named[0].GetType(), named[0], _catalog.RefOf(named[0]).Key);
     }
 
-    private void Record(CultRecordKey key, byte[] held, Type type, object document)
+    private void Write(Type type, object document, CultRecordKey key)
     {
-        var status = held == null ? "added" : held.AsSpan().SequenceEqual(Bytes(type, document)) ? "unchanged" : "changed";
-        _results.Add((status, key.Value));
-        if (status != "unchanged") _catalog.UpsertAsync(type, document, key).GetAwaiter().GetResult();
+        if (!_touched.Contains(key.Value)) _touched.Add(key.Value);
+        _catalog.UpsertAsync(type, document, key).GetAwaiter().GetResult();
     }
-
-    private static byte[] Bytes(Type type, object document) => MessagePackSerializer.Serialize(type, document, Wire);
 }
 
 // economy report | author <batch>... [apply]: the one writer of economy content and a reader of the catalog's economy report.
@@ -70,7 +58,9 @@ public static class EconomyCommand
     private static readonly string[] Shape =
         { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList };
 
-    private const string Usage = "economy report | author <batch>... [apply]";
+    // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
+    private const string Usage = "economy report | author <batch>... [apply]
+A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
 
     public static int Run(string[] args)
     {
@@ -116,63 +106,98 @@ public static class EconomyCommand
         return report.Faults.Count == 0 ? 0 : 1;
     }
 
-    // Runs the batches on a copy of the catalog, prints what each record would become and the check report over the result, and
-    // refuses when a shape rule faults a recipe a batch wrote. Only a passing apply opens the real file for writing, so a
-    // refusal leaves it byte-identical.
+    // Runs the batches once, on a copy of the catalog, and checks that copy. What apply writes is that checked copy, swapped in
+    // atomically, so a refusal leaves Aetheria.cc byte-identical. A batch is compiled code and is reviewed as code: it is trusted not
+    // to touch the real file, and the command refuses by name if the file changed under it. Added, changed and unchanged are read by
+    // comparing the original and the copy on disk. A shape fault the batches introduce (present after, absent before, by rule and
+    // record) refuses; faults the catalog already held print and do not.
     public static int Author(string catalogPath, IReadOnlyList<EconomyBatch> batches, bool apply, TextWriter output, CultDocumentRegistry registry = null)
     {
         var scratch = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-economy-" + Guid.NewGuid().ToString("N"))).FullName;
         try
         {
             var trial = Path.Combine(scratch, "Aetheria.cc");
+            var fingerprint = Fingerprint(catalogPath);
             File.Copy(catalogPath, trial);
-            var results = new List<(string Status, string Key)>();
-            EconomyReport report;
+            HashSet<(string, string)> held;
+            Dictionary<string, byte[]> original;
+            using (var cache = AetheriaStores.Open(catalogPath, registry: registry))
+            {
+                held = new HashSet<(string, string)>(EconomyChecks.Check(cache).Faults.Select(f => (f.Invariant, f.Record)));
+                original = Records(cache);
+            }
+            var touched = new List<string>();
+            int written;
             using (var cache = AetheriaStores.Open(trial, catalogWritable: true, registry: registry, kindlessStation: warning => output.WriteLine("warning: " + warning)))
             {
                 var author = new EconomyAuthor(cache);
+                var running = "";
                 try
                 {
-                    foreach (var batch in batches) batch.Author(author);
+                    foreach (var batch in batches)
+                    {
+                        running = batch.GetType().Name;
+                        batch.Author(author);
+                    }
+                    running = "";
                     StationKinds.Validate(cache);
                 }
                 catch (Exception e)
                 {
-                    output.WriteLine($"The batch is refused: {e.Message}");
+                    output.WriteLine(running.Length == 0 ? $"The batches are refused: {e.Message}" : $"The batch {running} is refused: {e.Message}");
                     return 1;
                 }
-                results.AddRange(author.Results);
-                foreach (var (status, key) in results) output.WriteLine($"{status} {key}");
-                output.WriteLine($"{results.Count(r => r.Status == "added")} added, {results.Count(r => r.Status == "changed")} changed, {results.Count(r => r.Status == "unchanged")} unchanged");
-                report = EconomyChecks.Check(cache);
-                PrintFaults(report, output);
-                PrintDepth(report, output);
-                var written = new HashSet<string>(author.Written, StringComparer.Ordinal);
-                var refused = report.Faults.Where(fault => Shape.Contains(fault.Invariant) && written.Contains(RecipeKeyOf(fault.Record))).ToArray();
-                if (refused.Length > 0)
-                {
-                    output.WriteLine($"\nThe batch is refused: {refused.Length} shape faults on recipes it wrote.");
-                    foreach (var fault in refused) output.WriteLine($"  {fault}");
-                    return 1;
-                }
-            }
-            if (!apply)
-            {
-                output.WriteLine("\nDry run. Pass \"apply\" to write Aetheria.cc.");
-                return 0;
-            }
-            if (results.All(r => r.Status == "unchanged"))
-            {
-                output.WriteLine("\nNothing to write.");
-                return 0;
-            }
-            using (var cache = AetheriaStores.Open(catalogPath, catalogWritable: true, registry: registry))
-            {
-                var author = new EconomyAuthor(cache);
-                foreach (var batch in batches) batch.Author(author);
+                touched.AddRange(author.Touched);
                 cache.FlushAsync().GetAwaiter().GetResult();
             }
-            output.WriteLine($"\nWrote {results.Count(r => r.Status != "unchanged")} records to Aetheria.cc");
+            if (Fingerprint(catalogPath) != fingerprint)
+            {
+                output.WriteLine("The batches are refused: Aetheria.cc changed during the trial. Batch code must write only through EconomyAuthor.");
+                return 1;
+            }
+            using (var cache = AetheriaStores.Open(trial, registry: registry))
+            {
+                var trialRecords = Records(cache);
+                var status = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var (id, bytes) in trialRecords)
+                    if (!original.TryGetValue(id, out var was)) status[KeyOf(id)] = "added";
+                    else if (!was.AsSpan().SequenceEqual(bytes)) status[KeyOf(id)] = "changed";
+                var listed = touched.Concat(status.Keys.OrderBy(k => k, StringComparer.Ordinal).Where(k => !touched.Contains(k))).ToList();
+                foreach (var key in listed) output.WriteLine($"{(status.TryGetValue(key, out var s) ? s : "unchanged")} {key}");
+                output.WriteLine($"{status.Values.Count(v => v == "added")} added, {status.Values.Count(v => v == "changed")} changed, {listed.Count - status.Count} unchanged");
+                var report = EconomyChecks.Check(cache);
+                PrintFaults(report, output);
+                PrintDepth(report, output);
+                var introduced = report.Faults.Where(fault => Shape.Contains(fault.Invariant) && !fault.Pending && !held.Contains((fault.Invariant, fault.Record))).ToArray();
+                if (introduced.Length > 0)
+                {
+                    output.WriteLine($"\nThe batch is refused: {introduced.Length} shape faults the batches introduce.");
+                    foreach (var fault in introduced) output.WriteLine($"  {fault}");
+                    return 1;
+                }
+                written = status.Count;
+                if (status.Count == 0 || !apply)
+                {
+                    output.WriteLine(status.Count == 0 ? "\nNothing to write." : "\nDry run. Pass \"apply\" to write Aetheria.cc.");
+                    return 0;
+                }
+            }
+            var staged = catalogPath + ".economy-" + Guid.NewGuid().ToString("N");
+            File.Copy(trial, staged);
+            try
+            {
+                if (Fingerprint(catalogPath) != fingerprint)
+                {
+                    output.WriteLine("The batches are refused: Aetheria.cc changed before the checked copy could replace it.");
+                    return 1;
+                }
+                File.Replace(staged, catalogPath, null);
+            }
+            finally
+            {
+                if (File.Exists(staged)) File.Delete(staged);
+            }
+            output.WriteLine($"\nWrote {written} records to Aetheria.cc");
             return 0;
         }
         finally
@@ -181,9 +206,15 @@ public static class EconomyCommand
         }
     }
 
-    // A fault names a recipe key, or the key of the good a recipe makes.
-    private static string RecipeKeyOf(string record) =>
-        record.StartsWith("recipe:", StringComparison.Ordinal) ? record : RecipeData.KeyOf(new CultRecordKey(record)).Value;
+    private static readonly MessagePackSerializerOptions Wire = CultDocumentMessagePackSerialization.OptionsFor(typeof(ItemData).Assembly);
+
+    private static string Fingerprint(string path) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
+
+    // Every record in the catalog as its wire bytes, under "schema|key".
+    private static Dictionary<string, byte[]> Records(CultCache catalog) =>
+        catalog.AllStoredDocuments.ToDictionary(d => d.Descriptor.SchemaName + "|" + d.Key.Value, d => MessagePackSerializer.Serialize(d.Document.GetType(), d.Document, Wire), StringComparer.Ordinal);
+
+    private static string KeyOf(string id) => id.Substring(id.IndexOf('|') + 1);
 
     private static void PrintFaults(EconomyReport report, TextWriter output)
     {
