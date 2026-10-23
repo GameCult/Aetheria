@@ -337,14 +337,17 @@ public abstract class CraftedItemData : ItemData
     public List<ItemRole> Roles = new List<ItemRole>();
 }
 
-// One slot in a design: every laser has a focusing array. A role is a name and nothing else. What fills it is
-// a quality, authored per role by each manufacturer's product; the part itself earns a record when crafting
-// needs one to exist.
+// One slot in a design: every laser has a focusing array. A role is a named slot with a count: the design takes Count units
+// of a part, and any commodity whose recipe Fills the role can be that part. What fills it is a quality, authored per role
+// by each manufacturer's product. Records written before Count existed read it as 1.
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class ItemRole
 {
     [Inspectable, JsonProperty("name"), Key(0)]
     public string Name;
+
+    [Inspectable, JsonProperty("count"), Key(1)]
+    public int Count = 1;
 }
 
 [CultDocument("aetheria.compoundcommoditydata", "1"), Inspectable, MessagePackObject]
