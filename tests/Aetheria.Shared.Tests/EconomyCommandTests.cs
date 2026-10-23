@@ -417,6 +417,16 @@ public sealed class EconomyCommandTests
     }
 
     [Fact]
+    public void AHeldCycleWhoseRadiusFallsStillApplies()
+    {
+        using var f = HeldLoop();
+        var code = Author(f, true, out var output, a => Good(f, a, "loopb", inputs: new[] { ("loopa", 1) }));
+        Assert.Equal(0, code);
+        Assert.Contains("L-productive", output);
+        Assert.Contains("Wrote 1 records", output);
+    }
+
+    [Fact]
     public void AHeldUnproductiveCatalogStillAppliesABatchThatLeavesTheCycleAlone()
     {
         using var f = HeldLoop();
