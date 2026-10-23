@@ -52,6 +52,11 @@ public sealed class EconomyCommandTests
         Assert.Equal(1, code);
         Assert.Contains("L-lore", output);
         Assert.Contains("refused", output);
+        Assert.Contains("  L-lore recipe:commodity:tar: ", output);
+        Assert.Contains("  recipe:commodity:tar: A commodity's recipe needs a lore hook.", output);
+        Assert.Contains("1 shape faults", output);
+        Assert.Contains("commodity:ore depth 0", output);
+        Assert.True(output.IndexOf("commodity:ore depth", StringComparison.Ordinal) < output.IndexOf("commodity:plate depth", StringComparison.Ordinal));
         Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
     }
 
@@ -68,6 +73,8 @@ public sealed class EconomyCommandTests
         });
         Assert.Equal(1, code);
         Assert.Contains("L-productive", output);
+        Assert.Contains("L-source-sink", output);
+        Assert.True(output.IndexOf("L-productive (", StringComparison.Ordinal) < output.IndexOf("L-source-sink (", StringComparison.Ordinal));
         Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
     }
 
@@ -97,6 +104,7 @@ public sealed class EconomyCommandTests
         });
         Assert.Equal(0, code);
         Assert.Contains("0 faults", output);
+        Assert.Contains("Wrote 4 records to Aetheria.cc", output);
         using var after = Read(f);
         Assert.NotNull(after.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:steel"))));
         Assert.Empty(EconomyChecks.Check(after).Faults);
@@ -111,6 +119,7 @@ public sealed class EconomyCommandTests
         var bytes = File.ReadAllBytes(f.CatalogPath);
         Assert.Equal(0, Author(f, true, out var again, coal));
         Assert.Contains("0 added, 0 changed, 2 unchanged", again);
+        Assert.Contains("Nothing to write.", again);
         Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
 
         Assert.Equal(0, Author(f, true, out var revised, a => Good(f, a, "coal", lore: "black rock", fills: new[] { "Plate" })));
@@ -118,6 +127,29 @@ public sealed class EconomyCommandTests
         using var after = Read(f);
         Assert.Equal("black rock", after.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:coal"))).LoreHook);
         Assert.Equal("a good", after.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:ore"))).LoreHook);
+    }
+
+    [Fact]
+    public void AFaultOnARecordTheBatchDidNotChangeDoesNotBlock()
+    {
+        using var f = EconomyFixture.Healthy();
+        f.Good("tar", lore: " ");
+        var code = Author(f, true, out var output, a => Good(f, a, "tar", lore: " "), a => Good(f, a, "coal"));
+        Assert.Equal(0, code);
+        Assert.Contains("L-lore", output);
+        Assert.Contains("2 added, 0 changed, 2 unchanged", output);
+        using var after = Read(f);
+        Assert.NotNull(after.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:coal"))));
+    }
+
+    [Fact]
+    public void TheTrialCopyIsRemoved()
+    {
+        using var f = EconomyFixture.Healthy();
+        var before = Directory.GetDirectories(Path.GetTempPath(), "aetherdb-economy-*").Length;
+        Author(f, false, out _, a => Good(f, a, "coal"));
+        Author(f, true, out _, a => Good(f, a, "tar", lore: ""));
+        Assert.Equal(before, Directory.GetDirectories(Path.GetTempPath(), "aetherdb-economy-*").Length);
     }
 
     [Fact]
@@ -180,7 +212,7 @@ public sealed class EconomyCommandTests
         var bytes = File.ReadAllBytes(f.CatalogPath);
         var code = Author(f, true, out var output, a => a.Edit<SimpleCommodityData>("unobtainium", i => i.Price = 3));
         Assert.Equal(1, code);
-        Assert.Contains("unobtainium", output);
+        Assert.Contains("The catalog holds no SimpleCommodityData named 'unobtainium'.", output);
         Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
     }
 
@@ -216,8 +248,14 @@ public sealed class EconomyCommandTests
         using var f = EconomyFixture.Healthy();
         var healthy = new StringWriter();
         Assert.Equal(0, EconomyCommand.Report(f.Cache, healthy));
-        Assert.Contains("commodity:plate", healthy.ToString());
-        Assert.Contains("depth 1", healthy.ToString());
+        var text = healthy.ToString();
+        Assert.Contains("0 faults", text);
+        Assert.Contains("commodity:plate depth 1", text);
+        Assert.Contains("commodity:ore <- nothing | Mill, cycle 1, workforce 0 | a good", text);
+        Assert.Contains("commodity:plate <- 2 x commodity:ore | Mill, cycle 1, workforce 0 | a good", text);
+        Assert.Contains("gear:laser <- 2 x Plate | Mill", text);
+        Assert.True(text.IndexOf("commodity:ore <-", StringComparison.Ordinal) < text.IndexOf("commodity:plate <-", StringComparison.Ordinal));
+        Assert.True(text.IndexOf("commodity:plate <-", StringComparison.Ordinal) < text.IndexOf("gear:laser <-", StringComparison.Ordinal));
         f.EditRecipe("commodity:plate", r => r.LoreHook = "");
         var broken = new StringWriter();
         Assert.Equal(1, EconomyCommand.Report(f.Cache, broken));
