@@ -39,7 +39,7 @@ public sealed class EconomyChecksTests
 
     public static IEnumerable<object[]> BadShapes()
     {
-        object[] Case(string name, Action<EconomyFixture> mutate, string record, string invariant = "L-recipe") => new object[] { name, mutate, record, invariant };
+        object[] Case(string name, Action<EconomyFixture> mutate, string record, string invariant = "L-recipe", string says = "") => new object[] { name, mutate, record, invariant, says };
         yield return Case("zero output count", f => f.EditRecipe(Ore, r => r.OutputCount = 0), "recipe:" + Ore);
         yield return Case("negative output count", f => f.EditRecipe(Ore, r => r.OutputCount = -1), "recipe:" + Ore);
         yield return Case("zero cycle", f => f.EditRecipe(Ore, r => r.Cycle = 0), "recipe:" + Ore);
@@ -47,8 +47,8 @@ public sealed class EconomyChecksTests
         yield return Case("NaN cycle", f => f.EditRecipe(Ore, r => r.Cycle = float.NaN), "recipe:" + Ore);
         yield return Case("infinite cycle", f => f.EditRecipe(Ore, r => r.Cycle = float.PositiveInfinity), "recipe:" + Ore);
         yield return Case("negative workforce", f => f.EditRecipe(Ore, r => r.Workforce = -1), "recipe:" + Ore);
-        yield return Case("zero input count", f => f.EditRecipe("commodity:plate", r => r.Inputs[0].Count = 0), "recipe:commodity:plate");
-        yield return Case("zero upkeep count", f => f.EditRecipe("commodity:plate", r => r.Upkeep.Add(new CommodityCount { Commodity = EconomyFixture.Item(Ore), Count = 0 })), "recipe:commodity:plate");
+        yield return Case("zero input count", f => f.EditRecipe("commodity:plate", r => r.Inputs[0].Count = 0), "recipe:commodity:plate", says: "Inputs[0] count");
+        yield return Case("zero upkeep count", f => f.EditRecipe("commodity:plate", r => r.Upkeep.Add(new CommodityCount { Commodity = EconomyFixture.Item(Ore), Count = 0 })), "recipe:commodity:plate", says: "Upkeep[0] count");
         yield return Case("input that is not a commodity", f => f.EditRecipe("commodity:plate", r => r.Inputs.Add(new CommodityCount { Commodity = EconomyFixture.Item("gear:laser"), Count = 1 })), "recipe:commodity:plate");
         yield return Case("upkeep that is not a commodity", f => f.EditRecipe("commodity:plate", r => r.Upkeep.Add(new CommodityCount { Commodity = EconomyFixture.Item("hull:skiff"), Count = 1 })), "recipe:commodity:plate");
         yield return Case("input naming nothing", f => f.EditRecipe("commodity:plate", r => r.Inputs.Add(new CommodityCount { Commodity = EconomyFixture.Item("commodity:ghost"), Count = 1 })), "recipe:commodity:plate");
@@ -69,13 +69,16 @@ public sealed class EconomyChecksTests
 
     [Theory]
     [MemberData(nameof(BadShapes))]
-    public void RecipeRefusesBadShape(string name, Action<EconomyFixture> mutate, string record, string invariant)
+    public void RecipeRefusesBadShape(string name, Action<EconomyFixture> mutate, string record, string invariant, string says)
     {
         using var f = EconomyFixture.Healthy();
         Assert.Empty(EconomyChecks.Recipe(f.Cache));
         mutate(f);
         var faults = EconomyChecks.Recipe(f.Cache);
-        Assert.True(faults.Any(x => x.Invariant == invariant && x.Record == record), name + ": " + string.Join(" | ", faults));
+        var matched = faults.Where(x => x.Invariant == invariant && x.Record == record).ToArray();
+        Assert.True(matched.Length > 0, name + ": " + string.Join(" | ", faults));
+        Assert.All(matched, x => Assert.True(x.Message.Length > 20 && x.Message.Contains(says), name + ": " + x.Message));
+        if (name == "an output naming nothing") Assert.Single(faults.Where(x => x.Record == record));
         if (invariant == EconomyChecks.LOneKindList) Assert.DoesNotContain(faults, x => x.Invariant == EconomyChecks.LRecipe);
     }
 
@@ -319,7 +322,7 @@ public sealed class EconomyChecksTests
         using var f = Cannon();
         // barrel is distance 1 (exempt); steel is 2 and ingot 3 (faults); slag is 4 and ore is raw (neither is).
         var faults = EconomyChecks.ConsumerDemand(f.Cache);
-        Assert.Equal(new[] { "recipe:commodity:ingot", "recipe:commodity:steel" }, faults.Select(x => x.Record).OrderBy(x => x, StringComparer.Ordinal));
+        Assert.Equal(new[] { "recipe:commodity:ingot", "recipe:commodity:steel" }, faults.Select(x => x.Record));
         Assert.All(faults, x => Assert.Equal(EconomyChecks.LDemand, x.Invariant));
 
         f.Good("pot", roles: new[] { ("Casing", 1) });

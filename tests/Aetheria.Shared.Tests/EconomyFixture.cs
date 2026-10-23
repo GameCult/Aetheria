@@ -139,7 +139,7 @@ public sealed class EconomyFixture : IDisposable
         f.Good("ore");
         f.Good("plate", inputs: new[] { ("ore", 2) }, fills: new[] { "Plate" });
         f.Gear("laser", new[] { ("Plate", 2) });
-        f.Hull("skiff", HullType.Ship, new[] { ("Plate", 2) });
+        f.Hull("skiff", HullType.Ship, new[] { ("Plate", 1) });
         return f;
     }
 }

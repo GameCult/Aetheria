@@ -139,7 +139,7 @@ public static class EconomyChecks
         var grounded = Depths(catalog, sells);
         var recipes = AllRecipes(catalog).ToList();
         var used = new HashSet<string>(recipes.SelectMany(p => p.Recipe.Inputs.Concat(p.Recipe.Upkeep)).Select(c => c.Commodity.Key.Value), StringComparer.Ordinal);
-        var rolesNamed = new HashSet<string>(recipes.Where(p => catalog.Get(p.Recipe.Output) != null && Recipes.IsRoleRecipe(catalog, p.Recipe))
+        var rolesNamed = new HashSet<string>(recipes.Where(p => Recipes.IsRoleRecipe(catalog, p.Recipe))
             .SelectMany(p => Recipes.RolesOf(catalog.Get(p.Recipe.Output))).Select(r => r.Name), StringComparer.Ordinal);
         foreach (var (key, recipe) in recipes)
         {
@@ -316,7 +316,6 @@ public static class EconomyChecks
             if (done[start]) continue;
             var component = Enumerable.Range(0, n).Where(i => reach[start, i] && reach[i, start]).ToList();
             foreach (var i in component) done[i] = true;
-            if (component.Count == 1 && !(a[start, start] > 0)) continue;
             var rho = Irreducible(a, component);
             if (rho > best) { best = rho; bestComponent = component; }
         }
