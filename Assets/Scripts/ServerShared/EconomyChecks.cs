@@ -317,6 +317,7 @@ public static class EconomyChecks
             var component = Enumerable.Range(0, n).Where(i => reach[start, i] && reach[i, start]).ToList();
             foreach (var i in component) done[i] = true;
             var rho = Irreducible(a, component);
+            if (double.IsNaN(rho)) rho = double.PositiveInfinity;
             if (rho > best) { best = rho; bestComponent = component; }
         }
         return (best, bestComponent);

@@ -220,7 +220,7 @@ public sealed class EconomyChecksTests
     public void ProductiveRefusesFactorsBelowOne()
     {
         using var f = new EconomyFixture();
-        Assert.Throws<ArgumentException>(() => EconomyChecks.Productive(f.Cache, new EconomyLoad { InputFactor = 0.5 }));
+        Assert.Contains("at least 1", Assert.Throws<ArgumentException>(() => EconomyChecks.Productive(f.Cache, new EconomyLoad { InputFactor = 0.5 })).Message);
         Assert.Throws<ArgumentException>(() => EconomyChecks.Productive(f.Cache, new EconomyLoad { WorkforceFactor = 0.5 }));
         Assert.Throws<ArgumentException>(() => EconomyChecks.Productive(f.Cache, new EconomyLoad { UpkeepFactor = double.NaN }));
         Assert.Empty(EconomyChecks.Productive(f.Cache, new EconomyLoad { InputFactor = 1, WorkforceFactor = 1, UpkeepFactor = 1 }));
