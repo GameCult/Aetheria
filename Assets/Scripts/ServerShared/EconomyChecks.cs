@@ -19,8 +19,19 @@ public sealed class EconomyFault
     public readonly string Record;
     public readonly string Message;
 
-    public EconomyFault(string invariant, string record, string message)
+    // A fault only because the chain has not written the record yet (a commodity with no recipe). Reported, never a refusal.
+    public readonly bool Pending;
+
+    // L-productive only: every good the carrying cycle holds (sorted) and the spectral radius. The fault's identity is the member
+    // set; a radius that rises is a worse fault of the same identity.
+    public readonly IReadOnlyList<string> Members;
+    public readonly double Radius;
+
+    public EconomyFault(string invariant, string record, string message, bool pending = false, IReadOnlyList<string> members = null, double radius = 0)
     {
+        Members = members;
+        Radius = radius;
+        Pending = pending;
         Invariant = invariant;
         Record = record;
         Message = message;
@@ -59,8 +70,25 @@ public static class EconomyChecks
         return new EconomyReport(faults, Deep(catalog));
     }
 
-    private static IEnumerable<(string Key, RecipeData Recipe)> AllRecipes(CultCache catalog) =>
+    private static IEnumerable<(string Key, RecipeData Recipe)> StoredRecipes(CultCache catalog) =>
         catalog.GetAll<RecipeData>().Select(recipe => (catalog.RefOf(recipe).Key.Value, recipe)).OrderBy(pair => pair.Item1, StringComparer.Ordinal);
+
+    // Every rule but Recipe reads recipes through here, so a list a record holds as null (or with a null entry) reads as the list
+    // without it; Recipe alone names the malformation. The stored document is never changed.
+    private static IEnumerable<(string Key, RecipeData Recipe)> AllRecipes(CultCache catalog) =>
+        StoredRecipes(catalog).Select(pair => (pair.Key, Sound(pair.Recipe)));
+
+    private static RecipeData Sound(RecipeData recipe) =>
+        recipe.Inputs != null && recipe.Upkeep != null && recipe.Fills != null && !recipe.Inputs.Contains(null) && !recipe.Upkeep.Contains(null) && !recipe.Fills.Contains(null)
+            ? recipe
+            : new RecipeData
+            {
+                Output = recipe.Output, OutputCount = recipe.OutputCount, Cycle = recipe.Cycle, Workforce = recipe.Workforce,
+                StationKind = recipe.StationKind, LoreHook = recipe.LoreHook,
+                Inputs = (recipe.Inputs ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
+                Upkeep = (recipe.Upkeep ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
+                Fills = (recipe.Fills ?? new List<string>()).Where(f => f != null).ToList()
+            };
 
     private static IEnumerable<ItemData> Commodities(CultCache catalog) =>
         catalog.GetAll<ItemData>().Where(Recipes.IsCommodity).OrderBy(item => catalog.RefOf(item).Key.Value, StringComparer.Ordinal);
@@ -72,7 +100,7 @@ public static class EconomyChecks
         void Add(string record, string message) => faults.Add(new EconomyFault(LRecipe, record, message));
         foreach (var item in Commodities(catalog))
             if (Recipes.RecipeOf(catalog, item) == null)
-                Add(catalog.RefOf(item).Key.Value, $"Commodity '{item.Name}' has no recipe.");
+                faults.Add(new EconomyFault(LRecipe, catalog.RefOf(item).Key.Value, $"Commodity '{item.Name}' has no recipe.", pending: true));
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var product in catalog.GetAll<FactionProductData>().Where(p => LoadoutGenerator.IsOffered(catalog, p)))
         {
@@ -80,14 +108,26 @@ public static class EconomyChecks
             if (design == null || (design is HullData hull && (hull.HullType == HullType.Station || hull.HullType == HullType.Turret))) continue;
             var key = catalog.RefOf(design).Key.Value;
             if (seen.Add(key) && Recipes.RecipeOf(catalog, design) == null)
-                Add(key, $"Offered design '{design.Name}' has no recipe.");
+                faults.Add(new EconomyFault(LRecipe, key, $"Offered design '{design.Name}' has no recipe.", pending: true));
+        }
+        foreach (var market in catalog.GetAll<OutsideMarketData>())
+        {
+            var marketKey = catalog.RefOf(market).Key.Value;
+            if (market.Rows == null) Add(marketKey, "Rows is null; an outside market holds a list, empty when it trades nothing.");
+            else if (market.Rows.Contains(null)) Add(marketKey, "Rows holds a null entry.");
         }
         var kindsPlaced = new HashSet<string>(catalog.GetAll<Faction>().SelectMany(f => StationKinds.KindsOf(catalog, f)).Select(k => k.Key.Value), StringComparer.Ordinal);
-        foreach (var (key, recipe) in AllRecipes(catalog))
+        foreach (var (key, stored) in StoredRecipes(catalog))
         {
+            var recipe = Sound(stored);
+            foreach (var (list, name) in new[] { (stored.Inputs, "Inputs"), (stored.Upkeep, "Upkeep") })
+                if (list == null) Add(key, $"{name} is null; a recipe holds a list, empty when it takes nothing.");
+                else if (list.Contains(null)) Add(key, $"{name} holds a null entry.");
+            if (stored.Fills == null) Add(key, "Fills is null; a recipe holds a list, empty when it fills no role.");
+            else if (stored.Fills.Contains(null)) Add(key, "Fills holds a null entry.");
             var output = catalog.Get(recipe.Output);
             if (output == null) { Add(key, "Output names no item this catalog holds."); continue; }
-            if (!catalog.RefOf(recipe).Key.Equals(RecipeData.KeyOf(recipe.Output.Key)))
+            if (key != RecipeData.KeyOf(recipe.Output.Key).Value)
                 Add(key, "The recipe's key is not recipe:<output key>; one recipe per output is its key.");
             if (recipe.OutputCount <= 0) Add(key, "OutputCount is not above zero.");
             if (!float.IsFinite(recipe.Cycle) || recipe.Cycle <= 0) Add(key, "Cycle is not a finite number above zero.");
@@ -125,7 +165,7 @@ public static class EconomyChecks
 
     private static (HashSet<string> Sells, HashSet<string> Buys) Gate(CultCache catalog)
     {
-        var rows = catalog.GetAll<OutsideMarketData>().SelectMany(market => market.Rows).ToList();
+        var rows = catalog.GetAll<OutsideMarketData>().SelectMany(market => market.Rows ?? new List<OutsideMarketRow>()).Where(r => r != null).ToList();
         return (new HashSet<string>(rows.Where(r => r.Sells).Select(r => r.Commodity.Key.Value), StringComparer.Ordinal),
             new HashSet<string>(rows.Where(r => r.Buys).Select(r => r.Commodity.Key.Value), StringComparer.Ordinal));
     }
@@ -264,14 +304,15 @@ public static class EconomyChecks
         }
 
         var final = Build(pick, 0);
-        var (rho, component) = Radius(final, n);
         var faults = new List<EconomyFault>();
-        if (rho >= 1 - Margin)
+        string Name(int i) => i == labour ? "labour" : names[i];
+        foreach (var (rho, component) in Radii(final, n))
         {
-            string Name(int i) => i == labour ? "labour" : names[i];
+            if (rho < 1 - Margin) continue;
             var order = CycleOrder(final, n, component);
             faults.Add(new EconomyFault(LProductive, Name(order[0]),
-                $"The goods cannot sustain themselves: spectral radius {rho:0.######} is not below 1, carried by {string.Join(" -> ", order.Select(Name))}."));
+                $"The goods cannot sustain themselves: spectral radius {rho:0.######} is not below 1, carried by {string.Join(" -> ", order.Select(Name))}.",
+                members: order.Select(Name).OrderBy(name => name, StringComparer.Ordinal).ToArray(), radius: rho));
         }
         return faults;
     }
@@ -295,9 +336,9 @@ public static class EconomyChecks
         return u;
     }
 
-    // The spectral radius of a nonnegative matrix: the largest over its strongly connected components that hold a cycle, each by
-    // power iteration on A + I (primitive when irreducible). An edge j -> i is a nonzero A[i, j]. Also the component carrying it.
-    private static (double Rho, List<int> Component) Radius(double[,] a, int n)
+    // The spectral radius of every strongly connected component of a nonnegative matrix, each by power iteration on A + I
+    // (primitive when irreducible). An edge j -> i is a nonzero A[i, j]. A component with no cycle has radius 0.
+    private static List<(double Rho, List<int> Component)> Radii(double[,] a, int n)
     {
         var reach = new bool[n, n];
         for (var i = 0; i < n; i++)
@@ -309,8 +350,7 @@ public static class EconomyChecks
                     for (var j = 0; j < n; j++)
                         if (reach[k, j]) reach[i, j] = true;
         var done = new bool[n];
-        var best = 0.0;
-        var bestComponent = new List<int>();
+        var radii = new List<(double, List<int>)>();
         for (var start = 0; start < n; start++)
         {
             if (done[start]) continue;
@@ -318,9 +358,9 @@ public static class EconomyChecks
             foreach (var i in component) done[i] = true;
             var rho = Irreducible(a, component);
             if (double.IsNaN(rho)) rho = double.PositiveInfinity;
-            if (rho > best) { best = rho; bestComponent = component; }
+            radii.Add((rho, component));
         }
-        return (best, bestComponent);
+        return radii;
     }
 
     private static double Irreducible(double[,] a, List<int> nodes)
