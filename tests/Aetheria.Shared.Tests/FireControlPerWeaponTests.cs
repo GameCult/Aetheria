@@ -84,7 +84,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     private Rig Build(
         (ItemRotation Rotation, float Arc)[] mounts = null, bool beam = false, WeaponFuse? fuse = null, float blast = 0f,
         float range = 100f, float targetRange = 60f, float accuracy = 1f, float minHit = .2f, bool lockWeapon = false,
-        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false,
+        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false, float damage = 100f,
         float effective = float.PositiveInfinity, float damageAtMax = 0f, float velocity = 0f, float targetLayerHeight = 0f)
     {
         mounts ??= new[] { (ItemRotation.None, 0f) };
@@ -131,7 +131,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
             behavior = new AutoWeaponData { Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1), SingleAmmoBurst = singleAmmoBurst };
         else
             behavior = new InstantWeaponData { Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1), SingleAmmoBurst = singleAmmoBurst };
-        behavior.Damage = Constant(100);
+        behavior.Damage = Constant(damage);
         behavior.Range = Constant(range);
         behavior.MinRange = Constant(0);
         behavior.EffectiveRange = Constant(effective);
@@ -1157,6 +1157,132 @@ public sealed class FireControlPerWeaponTests : IDisposable
         }
         Assert.True(cooling > 100, $"{cooling} of 240 steps spent cooling");
         Assert.InRange(rounds, 8, 10);
+    }
+
+    private static CombatState CombatOf(Rig r) =>
+        new CombatState(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+
+    // Every weapon that holds a down trigger is Combat's to let go, not only an AutoWeapon: a beam the pilot holds keeps firing
+    // at nothing otherwise. Through the whole agent (Minion in Zone.Agents, Zone.Update). Kills: a release sweep that
+    // reads one weapon kind.
+    [Theory]
+    [InlineData(Loss.NoTarget)]
+    [InlineData(Loss.Untracked)]
+    public void ACombatPilotThatLosesItsTargetReleasesItsHeldBeam(Loss loss)
+    {
+        var r = Build(beam: true);
+        var beam = (ConstantWeapon) r.Gun.Weapon;
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+        const float dt = 1f / 30f;
+        for (var i = 0; i < 30; i++) r.Zone.Update(dt);
+        Assert.True(beam.Firing, "control: the pilot holds the beam while it has a target");
+
+        LoseTheTarget(r, loss);
+        r.Zone.Update(dt);
+        Assert.False(beam.Firing, "the beam is let go the step the target is lost");
+        for (var i = 0; i < 30; i++) r.Zone.Update(dt);
+        Assert.False(beam.Firing);
+    }
+
+    // A held lock launcher is let go the same way.
+    [Fact]
+    public void CombatUpdateReleasesAHeldLockWeaponWhenItHasNoTarget()
+    {
+        var r = Build(lockWeapon: true);
+        var launcher = r.Gun.Weapon;
+        var combat = CombatOf(r);
+        launcher.Activate();
+        Assert.True(launcher.Firing, "control: the trigger is down");
+        LoseTheTarget(r, Loss.NoTarget);
+
+        combat.Update(.1f);
+        r.Zone.Update(.1f);
+
+        Assert.False(launcher.Firing);
+    }
+
+    // The target stands and a group is a candidate, but a stronger group is the pick: the held gun in the other group is let
+    // go the same step. Kills: a final release that runs only when no group is picked.
+    [Fact]
+    public void CombatReleasesAHeldAutoWeaponWhoseGroupIsNotThePick()
+    {
+        var r = Build(auto: true, damage: 40f, decoy: true);
+        var gun = (InstantWeapon) r.Gun.Weapon;
+        var combat = CombatOf(r);
+        gun.Activate();
+        Assert.True(gun.Firing, "control: the trigger is down");
+
+        combat.Update(.1f);
+
+        Assert.True(r.Shooter.Command.Pulls(r.Decoy.Weapon), "control: the stronger group is the pick and fires");
+        Assert.False(r.Shooter.Command.Pulls(gun));
+        r.Zone.Update(.1f);
+        Assert.False(gun.Firing);
+    }
+
+    // Which cooling gun stays a candidate: a held AutoWeapon only. A plain gun that is down and cooling, and an AutoWeapon
+    // let go and cooling, are not, so the ready decoy is the pick; the held AutoWeapon's group is. Kills: dropping the
+    // Firing clause, widening it to every gun, or widening the candidate to every AutoWeapon.
+    [Theory]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    public void ACoolingGunIsACandidateOnlyWhileAnAutoWeaponIsHeld(bool auto, bool held, bool gunIsThePick)
+    {
+        var r = Build(auto: auto, decoy: true);
+        var gun = (InstantWeapon) r.Gun.Weapon;
+        Aim(r, float2(0, 1));
+        gun.Activate();
+        r.Zone.Update(.1f);
+        if (!held) gun.Deactivate();
+        Assert.False(gun.CanFire, "fixture: the gun fired and is cooling");
+        Assert.Equal(held, gun.Firing);
+        var combat = CombatOf(r);
+
+        combat.Update(.1f);
+
+        var command = r.Shooter.Command;
+        Assert.Equal(gunIsThePick, command.Pulls(gun));
+        Assert.Equal(!gunIsThePick, command.Pulls(r.Decoy.Weapon));
+    }
+
+    // Combat's end lets go of a weapon it pulled this very step, which is not held until the pull is applied.
+    // Kills: an exit sweep that spares what the pilot commanded.
+    [Fact]
+    public void CombatExitReleasesAWeaponItPulledInTheSameStep()
+    {
+        var r = Build(auto: true);
+        var gun = (InstantWeapon) r.Gun.Weapon;
+        var combat = CombatOf(r);
+
+        combat.Update(.1f);
+        Assert.True(r.Shooter.Command.Pulls(gun), "control: Combat pulled the gun this step");
+        combat.OnExitState();
+        r.Zone.Update(.1f);
+
+        Assert.False(gun.Firing);
+    }
+
+    // The pilot has commanded a weapon this step when any trigger, pull or release, names it: not only the last one, and not
+    // only a pull.
+    [Fact]
+    public void ACommandNamesEveryWeaponAnyOfItsTriggersNamed()
+    {
+        var r = Build(mounts: new[] { (ItemRotation.None, 0f), (ItemRotation.None, 0f) }, decoy: true);
+        var command = r.Shooter.Command;
+        var pulled = r.Guns[0].Weapon;
+        var released = r.Guns[1].Weapon;
+        var untouched = r.Decoy.Weapon;
+        Assert.False(command.Commands(pulled));
+
+        command.Pull(pulled);
+        command.Release(released);
+
+        Assert.True(command.Commands(pulled));
+        Assert.True(command.Commands(released));
+        Assert.False(command.Commands(untouched));
+        Assert.True(command.Pulls(pulled));
+        Assert.False(command.Pulls(released));
     }
 
     // Kills: Trigger that leaves _burstStarted true from the previous burst, so the next burst reads as started
