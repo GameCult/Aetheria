@@ -196,6 +196,26 @@ public sealed class LoadoutTests : IDisposable
         Assert.False(faction.BossLoadout.IsSet());
     }
 
+    // The commit is conditional on the record at KeyOf(Name) too: a loadout written under that name after this cache read the
+    // catalog is not overwritten, even with replace set, and the second commit reports false.
+    [Fact]
+    public void ACommitOverALoadoutWrittenAfterTheReadWritesNothing()
+    {
+        Loadout loadout;
+        using (var read = Open())
+            loadout = HandBuilt(read);
+
+        using (var stale = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            Assert.Empty(stale.GetAll<Loadout>());
+            Assert.True(Loadouts.Commit(Catalog, loadout, replace: false));
+            Assert.False(Loadouts.Commit(stale, loadout, replace: true, default));
+        }
+
+        using var after = Open();
+        Assert.Single(after.GetAll<Loadout>());
+    }
+
     // A boss faction the catalog does not hold is refused before anything is written.
     [Fact]
     public void ABossCommitNamingNoFactionIsRefusedAndNothingIsWritten()
