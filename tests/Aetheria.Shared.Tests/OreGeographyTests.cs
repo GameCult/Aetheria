@@ -543,10 +543,9 @@ public sealed class OreGeographyTests : IDisposable
         Assert.Empty(Provinces.ExtraExits(pruned, new[] {4, 1}, 7, path));
         Assert.Equal(Provinces.Regions(chain, new[] {4, 1}, 7), Provinces.Regions(pruned, new[] {4, 1}, 7));
 
-        // A boss zone off the path, last on it, or followed by a zone it has no crossing link to is never left with fewer links.
-        Assert.Empty(Provinces.ExtraExits(diamond, new[] {2}, 6, new[] {0, 1, 5, 6}));
-        Assert.Empty(Provinces.ExtraExits(diamond, new[] {2}, 6, new[] {0, 1, 2}));
-        Assert.Empty(Provinces.ExtraExits(diamond, new[] {2}, 6, new[] {0, 1, 2, 5, 6}));
+        // A boss zone off the path, last on it, or followed by a zone it has no crossing link to has no exit to keep: it throws, naming the boss zone.
+        foreach (var broken in new[] {new[] {0, 1, 5, 6}, new[] {0, 1, 2}, new[] {0, 1, 2, 5, 6}})
+            Assert.Contains("boss zone 2", Assert.Throws<InvalidOperationException>(() => Provinces.ExtraExits(diamond, new[] {2}, 6, broken)).Message);
     }
 
     [Fact]

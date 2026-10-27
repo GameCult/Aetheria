@@ -299,17 +299,22 @@ public static class Provinces
     }
 
     // The crossing links to prune so each boss zone keeps one exit: all of them but the link to the boss zone's successor on
-    // exitPath (the zones from the entrance to the exit), which is the link the run goes through. A boss zone that is not on
-    // exitPath, or whose successor is not one of its crossing links, keeps all of its links: it is never left with none.
-    public static (int Boss, int Far)[] ExtraExits(int[][] adjacency, IReadOnlyCollection<int> bossZones, int exit, int[] exitPath) =>
-        CrossingLinks(adjacency, bossZones, exit).GroupBy(link => link.Boss)
-            .SelectMany(links =>
-            {
-                var at = Array.IndexOf(exitPath, links.Key);
-                var kept = at >= 0 && at + 1 < exitPath.Length ? exitPath[at + 1] : -1;
-                return links.Any(link => link.Far == kept) ? links.Where(link => link.Far != kept) : Enumerable.Empty<(int Boss, int Far)>();
-            })
-            .ToArray();
+    // exitPath (the zones from the entrance to the exit), which is the link the run goes through. The generator's exit path
+    // passes through every boss zone by one of its crossing links; a boss zone off exitPath, last on it, or followed by a zone
+    // it has no crossing link to breaks that, and throws naming the boss zone rather than guessing which link to keep.
+    public static (int Boss, int Far)[] ExtraExits(int[][] adjacency, IReadOnlyCollection<int> bossZones, int exit, int[] exitPath)
+    {
+        var extra = new List<(int Boss, int Far)>();
+        foreach (var links in CrossingLinks(adjacency, bossZones, exit).GroupBy(link => link.Boss))
+        {
+            var at = Array.IndexOf(exitPath, links.Key);
+            var kept = at >= 0 && at + 1 < exitPath.Length ? exitPath[at + 1] : -1;
+            if (!links.Any(link => link.Far == kept))
+                throw new InvalidOperationException($"boss zone {links.Key} has no crossing link to its successor on the exit path, so no exit to keep");
+            extra.AddRange(links.Where(link => link.Far != kept));
+        }
+        return extra.ToArray();
+    }
 
     // Each zone's region, named by the region's least zone index. Cutting every boss zone's crossing links (CrossingLinks)
     // leaves the regions as the connected components. Every zone, boss zones included, is in exactly one.
