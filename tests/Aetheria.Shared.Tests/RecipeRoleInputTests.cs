@@ -56,6 +56,15 @@ public sealed class RecipeRoleInputTests
     }
 
     [Fact]
+    public void ANullListElsewhereInARecipeLeavesItsRoleInputsToTheRules()
+    {
+        using var f = Smelter();
+        Assert.Empty(EconomyChecks.Check(f.Cache).Faults.Where(x => x.Invariant != EconomyChecks.LRecipe));
+        f.EditRecipe(Iron, r => r.Upkeep = null);
+        Assert.Empty(EconomyChecks.Check(f.Cache).Faults.Where(x => x.Invariant != EconomyChecks.LRecipe));
+    }
+
+    [Fact]
     public void DepthReadsARoleInputAsItsShallowestFiller()
     {
         using var f = new EconomyFixture();
