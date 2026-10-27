@@ -393,20 +393,28 @@ public sealed class EconomyChecksTests
     [Fact]
     public void ConsumerDemandFollowsUpkeepIntoAConsumerGoodAndIntoAFillerOfItsRole()
     {
-        using var f = new EconomyFixture();
-        f.Good("ore");
-        f.Good("coolant", inputs: new[] { ("ore", 1) });
-        Assert.Equal(new[] { "recipe:commodity:coolant" }, DemandRecords(f));
+        // Control: coolant is upkeep for a gasket that fills a plain gear role, so it is shared and leads into no consumer good.
+        using var plain = new EconomyFixture();
+        plain.Good("ore");
+        plain.Good("coolant", inputs: new[] { ("ore", 1) });
+        plain.Good("gasket", inputs: new[] { ("ore", 1) }, fills: new[] { "Plate" }, upkeep: new[] { ("coolant", 1) });
+        plain.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
+        Assert.Equal(new[] { "recipe:commodity:coolant" }, DemandRecords(plain));
 
         // The refrigerator is a consumer good (a commodity made from roles) that takes coolant as upkeep: coolant leads into it.
-        f.Good("fridge", roles: new[] { ("Casing", 1) }, upkeep: new[] { ("coolant", 1) });
-        Assert.Empty(DemandRecords(f));
+        using var consumer = new EconomyFixture();
+        consumer.Good("ore");
+        consumer.Good("coolant", inputs: new[] { ("ore", 1) });
+        consumer.Good("fridge", roles: new[] { ("Casing", 1) }, upkeep: new[] { ("coolant", 1) });
+        Assert.Empty(DemandRecords(consumer));
 
         // Upkeep taken by a filler of a consumer role leads into that role the same way.
-        f.EditRecipe("commodity:fridge", r => r.Upkeep.Clear());
-        Assert.Equal(new[] { "recipe:commodity:coolant" }, DemandRecords(f));
-        f.Good("gasket", inputs: new[] { ("ore", 1) }, fills: new[] { "Casing" }, upkeep: new[] { ("coolant", 1) });
-        Assert.Empty(DemandRecords(f));
+        using var filler = new EconomyFixture();
+        filler.Good("ore");
+        filler.Good("coolant", inputs: new[] { ("ore", 1) });
+        filler.Good("gasket", inputs: new[] { ("ore", 1) }, fills: new[] { "Casing" }, upkeep: new[] { ("coolant", 1) });
+        filler.Good("fridge", roles: new[] { ("Casing", 1) });
+        Assert.Empty(DemandRecords(filler));
     }
 
     [Fact]
