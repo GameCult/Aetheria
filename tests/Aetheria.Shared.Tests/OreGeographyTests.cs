@@ -325,6 +325,9 @@ public sealed class OreGeographyTests : IDisposable
         // Two adjacent boss zones: the link between them is the first one's crossing link, and the second is alone on its near side.
         Assert.Equal(new[] {0, 0, 2, 3, 3}, Provinces.Regions(Line(5), new[] {1, 2}, 4));
 
+        // The exit may be zone 0.
+        Assert.Equal(new[] {0, 0, 2, 2, 2}, Provinces.Regions(Line(5), new[] {2}, 0));
+
         // No boss zone, no exit, or a boss zone that is the exit: nothing is cut.
         Assert.All(Provinces.Regions(Line(7), new int[0], 6), region => Assert.Equal(0, region));
         Assert.All(Provinces.Regions(Line(7), new[] {2, 4}, -1), region => Assert.Equal(0, region));
@@ -493,6 +496,44 @@ public sealed class OreGeographyTests : IDisposable
         Assert.True(compared >= 4);
     }
 
+    [Fact]
+    public void PartitionSeedsAreTheLeastHashThenTheFarthestAndTiesGoToTheEarlierSeed()
+    {
+        var line = Line(9);
+        var regionOf = Provinces.Regions(line, new int[0], -1);
+        var zones = Enumerable.Range(0, 9).ToArray();
+        var tied = 0;
+        for (uint seed = 1; seed <= 60; seed++)
+        {
+            uint Hash(int zone) => $"{seed}:province-seed:{zone}".StableHash();
+            var first = zones.OrderBy(Hash).ThenBy(zone => zone).First();
+            var reach = zones.Max(zone => Math.Abs(zone - first));
+            var second = zones.Where(zone => Math.Abs(zone - first) == reach).OrderBy(Hash).First();
+            if (zones.Any(zone => Math.Abs(zone - first) == Math.Abs(zone - second))) tied++;
+            // 9 zones at 5 per province is two seeds; a zone midway between them goes to the first.
+            var expected = zones.Select(zone => Math.Abs(zone - first) <= Math.Abs(zone - second) ? first : second).ToArray();
+            Assert.Equal(expected, Provinces.Partition(line, regionOf, seed, 5));
+            // One province: the seed is the least hash.
+            Assert.All(Provinces.Partition(line, regionOf, seed, 100), seedOf => Assert.Equal(first, seedOf));
+        }
+        Assert.True(tied > 5, "fixture: too few run seeds put a zone midway between the seeds");
+    }
+
+    [Fact]
+    public void ListingAnEntryTwiceSumsItsWeights()
+    {
+        var cache = Empty();
+        var a = Kind(cache, "a", 1f);
+        Kind(cache, "b", 1f);
+        var twice = Province(cache, "twice", 1, new[] {KindFactor(a, 2f), KindFactor(a, 2f)}, new[] {OreFactor(Ore("iron"), 2f), OreFactor(Ore("iron"), 3f)});
+        var rock = Put(cache, "field-kind:rock", new FieldKindData {Name = "rock", Yields = new List<FieldYield> {Yield("iron", 1f)}});
+        Assert.Equal(5f, FieldKinds.Yield(rock, twice, cache).Single().Amount);
+        const int sites = 3000;
+        var share = Enumerable.Range(0, sites).Count(i => FieldKinds.Assign($"belt-{i}", cache, twice).Key.Value == "field-kind:a") / (float) sites;
+        Assert.InRange(share, 4f / 5 - .04f, 4f / 5 + .04f); // a: 1 x (2 + 2) against b: 1
+        Assert.InRange(Enumerable.Range(0, sites).Count(i => FieldKinds.Assign($"belt-{i}", cache, default).Key.Value == "field-kind:a") / (float) sites, .46f, .54f);
+    }
+
     // ---- the deal
 
     private static int[] Counts(CultRecordRef<ProvinceData>[] hand, params string[] types) =>
@@ -579,6 +620,33 @@ public sealed class OreGeographyTests : IDisposable
         Assert.True(hands.Distinct().Count() > 1, "every region of three or more provinces was dealt the same hand");
     }
 
+    [Fact]
+    public void TheDealDrawsFromTheDeckInKeyOrderAndReshufflesWhenItRunsOut()
+    {
+        var cache = Empty();
+        Province(cache, "c", 3);
+        Province(cache, "a", 2);
+        Province(cache, "b", 1);
+        for (uint seed = 1; seed <= 30; seed++)
+        {
+            // The rule restated: cards per type in key order, one weighted pick per draw at the draw's own site.
+            var types = new[] {"province:a", "province:b", "province:c"};
+            var full = new[] {2, 1, 3};
+            var remaining = (int[]) full.Clone();
+            var expected = new List<string>();
+            for (var n = 0; n < 10; n++)
+            {
+                if (remaining.Sum() == 0) remaining = (int[]) full.Clone();
+                var pick = $"{seed}:province-deal:7:{n}".StableHash() / 4294967296.0 * remaining.Sum();
+                var card = 0;
+                while (pick >= remaining[card]) pick -= remaining[card++];
+                remaining[card]--;
+                expected.Add(types[card]);
+            }
+            Assert.Equal(expected, Provinces.Deal(7, 10, seed, cache).Select(card => card.Key.Value));
+        }
+    }
+
     // ---- belts
 
     private static IEnumerable<(AsteroidBeltData Belt, GalaxyZone Zone, ZonePack Pack)> Belts(CultCache cache, Galaxy galaxy, ItemManager items, int zones)
@@ -640,7 +708,7 @@ public sealed class OreGeographyTests : IDisposable
     {
         for (uint seed = 1; seed <= 25; seed++)
         {
-            var (cache, _, _) = Shipped();
+            var (cache, catalogPath, runPath) = Shipped();
             SilenceShippedKinds(cache);
             var galaxy = TryBuild(cache, true, seed, Cast(Provinces.DefaultZonesPerProvince));
             if (galaxy == null) continue;
@@ -676,6 +744,21 @@ public sealed class OreGeographyTests : IDisposable
                 }
             }
             Assert.True(unweighted > 0, "fixture: no unweighted belt drew the kind the province forbids, so the province could not be told from none");
+
+            // Kept: a kind that would now win every pick changes nothing about a belt that has one.
+            var keys = packs[0].Select(g => cache.RefOf(g.Belt).Key).ToArray();
+            var assigned = keys.ToDictionary(key => key.Value, key => ((AsteroidBeltData) loaded.Planets[key]).Kind.Key.Value);
+            Kind(cache, "z", 1e6f);
+            var again = new Zone(items, settings, packs[0].Key, null, null);
+            foreach (var key in keys) Assert.Equal(assigned[key.Value], ((AsteroidBeltData) again.Planets[key]).Kind.Key.Value);
+
+            // Saved: a fresh open of the stores reads the assignment back.
+            cache.FlushAsync().Wait();
+            cache.Dispose();
+            _caches.Remove(cache);
+            var reopened = OpenCopy(catalogPath, runPath);
+            _caches.Add(reopened);
+            foreach (var key in keys) Assert.Equal(assigned[key.Value], ((AsteroidBeltData) reopened.Get(key)).Kind.Key.Value);
             return;
         }
         Assert.Fail("no seed generated enough belts; the first-load path went unexercised");
