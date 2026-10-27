@@ -144,13 +144,19 @@ public class Galaxy
         if(progressCallback!=null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
     }
     
+    // Each zone's index and the links as indices: the graph Provinces reads.
+    private (Dictionary<GalaxyZone, int> Index, int[][] Adjacency) ZoneGraph()
+    {
+        var index = Zones.Select((zone, i) => (zone, i)).ToDictionary(pair => pair.zone, pair => pair.i);
+        return (index, Zones.Select(zone => zone.AdjacentZones.Select(next => index[next]).ToArray()).ToArray());
+    }
+
     // Regions, then each region's provinces and their types (Provinces.Regions, Partition, Deal); the one builder, called by
     // the generation constructors and the save constructor. A save passes its membership and types: membership is kept, and a
     // saved type that still resolves is kept, any other taking the card the region's Deal gives that province's place.
     private void BuildProvinces(int zonesPerProvince, int[] savedSeedOf = null, List<SavedProvince> savedTypes = null)
     {
-        var index = Zones.Select((zone, i) => (zone, i)).ToDictionary(pair => pair.zone, pair => pair.i);
-        var adjacency = Zones.Select(zone => zone.AdjacentZones.Select(next => index[next]).ToArray()).ToArray();
+        var (index, adjacency) = ZoneGraph();
         var regionOf = global::Provinces.Regions(adjacency, BossZones.Values.Select(zone => index[zone]).ToArray(), Exit == null ? -1 : index[Exit]);
         var seedOf = savedSeedOf ?? global::Provinces.Partition(adjacency, regionOf, Seed, zonesPerProvince);
         var types = savedTypes?.ToDictionary(saved => saved.Seed, saved => saved.Type);
@@ -342,6 +348,10 @@ public class Galaxy
                 BossZones.Values.Aggregate(1, (i, os) => i * os.Distance[z]));
         }
 
+        // One exit per region (ruling one-exit-per-region): prune the boss zones' extra links, then home placement below reads
+        // the distances of the graph that is left.
+        OneExitPerRegion(progressCallback);
+
         // Place boss mega headquarters such that their sphere of influence encompasses their boss zone
         // While occupying as much territory as possible
         foreach (var mega in bossMegas)
@@ -361,6 +371,21 @@ public class Galaxy
                 HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])) *
                 BossZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
         }
+    }
+
+    // Each boss zone keeps one link toward the exit, the one on the exit path, so there is one exit to defend where its boss
+    // parks (Provinces.ExtraExits picks the rest; ruling one-exit-per-region). Links are removed from both zones, and the
+    // distance matrix follows. A galaxy built from a save never comes here: its saved links are the world.
+    private void OneExitPerRegion(Action<string> progressCallback)
+    {
+        var (index, adjacency) = ZoneGraph();
+        var exitPath = ExitPath.Select(zone => index[zone]).ToArray();
+        foreach (var (boss, far) in global::Provinces.ExtraExits(adjacency, BossZones.Values.Select(zone => index[zone]).ToArray(), index[Exit], exitPath))
+        {
+            Zones[boss].AdjacentZones.Remove(Zones[far]);
+            Zones[far].AdjacentZones.Remove(Zones[boss]);
+        }
+        CalculateDistanceMatrix(progressCallback);
     }
 
     private void CalculateFactionInfluence(Action<string> progressCallback = null)
