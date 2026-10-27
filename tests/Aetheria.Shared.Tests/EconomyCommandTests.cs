@@ -271,6 +271,46 @@ public sealed class EconomyCommandTests
     }
 
     [Fact]
+    public void ReportOnTheShippedCatalogGoesToTheGivenWriterAndNeverToConsole()
+    {
+        using var db = AetherDb.Open();
+        var expected = new StringWriter();
+        var expectedCode = EconomyCommand.Report(db.Cache, expected);
+        var console = new StringWriter();
+        var previous = Console.Out;
+        Console.SetOut(console);
+        var output = new StringWriter();
+        int code;
+        try { code = EconomyCommand.Run(new[] { "report" }, output); }
+        finally { Console.SetOut(previous); }
+        Assert.Equal(expectedCode, code);
+        Assert.NotEmpty(expected.ToString());
+        Assert.Equal(expected.ToString(), output.ToString());
+        Assert.Empty(console.ToString());
+    }
+
+    [Fact]
+    public void AnAuthorDryRunReadsTheShippedCatalogAndLeavesItByteIdentical()
+    {
+        var path = Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc");
+        var before = File.ReadAllBytes(path);
+        var expected = new StringWriter();
+        var expectedCode = EconomyCommand.Author(path, new EconomyBatch[] { new Munitions() }, false, expected);
+        var console = new StringWriter();
+        var previous = Console.Out;
+        Console.SetOut(console);
+        var output = new StringWriter();
+        int code;
+        try { code = EconomyCommand.Run(new[] { "author", "Munitions" }, output); }
+        finally { Console.SetOut(previous); }
+        Assert.Equal(expectedCode, code);
+        Assert.NotEmpty(expected.ToString());
+        Assert.Equal(expected.ToString(), output.ToString());
+        Assert.Empty(console.ToString());
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    [Fact]
     public void AnUnknownBatchNameIsRefusedWithoutEchoingIt()
     {
         var output = new StringWriter();
