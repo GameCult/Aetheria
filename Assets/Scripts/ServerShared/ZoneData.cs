@@ -298,6 +298,19 @@ public static class Provinces
         return links.ToArray();
     }
 
+    // The crossing links to prune so each boss zone keeps one exit: all of them but the link to the boss zone's successor on
+    // exitPath (the zones from the entrance to the exit), which is the link the run goes through. A boss zone that is not on
+    // exitPath, or whose successor is not one of its crossing links, keeps all of its links: it is never left with none.
+    public static (int Boss, int Far)[] ExtraExits(int[][] adjacency, IReadOnlyCollection<int> bossZones, int exit, int[] exitPath) =>
+        CrossingLinks(adjacency, bossZones, exit).GroupBy(link => link.Boss)
+            .SelectMany(links =>
+            {
+                var at = Array.IndexOf(exitPath, links.Key);
+                var kept = at >= 0 && at + 1 < exitPath.Length ? exitPath[at + 1] : -1;
+                return links.Any(link => link.Far == kept) ? links.Where(link => link.Far != kept) : Enumerable.Empty<(int Boss, int Far)>();
+            })
+            .ToArray();
+
     // Each zone's region, named by the region's least zone index. Cutting every boss zone's crossing links (CrossingLinks)
     // leaves the regions as the connected components. Every zone, boss zones included, is in exactly one.
     public static int[] Regions(int[][] adjacency, IReadOnlyCollection<int> bossZones, int exit)
