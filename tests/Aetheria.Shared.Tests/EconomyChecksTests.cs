@@ -381,7 +381,7 @@ public sealed class EconomyChecksTests
         f.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
         var fault = Assert.Single(EconomyChecks.ConsumerDemand(f.Cache));
         Assert.Equal("recipe:commodity:coke", fault.Record);
-        Assert.Contains("upkeep", fault.Message);
+        Assert.Contains("'coke' leads into upkeep but no use leads into a consumer good.", fault.Message);
 
         f.Good("pot", roles: new[] { ("Casing", 1) });
         f.EditRecipe("commodity:coke", r => r.Fills.Add("Casing"));
@@ -410,6 +410,22 @@ public sealed class EconomyChecksTests
         // Without the weapon nothing is drawn, and acid has one use again.
         f.EditItem<GearData>("gear:rifle", g => g.Behaviors.Clear());
         Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
+    }
+
+    [Fact]
+    public void ConsumerDemandNamesEveryUseThatMadeTheGoodShared()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore");
+        f.Good("acid", inputs: new[] { ("ore", 1) });
+        f.Good("warhead", inputs: new[] { ("acid", 1) }, fills: new[] { "Warhead" });
+        f.Good("roundb", inputs: new[] { ("acid", 1) });
+        f.Good("rounda", inputs: new[] { ("acid", 1) });
+        f.Gear("mine", new[] { ("Warhead", 1) });
+        Rifle(f, "riflea", "rounda");
+        Rifle(f, "rifleb", "roundb");
+        var fault = Assert.Single(EconomyChecks.ConsumerDemand(f.Cache));
+        Assert.Equal("'acid' leads into Warhead, rounda and roundb but no use leads into a consumer good.", fault.Message);
     }
 
     [Fact]

@@ -274,9 +274,11 @@ public sealed class EconomyCommandTests
     public void AnUnknownBatchNameIsRefusedWithoutEchoingIt()
     {
         var output = new StringWriter();
-        Assert.Equal(1, EconomyCommand.Run(new[] { "author", "CANARY-9f2e-batch" }, output));
+        Assert.Equal(1, EconomyCommand.Run(new[] { "author", "CANARY-9f2e-batch", "other-canary" }, output));
         var text = output.ToString();
-        Assert.Contains("Batches:", text);
+        Assert.Contains("2 of the names given match no batch.", text);
+        foreach (var batch in typeof(EconomyBatch).Assembly.GetTypes().Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(EconomyBatch))))
+            Assert.Contains(batch.Name, text);
         Assert.DoesNotContain("CANARY", text);
         Assert.DoesNotContain("9f2e", text);
     }

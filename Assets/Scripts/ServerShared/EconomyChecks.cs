@@ -420,7 +420,7 @@ public static class EconomyChecks
         bool IsCommodityKey(string key) => recipes.TryGetValue(key, out var r) && Recipes.IsCommodity(catalog.Get(r.Output));
         var consumerRoles = new HashSet<string>(recipes.Values.Where(r => Recipes.IsConsumerGood(catalog, r))
             .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
-        var gearRoles = new HashSet<string>(recipes.Values.Where(r => !Recipes.IsCommodity(catalog.Get(r.Output)) && Recipes.IsRoleRecipe(catalog, r))
+        var gearRoles = new HashSet<string>(recipes.Values.Where(r => !Recipes.IsCommodity(catalog.Get(r.Output)))
             .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
         var upkeep = new HashSet<string>(recipes.Values.SelectMany(r => r.Upkeep).Select(c => c.Commodity.Key.Value), StringComparer.Ordinal);
         var takenBy = recipes.Values.Where(r => IsCommodityKey(r.Output.Key.Value))
