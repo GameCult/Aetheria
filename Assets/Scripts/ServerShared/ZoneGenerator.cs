@@ -213,7 +213,7 @@ public static class ZoneGenerator
             var bodyKey = cache.Upsert(planetData).Key;
             planetData.Name = bodyKey.Value.Substring(0, 8);
             // Mining Cut 3 (Q16 B): a belt's field kind is chosen here, at generation, and saved with it.
-            if (planetData is AsteroidBeltData generatedBelt) FieldKinds.Ensure($"{seed}:belt:{index}", generatedBelt, cache);
+            if (planetData is AsteroidBeltData generatedBelt) FieldKinds.Ensure($"{seed}:belt:{index}", generatedBelt, cache, galaxyZone.Province?.Type ?? default);
             return cache.Upsert(planetData);
         }).ToList();
 
@@ -239,7 +239,7 @@ public static class ZoneGenerator
             BodyData swarmBody = swarm;
             var swarmKey = cache.Upsert(swarmBody).Key;
             swarm.Name = swarmKey.Value.Substring(0, 8);
-            FieldKinds.Ensure($"{seed}:swarm:{swarmHosts.Count}", swarm, cache);
+            FieldKinds.Ensure($"{seed}:swarm:{swarmHosts.Count}", swarm, cache, galaxyZone.Province?.Type ?? default);
             pack.Planets.Add(cache.Upsert(swarmBody));
         }
 
@@ -268,7 +268,7 @@ public static class ZoneGenerator
             BodyData lanedBody = laned;
             var lanedKey = cache.Upsert(lanedBody).Key;
             laned.Name = lanedKey.Value.Substring(0, 8);
-            FieldKinds.Ensure($"{seed}:lane:{shaped.Count}", laned, cache);
+            FieldKinds.Ensure($"{seed}:lane:{shaped.Count}", laned, cache, galaxyZone.Province?.Type ?? default);
             pack.Planets.Add(cache.Upsert(lanedBody));
         }
 
@@ -521,12 +521,6 @@ public static class ZoneGenerator
 	// the selection rule is testable without running the full zone-generation pipeline.
 	public static Faction[] EligibleWandererFactions(Faction[] factions, Faction owner, Faction nearest) =>
 		factions.Where(f => f != owner && f != nearest).ToArray();
-
-	// static float ResourceValue(ref Random random, ZoneGenerationSettings settings, SimpleCommodityData resource, float density)
-	// {
-	// 	return random.NextPowerDistribution(resource.Minimum, resource.Maximum, resource.Exponent,
-	// 		1 / lerp(settings.ResourceDensityMinimum, settings.ResourceDensityMaximum, density));
-	// }
 
 	public static GeneratorPlanet[] GenerateEntities(ZoneGenerationSettings settings, PlanetSettings planetSettings, ref Random random, float mass, float radius, float2 fixedPosition,
 		float rootReach)
