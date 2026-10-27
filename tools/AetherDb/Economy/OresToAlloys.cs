@@ -6,7 +6,9 @@ using GameCult.Caching;
 // Economy content, batch 2: ores to alloys. What the mining station takes out of rock and metal asteroids, and the refinery and
 // foundry steps that turn it into the metals every other chain builds from: iron and steel above all (the hub munitions already
 // draws), copper, aluminium, titanium and its alloy, carbon, synthetic diamond, and the rolled mill products (sheet and rebar).
-// Zhestokost's foundries are the faction this batch places, extending batch 1's stand-ins to the mining kind.
+// Every faction places mining (ruling everyone-mines): a Mega controls territory and the resources in it, so each faction in the
+// catalog gets a mining stand-in, extending batch 1's pattern for Zhestokost. A faction that contracts extraction out to the lowest
+// bidder is a later mechanism, the allocator's, not this batch's.
 //
 // This batch owns Steel: batch 1 wrote it as an interface good, and this batch writes it unconditionally with its recipe. Goods
 // owned by other chains (Methane, Hydrogen: volatiles) are read, never written.
@@ -18,17 +20,30 @@ public sealed class OresToAlloys : EconomyBatch
     {
         _a = author;
 
-        // Zhestokost mines for its own foundries. Its first planned station model is the supply depot (ruling faction-station-models),
-        // so mining stands in on the depot like batch 1's industrial kinds. One hop: depot has no Zhestokost stand-in.
-        StandIn("mining", FactionRef("Zhestokost"), "depot");
+        // Every faction that can hold territory mines it (ruling everyone-mines), and every catalog faction can: a full galaxy draws its
+        // Megas from the catalog, and the demo cast is Pirates, Zhestokost, Lucent Media and Aeronautics Unlimited. A faction with no
+        // station model stands in on the supply depot, the first model planned for Zhestokost (ruling faction-station-models), so the
+        // stand-in is inert until a depot model lands and the station seats through the any-maker fallback, as Zhestokost's do.
+        // Aeronautics Unlimited already has a model, Zenith, a trade hub; ruling station-kind-family-stand-in stands its mining on
+        // that. One hop: neither depot nor trade hub holds a stand-in for any faction.
+        foreach (var faction in _a.Catalog.GetAll<Faction>().OrderBy(f => f.Name, StringComparer.Ordinal).ToArray())
+            StandIn("mining", new CultRecordRef<Faction>(_a.Catalog.RefOf(faction).Key), faction.Name == "Aeronautics Unlimited" ? "trade-hub" : "depot");
+
+        // The mining kind's description names Nickel-Iron (ruling new-metals-is-nickel-iron). StationKindsCatalog keeps a kind that
+        // already has a record, so the record is edited here.
+        var miningKey = StationKindData.KeyOf("mining");
+        var mining = _a.Catalog.Get<StationKindData>(miningKey);
+        mining.Description = "Extracts ore (Rock, Nickel-Iron, Gold, Uranium, Potassium) from bodies and belts; consumes tools and food.";
+        _a.Put(mining, miningKey);
 
         // Extraction: the mining station's raw goods, the existing records given what they are, a mass and a price.
         var rock = Raw("Rock", "Silicate regolith and stony asteroid rubble: the bulk ore that holds iron oxide, aluminium, titanium, copper sulphides and the oxygen bound to all of them.", 1f, 2, 12,
             "Rock is cheap and moved by the thousand tonnes, so a hauler full of it is never worth stealing. A hauler running rock away from a refinery instead of towards one is worth a question: somebody is building a berm, or burying something.",
             new string[0]);
-        var newMetals = Raw("New Metals", "Native nickel-iron cut from metallic asteroids. Belt miners call it new metal to tell it from old metal, the salvage that has already been a ship.", 1f, 12, 10,
-            "Belt crews price new metal by the cut, not the tonne: the face of a metallic asteroid comes off in slabs that ring when struck. A cargo manifest that says new metals has not yet been anybody's hull, which is why insurers and arsenal inspectors both ask for one.",
-            new string[0]);
+        // Renamed from New Metals, a 2021 legacy record with no description (ruling new-metals-is-nickel-iron). Same key, so every reference holds.
+        var nickelIron = Raw("New Metals", "Native nickel-iron cut from metallic asteroids: the ore the carbonyl refinery turns into iron.", 1f, 12, 10,
+            "Metallic asteroids are nickel-iron that cooled slowly enough to crystallise, and the cut face comes off in slabs that ring when struck, so crews price it by the cut, not the tonne. Nickel-iron straight from the face has never been anybody's hull, which is why insurers and arsenal inspectors both ask for a manifest that says so.",
+            new string[0], "Nickel-Iron");
         var gold = Raw("Gold", "Native gold and the platinum-group residue that settles out of metal asteroid ore.", 0.2f, 600, 6,
             "Gold comes out of the same metal asteroids as iron, in the residue the iron leaves behind. It wires every contact that must not corrode and it is still the only metal people will hoard without being told to.",
             new[] { "jewellery" });
@@ -48,10 +63,10 @@ public sealed class OresToAlloys : EconomyBatch
             "Methane split in a hot reactor leaves carbon on the walls and hydrogen in the pipe. The carbon goes into steel, electrodes and water filters; a habitat that stops buying it has either found another source or stopped filtering.",
             new[] { "filter" }, (methane, 2));
 
-        var iron = Simple("iron", "Iron", "Carbonyl iron pellets: nickel-iron ore refined through carbon monoxide, the nickel and precious residue drawn off.", 1f, 22);
+        var iron = Simple("iron", "Iron", "Carbonyl iron pellets: Nickel-Iron refined through carbon monoxide, the nickel and precious residue drawn off.", 1f, 22);
         Recipe(iron, "processing", 600, 14, 2,
             "The carbonyl refinery turns metal asteroid ore into a gas and back into almost pure iron, leaving nickel and gold in the residue. It is the oldest Belt refinery design still built, from the dry-refinery stack TerraCore's patents spread across Luna and the Belt, and the carbon monoxide it runs on kills a crew that forgets its sensors.",
-            new[] { "cookware" }, (newMetals, 3));
+            new[] { "cookware" }, (nickelIron, 3));
 
         var steel = Steel();
         Recipe(steel, "processing", 900, 30, 3,
@@ -102,12 +117,6 @@ public sealed class OresToAlloys : EconomyBatch
             new[] { "gemstone" }, (methane, 1), (hydrogen, 2));
     }
 
-    private CultRecordRef<Faction> FactionRef(string name)
-    {
-        var faction = _a.Catalog.GetAll<Faction>().Single(f => f.Name == name);
-        return new CultRecordRef<Faction>(_a.Catalog.RefOf(faction).Key);
-    }
-
     // Sets this faction's stand-in on a kind, replacing any it had, so a rerun converges.
     private void StandIn(string kindId, CultRecordRef<Faction> faction, string standInKindId)
     {
@@ -121,15 +130,16 @@ public sealed class OresToAlloys : EconomyBatch
     private static CultRecordKey CommodityKey(string id) => new CultRecordKey("commodity:" + id);
 
     // An existing raw good: edited in place, given an extraction recipe at the mining station.
-    private CultRecordRef<ItemData> Raw(string name, string description, float mass, int price, int workforce, string lore, string[] fills)
+    private CultRecordRef<ItemData> Raw(string name, string description, float mass, int price, int workforce, string lore, string[] fills, string renameTo = null)
     {
         _a.Edit<SimpleCommodityData>(name, c =>
         {
+            if (renameTo != null) c.Name = renameTo;
             c.Description = description;
             c.Mass = mass;
             c.Price = price;
         });
-        var raw = Existing(name);
+        var raw = Existing(renameTo ?? name);
         Recipe(raw, "mining", 600, workforce, 4, lore, fills);
         return raw;
     }
