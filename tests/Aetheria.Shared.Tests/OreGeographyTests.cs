@@ -551,7 +551,8 @@ public sealed class OreGeographyTests : IDisposable
     [Fact]
     public void DistancesAreOfTheFinalGraph()
     {
-        foreach (var galaxy in SectorGalaxies())
+        // Built here, not shared: a galaxy another test built first would put the generator's lines under that test's coverage alone.
+        foreach (var galaxy in Enumerable.Range(1, (int) OneExitSeeds).Select(seed => TryBuild(Shared, false, (uint) seed)).Where(galaxy => galaxy != null))
         {
             var adjacency = AdjacencyOf(galaxy);
             for (var zone = 0; zone < adjacency.Length; zone++)
