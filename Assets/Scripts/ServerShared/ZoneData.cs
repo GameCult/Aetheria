@@ -226,8 +226,9 @@ public static class FieldKinds
             .Select(kind =>
             {
                 var key = catalog.RefOf(kind).Key;
-                return (Key: key, Weight: kind.GenerationWeight * Factor(
-                    type?.Kinds.Where(entry => entry.Kind.Key.Equals(key)).Select(entry => (double) entry.Weight), 1.0));
+                var factor = Factor(type?.Kinds.Where(entry => entry.Kind.Key.Equals(key)).Select(entry => (double) entry.Weight), 1.0);
+                // Both must be positive: two negatives do not multiply into a weight.
+                return (Key: key, Weight: kind.GenerationWeight > 0f && factor > 0.0 ? kind.GenerationWeight * factor : 0.0);
             })
             .Where(kind => kind.Weight > 0.0)
             .OrderBy(kind => kind.Key.Value, StringComparer.Ordinal)

@@ -239,6 +239,25 @@ public sealed class OreGeographyTests : IDisposable
     }
 
     [Fact]
+    public void AKindWhoseCombinedWeightIsNotPositiveIsNeverDrawn()
+    {
+        var cache = Empty();
+        var negative = Kind(cache, "negative", -1f);
+        Kind(cache, "positive", 1f);
+        var flipped = Province(cache, "flipped", 1, new[] {KindFactor(negative, -1f)});
+        for (var i = 0; i < 500; i++)
+        {
+            Assert.Equal("field-kind:positive", FieldKinds.Assign($"belt-{i}", cache, default).Key.Value);
+            Assert.Equal("field-kind:positive", FieldKinds.Assign($"belt-{i}", cache, flipped).Key.Value);
+        }
+
+        // With nothing positive left the belt has no kind, rather than the negative one.
+        var only = Empty();
+        var lone = Kind(only, "negative", -1f);
+        Assert.False(FieldKinds.Assign("belt-0", only, Province(only, "flipped", 1, new[] {KindFactor(lone, -1f)})).IsSet());
+    }
+
+    [Fact]
     public void ProvinceWeightsTheKindDraw()
     {
         var cache = Empty();
