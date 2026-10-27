@@ -1,0 +1,374 @@
+Dry run of economy author OresAndProvinces on Yggdrasil (ygg-verify, image dotnet/sdk:10.0), batch commit 371b4d04a on base 8fa1fc21b.
+Aetheria.cc sha256 68b37cb55c01... before and after (unchanged). Base report: 146 faults (L-consumer-demand 4, L-recipe 124, L-source-sink 18).
+Running the batch twice in one trial gives the same 66 added, 7 changed: it converges.
+
+===== DRY RUN (exit 0)
+changed station-kind:mining
+changed 043997a8-0661-4206-ab8a-10215ecf4efc
+added recipe:043997a8-0661-4206-ab8a-10215ecf4efc
+changed 00b5b3b2-2fc5-4adb-a1d7-c1a35d19afd3
+added recipe:00b5b3b2-2fc5-4adb-a1d7-c1a35d19afd3
+added commodity:troilite
+added recipe:commodity:troilite
+added commodity:magnetite
+added recipe:commodity:magnetite
+added commodity:ilmenite
+added recipe:commodity:ilmenite
+added commodity:anorthite
+added recipe:commodity:anorthite
+added commodity:pentlandite
+added recipe:commodity:pentlandite
+added commodity:chalcopyrite
+added recipe:commodity:chalcopyrite
+added commodity:native-copper
+added recipe:commodity:native-copper
+added commodity:sylvite
+added recipe:commodity:sylvite
+added commodity:orthoclase
+added recipe:commodity:orthoclase
+added commodity:native-gold
+added recipe:commodity:native-gold
+added commodity:isoferroplatinum
+added recipe:commodity:isoferroplatinum
+added commodity:sperrylite
+added recipe:commodity:sperrylite
+added commodity:uraninite
+added recipe:commodity:uraninite
+added commodity:brannerite
+added recipe:commodity:brannerite
+added commodity:monazite
+added recipe:commodity:monazite
+added commodity:columbite
+added recipe:commodity:columbite
+added commodity:wolframite
+added recipe:commodity:wolframite
+added commodity:iron
+added recipe:commodity:iron
+added commodity:nickel
+added recipe:commodity:nickel
+added commodity:copper
+added recipe:commodity:copper
+added commodity:aluminium
+added recipe:commodity:aluminium
+added commodity:titanium
+added recipe:commodity:titanium
+added commodity:platinum-group-metals
+added recipe:commodity:platinum-group-metals
+changed 36746041-a5bd-4b95-aa18-294acaaeae62
+added recipe:36746041-a5bd-4b95-aa18-294acaaeae62
+changed 08c07793-bc06-48dc-adc2-c7e61ef2cb2b
+added recipe:08c07793-bc06-48dc-adc2-c7e61ef2cb2b
+changed a8e259fc-fbf1-477a-8248-0277611f1859
+added recipe:a8e259fc-fbf1-477a-8248-0277611f1859
+added commodity:rare-earth-oxides
+added recipe:commodity:rare-earth-oxides
+added commodity:niobium
+added recipe:commodity:niobium
+added commodity:tungsten
+added recipe:commodity:tungsten
+changed 2b0deb8dd4ca44da9a36581877bf629d
+added field-kind:carbonaceous
+added field-kind:metallic
+added field-kind:basaltic
+added province:primitive-reach
+added province:chondrite-plain
+added province:shattered-core
+added province:basalt-shards
+added province:sulphide-melt
+added province:evolved-crust
+66 added, 7 changed, 0 removed, 0 unchanged
+154 faults
+L-consumer-demand (5)
+  recipe:0b449ae1-7eab-47e8-ac3c-2b6f6ff01f00: 'Ballistic Powder' leads into thruster and Ammo but no use leads into a consumer good.
+  recipe:a8e259fc-fbf1-477a-8248-0277611f1859: 'Potassium' leads into thruster and Ammo but no use leads into a consumer good.
+  recipe:commodity:nitric-acid: 'Nitric Acid' leads into thruster, warhead and Ammo but no use leads into a consumer good.
+  recipe:commodity:nitrocellulose: 'Nitrocellulose' leads into thruster and Ammo but no use leads into a consumer good.
+  recipe:commodity:potassium-nitrate: 'Potassium Nitrate' leads into thruster and Ammo but no use leads into a consumer good.
+L-recipe (119)
+  03ff4335-fa65-4a89-8cea-68f70de01d60: Commodity 'Dashboard Ornament' has no recipe.
+  0caaa08c-e0b6-4eaf-a9fd-7e03088371ea: Commodity 'Reaction Chamber' has no recipe.
+  0d6a518d-24e9-40bf-9861-301de17b5161: Commodity 'Heat Sink Tile' has no recipe.
+  11d9fd0c-c0dd-482f-8e2a-f7c289ed6a3d: Commodity 'AI Pilot' has no recipe.
+  17032840-c285-4f33-82ae-6b03f1e1e56b: Commodity 'Cargo Pod' has no recipe.
+  1af83f0b-11ae-4d03-acc3-c5d478d55f14: Commodity 'Spacesuit' has no recipe.
+  1ea0df17-aba1-45bc-8d6e-a430c110e38d: Commodity 'Geiger Counter' has no recipe.
+  20376ecd-77fa-4ffe-9be6-185158ee1bfc: Commodity 'All-Surface Stylus' has no recipe.
+  2055f611-ef5d-4791-b1ad-f1757c081a99: Commodity 'Holo-desk' has no recipe.
+  214fe497-cda4-4cdb-a7c4-fe656e5ff61c: Commodity 'Methane' has no recipe.
+  22917d5e-313a-4470-a91e-0c78f1e08044: Commodity 'Spacewalking Boots' has no recipe.
+  2aa99b2d-80ed-4640-9350-9affcfe6d8cd: Commodity 'Construction Rebar' has no recipe.
+  2e08445d-c130-497c-9fb3-8d752a24e654: Commodity 'Algae' has no recipe.
+  32934bf0-d7e9-432f-8863-e07c092b67f6: Commodity 'Inertial Compensating Seatbelt' has no recipe.
+  33944941-5bd1-43ca-91a4-348c253f7e8b: Commodity 'Stealth Coating' has no recipe.
+  34b16da9-1e5e-4fba-b256-eb8a38274b39: Commodity 'Neural Lace' has no recipe.
+  35f02735-1993-4467-b3de-028c2d6e2276: Commodity 'Emergency Personal Life Support System' has no recipe.
+  3689a855-9264-40f0-91b3-8b235dac80b6: Commodity 'Sure Bet Sherbet Fountain' has no recipe.
+  3987140a-19c3-4b0b-8fa5-528f43a83afb: Commodity 'Magnetic EVA Boots' has no recipe.
+  3a33da73-ba06-4574-afec-d529097408b5: Commodity 'Universal Translator' has no recipe.
+  3acbb2bf-19fb-4591-bef1-dc9d5dde7e7a: Commodity 'Water' has no recipe.
+  3c6bb1cc-70d8-400b-8d69-9c81339758f3: Commodity 'Bacteria' has no recipe.
+  3c8b2b3d-ca1a-405f-966f-c64662a64418: Commodity 'Circuit Board' has no recipe.
+  3ddbbb28-c166-4ab3-8a0b-c7b77c372f32: Commodity 'Mouth Adapting Gummy Molars' has no recipe.
+  40004417-d242-47d2-9f27-1bbcf8548779: Commodity 'Trigger' has no recipe.
+  4081eb4c-3376-4912-a230-c43096d90ad1: Commodity 'Travel Permit' has no recipe.
+  421e9788-d094-4c17-88cc-0d820e3cfeca: Commodity 'Sheet Metal' has no recipe.
+  4486cfad-3063-4667-80ae-5e4d615ee501: Commodity 'Hydrogen' has no recipe.
+  452bbd60-11df-449b-a4b7-a4ca22527123: Commodity 'Secret Storage Compartment' has no recipe.
+  4681d1af-1a6d-4c7e-b10d-5ee8295b9a79: Commodity 'Ship Fins' has no recipe.
+  4810a43b-bbb9-447d-b62e-b723e4d88afc: Commodity 'Antireflective Coating' has no recipe.
+  498c664d-05ff-45a0-b3b6-2b98feec8611: Commodity 'Super Tough Toffee' has no recipe.
+  4b3fc716-d362-4379-8c65-f2c471647ed1: Commodity 'Crash Test Dummy' has no recipe.
+  4c82acfa-b8e4-4601-9465-2fad107b1eff: Commodity 'Insulation' has no recipe.
+  4d5929a9-5cb1-470c-a0b7-12f8abaf4497: Commodity 'Ship Decal' has no recipe.
+  502a6ed8-73aa-4554-ae89-a50b67cfa9e0: Commodity 'Rope' has no recipe.
+  515734e6-4287-470c-bf56-188c4b257420: Commodity 'Trousers' has no recipe.
+  51e4dc3b-0107-4ab5-a2c6-02d34a1035b2: Commodity 'Mining Rights' has no recipe.
+  5383d6b6-083b-4721-8f6b-426dba0beaeb: Commodity 'Hat' has no recipe.
+  5449f7d3-b250-41cd-9e7e-ab2a7037cacb: Commodity 'Knife' has no recipe.
+  5837ec5e-036b-4f73-9098-dbe11339909f: Commodity 'Safety Goggles' has no recipe.
+  5bcddae5-10fe-4316-9dca-6dc5d53c899e: Commodity 'Local Newscast' has no recipe.
+  5e2950d6-02df-461e-a35e-a4123c6a5639: Commodity 'Big Red Button' has no recipe.
+  601a345d-6f0b-4bdb-8171-be4befaf9a33: Commodity 'Daily Feed Ad Slot (5ms)' has no recipe.
+  63abe46b-ad99-4ac9-b5e4-d83a40465065: Commodity 'Joystick' has no recipe.
+  64bccb57-3aa8-4e5f-829d-07e62295b0c7: Commodity 'Fungi' has no recipe.
+  6713c2b2-d886-4440-b076-dd206c22848a: Commodity 'SpaceCast' has no recipe.
+  675a1ebe-868c-4b27-a2eb-bee2fe5e356b: Commodity 'Paparazzi Drone' has no recipe.
+  6821495a-4875-4350-a8e8-e813c3576aa8: Commodity 'Fuel' has no recipe.
+  6d20c298-281e-46fc-be33-dbcc575d49d7: Commodity 'Cockpit' has no recipe.
+  6d4c9e32-7ffd-45f6-8e08-86d544793774: Commodity 'Dials' has no recipe.
+  6dc76b7c-65c3-4cc1-bc2a-eace8e4f58d2: Commodity 'Support Strut' has no recipe.
+  6f0ed812-01b0-4767-90c5-0b6857bc2e29: Commodity 'Memory Download' has no recipe.
+  7e9783b7-ab6c-4c50-bb99-4f1f3a3e240d: Commodity 'Animal Products' has no recipe.
+  86d11f6a-9ddd-478d-8192-f047d38a7c6a: Commodity 'Moo-ed Lighting' has no recipe.
+  8776c2fd-45f6-4ca6-8ef0-5214be830182: Commodity 'Diamond' has no recipe.
+  8b026aea-1d79-49a0-b843-abdfcca31bab: Commodity 'Helmet' has no recipe.
+  commodity:actuator: Commodity 'Actuator' has no recipe.
+  commodity:ammonia: Commodity 'Ammonia' has no recipe.
+  commodity:cellulose-pulp: Commodity 'Cellulose Pulp' has no recipe.
+  commodity:oxygen: Commodity 'Oxygen' has no recipe.
+  commodity:steel: Commodity 'Steel' has no recipe.
+  03740fd6-158d-43e9-b070-9a40e0b9bc45: Offered design 'Secure Cargo Bay' has no recipe.
+  03a842b2-295e-4cf7-9faa-ecc4bc54eb76: Offered design 'Heavy Beam Laser' has no recipe.
+  04255796-db68-48d2-81e5-8cfdab150706: Offered design 'Burn Drive' has no recipe.
+  08226a8cb09844919c9922fbd7b76bef: Offered design 'Station Reactor' has no recipe.
+  0d499d62-3b92-454b-9498-37d12616167f: Offered design 'Charged Scatter Blaster' has no recipe.
+  106179618b054e8da61650bbec486c18: Offered design 'Fire Control Array' has no recipe.
+  1c0cff5d-8668-45ea-9726-8b08c81d0267: Offered design 'Short-Range Missile Rack' has no recipe.
+  205efba0-16af-477b-80e9-c9597cead5b4: Offered design 'Ring Reactor' has no recipe.
+  20e9f41a-6bd2-4f6c-9740-7b707614509c: Offered design 'Cryogenic Heat Pump' has no recipe.
+  291a01746063494fbfcb8c96f82aa8d3: Offered design 'Muon Fusion Station Reactor' has no recipe.
+  2933c4ce-bf41-459c-b0d6-9583466b393d: Offered design 'Long Laser' has no recipe.
+  2935b4d4-2ad5-4b90-8416-a85bbb38171b: Offered design 'Adaptive Radiator' has no recipe.
+  2b2777c0-b756-4e19-9bf6-e5bac3cc385c: Offered design 'Turret Control Module' has no recipe.
+  2c911da4-fad0-4a38-be5b-5e327c0c9e43: Offered design 'Industrial Thermostatic Heater' has no recipe.
+  2e4c7753e0a24c13849818ac1dcfdba0: Offered design 'Passive Array' has no recipe.
+  2e5193aa-3703-4ecc-911d-4d8394ce4c2f: Offered design 'Incendiary Rocket Pod' has no recipe.
+  31325c3d-0537-40ec-9e5e-80930ea01496: Offered design 'Cockpit 2x2' has no recipe.
+  32157982-b015-461e-ba4e-d321a23c2748: Offered design 'Long-Range Missile Rack' has no recipe.
+  34b15c33-c01f-4712-ac75-5fcf779f0685: Offered design 'Capacitor' has no recipe.
+  372d23cc-5ef0-42b5-9d96-807f2e412b0d: Offered design 'Muon Fusion Reactor' has no recipe.
+  394612a6-9198-4797-a69b-c70cd0ee3273: Offered design 'High-Yield Reactor' has no recipe.
+  3baa2c43-b389-4438-94cb-fbb04489cd77: Offered design 'Heavy Reactor' has no recipe.
+  3e930a2c-ac72-4385-98aa-1c5b0b90db46: Offered design 'Medium Docking Bay' has no recipe.
+  457ac901-aa54-4ba7-9df6-fbacdfb40b3f: Offered design 'Cell Blaster' has no recipe.
+  46b66f9a-5c72-4e7a-ac9b-4dd7904cc4a1: Offered design 'Large Cargo Bay' has no recipe.
+  480d6cc4-cd8a-49b6-9c89-211033e7c1d5: Offered design 'Compact Sensor' has no recipe.
+  499f7891-c5df-4cbe-8431-9db7108102ec: Offered design 'Charged Blaster' has no recipe.
+  49b4c15a-c10b-49c0-9dad-31dfb9b3a9b9: Offered design 'Cargo Bay' has no recipe.
+  4a41dec8-6b65-46ee-b578-ba805f112c0c: Offered design 'Light Laser' has no recipe.
+  4b019503-1865-4bad-a6e9-c85b558aacea: Offered design 'Long Radiator' has no recipe.
+  4bc1fe6f-347a-425e-be1b-997920175bee: Offered design 'Compact Reactor' has no recipe.
+  542169f2-363c-41f7-8d6d-60a5bd7578bd: Offered design 'Heat Pump' has no recipe.
+  5cd802dd-ef0e-4303-bd87-c30988326e4b: Offered design 'Large Drive' has no recipe.
+  5ee2ff03-0ac4-4cdd-89bc-81e29223900b: Offered design 'Guided Missile Launcher' has no recipe.
+  632420a6-4419-4647-a92b-5e22ea289025: Offered design 'Lightning Projector' has no recipe.
+  67111f5b41d5464e958ffc62bb3249da: Offered design 'Coolant Vent' has no recipe.
+  726c1403ced34c2497693bf0f269c898: Offered design 'Inspection Scanner' has no recipe.
+  72859489-677a-47a4-ae04-550e582ba29e: Offered design 'Sensor Array' has no recipe.
+  7d14649c-a3b6-47c5-ab74-201b90072e2c: Offered design 'Tractor Beam' has no recipe.
+  88e81a2b-45fd-49de-830f-c896adae8d5b: Offered design 'Racing Drive' has no recipe.
+  8d84faaae78c490cb762289fd362bb0a: Offered design 'Launch Suppressor' has no recipe.
+  9013c312-f37f-42a8-9efc-3d699759923b: Offered design 'Small Drive' has no recipe.
+  a0478430-3ec5-445d-94a7-f30e61b2b8d3: Offered design 'Swarm Rocket Pod' has no recipe.
+  a2ce2da35eff4f4aa6ec220449427a0d: Offered design 'High-Yield Station Reactor' has no recipe.
+  a828a676cc9e492f86ea7e08d75c4687: Offered design 'Launch Baffle' has no recipe.
+  ae05f4cb-0dd5-4f37-af96-cc61c9d61e1f: Offered design 'Small Cargo Bay' has no recipe.
+  b1403776e5fc4bd9bd0ed17d7e2a5e6e: Offered design 'Heavy Station Reactor' has no recipe.
+  b24ee1740ae04cdf9a07fff4105069f2: Offered design 'Thruster Overdrive' has no recipe.
+  bb5d9f73-612f-4060-8fb4-f72d6b93b616: Offered design 'Djinni' has no recipe.
+  bc3870ae-8e31-45ec-99d9-745a4262f78a: Offered design 'Radiator' has no recipe.
+  c07ea205005d423bb70d3bed899fdedd: Offered design 'Targeting Computer' has no recipe.
+  c4b20032-8cd3-4206-807f-97b296797425: Offered design 'Longinus' has no recipe.
+  d6e1b44396494e39a4e0a1b51c92a0ef: Offered design 'Ring Station Reactor' has no recipe.
+  d706ff66-c98c-4e60-a8e5-5dceb8dc3742: Offered design 'Rugged Drive' has no recipe.
+  ebfb35b5-3905-4510-a8cf-c09528f27172: Offered design 'High-Thrust Drive' has no recipe.
+  ef0f782e-9fa8-4059-bb8c-f16e1d3de100: Offered design 'Medium Drive' has no recipe.
+  fa568d572eec4969aad07599444a3892: Offered design 'Point Defense Laser' has no recipe.
+L-source-sink (30)
+  recipe:043997a8-0661-4206-ab8a-10215ecf4efc: 'Regolith' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:08c07793-bc06-48dc-adc2-c7e61ef2cb2b: 'Uranium' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:0b449ae1-7eab-47e8-ac3c-2b6f6ff01f00: 'Ballistic Powder' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:3085fc8a-ec0d-4f6f-a339-ea43edb573e6: 'Ammo' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:36746041-a5bd-4b95-aa18-294acaaeae62: 'Gold' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:aluminium: 'Aluminium' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:autoloader: 'Autoloader Mechanism' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:copper: 'Copper' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:explosive-fill: 'Explosive Fill' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:fragmentation-case: 'Fragmentation Case' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:fuze: 'Fuze' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:gun-barrel: 'Gun Barrel' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:gun-forging: 'Gun Forging' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:he-warhead: 'High-Explosive Warhead' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:hexamine: 'Hexamine' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:iron: 'Iron' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:mine-dispenser: 'Mine Dispenser' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:nickel: 'Nickel' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:niobium: 'Niobium' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:nitric-acid: 'Nitric Acid' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:nitrocellulose: 'Nitrocellulose' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:platinum-group-metals: 'Platinum Group Metals' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:potassium-nitrate: 'Potassium Nitrate' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:primer: 'Primer' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:projectile: 'Projectile' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:rare-earth-oxides: 'Rare Earth Oxides' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:rocket-motor: 'Rocket Motor' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:shell-casing: 'Shell Casing' has no source: no chain of recipes reaches raw goods and no gate sells it.
+  recipe:commodity:titanium: 'Titanium' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+  recipe:commodity:tungsten: 'Tungsten' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it.
+
+Depth
+  00b5b3b2-2fc5-4adb-a1d7-c1a35d19afd3 depth 0
+  0271bb97-4ce8-4d64-97c3-8bfd3f76b2c6 depth none
+  03ff4335-fa65-4a89-8cea-68f70de01d60 depth none
+  043997a8-0661-4206-ab8a-10215ecf4efc depth 0
+  08c07793-bc06-48dc-adc2-c7e61ef2cb2b depth 1
+  0b449ae1-7eab-47e8-ac3c-2b6f6ff01f00 depth none
+  0caaa08c-e0b6-4eaf-a9fd-7e03088371ea depth none
+  0d6a518d-24e9-40bf-9861-301de17b5161 depth none
+  11d9fd0c-c0dd-482f-8e2a-f7c289ed6a3d depth none
+  13116166-f0c8-43cf-a35f-8fd448bc630c depth none
+  17032840-c285-4f33-82ae-6b03f1e1e56b depth none
+  1af83f0b-11ae-4d03-acc3-c5d478d55f14 depth none
+  1b4a2bb358eb432eb1cfc0ccf3317303 depth none
+  1ea0df17-aba1-45bc-8d6e-a430c110e38d depth none
+  20376ecd-77fa-4ffe-9be6-185158ee1bfc depth none
+  2055f611-ef5d-4791-b1ad-f1757c081a99 depth none
+  214fe497-cda4-4cdb-a7c4-fe656e5ff61c depth none
+  22917d5e-313a-4470-a91e-0c78f1e08044 depth none
+  2aa99b2d-80ed-4640-9350-9affcfe6d8cd depth none
+  2e08445d-c130-497c-9fb3-8d752a24e654 depth none
+  2fd0d88b-f565-4021-85b4-02d9eae7be58 depth none
+  3085fc8a-ec0d-4f6f-a339-ea43edb573e6 depth none
+  32934bf0-d7e9-432f-8863-e07c092b67f6 depth none
+  33944941-5bd1-43ca-91a4-348c253f7e8b depth none
+  34b16da9-1e5e-4fba-b256-eb8a38274b39 depth none
+  35f02735-1993-4467-b3de-028c2d6e2276 depth none
+  36746041-a5bd-4b95-aa18-294acaaeae62 depth 1
+  3689a855-9264-40f0-91b3-8b235dac80b6 depth none
+  3987140a-19c3-4b0b-8fa5-528f43a83afb depth none
+  3a33da73-ba06-4574-afec-d529097408b5 depth none
+  3aa1ac05-6d55-4569-8a4b-e1c3c6e07c61 depth none
+  3acbb2bf-19fb-4591-bef1-dc9d5dde7e7a depth none
+  3c6bb1cc-70d8-400b-8d69-9c81339758f3 depth none
+  3c8b2b3d-ca1a-405f-966f-c64662a64418 depth none
+  3ddbbb28-c166-4ab3-8a0b-c7b77c372f32 depth none
+  40004417-d242-47d2-9f27-1bbcf8548779 depth none
+  4081eb4c-3376-4912-a230-c43096d90ad1 depth none
+  421e9788-d094-4c17-88cc-0d820e3cfeca depth none
+  4486cfad-3063-4667-80ae-5e4d615ee501 depth none
+  452bbd60-11df-449b-a4b7-a4ca22527123 depth none
+  4681d1af-1a6d-4c7e-b10d-5ee8295b9a79 depth none
+  4810a43b-bbb9-447d-b62e-b723e4d88afc depth none
+  498c664d-05ff-45a0-b3b6-2b98feec8611 depth none
+  4b3fc716-d362-4379-8c65-f2c471647ed1 depth none
+  4c82acfa-b8e4-4601-9465-2fad107b1eff depth none
+  4d5929a9-5cb1-470c-a0b7-12f8abaf4497 depth none
+  502a6ed8-73aa-4554-ae89-a50b67cfa9e0 depth none
+  515734e6-4287-470c-bf56-188c4b257420 depth none
+  51e4dc3b-0107-4ab5-a2c6-02d34a1035b2 depth none
+  5383d6b6-083b-4721-8f6b-426dba0beaeb depth none
+  5449f7d3-b250-41cd-9e7e-ab2a7037cacb depth none
+  5837ec5e-036b-4f73-9098-dbe11339909f depth none
+  5bcddae5-10fe-4316-9dca-6dc5d53c899e depth none
+  5e2950d6-02df-461e-a35e-a4123c6a5639 depth none
+  601a345d-6f0b-4bdb-8171-be4befaf9a33 depth none
+  63abe46b-ad99-4ac9-b5e4-d83a40465065 depth none
+  64bccb57-3aa8-4e5f-829d-07e62295b0c7 depth none
+  6713c2b2-d886-4440-b076-dd206c22848a depth none
+  675a1ebe-868c-4b27-a2eb-bee2fe5e356b depth none
+  679fb6a1-cefb-4adc-a49c-71942602196b depth none
+  6821495a-4875-4350-a8e8-e813c3576aa8 depth none
+  6af6446e40cb4cdd90d7a3fee04394d4 depth none
+  6d20c298-281e-46fc-be33-dbcc575d49d7 depth none
+  6d4c9e32-7ffd-45f6-8e08-86d544793774 depth none
+  6dc76b7c-65c3-4cc1-bc2a-eace8e4f58d2 depth none
+  6f0ed812-01b0-4767-90c5-0b6857bc2e29 depth none
+  7e9783b7-ab6c-4c50-bb99-4f1f3a3e240d depth none
+  86d11f6a-9ddd-478d-8192-f047d38a7c6a depth none
+  8776c2fd-45f6-4ca6-8ef0-5214be830182 depth none
+  8ac84e31-f0cf-43b2-8611-3316adfa4010 depth none
+  8b026aea-1d79-49a0-b843-abdfcca31bab depth none
+  a8e259fc-fbf1-477a-8248-0277611f1859 depth 1
+  commodity:actuator depth none
+  commodity:aluminium depth 1
+  commodity:ammonia depth none
+  commodity:anorthite depth 0
+  commodity:autoloader depth none
+  commodity:brannerite depth 0
+  commodity:cellulose-pulp depth none
+  commodity:chalcopyrite depth 0
+  commodity:columbite depth 0
+  commodity:copper depth 1
+  commodity:explosive-fill depth none
+  commodity:fragmentation-case depth none
+  commodity:fuze depth none
+  commodity:gun-barrel depth none
+  commodity:gun-forging depth none
+  commodity:he-warhead depth none
+  commodity:hexamine depth none
+  commodity:ilmenite depth 0
+  commodity:iron depth 1
+  commodity:isoferroplatinum depth 0
+  commodity:magnetite depth 0
+  commodity:mine-dispenser depth none
+  commodity:monazite depth 0
+  commodity:native-copper depth 0
+  commodity:native-gold depth 0
+  commodity:nickel depth 1
+  commodity:niobium depth 1
+  commodity:nitric-acid depth none
+  commodity:nitrocellulose depth none
+  commodity:orthoclase depth 0
+  commodity:oxygen depth none
+  commodity:pentlandite depth 0
+  commodity:platinum-group-metals depth 1
+  commodity:potassium-nitrate depth none
+  commodity:primer depth none
+  commodity:projectile depth none
+  commodity:rare-earth-oxides depth 1
+  commodity:rocket-motor depth none
+  commodity:shell-casing depth none
+  commodity:sperrylite depth 0
+  commodity:steel depth none
+  commodity:sylvite depth 0
+  commodity:titanium depth 1
+  commodity:troilite depth 0
+  commodity:tungsten depth 1
+  commodity:uraninite depth 0
+  commodity:wolframite depth 0
+  d02bcf71f2c8420b878f036cd1a33bea depth none
+
+Dry run. Pass "apply" to write Aetheria.cc.
+YGG-SUMMARY/30c5f45eb83442b6: after 68b37cb55c012c9d1df97bbf0de5c0a56d1804ce5f16f498738cd4de51c88e4b  GameData/Aetheria.cc
+YGG-SUMMARY/30c5f45eb83442b6: BASE 146 faults
+YGG-SUMMARY/30c5f45eb83442b6: BASE L-consumer-demand (4)
+YGG-SUMMARY/30c5f45eb83442b6: BASE L-recipe (124)
+YGG-SUMMARY/30c5f45eb83442b6: BASE L-source-sink (18)
+YGG-SUMMARY/30c5f45eb83442b6: dry-run exit 0
+YGG-SUMMARY/30c5f45eb83442b6: 66 added, 7 changed, 0 removed, 0 unchanged
+YGG-SUMMARY/30c5f45eb83442b6: 154 faults
+YGG-SUMMARY/30c5f45eb83442b6: L-consumer-demand (5)
+YGG-SUMMARY/30c5f45eb83442b6: L-recipe (119)
+YGG-SUMMARY/30c5f45eb83442b6: L-source-sink (30)
+YGG-SUMMARY/30c5f45eb83442b6: Dry run. Pass "apply" to write Aetheria.cc.
+===== TWICE (exit 0)
