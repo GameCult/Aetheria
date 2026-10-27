@@ -640,8 +640,8 @@ public sealed partial class MiningCut3Tests : IDisposable
         for (var i = 0; i < 2000; i++)
         {
             var key = $"belt-{i}";
-            var picked = FieldKinds.Assign(key, s.Cache);
-            Assert.True(picked.Key.Equals(FieldKinds.Assign(key, s.Cache).Key));
+            var picked = FieldKinds.Assign(key, s.Cache, default);
+            Assert.True(picked.Key.Equals(FieldKinds.Assign(key, s.Cache, default).Key));
             counts[s.Cache.Get(picked).Name]++;
         }
         Assert.Equal(0, counts["Never"]);
@@ -650,7 +650,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.InRange(counts["Heavy"] / 2000f, 3f / 6 - .04f, 3f / 6 + .04f);
 
         var empty = BuildScene(new[] { never });
-        Assert.False(FieldKinds.Assign("belt-0", empty.Cache).IsSet());
+        Assert.False(FieldKinds.Assign("belt-0", empty.Cache, default).IsSet());
     }
 
     // Q16 B, first load: a belt saved before field kinds existed gets its kind when a zone first loads it, by the
@@ -665,7 +665,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var beltKey = s.Belts[0];
         var belt = (AsteroidBeltData) s.Zone.Planets[beltKey];
         Assert.True(belt.Kind.IsSet());
-        Assert.True(belt.Kind.Key.Equals(FieldKinds.Assign(beltKey.Value, s.Cache).Key));
+        Assert.True(belt.Kind.Key.Equals(FieldKinds.Assign(beltKey.Value, s.Cache, default).Key));
         var assigned = belt.Kind.Key;
 
         // Saved: a fresh open of the same stores reads the kind back.
@@ -679,7 +679,7 @@ public sealed partial class MiningCut3Tests : IDisposable
 
         // Kept: a new, overwhelmingly weighted kind now wins the pick for this belt, yet loading it again leaves it.
         reopened.Upsert(Kind("Overwhelming", 9f, 1e6f));
-        Assert.False(FieldKinds.Assign(beltKey.Value, reopened).Key.Equals(assigned));
+        Assert.False(FieldKinds.Assign(beltKey.Value, reopened, default).Key.Equals(assigned));
         var items = new ItemManager(1u, reopened, new ProvenanceLedger(), GameSettings(), _ => { });
         var reloaded = new Zone(items, PlanetSettings(), s.Pack, new GalaxyZone { Name = "MiningCut3Reload", Owner = null }, null);
         Assert.True(((AsteroidBeltData) reloaded.Planets[beltKey]).Kind.Key.Equals(assigned));

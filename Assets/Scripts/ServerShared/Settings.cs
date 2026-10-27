@@ -83,6 +83,8 @@ public class SectorGenerationSettings
 {
     public float LinkDensity = .5f;
     public int ZoneCount = 128;
+    // Zones per resource province (Provinces.Partition): calibration, not a gate.
+    public int ProvinceZones = Provinces.DefaultZonesPerProvince;
     public int MegaCount;
     public int BossCount;
 }
@@ -97,6 +99,8 @@ public class TutorialGenerationSettings
     public string QuestFaction;
     public float LinkDensity = .5f;
     public int ZoneCount = 32;
+    // Zones per resource province (Provinces.Partition): calibration, not a gate.
+    public int ProvinceZones = Provinces.DefaultZonesPerProvince;
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]

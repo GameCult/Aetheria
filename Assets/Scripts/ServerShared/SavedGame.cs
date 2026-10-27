@@ -55,6 +55,22 @@ public class SavedGame
     // by Galaxy's save constructor; 0 in a save written before run-seed, which then rolls name-only drops.
     [Key(14)]
     public uint Seed;
+
+    // The run's resource provinces (Galaxy.Provinces): each province's seed zone index and its type. Written only by
+    // RunSave.Capture and read only by Galaxy's save constructor; null in a save written before ore geography, which then
+    // gets Regions, Partition and Deal from its saved graph, boss zones, Exit and seed.
+    [Key(15)]
+    public List<SavedProvince> Provinces;
+}
+
+[MessagePackObject]
+public class SavedProvince
+{
+    [Key(0)]
+    public int Seed;
+
+    [Key(1)]
+    public CultRecordRef<ProvinceData> Type;
 }
 
 // The run's lifecycle over the run store. Only Commit creates SavedGame, SavedZone and ProvenanceLedger records;
@@ -96,8 +112,11 @@ public static class RunSave
             AdjacentZones = zone.AdjacentZones.Select(az => Array.IndexOf(galaxy.Zones, az)).ToArray(),
             Factions = zone.Factions.Select(f => Array.IndexOf(factions, f)).ToArray(),
             Contents = zone.Contents?.PackZone() ?? zone.PackedContents,
-            Owner = zone.Owner == null ? -1 : Array.IndexOf(factions, zone.Owner)
+            Owner = zone.Owner == null ? -1 : Array.IndexOf(factions, zone.Owner),
+            Province = Array.IndexOf(galaxy.Zones, zone.Province.Seed)
         }).ToArray();
+        game.Provinces = galaxy.Provinces.Select(province => new SavedProvince
+            {Seed = Array.IndexOf(galaxy.Zones, province.Seed), Type = province.Type}).ToList();
         return (game, zones);
     }
 
@@ -221,6 +240,11 @@ public class SavedZone
 
     [Key(5)]
     public ZonePack Contents;
+
+    // The seed zone index of the zone's province. Written only by RunSave.Capture and read only by Galaxy's save
+    // constructor; meaningful only when SavedGame.Provinces is present.
+    [Key(6)]
+    public int Province;
 }
 
 [MessagePackObject,

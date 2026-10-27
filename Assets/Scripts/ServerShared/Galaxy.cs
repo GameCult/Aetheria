@@ -31,6 +31,10 @@ public class Galaxy
     // The run's seed, minted once by GalaxyStage.SeedFrom and carried by the save (SavedGame.Seed). It seeds
     // generation, the run's item draws (RunStart) and the zone's drop dice (Zone.DropSeed).
     public uint Seed { get; }
+
+    // The run's resource provinces, ordered by seed zone index; GalaxyZone.Province is each zone's. Built once, by the
+    // generation constructors or the save constructor (BuildProvinces), and never by PlaceGate, faction placement or naming.
+    public GalaxyProvince[] Provinces { get; private set; }
     
     private GalaxyZone[] _exitPath;
     private readonly CultCache _cache;
@@ -89,6 +93,9 @@ public class Galaxy
         if(savedGame.Exit != -1)
             Exit = Zones[savedGame.Exit];
 
+        // A save from before ore geography has no provinces: it gets them by the rule generation uses.
+        BuildProvinces(global::Provinces.DefaultZonesPerProvince, savedGame.Provinces == null ? null : savedZones.Select(zone => zone.Province).ToArray(), savedGame.Provinces);
+
         CalculateDistanceMatrix();
     }
 
@@ -127,6 +134,8 @@ public class Galaxy
         
         PlaceFactionsMain(settings.BossCount, progressCallback);
 
+        BuildProvinces(settings.ProvinceZones);
+
         CalculateFactionInfluence(progressCallback);
 
         NamePlaces(ref random, progressCallback);
@@ -135,6 +144,33 @@ public class Galaxy
         if(progressCallback!=null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
     }
     
+    // Regions, then each region's provinces and their types (Provinces.Regions, Partition, Deal); the one builder, called by
+    // the generation constructors and the save constructor. A save passes its membership and types: membership is kept, and a
+    // saved type that still resolves is kept, any other taking the card the region's Deal gives that province's place.
+    private void BuildProvinces(int zonesPerProvince, int[] savedSeedOf = null, List<SavedProvince> savedTypes = null)
+    {
+        var index = Zones.Select((zone, i) => (zone, i)).ToDictionary(pair => pair.zone, pair => pair.i);
+        var adjacency = Zones.Select(zone => zone.AdjacentZones.Select(next => index[next]).ToArray()).ToArray();
+        var regionOf = global::Provinces.Regions(adjacency, BossZones.Values.Select(zone => index[zone]).ToArray(), Exit == null ? -1 : index[Exit]);
+        var seedOf = savedSeedOf ?? global::Provinces.Partition(adjacency, regionOf, Seed, zonesPerProvince);
+        var types = savedTypes?.ToDictionary(saved => saved.Seed, saved => saved.Type);
+
+        var provinces = new List<GalaxyProvince>();
+        foreach (var region in Enumerable.Range(0, Zones.Length).GroupBy(zone => regionOf[zone]).OrderBy(group => group.Key))
+        {
+            var seeds = region.Select(zone => seedOf[zone]).Distinct().OrderBy(seed => seed).ToArray();
+            var hand = global::Provinces.Deal(region.Key, seeds.Length, Seed, _cache);
+            for (var place = 0; place < seeds.Length; place++)
+            {
+                var type = types != null && types.TryGetValue(seeds[place], out var saved) && _cache.Get(saved) != null ? saved : hand[place];
+                var province = new GalaxyProvince {Seed = Zones[seeds[place]], Type = type, Zones = region.Where(zone => seedOf[zone] == seeds[place]).Select(zone => Zones[zone]).ToArray()};
+                foreach (var zone in province.Zones) zone.Province = province;
+                provinces.Add(province);
+            }
+        }
+        Provinces = provinces.OrderBy(province => index[province.Seed]).ToArray();
+    }
+
     public Faction ResolveFaction(string name)
     {
         return _cache.GetAll<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
@@ -255,6 +291,9 @@ public class Galaxy
         foreach(var z in Entrance.AdjacentZones) DiscoveredZones.Add(z);
 
         CalculateFactionInfluence(progressCallback);
+
+        // No boss zone and no Exit yet (PlaceGate comes after): the prelude is one region.
+        BuildProvinces(settings.ProvinceZones);
 
         NamePlaces(ref random, progressCallback);
         
@@ -571,8 +610,18 @@ public class GalaxyZone
     public Faction Owner;
     public Zone Contents;
     public ZonePack PackedContents;
+    public GalaxyProvince Province;
     public bool NamedZone;
     public List<LocationStory> Locations = new List<LocationStory>();
+}
+
+// A resource province (ruling provinces-within-regions): a contiguous group of zones inside one region, grown from Seed,
+// whose Type (ProvinceData, unset when the catalog holds none) weights the kinds and ores of its belts.
+public class GalaxyProvince
+{
+    public GalaxyZone Seed;
+    public CultRecordRef<ProvinceData> Type;
+    public GalaxyZone[] Zones;
 }
 
 public class GalaxyQuest

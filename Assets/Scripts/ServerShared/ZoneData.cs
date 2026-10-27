@@ -113,7 +113,8 @@ public class AsteroidBeltData : BodyData
 }
 
 // Mining Cut 3 (docs/mining-cut-refresh.md, Q11): a kind of debris field, an authored catalog record. A chunk's
-// reflectivity comes from its field's kind; Cut 5 adds the yield table.
+// reflectivity comes from its field's kind; its yields (ore geography, ruling ores-are-regional) are the ores a belt of
+// this kind holds before a province weights them. FieldKinds.Yield is the one reader.
 [CultDocument("aetheria.fieldkinddata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class FieldKindData
 {
@@ -128,40 +129,281 @@ public class FieldKindData
     // How often generation picks this kind, relative to the others (FieldKinds.Assign). Zero never picks it.
     [JsonProperty("generationWeight"), Key(2)]
     public float GenerationWeight = 1;
+
+    // The ores a belt of this kind holds. Empty on a kind from before this key (MessagePack leaves a missing trailing key at its default).
+    [JsonProperty("yields"), Key(3)]
+    public List<FieldYield> Yields = new List<FieldYield>();
 }
 
-// Mining Cut 3 (Q16 B): the one owner of which kind a belt is.
+// One ore a kind of field holds: Abundance of Commodity before the belt's province weights it. A Regional ore is held only
+// where the province lists it (ruling ores-are-regional: some ores exist only in some provinces); any other entry is held
+// everywhere, scaled by the province's factor for it.
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class FieldYield
+{
+    [JsonProperty("commodity"), Key(0)]
+    public CultRecordRef<SimpleCommodityData> Commodity;
+
+    [JsonProperty("abundance"), Key(1)]
+    public float Abundance;
+
+    [JsonProperty("regional"), Key(2)]
+    public bool Regional;
+}
+
+// Ore geography (rulings provinces-within-regions, ores-are-regional): a kind of ground, authored. A region deals its
+// provinces' types from a deck holding GenerationWeight cards of each type (ruling province-types-dealt-per-region);
+// a province's type weights which kinds its belts draw and which ores a kind holds there.
+[CultDocument("aetheria.provincedata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class ProvinceData
+{
+    [CultName, JsonProperty("name"), Key(0)]
+    public string Name = "";
+
+    // The number of cards of this type in a region's deck. Zero is never dealt.
+    [JsonProperty("generationWeight"), Key(1)]
+    public int GenerationWeight = 1;
+
+    // Multiplies the kind's own GenerationWeight in a belt's draw; a kind not listed is multiplied by one.
+    [JsonProperty("kinds"), Key(2)]
+    public List<ProvinceKindWeight> Kinds = new List<ProvinceKindWeight>();
+
+    // Multiplies an ore's Abundance wherever it is held; an ore not listed is multiplied by one, or by zero when the
+    // kind's entry for it is Regional.
+    [JsonProperty("ores"), Key(3)]
+    public List<ProvinceOre> Ores = new List<ProvinceOre>();
+}
+
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class ProvinceKindWeight
+{
+    [JsonProperty("kind"), Key(0)]
+    public CultRecordRef<FieldKindData> Kind;
+
+    [JsonProperty("weight"), Key(1)]
+    public float Weight = 1;
+}
+
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class ProvinceOre
+{
+    [JsonProperty("commodity"), Key(0)]
+    public CultRecordRef<SimpleCommodityData> Commodity;
+
+    [JsonProperty("weight"), Key(1)]
+    public float Weight = 1;
+}
+
+// Mining Cut 3 (Q16 B): the one owner of which kind a belt is. Ore geography: and of what it yields.
 public static class FieldKinds
 {
-    // A weighted pick among the catalog's kinds, by a stable hash of the belt's site: the same site and the same
-    // catalog always give the same kind. Generation names a belt by the zone's seed and the belt's place in generation
-    // order (never by the key the cache mints, which differs every run); a belt saved without a kind is named by its key. Kinds are ordered by key so the pick does not depend on store order.
-    // Unset when the catalog has no kind with positive weight.
-    public static CultRecordRef<FieldKindData> Assign(string site, CultCache catalog)
+    // The one weighted pick: an index into weights, chosen by a stable hash of the site (the same site and the same
+    // weights always give the same index), never one whose weight is not positive. -1 when no weight is positive.
+    internal static int Pick(string site, double[] weights)
     {
+        var pick = site.StableHash() / 4294967296.0 * weights.Sum();
+        var last = -1;
+        for (var i = 0; i < weights.Length; i++)
+        {
+            if (weights[i] <= 0) continue;
+            last = i;
+            if (pick < weights[i]) return i;
+            pick -= weights[i];
+        }
+        return last;
+    }
+
+    // A weighted pick among the catalog's kinds, by a stable hash of the belt's site: the same site, catalog and province
+    // type always give the same kind. A kind's weight is its GenerationWeight times its province's factor for it; a belt with
+    // no province type (unset, or naming nothing the catalog holds) draws unweighted. Generation names a belt by the zone's
+    // seed and the belt's place in generation order (never by the key the cache mints, which differs every run); a belt saved
+    // without a kind is named by its key. Kinds are ordered by key so the pick does not depend on store order.
+    // Unset when the catalog has no kind with positive weight.
+    public static CultRecordRef<FieldKindData> Assign(string site, CultCache catalog, CultRecordRef<ProvinceData> province)
+    {
+        var type = catalog.Get(province);
         var kinds = catalog.GetAll<FieldKindData>()
-            .Where(kind => kind.GenerationWeight > 0f)
-            .Select(kind => (Key: catalog.RefOf(kind).Key, Weight: kind.GenerationWeight))
+            .Select(kind =>
+            {
+                var key = catalog.RefOf(kind).Key;
+                return (Key: key, Weight: kind.GenerationWeight * Factor(
+                    type?.Kinds.Where(entry => entry.Kind.Key.Equals(key)).Select(entry => (double) entry.Weight), 1.0));
+            })
+            .Where(kind => kind.Weight > 0.0)
             .OrderBy(kind => kind.Key.Value, StringComparer.Ordinal)
             .ToArray();
         if (kinds.Length == 0) return default;
 
-        var pick = site.StableHash() / 4294967296.0 * kinds.Sum(kind => (double) kind.Weight);
-        foreach (var kind in kinds)
-        {
-            if (pick < kind.Weight) return new CultRecordRef<FieldKindData>(kind.Key);
-            pick -= kind.Weight;
-        }
-        return new CultRecordRef<FieldKindData>(kinds[kinds.Length - 1].Key);
+        return new CultRecordRef<FieldKindData>(kinds[Pick(site, kinds.Select(kind => kind.Weight).ToArray())].Key);
+    }
+
+    // A province's factor for one entry: the sum of its listings, or the default when it lists none.
+    private static double Factor(IEnumerable<double> listed, double unlisted)
+    {
+        var weights = listed?.ToArray();
+        return weights == null || weights.Length == 0 ? unlisted : weights.Sum();
     }
 
     // Gives a belt with no kind its kind and saves it; a belt that has one keeps it, whatever the catalog now says.
     // Generation (ZoneGenerator) and first load (Zone) both call this, so there is one assignment rule.
-    public static void Ensure(string site, AsteroidBeltData belt, CultCache cache)
+    public static void Ensure(string site, AsteroidBeltData belt, CultCache cache, CultRecordRef<ProvinceData> province)
     {
         if (belt.Kind.IsSet()) return;
-        belt.Kind = Assign(site, cache);
+        belt.Kind = Assign(site, cache, province);
         if (belt.Kind.IsSet()) cache.Upsert(belt);
+    }
+
+    // What a belt of this kind holds in a zone of this province: each of the kind's yields, its Abundance times the
+    // province's factor for the ore (unlisted: one, or zero when the yield is Regional), summed per commodity, in commodity
+    // key order, zero amounts dropped. Derived on every call, never stored. Empty for an unset kind.
+    public static (CultRecordRef<SimpleCommodityData> Commodity, float Amount)[] Yield(CultRecordRef<FieldKindData> kind,
+        CultRecordRef<ProvinceData> province, CultCache catalog)
+    {
+        var data = catalog.Get(kind);
+        if (data == null) return Array.Empty<(CultRecordRef<SimpleCommodityData>, float)>();
+        var type = catalog.Get(province);
+        return data.Yields
+            .Select(yield => (yield.Commodity, Amount: yield.Abundance * Factor(
+                type?.Ores.Where(ore => ore.Commodity.Key.Equals(yield.Commodity.Key)).Select(ore => (double) ore.Weight), yield.Regional ? 0.0 : 1.0)))
+            .GroupBy(yield => yield.Commodity.Key.Value, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => (group.First().Commodity, Amount: (float) group.Sum(yield => yield.Amount)))
+            .Where(yield => yield.Amount > 0f)
+            .ToArray();
+    }
+}
+
+// Ore geography (rulings provinces-within-regions, boss-zone-is-near-side, province-partition-by-size, province-types-dealt-per-region).
+// Pure functions of the zone graph, the run seed and the catalog: nothing here draws from Galaxy's Random stream, stores membership
+// or reads who owns what. Galaxy builds provinces once, in its generation and save constructors, and nothing re-partitions them.
+public static class Provinces
+{
+    // Zones per province when a settings object does not say (SectorGenerationSettings.ProvinceZones): calibration, not a rule.
+    public const int DefaultZonesPerProvince = 8;
+
+    // Each zone's region, named by the region's least zone index. A boss zone sits on the near side of its border: its
+    // crossing links are its links to zones in the component of exit in the graph without it, and cutting every boss zone's
+    // crossing links leaves the regions as the connected components. Every zone, boss zones included, is in exactly one.
+    // exit unset (-1), or a boss zone that is the exit, cuts nothing.
+    public static int[] Regions(int[][] adjacency, IReadOnlyCollection<int> bossZones, int exit)
+    {
+        var cut = new HashSet<(int, int)>();
+        if (exit >= 0)
+            foreach (var boss in bossZones.Distinct().Where(boss => boss != exit))
+            {
+                var exitSide = Flood(adjacency, exit, (a, b) => b != boss);
+                foreach (var next in adjacency[boss])
+                    if (exitSide[next]) cut.Add((Math.Min(boss, next), Math.Max(boss, next)));
+            }
+
+        var regionOf = new int[adjacency.Length];
+        Array.Fill(regionOf, -1);
+        for (var start = 0; start < adjacency.Length; start++)
+        {
+            if (regionOf[start] >= 0) continue;
+            var members = Flood(adjacency, start, (a, b) => !cut.Contains((Math.Min(a, b), Math.Max(a, b))));
+            for (var i = 0; i < members.Length; i++) if (members[i]) regionOf[i] = start;
+        }
+        return regionOf;
+    }
+
+    // Each zone's province, named by the province's seed zone index. A region of size s takes max(1, round(s / zonesPerProvince))
+    // seeds: the first is the zone with the least hash of the run seed, each next the zone farthest (in-region hops) from the
+    // seeds chosen so far, ties by that hash; then every zone joins the nearest seed, ties to the earlier seed. A province is
+    // contiguous and never crosses a region.
+    public static int[] Partition(int[][] adjacency, int[] regionOf, uint runSeed, int zonesPerProvince)
+    {
+        var seedOf = new int[adjacency.Length];
+        uint Hash(int index) => $"{runSeed}:province-seed:{index}".StableHash();
+        foreach (var region in Enumerable.Range(0, adjacency.Length).GroupBy(zone => regionOf[zone]).OrderBy(group => group.Key))
+        {
+            var zones = region.ToArray();
+            var count = Math.Min(zones.Length, Math.Max(1, (int) Math.Round((double) zones.Length / Math.Max(1, zonesPerProvince), MidpointRounding.AwayFromZero)));
+            var seeds = new List<int> { zones.OrderBy(Hash).ThenBy(zone => zone).First() };
+            while (seeds.Count < count)
+            {
+                var hops = Grow(adjacency, regionOf, seeds.ToArray()).Hops;
+                seeds.Add(zones.Where(zone => !seeds.Contains(zone)).OrderByDescending(zone => hops[zone]).ThenBy(Hash).ThenBy(zone => zone).First());
+            }
+            var owner = Grow(adjacency, regionOf, seeds.ToArray()).Owner;
+            foreach (var zone in zones) seedOf[zone] = seeds[owner[zone]];
+        }
+        return seedOf;
+    }
+
+    // A region's hand of province types, one per province in ascending seed-zone order. Types are dealt without replacement from
+    // a deck of GenerationWeight cards per type (catalog types in key order), each draw one weighted pick over the cards remaining
+    // at a site named by the run seed, the region and the draw's place; the deck is restored whole when it runs out. An empty
+    // deck deals every province an unset type.
+    public static CultRecordRef<ProvinceData>[] Deal(int regionKey, int seedCount, uint runSeed, CultCache catalog)
+    {
+        var types = catalog.GetAll<ProvinceData>()
+            .Where(type => type.GenerationWeight > 0)
+            .Select(type => (Ref: catalog.RefOf(type), Cards: type.GenerationWeight))
+            .OrderBy(type => type.Ref.Key.Value, StringComparer.Ordinal)
+            .ToArray();
+        var hand = new CultRecordRef<ProvinceData>[seedCount];
+        if (types.Length == 0) return hand;
+
+        var remaining = types.Select(type => type.Cards).ToArray();
+        for (var n = 0; n < seedCount; n++)
+        {
+            if (remaining.Sum() == 0) remaining = types.Select(type => type.Cards).ToArray();
+            var card = FieldKinds.Pick($"{runSeed}:province-deal:{regionKey}:{n}", remaining.Select(cards => (double) cards).ToArray());
+            remaining[card]--;
+            hand[n] = types[card].Ref;
+        }
+        return hand;
+    }
+
+    // Every zone reachable from start over the links the filter allows.
+    private static bool[] Flood(int[][] adjacency, int start, Func<int, int, bool> allowed)
+    {
+        var reached = new bool[adjacency.Length];
+        var stack = new Stack<int>();
+        reached[start] = true;
+        stack.Push(start);
+        while (stack.Count > 0)
+        {
+            var zone = stack.Pop();
+            foreach (var next in adjacency[zone])
+                if (!reached[next] && allowed(zone, next))
+                {
+                    reached[next] = true;
+                    stack.Push(next);
+                }
+        }
+        return reached;
+    }
+
+    // Breadth-first growth from seeds inside their regions, level by level: each zone's hops to the nearest seed and the rank
+    // (place in seeds) of the earliest seed among those that reach it first.
+    private static (int[] Owner, int[] Hops) Grow(int[][] adjacency, int[] regionOf, int[] seeds)
+    {
+        var owner = new int[adjacency.Length];
+        var hops = new int[adjacency.Length];
+        Array.Fill(owner, -1);
+        for (var rank = 0; rank < seeds.Length; rank++)
+        {
+            owner[seeds[rank]] = rank;
+            hops[seeds[rank]] = 0;
+        }
+        var frontier = seeds.ToList();
+        for (var level = 1; frontier.Count > 0; level++)
+        {
+            var claims = new Dictionary<int, int>();
+            foreach (var zone in frontier)
+                foreach (var next in adjacency[zone])
+                    if (owner[next] < 0 && regionOf[next] == regionOf[zone])
+                        claims[next] = claims.TryGetValue(next, out var rank) ? Math.Min(rank, owner[zone]) : owner[zone];
+            foreach (var claim in claims)
+            {
+                owner[claim.Key] = claim.Value;
+                hops[claim.Key] = level;
+            }
+            frontier = claims.Keys.OrderBy(zone => zone).ToList();
+        }
+        return (owner, hops);
     }
 }
 
