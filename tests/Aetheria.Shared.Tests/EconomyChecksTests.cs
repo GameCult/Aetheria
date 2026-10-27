@@ -383,11 +383,30 @@ public sealed class EconomyChecksTests
         // Fuel is upkeep itself; coke is shared because a good it leads into is.
         var faults = EconomyChecks.ConsumerDemand(f.Cache);
         Assert.Equal(new[] { "recipe:commodity:coke", "recipe:commodity:fuel" }, faults.Select(x => x.Record));
-        Assert.Contains("'fuel' leads into upkeep but no use leads into a consumer good.", faults[1].Message);
+        Assert.Contains("'fuel' leads into Plate and upkeep but no use leads into a consumer good.", faults[1].Message);
 
         f.Good("pot", roles: new[] { ("Casing", 1) });
         f.EditRecipe("commodity:fuel", r => r.Fills.Add("Casing"));
         Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
+    }
+
+    [Fact]
+    public void ConsumerDemandFollowsUpkeepIntoAConsumerGoodAndIntoAFillerOfItsRole()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore");
+        f.Good("coolant", inputs: new[] { ("ore", 1) });
+        Assert.Equal(new[] { "recipe:commodity:coolant" }, DemandRecords(f));
+
+        // The refrigerator is a consumer good (a commodity made from roles) that takes coolant as upkeep: coolant leads into it.
+        f.Good("fridge", roles: new[] { ("Casing", 1) }, upkeep: new[] { ("coolant", 1) });
+        Assert.Empty(DemandRecords(f));
+
+        // Upkeep taken by a filler of a consumer role leads into that role the same way.
+        f.EditRecipe("commodity:fridge", r => r.Upkeep.Clear());
+        Assert.Equal(new[] { "recipe:commodity:coolant" }, DemandRecords(f));
+        f.Good("gasket", inputs: new[] { ("ore", 1) }, fills: new[] { "Casing" }, upkeep: new[] { ("coolant", 1) });
+        Assert.Empty(DemandRecords(f));
     }
 
     [Fact]

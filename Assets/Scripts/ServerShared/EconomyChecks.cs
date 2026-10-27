@@ -411,7 +411,7 @@ public static class EconomyChecks
     // A processed good owes a consumer use when it is shared (rulings consumer-demand-shared-only, draw-is-one-use). Its uses are
     // the gear or hull roles, and the rounds some weapon draws, that the goods downstream of it (itself included) fill or are; a
     // good used as upkeep is shared too. Shared means two or more such uses, or upkeep. A shared good must lead, through the
-    // chain, into a consumer good or a role one names. A good whose every use is one gear role is exempt like its final assembly.
+    // chain (an input edge or an upkeep edge), into a consumer good or a role one names. A good whose every use is one gear role is exempt like its final assembly.
     // Derived from the recipe graph on every check; depth and distance play no part. Raw goods and the gate count for nothing.
     public static List<EconomyFault> ConsumerDemand(CultCache catalog)
     {
@@ -424,7 +424,7 @@ public static class EconomyChecks
             .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
         var upkeep = new HashSet<string>(recipes.Values.SelectMany(r => r.Upkeep).Select(c => c.Commodity.Key.Value), StringComparer.Ordinal);
         var takenBy = recipes.Values.Where(IsCommodityRecipe)
-            .SelectMany(r => r.Inputs.Select(input => (Input: input.Commodity.Key.Value, Output: r.Output.Key.Value)))
+            .SelectMany(r => r.Inputs.Concat(r.Upkeep).Select(input => (Input: input.Commodity.Key.Value, Output: r.Output.Key.Value)))
             .ToLookup(edge => edge.Input, edge => edge.Output, StringComparer.Ordinal);
         var faults = new List<EconomyFault>();
         foreach (var key in recipes.Keys.OrderBy(k => k, StringComparer.Ordinal))
