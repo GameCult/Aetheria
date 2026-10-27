@@ -417,20 +417,20 @@ public static class EconomyChecks
     {
         var recipes = AllRecipes(catalog).Where(p => catalog.Get(p.Recipe.Output) != null).ToDictionary(p => p.Recipe.Output.Key.Value, p => p.Recipe, StringComparer.Ordinal);
         var drawn = Drawn(catalog);
-        bool IsCommodityKey(string key) => recipes.TryGetValue(key, out var r) && Recipes.IsCommodity(catalog.Get(r.Output));
+        bool IsCommodityRecipe(RecipeData r) => Recipes.IsCommodity(catalog.Get(r.Output));
         var consumerRoles = new HashSet<string>(recipes.Values.Where(r => Recipes.IsConsumerGood(catalog, r))
             .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
         var gearRoles = new HashSet<string>(recipes.Values.Where(r => !Recipes.IsCommodity(catalog.Get(r.Output)))
             .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
         var upkeep = new HashSet<string>(recipes.Values.SelectMany(r => r.Upkeep).Select(c => c.Commodity.Key.Value), StringComparer.Ordinal);
-        var takenBy = recipes.Values.Where(r => IsCommodityKey(r.Output.Key.Value))
+        var takenBy = recipes.Values.Where(IsCommodityRecipe)
             .SelectMany(r => r.Inputs.Select(input => (Input: input.Commodity.Key.Value, Output: r.Output.Key.Value)))
             .ToLookup(edge => edge.Input, edge => edge.Output, StringComparer.Ordinal);
         var faults = new List<EconomyFault>();
         foreach (var key in recipes.Keys.OrderBy(k => k, StringComparer.Ordinal))
         {
             var recipe = recipes[key];
-            if (!IsCommodityKey(key) || Recipes.IsRaw(catalog, recipe) || Recipes.IsConsumerGood(catalog, recipe)) continue;
+            if (!IsCommodityRecipe(recipe) || Recipes.IsRaw(catalog, recipe) || Recipes.IsConsumerGood(catalog, recipe)) continue;
             var reached = new HashSet<string>(StringComparer.Ordinal) { key };
             var open = new Stack<string>(reached);
             while (open.Count > 0)

@@ -377,14 +377,16 @@ public sealed class EconomyChecksTests
         using var f = new EconomyFixture();
         f.Good("ore");
         f.Good("coke", inputs: new[] { ("ore", 1) });
-        f.Good("plate", inputs: new[] { ("ore", 1) }, fills: new[] { "Plate" }, upkeep: new[] { ("coke", 1) });
+        f.Good("fuel", inputs: new[] { ("coke", 1) });
+        f.Good("plate", inputs: new[] { ("ore", 1) }, fills: new[] { "Plate" }, upkeep: new[] { ("fuel", 1) });
         f.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
-        var fault = Assert.Single(EconomyChecks.ConsumerDemand(f.Cache));
-        Assert.Equal("recipe:commodity:coke", fault.Record);
-        Assert.Contains("'coke' leads into upkeep but no use leads into a consumer good.", fault.Message);
+        // Fuel is upkeep itself; coke is shared because a good it leads into is.
+        var faults = EconomyChecks.ConsumerDemand(f.Cache);
+        Assert.Equal(new[] { "recipe:commodity:coke", "recipe:commodity:fuel" }, faults.Select(x => x.Record));
+        Assert.Contains("'fuel' leads into upkeep but no use leads into a consumer good.", faults[1].Message);
 
         f.Good("pot", roles: new[] { ("Casing", 1) });
-        f.EditRecipe("commodity:coke", r => r.Fills.Add("Casing"));
+        f.EditRecipe("commodity:fuel", r => r.Fills.Add("Casing"));
         Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
     }
 
