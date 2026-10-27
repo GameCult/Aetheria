@@ -526,7 +526,7 @@ public sealed class OreGeographyTests : IDisposable
         var a = Kind(cache, "a", 1f);
         Kind(cache, "b", 1f);
         var twice = Province(cache, "twice", 1, new[] {KindFactor(a, 2f), KindFactor(a, 2f)}, new[] {OreFactor(Ore("iron"), 2f), OreFactor(Ore("iron"), 3f)});
-        var rock = Put(cache, "field-kind:rock", new FieldKindData {Name = "rock", Yields = new List<FieldYield> {Yield("iron", 1f)}});
+        var rock = Put(cache, "field-kind:rock", new FieldKindData {Name = "rock", GenerationWeight = 0f, Yields = new List<FieldYield> {Yield("iron", 1f)}});
         Assert.Equal(5f, FieldKinds.Yield(rock, twice, cache).Single().Amount);
         const int sites = 3000;
         var share = Enumerable.Range(0, sites).Count(i => FieldKinds.Assign($"belt-{i}", cache, twice).Key.Value == "field-kind:a") / (float) sites;
