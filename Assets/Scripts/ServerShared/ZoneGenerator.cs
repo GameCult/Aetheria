@@ -522,12 +522,6 @@ public static class ZoneGenerator
 	public static Faction[] EligibleWandererFactions(Faction[] factions, Faction owner, Faction nearest) =>
 		factions.Where(f => f != owner && f != nearest).ToArray();
 
-	// static float ResourceValue(ref Random random, ZoneGenerationSettings settings, SimpleCommodityData resource, float density)
-	// {
-	// 	return random.NextPowerDistribution(resource.Minimum, resource.Maximum, resource.Exponent,
-	// 		1 / lerp(settings.ResourceDensityMinimum, settings.ResourceDensityMaximum, density));
-	// }
-
 	public static GeneratorPlanet[] GenerateEntities(ZoneGenerationSettings settings, PlanetSettings planetSettings, ref Random random, float mass, float radius, float2 fixedPosition,
 		float rootReach)
 	{

@@ -81,8 +81,7 @@ public abstract class BodyData
     [JsonProperty("mass"), Key(3)]
     public float Mass = 0;
 
-    [CultReference(typeof(SimpleCommodityData), many: true), JsonProperty("resources"), Key(4)]
-    public Dictionary<CultRecordRef<SimpleCommodityData>, float> Resources = new Dictionary<CultRecordRef<SimpleCommodityData>, float>();
+    // MessagePack key 4 belonged to the removed stored Resources; do not reuse it. A belt's yield is derived by FieldKinds.Yield.
 
     [JsonProperty("bodyRadiusMul")] [Key(5)]
     public float BodyRadiusMultiplier = 1;
