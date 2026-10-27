@@ -438,9 +438,10 @@ public sealed class OreGeographyTests : IDisposable
 
     private static Galaxy[] SectorGalaxies()
     {
-        var galaxies = Galaxies(false, OneExitSeeds).ToArray();
-        Assert.True(galaxies.Length >= 50, $"only {galaxies.Length} of {OneExitSeeds} sector galaxies were built");
-        return galaxies;
+        // Every seed builds: a generator exception here is a defect in what these tests cover, never a seed to skip.
+        lock (Built)
+            return Enumerable.Range(1, (int) OneExitSeeds).Select(seed =>
+                Built.TryGetValue((false, (uint) seed), out var known) && known != null ? known : Built[(false, (uint) seed)] = Build(Shared, false, (uint) seed)).ToArray();
     }
 
     [Fact]
@@ -552,7 +553,7 @@ public sealed class OreGeographyTests : IDisposable
     public void DistancesAreOfTheFinalGraph()
     {
         // Built here, not shared: a galaxy another test built first would put the generator's lines under that test's coverage alone.
-        foreach (var galaxy in Enumerable.Range(1, (int) OneExitSeeds).Select(seed => TryBuild(Shared, false, (uint) seed)).Where(galaxy => galaxy != null))
+        foreach (var galaxy in Enumerable.Range(1, (int) OneExitSeeds).Select(seed => Build(Shared, false, (uint) seed)).ToArray())
         {
             var adjacency = AdjacencyOf(galaxy);
             for (var zone = 0; zone < adjacency.Length; zone++)
