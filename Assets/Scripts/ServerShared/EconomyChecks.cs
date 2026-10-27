@@ -79,7 +79,8 @@ public static class EconomyChecks
         StoredRecipes(catalog).Select(pair => (pair.Key, Sound(pair.Recipe)));
 
     private static RecipeData Sound(RecipeData recipe) =>
-        recipe.Inputs != null && recipe.Upkeep != null && recipe.Fills != null && !recipe.Inputs.Contains(null) && !recipe.Upkeep.Contains(null) && !recipe.Fills.Contains(null)
+        recipe.Inputs != null && recipe.Upkeep != null && recipe.Fills != null && recipe.RoleInputs != null
+            && !recipe.Inputs.Contains(null) && !recipe.Upkeep.Contains(null) && !recipe.Fills.Contains(null) && !recipe.RoleInputs.Contains(null)
             ? recipe
             : new RecipeData
             {
@@ -87,8 +88,27 @@ public static class EconomyChecks
                 StationKind = recipe.StationKind, LoreHook = recipe.LoreHook,
                 Inputs = (recipe.Inputs ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
                 Upkeep = (recipe.Upkeep ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
-                Fills = (recipe.Fills ?? new List<string>()).Where(f => f != null).ToList()
+                Fills = (recipe.Fills ?? new List<string>()).Where(f => f != null).ToList(),
+                RoleInputs = (recipe.RoleInputs ?? new List<ItemRole>()).Where(r => r != null).ToList()
             };
+
+    // The designs some faction offers, but a Station or Turret hull, distinct and ordered by key: the designs that need a recipe.
+    private static List<ItemData> OfferedDesigns(CultCache catalog)
+    {
+        var designs = new Dictionary<string, ItemData>(StringComparer.Ordinal);
+        foreach (var product in catalog.GetAll<FactionProductData>().Where(p => LoadoutGenerator.IsOffered(catalog, p)))
+        {
+            var design = catalog.Get(product.Design);
+            if (design == null || (design is HullData hull && (hull.HullType == HullType.Station || hull.HullType == HullType.Turret))) continue;
+            designs.TryAdd(catalog.RefOf(design).Key.Value, design);
+        }
+        return designs.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => pair.Value).ToList();
+    }
+
+    // The roles some design demands: those of every offered design and of every design a recipe makes, recipe or no.
+    private static HashSet<string> DesignRoles(CultCache catalog) =>
+        new HashSet<string>(OfferedDesigns(catalog).Concat(AllRecipes(catalog).Select(p => catalog.Get(p.Recipe.Output)).Where(o => o != null && !Recipes.IsCommodity(o)))
+            .SelectMany(design => Recipes.RolesOf(design)).Select(role => role.Name), StringComparer.Ordinal);
 
     private static IEnumerable<ItemData> Commodities(CultCache catalog) =>
         catalog.GetAll<ItemData>().Where(Recipes.IsCommodity).OrderBy(item => catalog.RefOf(item).Key.Value, StringComparer.Ordinal);
@@ -101,15 +121,9 @@ public static class EconomyChecks
         foreach (var item in Commodities(catalog))
             if (Recipes.RecipeOf(catalog, item) == null)
                 faults.Add(new EconomyFault(LRecipe, catalog.RefOf(item).Key.Value, $"Commodity '{item.Name}' has no recipe.", pending: true));
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var product in catalog.GetAll<FactionProductData>().Where(p => LoadoutGenerator.IsOffered(catalog, p)))
-        {
-            var design = catalog.Get(product.Design);
-            if (design == null || (design is HullData hull && (hull.HullType == HullType.Station || hull.HullType == HullType.Turret))) continue;
-            var key = catalog.RefOf(design).Key.Value;
-            if (seen.Add(key) && Recipes.RecipeOf(catalog, design) == null)
-                faults.Add(new EconomyFault(LRecipe, key, $"Offered design '{design.Name}' has no recipe.", pending: true));
-        }
+        foreach (var design in OfferedDesigns(catalog))
+            if (Recipes.RecipeOf(catalog, design) == null)
+                faults.Add(new EconomyFault(LRecipe, catalog.RefOf(design).Key.Value, $"Offered design '{design.Name}' has no recipe.", pending: true));
         foreach (var market in catalog.GetAll<OutsideMarketData>())
         {
             var marketKey = catalog.RefOf(market).Key.Value;
@@ -125,6 +139,8 @@ public static class EconomyChecks
                 else if (list.Contains(null)) Add(key, $"{name} holds a null entry.");
             if (stored.Fills == null) Add(key, "Fills is null; a recipe holds a list, empty when it fills no role.");
             else if (stored.Fills.Contains(null)) Add(key, "Fills holds a null entry.");
+            if (stored.RoleInputs == null) Add(key, "RoleInputs is null; a recipe holds a list, empty when it takes no role.");
+            else if (stored.RoleInputs.Contains(null)) Add(key, "RoleInputs holds a null entry.");
             var output = catalog.Get(recipe.Output);
             if (output == null) { Add(key, "Output names no item this catalog holds."); continue; }
             if (key != RecipeData.KeyOf(recipe.Output.Key).Value)
@@ -149,8 +165,10 @@ public static class EconomyChecks
                 if (roles.Count == 0) Add(key, "A design's recipe needs a design with at least one role.");
             }
             if (roles.Count > 0 && recipe.Inputs.Count > 0) Add(key, "A role recipe has no Inputs; its inputs are its design's roles.");
-            foreach (var role in roles)
+            if (roles.Count > 0 && recipe.RoleInputs.Count > 0) Add(key, "A role recipe has no RoleInputs; its role inputs are its design's roles.");
+            foreach (var role in Recipes.RoleInputsOf(catalog, recipe))
             {
+                if (string.IsNullOrWhiteSpace(role.Name)) { Add(key, "A role input has an empty name."); continue; }
                 if (role.Count < 1) Add(key, $"Role '{role.Name}' count is below one.");
                 if (Recipes.Fillers(catalog, role.Name).Length == 0) Add(key, $"Role '{role.Name}' has no commodity whose recipe fills it.");
             }
@@ -177,8 +195,8 @@ public static class EconomyChecks
             .SelectMany(design => design.Behaviors.OfType<WeaponData>()).Where(weapon => weapon.AmmoType.IsSet())
             .Select(weapon => weapon.AmmoType.Key.Value), StringComparer.Ordinal);
 
-    // Every commodity has a source (a grounded chain, or a gate that sells it) and a sink (a recipe uses it, a role some design
-    // names, a weapon some offered design carries draws it, or a gate that buys it). A consumer good's sink is judged once needs
+    // Every commodity has a source (a grounded chain, or a gate that sells it) and a sink (a recipe takes it or a role it fills, a role
+    // some design (offered, or made by a recipe) names, a weapon some offered design carries draws it, or a gate that buys it). A consumer good's sink is judged once needs
     // tables exist.
     public static List<EconomyFault> SourceSink(CultCache catalog)
     {
@@ -188,8 +206,8 @@ public static class EconomyChecks
         var grounded = Depths(catalog, sells);
         var recipes = AllRecipes(catalog).ToList();
         var used = new HashSet<string>(recipes.SelectMany(p => p.Recipe.Inputs.Concat(p.Recipe.Upkeep)).Select(c => c.Commodity.Key.Value), StringComparer.Ordinal);
-        var rolesNamed = new HashSet<string>(recipes.Where(p => Recipes.IsRoleRecipe(catalog, p.Recipe))
-            .SelectMany(p => Recipes.RolesOf(catalog.Get(p.Recipe.Output))).Select(r => r.Name), StringComparer.Ordinal);
+        var rolesNamed = DesignRoles(catalog);
+        rolesNamed.UnionWith(recipes.SelectMany(p => Recipes.RoleInputsOf(catalog, p.Recipe)).Select(r => r.Name));
         foreach (var (key, recipe) in recipes)
         {
             var output = catalog.Get(recipe.Output);
@@ -199,7 +217,7 @@ public static class EconomyChecks
                 faults.Add(new EconomyFault(LSource, key, $"'{output.Name}' has no source: no chain of recipes reaches raw goods and no gate sells it."));
             if (Recipes.IsConsumerGood(catalog, recipe)) continue;
             if (!used.Contains(outputKey) && !recipe.Fills.Any(rolesNamed.Contains) && !drawn.Contains(outputKey) && !buys.Contains(outputKey))
-                faults.Add(new EconomyFault(LSource, key, $"'{output.Name}' has no sink: no recipe uses it, no design names a role it fills, no weapon draws it, no gate buys it."));
+                faults.Add(new EconomyFault(LSource, key, $"'{output.Name}' has no sink: no recipe takes it or a role it fills, no design names a role it fills, no weapon draws it, no gate buys it."));
         }
         return faults;
     }
@@ -243,7 +261,7 @@ public static class EconomyChecks
             if (!depth.TryGetValue(input.Commodity.Key.Value, out var d)) return null;
             deepest = Math.Max(deepest, d);
         }
-        foreach (var role in Recipes.RolesOf(catalog.Get(recipe.Output)))
+        foreach (var role in Recipes.RoleInputsOf(catalog, recipe))
         {
             int? shallowest = null;
             foreach (var filler in Recipes.Fillers(catalog, role.Name))
@@ -254,7 +272,7 @@ public static class EconomyChecks
         return deepest + 1;
     }
 
-    // Hawkins-Simon over commodities plus one labour good, at the worst single filler of every role slot: the spectral radius
+    // Hawkins-Simon over commodities plus one labour good, at the worst single filler of every role slot (a recipe's role inputs): the spectral radius
     // of the requirements matrix stays below one however the roles are filled. The worst fill is the spectral simplex
     // (Nesterov and Protasov 2013) on the matrix nudged strictly positive, then the radius of the chosen matrix is taken exactly.
     public static List<EconomyFault> Productive(CultCache catalog, EconomyLoad load = null)
@@ -278,7 +296,7 @@ public static class EconomyChecks
             foreach (var upkeep in recipe.Upkeep)
                 if (index.TryGetValue(upkeep.Commodity.Key.Value, out var row) && upkeep.Count > 0) fixedTerms[row, j] += upkeep.Count * load.UpkeepFactor / recipe.OutputCount;
             fixedTerms[labour, j] = recipe.Workforce * (double) recipe.Cycle * load.WorkforceFactor / recipe.OutputCount;
-            foreach (var role in Recipes.RolesOf(catalog.Get(recipe.Output)))
+            foreach (var role in Recipes.RoleInputsOf(catalog, recipe))
             {
                 var fillers = Recipes.Fillers(catalog, role.Name).Where(k => index.ContainsKey(k.Value)).Select(k => index[k.Value]).ToArray();
                 if (fillers.Length > 0 && role.Count > 0) slots.Add((j, role.Count * load.InputFactor / recipe.OutputCount, fillers));
@@ -411,20 +429,19 @@ public static class EconomyChecks
     // A processed good owes a consumer use when it is shared (rulings consumer-demand-shared-only, draw-is-one-use). Its uses are
     // the gear or hull roles, and the rounds some weapon draws, that the goods downstream of it (itself included) fill or are; a
     // good used as upkeep is shared too. Shared means two or more such uses, or upkeep. A shared good must lead, through the
-    // chain (an input edge or an upkeep edge), into a consumer good or a role one names. A good whose every use is one gear role is exempt like its final assembly.
+    // chain (an input, upkeep or role-input edge: a role input is an edge from each of its fillers), into a consumer good or a role one names. A good whose every use is one gear role is exempt like its final assembly.
     // Derived from the recipe graph on every check; depth and distance play no part. Raw goods and the gate count for nothing.
     public static List<EconomyFault> ConsumerDemand(CultCache catalog)
     {
         var recipes = AllRecipes(catalog).Where(p => catalog.Get(p.Recipe.Output) != null).ToDictionary(p => p.Recipe.Output.Key.Value, p => p.Recipe, StringComparer.Ordinal);
         var drawn = Drawn(catalog);
         bool IsCommodityRecipe(RecipeData r) => Recipes.IsCommodity(catalog.Get(r.Output));
-        var consumerRoles = new HashSet<string>(recipes.Values.Where(r => Recipes.IsConsumerGood(catalog, r))
-            .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
-        var gearRoles = new HashSet<string>(recipes.Values.Where(r => !Recipes.IsCommodity(catalog.Get(r.Output)))
-            .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
+        var gearRoles = DesignRoles(catalog);
         var upkeep = new HashSet<string>(recipes.Values.SelectMany(r => r.Upkeep).Select(c => c.Commodity.Key.Value), StringComparer.Ordinal);
         var takenBy = recipes.Values.Where(IsCommodityRecipe)
-            .SelectMany(r => r.Inputs.Concat(r.Upkeep).Select(input => (Input: input.Commodity.Key.Value, Output: r.Output.Key.Value)))
+            .SelectMany(r => r.Inputs.Concat(r.Upkeep).Select(input => input.Commodity.Key.Value)
+                .Concat(Recipes.RoleInputsOf(catalog, r).SelectMany(role => Recipes.Fillers(catalog, role.Name)).Select(filler => filler.Value))
+                .Select(input => (Input: input, Output: r.Output.Key.Value)))
             .ToLookup(edge => edge.Input, edge => edge.Output, StringComparer.Ordinal);
         var faults = new List<EconomyFault>();
         foreach (var key in recipes.Keys.OrderBy(k => k, StringComparer.Ordinal))
@@ -437,7 +454,7 @@ public static class EconomyChecks
                 foreach (var next in takenBy[open.Pop()])
                     if (reached.Add(next)) open.Push(next);
             var members = reached.Select(k => recipes[k]).ToList();
-            if (members.Any(r => Recipes.IsConsumerGood(catalog, r) || r.Fills.Any(consumerRoles.Contains))) continue;
+            if (members.Any(r => Recipes.IsConsumerGood(catalog, r))) continue;
             var uses = members.SelectMany(r => r.Fills).Where(gearRoles.Contains).Distinct(StringComparer.Ordinal).OrderBy(role => role, StringComparer.Ordinal)
                 .Concat(reached.Where(drawn.Contains).OrderBy(k => k, StringComparer.Ordinal).Select(k => catalog.Get(recipes[k].Output).Name)).ToList();
             var asUpkeep = reached.Any(upkeep.Contains);

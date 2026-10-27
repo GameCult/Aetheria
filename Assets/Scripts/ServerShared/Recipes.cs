@@ -6,9 +6,10 @@ using MessagePack;
 using Newtonsoft.Json;
 
 // How a good is made: one authored record per output, keyed recipe:<output key>, so a second recipe for one output replaces the
-// first. A commodity's recipe says what it takes and which roles it can fill. A role recipe (the output is a design with roles,
-// a ship hull, a piece of gear, a consumer good) restates nothing of the design: its inputs are derived from the design's Roles and
-// their counts, each filled by any commodity whose recipe Fills the role. Station and Turret hulls take no recipe.
+// first. A commodity's recipe takes named commodities (Inputs) and roles (RoleInputs), each role filled by any commodity whose
+// recipe Fills it, and says which roles it can fill. A role recipe (the output is a design with roles, a ship hull, a piece of
+// gear, a consumer good) restates nothing of the design: its role inputs are the design's Roles and their counts. Station and
+// Turret hulls take no recipe.
 [CultDocument("aetheria.recipedata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class RecipeData
 {
@@ -45,6 +46,11 @@ public class RecipeData
     // The roles of a design this commodity can fill. Only a commodity's recipe has any.
     [JsonProperty("fills"), Key(8)]
     public List<string> Fills = new List<string>();
+
+    // Roles one cycle consumes, any filler will do and the facility picks (ruling ores-fill-metal-roles). Empty on a role recipe;
+    // records written before key 9 read it as empty.
+    [JsonProperty("roleInputs"), Key(9)]
+    public List<ItemRole> RoleInputs = new List<ItemRole>();
 
     public static CultRecordKey KeyOf(CultRecordKey outputKey) => new CultRecordKey("recipe:" + outputKey.Value);
 }
@@ -92,7 +98,8 @@ public class OutsideMarketRow
     public float RatePerHour;
 }
 
-// The one reader of recipes: which recipe makes a good, which commodities fill a role, and what a good is by its recipe.
+// The one reader of recipes: which recipe makes a good, a recipe's role slots (RoleInputsOf), which commodities fill a role, and
+// what a good is by its recipe.
 public static class Recipes
 {
     public static RecipeData RecipeOf(CultCache catalog, ItemData item) =>
@@ -110,8 +117,12 @@ public static class Recipes
         return output is CraftedItemData && RolesOf(output).Count > 0;
     }
 
-    // Raw: no inputs and not a role recipe. Everything else is processed. Derived, never stored.
-    public static bool IsRaw(CultCache catalog, RecipeData recipe) => recipe.Inputs.Count == 0 && !IsRoleRecipe(catalog, recipe);
+    // The one reader of a recipe's role slots: the design's Roles for a role recipe, else the recipe's RoleInputs.
+    public static IReadOnlyList<ItemRole> RoleInputsOf(CultCache catalog, RecipeData recipe) =>
+        IsRoleRecipe(catalog, recipe) ? RolesOf(catalog.Get(recipe.Output)) : (IReadOnlyList<ItemRole>) recipe.RoleInputs ?? new List<ItemRole>();
+
+    // Raw: takes no commodity and no role. Everything else is processed. Derived, never stored.
+    public static bool IsRaw(CultCache catalog, RecipeData recipe) => recipe.Inputs.Count == 0 && RoleInputsOf(catalog, recipe).Count == 0;
 
     // A commodity made by a role recipe: it is assembled from the same components gear is.
     public static bool IsConsumerGood(CultCache catalog, RecipeData recipe) =>
