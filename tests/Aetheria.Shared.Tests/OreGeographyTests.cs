@@ -407,6 +407,242 @@ public sealed class OreGeographyTests : IDisposable
         Assert.True(checkedBosses >= 4, $"only {checkedBosses} boss zones were exercised");
     }
 
+    // ---- one exit per region
+
+    private const uint OneExitSeeds = 60;
+
+    private static int[][] Without(int[][] adjacency, params (int, int)[] removed) =>
+        adjacency.Select((next, zone) => next.Where(other => !removed.Contains((zone, other)) && !removed.Contains((other, zone))).ToArray()).ToArray();
+
+    private static int[] Hops(int[][] adjacency, int from)
+    {
+        var hops = Enumerable.Repeat(-1, adjacency.Length).ToArray();
+        hops[from] = 0;
+        var queue = new Queue<int>(new[] {from});
+        while (queue.Count > 0)
+        {
+            var zone = queue.Dequeue();
+            foreach (var next in adjacency[zone])
+                if (hops[next] < 0)
+                {
+                    hops[next] = hops[zone] + 1;
+                    queue.Enqueue(next);
+                }
+        }
+        return hops;
+    }
+
+    private static int[] ExitPathOf(Galaxy galaxy) => galaxy.ExitPath.Select(zone => Array.IndexOf(galaxy.Zones, zone)).ToArray();
+
+    private static int[] OtherBosses(Galaxy galaxy) => BossesOf(galaxy).Distinct().Where(boss => boss != ExitOf(galaxy)).ToArray();
+
+    private static Galaxy[] SectorGalaxies()
+    {
+        // Every seed builds: a generator exception here is a defect in what these tests cover, never a seed to skip.
+        lock (Built)
+            return Enumerable.Range(1, (int) OneExitSeeds).Select(seed =>
+                Built.TryGetValue((false, (uint) seed), out var known) && known != null ? known : Built[(false, (uint) seed)] = Build(Shared, false, (uint) seed)).ToArray();
+    }
+
+    [Fact]
+    public void EveryBossZoneHasOneExit()
+    {
+        var checkedBosses = 0;
+        foreach (var galaxy in SectorGalaxies())
+        {
+            var adjacency = AdjacencyOf(galaxy);
+            var exit = ExitOf(galaxy);
+            var entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance);
+            var crossing = Provinces.CrossingLinks(adjacency, BossesOf(galaxy), exit);
+            foreach (var boss in OtherBosses(galaxy))
+            {
+                var exits = crossing.Where(link => link.Boss == boss).ToArray();
+                Assert.Single(exits);
+                Assert.False(ReachableAvoiding(Without(adjacency, (boss, exits[0].Far)), entrance, -1)[exit]);
+                checkedBosses++;
+            }
+            Assert.Empty(Provinces.ExtraExits(adjacency, BossesOf(galaxy), exit, ExitPathOf(galaxy)));
+        }
+        Assert.True(checkedBosses >= 40, $"only {checkedBosses} boss zones were exercised");
+    }
+
+    [Fact]
+    public void TheFarSideStaysConnected()
+    {
+        foreach (var galaxy in SectorGalaxies())
+        {
+            var adjacency = AdjacencyOf(galaxy);
+            var exit = ExitOf(galaxy);
+            var entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance);
+            Assert.All(Hops(adjacency, entrance), hops => Assert.True(hops >= 0));
+            var path = ExitPathOf(galaxy);
+            foreach (var boss in OtherBosses(galaxy))
+            {
+                // Without the boss zone the graph is exactly two components: the entrance's, and the exit's holding every later boss.
+                var near = ReachableAvoiding(adjacency, entrance, boss);
+                var far = ReachableAvoiding(adjacency, exit, boss);
+                for (var zone = 0; zone < adjacency.Length; zone++)
+                    if (zone != boss) Assert.True(near[zone] ^ far[zone], $"zone {zone} is on neither or both sides of boss zone {boss}");
+                foreach (var later in OtherBosses(galaxy).Where(other => Array.IndexOf(path, other) > Array.IndexOf(path, boss)))
+                    Assert.True(far[later]);
+            }
+            Assert.Equal(OtherBosses(galaxy).Length + 1, RegionsOf(galaxy).Distinct().Count());
+        }
+    }
+
+    [Fact]
+    public void LinksStaySymmetric()
+    {
+        foreach (var galaxy in SectorGalaxies())
+        {
+            var adjacency = AdjacencyOf(galaxy);
+            for (var zone = 0; zone < adjacency.Length; zone++)
+            {
+                Assert.Equal(adjacency[zone].Length, adjacency[zone].Distinct().Count());
+                Assert.DoesNotContain(zone, adjacency[zone]);
+                foreach (var next in adjacency[zone]) Assert.Contains(zone, adjacency[next]);
+            }
+        }
+    }
+
+    [Fact]
+    public void ExtraExitsOfHandBuiltGraphs()
+    {
+        // A boss zone with two links into the far side lists both, and ExtraExits spares the one on the exit path.
+        var diamond = Graph(7, (0, 1), (1, 2), (2, 3), (2, 4), (3, 5), (4, 5), (5, 6));
+        Assert.Equal(new[] {(2, 3), (2, 4)}, Provinces.CrossingLinks(diamond, new[] {2}, 6));
+        Assert.Equal(new[] {(2, 4)}, Provinces.ExtraExits(diamond, new[] {2}, 6, new[] {0, 1, 2, 3, 5, 6}));
+        Assert.Equal(new[] {(2, 3)}, Provinces.ExtraExits(diamond, new[] {2}, 6, new[] {0, 1, 2, 4, 5, 6}));
+
+        // Three links: the two off the path are extra.
+        var fan = Graph(8, (0, 1), (1, 2), (2, 3), (2, 4), (2, 5), (3, 6), (4, 6), (5, 6), (6, 7));
+        Assert.Equal(new[] {(2, 3), (2, 4), (2, 5)}, Provinces.CrossingLinks(fan, new[] {2}, 7));
+        Assert.Equal(new[] {(2, 3), (2, 5)}, Provinces.ExtraExits(fan, new[] {2}, 7, new[] {0, 1, 2, 4, 6, 7}));
+
+        // A branch hanging off a boss zone and the link back to the near side are never crossing links.
+        var pendant = Graph(6, (0, 1), (1, 2), (2, 3), (3, 4), (2, 5));
+        Assert.Equal(new[] {(2, 3)}, Provinces.CrossingLinks(pendant, new[] {2}, 4));
+        Assert.Empty(Provinces.ExtraExits(pendant, new[] {2}, 4, new[] {0, 1, 2, 3, 4}));
+
+        // A boss zone that is the exit, or no exit at all, lists nothing; neither does no boss zone. A repeated boss zone counts once.
+        Assert.Empty(Provinces.CrossingLinks(diamond, new[] {6}, 6));
+        Assert.Empty(Provinces.CrossingLinks(diamond, new[] {2}, -1));
+        Assert.Empty(Provinces.ExtraExits(diamond, new[] {2}, -1, new[] {0, 1, 2, 3, 5, 6}));
+        Assert.Empty(Provinces.CrossingLinks(diamond, new int[0], 6));
+        Assert.Equal(2, Provinces.CrossingLinks(diamond, new[] {2, 2}, 6).Length);
+
+        // Two bosses in a line each keep their one link.
+        Assert.Empty(Provinces.ExtraExits(Line(7), new[] {2, 4}, 6, Enumerable.Range(0, 7).ToArray()));
+
+        // Two diamonds in a row: each boss zone keeps its path link, and pruning again finds nothing.
+        var chain = Graph(8, (0, 1), (1, 2), (1, 3), (2, 4), (3, 4), (4, 5), (4, 6), (5, 7), (6, 7));
+        var path = new[] {0, 1, 2, 4, 5, 7};
+        var extra = Provinces.ExtraExits(chain, new[] {4, 1}, 7, path);
+        Assert.Equal(new[] {(1, 3), (4, 6)}, extra);
+        var pruned = Without(chain, extra);
+        Assert.Empty(Provinces.ExtraExits(pruned, new[] {4, 1}, 7, path));
+        Assert.Equal(Provinces.Regions(chain, new[] {4, 1}, 7), Provinces.Regions(pruned, new[] {4, 1}, 7));
+
+        // Crossing links come ordered by far zone whatever order the adjacency lists them in.
+        var shuffled = diamond.Select(next => next.Reverse().ToArray()).ToArray();
+        Assert.Equal(new[] {4, 3, 1}, shuffled[2]);
+        Assert.Equal(new[] {(2, 3), (2, 4)}, Provinces.CrossingLinks(shuffled, new[] {2}, 6));
+        Assert.Equal(new[] {(2, 3)}, Provinces.ExtraExits(shuffled, new[] {2}, 6, new[] {0, 1, 2, 4, 5, 6}));
+
+        // A boss zone at the start of the exit path keeps the link to its successor too.
+        var atStart = Graph(4, (0, 1), (0, 2), (1, 3), (2, 3));
+        Assert.Equal(new[] {(0, 2)}, Provinces.ExtraExits(atStart, new[] {0}, 3, new[] {0, 1, 3}));
+        Assert.Equal(new[] {(0, 1)}, Provinces.ExtraExits(atStart, new[] {0}, 3, new[] {0, 2, 3}));
+
+        // A boss zone off the path, last on it, or followed by a zone it has no crossing link to has no exit to keep: it throws, naming the boss zone.
+        foreach (var broken in new[] {new[] {0, 1, 5, 6}, new[] {0, 1, 2}, new[] {0, 1, 2, 5, 6}})
+            Assert.Contains("boss zone 2", Assert.Throws<InvalidOperationException>(() => Provinces.ExtraExits(diamond, new[] {2}, 6, broken)).Message);
+    }
+
+    [Fact]
+    public void DistancesAreOfTheFinalGraph()
+    {
+        // Built here, not shared: a galaxy another test built first would put the generator's lines under that test's coverage alone.
+        foreach (var galaxy in Enumerable.Range(1, (int) OneExitSeeds).Select(seed => Build(Shared, false, (uint) seed)).ToArray())
+        {
+            var adjacency = AdjacencyOf(galaxy);
+            for (var zone = 0; zone < adjacency.Length; zone++)
+            {
+                var hops = Hops(adjacency, zone);
+                Assert.Equal(hops.Sum(), galaxy.Zones[zone].Isolation);
+                for (var other = 0; other < adjacency.Length; other++)
+                    Assert.Equal(hops[other], galaxy.Zones[zone].Distance[galaxy.Zones[other]]);
+            }
+            // Homes were placed on the pruned graph: each boss mega's boss zone is within its influence of its home.
+            foreach (var pair in galaxy.BossZones)
+                Assert.True(Hops(adjacency, Array.IndexOf(galaxy.Zones, galaxy.HomeZones[pair.Key]))[Array.IndexOf(galaxy.Zones, pair.Value)] <= galaxy.InfluenceOf(pair.Key));
+        }
+    }
+
+    [Fact]
+    public void TheExitPathSurvivesPruning()
+    {
+        foreach (var galaxy in SectorGalaxies())
+        {
+            var adjacency = AdjacencyOf(galaxy);
+            var path = ExitPathOf(galaxy);
+            for (var i = 0; i + 1 < path.Length; i++) Assert.Contains(path[i + 1], adjacency[path[i]]);
+            Assert.All(BossesOf(galaxy), boss => Assert.Contains(boss, path));
+        }
+    }
+
+    [Fact]
+    public void PruningIsDeterministic()
+    {
+        foreach (var seed in new uint[] {1, 7, 23})
+        {
+            var a = TryBuild(Shared, false, seed);
+            var b = TryBuild(Shared, false, seed);
+            Assert.NotNull(a);
+            Assert.Equal(AdjacencyOf(a), AdjacencyOf(b));
+            Assert.Equal(a.Zones.Select(zone => zone.Name), b.Zones.Select(zone => zone.Name));
+            Assert.Equal(Shape(a), Shape(b));
+        }
+    }
+
+    [Fact]
+    public void ASavedBorderIsWhatLoads()
+    {
+        var (cache, _, _) = Shipped();
+        var galaxy = MultiRegionSector(cache);
+        var bosses = OtherBosses(galaxy);
+
+        // Capture then Continue keeps one exit per boss zone.
+        var (game, zones) = Capture(cache, galaxy);
+        var loaded = Continue(cache, game, zones);
+        Assert.Equal(AdjacencyOf(galaxy), AdjacencyOf(loaded));
+        Assert.Equal(bosses.Length, Provinces.CrossingLinks(AdjacencyOf(loaded), BossesOf(loaded), ExitOf(loaded)).Length);
+
+        // A save given a second crossing link loads with it: load never prunes, and the regions are still the bosses and one.
+        var adjacency = AdjacencyOf(galaxy);
+        var boss = bosses[0];
+        var far = Provinces.CrossingLinks(adjacency, BossesOf(galaxy), ExitOf(galaxy)).First(link => link.Boss == boss).Far;
+        var extra = adjacency[far].First(zone => zone != boss && !BossesOf(galaxy).Contains(zone) && !adjacency[boss].Contains(zone));
+        var (older, olderZones) = Capture(cache, galaxy);
+        olderZones[boss].AdjacentZones = olderZones[boss].AdjacentZones.Append(extra).ToArray();
+        olderZones[extra].AdjacentZones = olderZones[extra].AdjacentZones.Append(boss).ToArray();
+        var restored = Continue(cache, older, olderZones);
+        Assert.Equal(2, Provinces.CrossingLinks(AdjacencyOf(restored), BossesOf(restored), ExitOf(restored)).Count(link => link.Boss == boss));
+        Assert.Contains(restored.Zones[extra], restored.Zones[boss].AdjacentZones);
+        Assert.Equal(bosses.Length + 1, RegionsOf(restored).Distinct().Count());
+    }
+
+    [Fact]
+    public void ThePreludeIsNotPruned()
+    {
+        var (cache, _, _) = Shipped();
+        var galaxy = Enumerable.Range(1, 25).Select(seed => TryBuild(cache, true, (uint) seed, Cast(Provinces.DefaultZonesPerProvince))).First(g => g != null);
+        Assert.Empty(galaxy.BossZones);
+        var before = AdjacencyOf(galaxy);
+        galaxy.PlaceGate(galaxy.ResolveFaction(DemoTerminus.Cast.AntagonistFaction));
+        Assert.Equal(before, AdjacencyOf(galaxy));
+    }
+
     // ---- provinces
 
     [Fact]
