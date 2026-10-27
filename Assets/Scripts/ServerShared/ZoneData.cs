@@ -282,20 +282,27 @@ public static class Provinces
     // Zones per province when a settings object does not say (SectorGenerationSettings.ProvinceZones): calibration, not a rule.
     public const int DefaultZonesPerProvince = 8;
 
-    // Each zone's region, named by the region's least zone index. A boss zone sits on the near side of its border: its
-    // crossing links are its links to zones in the component of exit in the graph without it, and cutting every boss zone's
-    // crossing links leaves the regions as the connected components. Every zone, boss zones included, is in exactly one.
-    // exit unset (-1), or a boss zone that is the exit, cuts nothing.
-    public static int[] Regions(int[][] adjacency, IReadOnlyCollection<int> bossZones, int exit)
+    // A boss zone sits on the near side of its border: its crossing links are its links to zones in the component of exit in
+    // the graph without it. The one definition, read by Regions (which cuts them) and ExtraExits (which prunes all but one).
+    // exit unset (-1) gives none, and a boss zone that is the exit has none. Ordered by boss, then far zone.
+    public static (int Boss, int Far)[] CrossingLinks(int[][] adjacency, IReadOnlyCollection<int> bossZones, int exit)
     {
-        var cut = new HashSet<(int, int)>();
+        var links = new List<(int Boss, int Far)>();
         if (exit >= 0)
-            foreach (var boss in bossZones.Distinct().Where(boss => boss != exit))
+            foreach (var boss in bossZones.Distinct().Where(boss => boss != exit).OrderBy(boss => boss))
             {
                 var exitSide = Flood(adjacency, exit, (a, b) => b != boss);
-                foreach (var next in adjacency[boss])
-                    if (exitSide[next]) cut.Add((Math.Min(boss, next), Math.Max(boss, next)));
+                foreach (var next in adjacency[boss].OrderBy(next => next))
+                    if (exitSide[next]) links.Add((boss, next));
             }
+        return links.ToArray();
+    }
+
+    // Each zone's region, named by the region's least zone index. Cutting every boss zone's crossing links (CrossingLinks)
+    // leaves the regions as the connected components. Every zone, boss zones included, is in exactly one.
+    public static int[] Regions(int[][] adjacency, IReadOnlyCollection<int> bossZones, int exit)
+    {
+        var cut = CrossingLinks(adjacency, bossZones, exit).Select(link => (Math.Min(link.Boss, link.Far), Math.Max(link.Boss, link.Far))).ToHashSet();
 
         var regionOf = new int[adjacency.Length];
         Array.Fill(regionOf, -1);
