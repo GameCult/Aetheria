@@ -96,10 +96,8 @@ public static class EconomyCommand
         output.WriteLine();
         foreach (var recipe in catalog.GetAll<RecipeData>().OrderBy(r => catalog.RefOf(r).Key.Value, StringComparer.Ordinal))
         {
-            var made = catalog.Get(recipe.Output);
-            var takes = Recipes.IsRoleRecipe(catalog, recipe)
-                ? string.Join(", ", Recipes.RolesOf(made).Select(r => $"{r.Count} x {r.Name}"))
-                : string.Join(", ", (recipe.Inputs ?? new List<CommodityCount>()).Where(c => c != null).Select(c => $"{c.Count} x {c.Commodity.Key.Value}"));
+            var takes = string.Join(", ", (recipe.Inputs ?? new List<CommodityCount>()).Where(c => c != null).Select(c => $"{c.Count} x {c.Commodity.Key.Value}")
+                .Concat(Recipes.RoleInputsOf(catalog, recipe).Where(r => r != null).Select(r => $"{r.Count} x {r.Name}")));
             output.WriteLine($"{recipe.Output.Key.Value} <- {(takes.Length == 0 ? "nothing" : takes)} | {catalog.Get(recipe.StationKind)?.Name ?? "no kind"}, cycle {recipe.Cycle}, workforce {recipe.Workforce} | {recipe.LoreHook}");
         }
         return report.Faults.Count == 0 ? 0 : 1;

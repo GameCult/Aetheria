@@ -12,12 +12,14 @@ public sealed class EconomyNullGuardTests
             if (list == "Fills") r.Fills = null;
             if (list == "Inputs") r.Inputs = null;
             if (list == "Upkeep") r.Upkeep = null;
+            if (list == "RoleInputs") r.RoleInputs = null;
         });
 
     [Theory]
     [InlineData("Fills")]
     [InlineData("Inputs")]
     [InlineData("Upkeep")]
+    [InlineData("RoleInputs")]
     public void ANullListIsAnLRecipeFaultNotAThrow(string list)
     {
         using var f = EconomyFixture.Healthy();
@@ -30,6 +32,7 @@ public sealed class EconomyNullGuardTests
     [InlineData("Fills")]
     [InlineData("Inputs")]
     [InlineData("Upkeep")]
+    [InlineData("RoleInputs")]
     public void EveryRuleSurvivesANullList(string list)
     {
         using var f = EconomyFixture.Healthy();
@@ -43,11 +46,23 @@ public sealed class EconomyNullGuardTests
     }
 
     [Fact]
+    public void ANullRoleInputsReadsAsTheListWithoutItAndKeepsTheRestOfTheRecipe()
+    {
+        using var f = EconomyFixture.Healthy();
+        f.EditRecipe("commodity:plate", r => r.RoleInputs = null);
+        Assert.Empty(EconomyChecks.Check(f.Cache).Faults.Where(x => x.Invariant != EconomyChecks.LRecipe));
+    }
+
+    [Fact]
     public void ANullEntryInAListIsAnLRecipeFault()
     {
         using var f = EconomyFixture.Healthy();
         f.EditRecipe("commodity:plate", r => r.Inputs.Add(null));
         var report = EconomyChecks.Check(f.Cache);
         Assert.Contains(report.Faults, x => x.Invariant == EconomyChecks.LRecipe && x.Record == "recipe:commodity:plate" && x.Message.Contains("Inputs"));
+
+        f.EditRecipe("commodity:plate", r => { r.Inputs.Remove(null); r.RoleInputs.Add(null); });
+        report = EconomyChecks.Check(f.Cache);
+        Assert.Contains(report.Faults, x => x.Invariant == EconomyChecks.LRecipe && x.Record == "recipe:commodity:plate" && x.Message.Contains("RoleInputs"));
     }
 }
