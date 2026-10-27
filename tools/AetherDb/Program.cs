@@ -76,7 +76,7 @@ public static class Program
                 if (apply) db.Cache.FlushAsync().GetAwaiter().GetResult();
                 return code;
             }
-            case "economy": return EconomyCommand.Run(args.Skip(1).ToArray());
+            case "economy": return EconomyCommand.Run(args.Skip(1).ToArray(), Console.Out);
             case "auto-guns": return AutoGunsCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:

@@ -263,7 +263,65 @@ public sealed class EconomyCommandTests
     }
 
     [Fact]
-    public void AnUnknownSubcommandFails() => Assert.Equal(1, EconomyCommand.Run(new[] { "bogus" }));
+    public void AnUnknownSubcommandFails()
+    {
+        var output = new StringWriter();
+        Assert.Equal(1, EconomyCommand.Run(new[] { "bogus" }, output));
+        Assert.Contains("economy report | author", output.ToString());
+    }
+
+    [Fact]
+    public void ReportOnTheShippedCatalogGoesToTheGivenWriterAndNeverToConsole()
+    {
+        using var db = AetherDb.Open();
+        var expected = new StringWriter();
+        var expectedCode = EconomyCommand.Report(db.Cache, expected);
+        var console = new StringWriter();
+        var previous = Console.Out;
+        Console.SetOut(console);
+        var output = new StringWriter();
+        int code;
+        try { code = EconomyCommand.Run(new[] { "report" }, output); }
+        finally { Console.SetOut(previous); }
+        Assert.Equal(expectedCode, code);
+        Assert.NotEmpty(expected.ToString());
+        Assert.Equal(expected.ToString(), output.ToString());
+        Assert.Empty(console.ToString());
+    }
+
+    [Fact]
+    public void AnAuthorDryRunReadsTheShippedCatalogAndLeavesItByteIdentical()
+    {
+        var path = Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc");
+        var before = File.ReadAllBytes(path);
+        var expected = new StringWriter();
+        var expectedCode = EconomyCommand.Author(path, new EconomyBatch[] { new Munitions() }, false, expected);
+        var console = new StringWriter();
+        var previous = Console.Out;
+        Console.SetOut(console);
+        var output = new StringWriter();
+        int code;
+        try { code = EconomyCommand.Run(new[] { "author", "Munitions" }, output); }
+        finally { Console.SetOut(previous); }
+        Assert.Equal(expectedCode, code);
+        Assert.NotEmpty(expected.ToString());
+        Assert.Equal(expected.ToString(), output.ToString());
+        Assert.Empty(console.ToString());
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void AnUnknownBatchNameIsRefusedWithoutEchoingIt()
+    {
+        var output = new StringWriter();
+        Assert.Equal(1, EconomyCommand.Run(new[] { "author", "CANARY-9f2e-batch", "other-canary" }, output));
+        var text = output.ToString();
+        Assert.Contains("2 of the names given match no batch.", text);
+        foreach (var batch in typeof(EconomyBatch).Assembly.GetTypes().Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(EconomyBatch))))
+            Assert.Contains(batch.Name, text);
+        Assert.DoesNotContain("CANARY", text);
+        Assert.DoesNotContain("9f2e", text);
+    }
 
     private static CultRecordKey K(string id) => new CultRecordKey(EconomyFixture.Key(id));
 
@@ -446,6 +504,26 @@ public sealed class EconomyCommandTests
         Assert.Equal(0, code);
         Assert.Contains("L-productive", output);
         Assert.Contains("Wrote 1 records", output);
+    }
+
+    [Fact]
+    public void AHeldCycleWhoseRadiusRisesByLessThanABillionthIsRefused()
+    {
+        using var f = HeldLoop();
+        Flush(f);
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        // loopb takes 2000000001 loopa per 1000000000 loopb: the cycle's radius rises from sqrt 2 by about 2.5e-10 relative.
+        var code = Author(f, true, out var output, a =>
+        {
+            var key = RecipeData.KeyOf(K("loopb"));
+            var recipe = a.Catalog.Get<RecipeData>(key);
+            recipe.OutputCount = 1000000000;
+            recipe.Inputs = new List<CommodityCount> { new CommodityCount { Commodity = EconomyFixture.Item(EconomyFixture.Key("loopa")), Count = 2000000001 } };
+            a.Put(recipe, key);
+        });
+        Assert.Equal(1, code);
+        Assert.Contains("L-productive", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
     }
 
     [Fact]

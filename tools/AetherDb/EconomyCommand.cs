@@ -61,12 +61,12 @@ public static class EconomyCommand
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
     private const string Usage = "economy report | author <batch>... [apply]\nA batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
 
-    public static int Run(string[] args)
+    public static int Run(string[] args, TextWriter output)
     {
         if (args.Length > 0 && args[0] == "report")
         {
             using var db = AetherDb.Open();
-            return Report(db.Cache, Console.Out);
+            return Report(db.Cache, output);
         }
         if (args.Length > 1 && args[0] == "author")
         {
@@ -77,13 +77,13 @@ public static class EconomyCommand
             var unknown = names.Where(n => known.All(t => !string.Equals(t.Name, n, StringComparison.OrdinalIgnoreCase))).ToArray();
             if (unknown.Length > 0 || names.Length == 0)
             {
-                Console.WriteLine($"No batch named {string.Join(", ", unknown)}. Batches: {string.Join(", ", known.Select(t => t.Name))}");
+                output.WriteLine($"{unknown.Length} of the names given match no batch. Batches: {string.Join(", ", known.Select(t => t.Name))}");
                 return 1;
             }
             var batches = names.Select(n => (EconomyBatch) Activator.CreateInstance(known.Single(t => string.Equals(t.Name, n, StringComparison.OrdinalIgnoreCase)))).ToList();
-            return Author(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), batches, apply, Console.Out);
+            return Author(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), batches, apply, output);
         }
-        Console.WriteLine(Usage);
+        output.WriteLine(Usage);
         return 1;
     }
 
@@ -225,6 +225,9 @@ public static class EconomyCommand
     private static string Held(string verb, Exception e) =>
         $"The batches are refused: Aetheria.cc could not be {verb} ({e.Message}). Something holds the file: close Unity and any other editor or tool that has it open, then run again. The catalog is unchanged.";
 
+    // A held cycle's radius may rise by this fraction without being a worse fault: it is float noise from rebuilding the same graph.
+    private const double RiseNoise = 1e-12;
+
     // A fault is the same fault by rule, record and message, so fixing one fault on a record cannot hide a new one there. L-productive
     // is one fault per cycle: its identity is the cycle's member set, and the same cycle with a higher radius is a worse fault.
     private static string Identity(EconomyFault fault) =>
@@ -235,7 +238,7 @@ public static class EconomyCommand
         // "No recipe" is pending for a commodity that had none; it refuses where the batch took away a recipe the catalog held.
         if (fault.Pending) return recipesHeld.Contains(RecipeData.KeyOf(new CultRecordKey(fault.Record)).Value);
         if (!held.TryGetValue(Identity(fault), out var was)) return true;
-        return fault.Members != null && fault.Radius > was.Radius + 1e-9;
+        return fault.Members != null && fault.Radius > was.Radius * (1 + RiseNoise);
     }
 
     private static readonly MessagePackSerializerOptions Wire = CultDocumentMessagePackSerialization.OptionsFor(typeof(ItemData).Assembly);
