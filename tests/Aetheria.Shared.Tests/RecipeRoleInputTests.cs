@@ -135,6 +135,23 @@ public sealed class RecipeRoleInputTests
     }
 
     [Fact]
+    public void ADesignWithARecipeNamesItsRolesOfferedOrNot()
+    {
+        using var f = Casings(g => g.Gear("shell", new[] { ("Casing", 1) }, offered: false));
+        Assert.DoesNotContain(EconomyChecks.SourceSink(f.Cache), x => x.Record == "recipe:" + EconomyFixture.Key("cap") && x.Message.Contains("no sink"));
+        Assert.Equal(new[] { "recipe:" + EconomyFixture.Key("alloy") }, Records(EconomyChecks.ConsumerDemand(f.Cache), EconomyChecks.LDemand));
+    }
+
+    [Fact]
+    public void OfferedDesignsWithoutARecipeAreFaultedInKeyOrder()
+    {
+        using var f = EconomyFixture.Healthy();
+        f.Gear("zeta", new[] { ("Plate", 1) }, recipe: false);
+        f.Gear("alpha", new[] { ("Plate", 1) }, recipe: false);
+        Assert.Equal(new[] { "gear:alpha", "gear:zeta" }, EconomyChecks.Recipe(f.Cache).Select(x => x.Record));
+    }
+
+    [Fact]
     public void AnOfferedDesignWithoutARecipeStillNamesItsRoles()
     {
         using (var offered = Casings(f => f.Gear("shell", new[] { ("Casing", 1) }, recipe: false)))

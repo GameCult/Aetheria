@@ -259,6 +259,10 @@ public sealed class EconomyCommandTests
         var withRole = new StringWriter();
         EconomyCommand.Report(f.Cache, withRole);
         Assert.Contains("commodity:steel <- 2 x OreRole | Mill", withRole.ToString());
+        f.EditRecipe("commodity:steel", r => r.Inputs.Add(new CommodityCount { Commodity = EconomyFixture.Item("commodity:ore"), Count = 1 }));
+        var both = new StringWriter();
+        EconomyCommand.Report(f.Cache, both);
+        Assert.Contains("commodity:steel <- 1 x commodity:ore, 2 x OreRole | Mill", both.ToString());
         Assert.Contains("gear:laser <- 2 x Plate | Mill", withRole.ToString());
         Assert.True(text.IndexOf("commodity:ore <-", StringComparison.Ordinal) < text.IndexOf("commodity:plate <-", StringComparison.Ordinal));
         Assert.True(text.IndexOf("commodity:plate <-", StringComparison.Ordinal) < text.IndexOf("gear:laser <-", StringComparison.Ordinal));

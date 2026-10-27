@@ -46,6 +46,14 @@ public sealed class EconomyNullGuardTests
     }
 
     [Fact]
+    public void ANullRoleInputsReadsAsTheListWithoutItAndKeepsTheRestOfTheRecipe()
+    {
+        using var f = EconomyFixture.Healthy();
+        f.EditRecipe("commodity:plate", r => r.RoleInputs = null);
+        Assert.Empty(EconomyChecks.Check(f.Cache).Faults.Where(x => x.Invariant != EconomyChecks.LRecipe));
+    }
+
+    [Fact]
     public void ANullEntryInAListIsAnLRecipeFault()
     {
         using var f = EconomyFixture.Healthy();
