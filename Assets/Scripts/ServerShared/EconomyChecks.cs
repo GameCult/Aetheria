@@ -170,12 +170,21 @@ public static class EconomyChecks
             new HashSet<string>(rows.Where(r => r.Buys).Select(r => r.Commodity.Key.Value), StringComparer.Ordinal));
     }
 
+    // The commodities an offered design's weapon draws as ammunition. One reader, shared by the sink and the consumer-demand rules.
+    private static HashSet<string> Drawn(CultCache catalog) =>
+        new HashSet<string>(catalog.GetAll<FactionProductData>().Where(p => LoadoutGenerator.IsOffered(catalog, p))
+            .Select(p => catalog.Get(p.Design) as EquippableItemData).Where(design => design?.Behaviors != null)
+            .SelectMany(design => design.Behaviors.OfType<WeaponData>()).Where(weapon => weapon.AmmoType.IsSet())
+            .Select(weapon => weapon.AmmoType.Key.Value), StringComparer.Ordinal);
+
     // Every commodity has a source (a grounded chain, or a gate that sells it) and a sink (a recipe uses it, a role some design
-    // names, or a gate that buys it). A consumer good's sink is judged once needs tables exist.
+    // names, a weapon some offered design carries draws it, or a gate that buys it). A consumer good's sink is judged once needs
+    // tables exist.
     public static List<EconomyFault> SourceSink(CultCache catalog)
     {
         var faults = new List<EconomyFault>();
         var (sells, buys) = Gate(catalog);
+        var drawn = Drawn(catalog);
         var grounded = Depths(catalog, sells);
         var recipes = AllRecipes(catalog).ToList();
         var used = new HashSet<string>(recipes.SelectMany(p => p.Recipe.Inputs.Concat(p.Recipe.Upkeep)).Select(c => c.Commodity.Key.Value), StringComparer.Ordinal);
@@ -189,8 +198,8 @@ public static class EconomyChecks
             if (!grounded.TryGetValue(outputKey, out var depth) || depth == null)
                 faults.Add(new EconomyFault(LSource, key, $"'{output.Name}' has no source: no chain of recipes reaches raw goods and no gate sells it."));
             if (Recipes.IsConsumerGood(catalog, recipe)) continue;
-            if (!used.Contains(outputKey) && !recipe.Fills.Any(rolesNamed.Contains) && !buys.Contains(outputKey))
-                faults.Add(new EconomyFault(LSource, key, $"'{output.Name}' has no sink: no recipe uses it, no design names a role it fills, no gate buys it."));
+            if (!used.Contains(outputKey) && !recipe.Fills.Any(rolesNamed.Contains) && !drawn.Contains(outputKey) && !buys.Contains(outputKey))
+                faults.Add(new EconomyFault(LSource, key, $"'{output.Name}' has no sink: no recipe uses it, no design names a role it fills, no weapon draws it, no gate buys it."));
         }
         return faults;
     }
@@ -399,36 +408,45 @@ public static class EconomyChecks
         return order;
     }
 
-    // Every processed commodity two or three steps below a gear or hull (its role fillers are one step, the gear-specific final
-    // assemblies, exempt) fills a role some consumer good names, so the shared layer is shared. Raw goods and the gate do not count.
+    // A processed good owes a consumer use when it is shared (rulings consumer-demand-shared-only, draw-is-one-use). Its uses are
+    // the gear or hull roles, and the rounds some weapon draws, that the goods downstream of it (itself included) fill or are; a
+    // good used as upkeep is shared too. Shared means two or more such uses, or upkeep. A shared good must lead, through the
+    // chain, into a consumer good or a role one names. A good whose every use is one gear role is exempt like its final assembly.
+    // Derived from the recipe graph on every check; depth and distance play no part. Raw goods and the gate count for nothing.
     public static List<EconomyFault> ConsumerDemand(CultCache catalog)
     {
         var recipes = AllRecipes(catalog).Where(p => catalog.Get(p.Recipe.Output) != null).ToDictionary(p => p.Recipe.Output.Key.Value, p => p.Recipe, StringComparer.Ordinal);
+        var drawn = Drawn(catalog);
+        bool IsCommodityKey(string key) => recipes.TryGetValue(key, out var r) && Recipes.IsCommodity(catalog.Get(r.Output));
         var consumerRoles = new HashSet<string>(recipes.Values.Where(r => Recipes.IsConsumerGood(catalog, r))
             .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
-        HashSet<string> Below(IEnumerable<string> keys)
+        var gearRoles = new HashSet<string>(recipes.Values.Where(r => !Recipes.IsCommodity(catalog.Get(r.Output)) && Recipes.IsRoleRecipe(catalog, r))
+            .SelectMany(r => Recipes.RolesOf(catalog.Get(r.Output))).Select(role => role.Name), StringComparer.Ordinal);
+        var upkeep = new HashSet<string>(recipes.Values.SelectMany(r => r.Upkeep).Select(c => c.Commodity.Key.Value), StringComparer.Ordinal);
+        var takenBy = recipes.Values.Where(r => IsCommodityKey(r.Output.Key.Value))
+            .SelectMany(r => r.Inputs.Select(input => (Input: input.Commodity.Key.Value, Output: r.Output.Key.Value)))
+            .ToLookup(edge => edge.Input, edge => edge.Output, StringComparer.Ordinal);
+        var faults = new List<EconomyFault>();
+        foreach (var key in recipes.Keys.OrderBy(k => k, StringComparer.Ordinal))
         {
-            var next = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var key in keys)
-            {
-                if (!recipes.TryGetValue(key, out var recipe)) continue;
-                foreach (var input in recipe.Inputs) next.Add(input.Commodity.Key.Value);
-                foreach (var role in Recipes.RolesOf(catalog.Get(recipe.Output)))
-                    foreach (var filler in Recipes.Fillers(catalog, role.Name)) next.Add(filler.Value);
-            }
-            return next;
+            var recipe = recipes[key];
+            if (!IsCommodityKey(key) || Recipes.IsRaw(catalog, recipe) || Recipes.IsConsumerGood(catalog, recipe)) continue;
+            var reached = new HashSet<string>(StringComparer.Ordinal) { key };
+            var open = new Stack<string>(reached);
+            while (open.Count > 0)
+                foreach (var next in takenBy[open.Pop()])
+                    if (reached.Add(next)) open.Push(next);
+            var members = reached.Select(k => recipes[k]).ToList();
+            if (members.Any(r => Recipes.IsConsumerGood(catalog, r) || r.Fills.Any(consumerRoles.Contains))) continue;
+            var uses = members.SelectMany(r => r.Fills).Where(gearRoles.Contains).Distinct(StringComparer.Ordinal).OrderBy(role => role, StringComparer.Ordinal)
+                .Concat(reached.Where(drawn.Contains).OrderBy(k => k, StringComparer.Ordinal).Select(k => catalog.Get(recipes[k].Output).Name)).ToList();
+            var asUpkeep = reached.Any(upkeep.Contains);
+            if (asUpkeep) uses.Add("upkeep");
+            if (uses.Count < 2 && !asUpkeep) continue;
+            var list = uses.Count == 1 ? uses[0] : string.Join(", ", uses.Take(uses.Count - 1)) + " and " + uses[uses.Count - 1];
+            faults.Add(new EconomyFault(LDemand, RecipeData.KeyOf(new CultRecordKey(key)).Value,
+                $"'{catalog.Get(recipe.Output).Name}' leads into {list} but no use leads into a consumer good."));
         }
-        var deep = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var key in recipes.Where(p => !Recipes.IsCommodity(catalog.Get(p.Value.Output)) && Recipes.IsRoleRecipe(catalog, p.Value)).Select(p => p.Key))
-        {
-            var distance2 = Below(Below(new[] { key }));
-            deep.UnionWith(distance2);
-            deep.UnionWith(Below(distance2));
-        }
-        return deep.OrderBy(key => key, StringComparer.Ordinal)
-            .Where(key => recipes.TryGetValue(key, out var recipe) && Recipes.IsCommodity(catalog.Get(recipe.Output)) && !Recipes.IsRaw(catalog, recipe) && !recipe.Fills.Any(consumerRoles.Contains))
-            .Select(key => new EconomyFault(LDemand, RecipeData.KeyOf(new CultRecordKey(key)).Value,
-                $"'{catalog.Get(recipes[key].Output).Name}' is a processed good below a gear or hull that fills no role a consumer good names."))
-            .ToList();
+        return faults;
     }
 }

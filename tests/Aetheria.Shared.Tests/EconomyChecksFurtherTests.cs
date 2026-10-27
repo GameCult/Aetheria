@@ -24,7 +24,9 @@ public sealed class EconomyChecksFurtherTests
         f.Good("ingot", inputs: new[] { ("slag", 1) });
         f.Good("steel", inputs: new[] { ("ingot", 1) });
         f.Good("barrel", inputs: new[] { ("steel", 1) }, fills: new[] { "Barrel" });
+        f.Good("plate", inputs: new[] { ("steel", 1) }, fills: new[] { "Plate" });
         f.Gear("cannon", new[] { ("Barrel", 1) });
+        f.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
         f.Gear("bare", new[] { ("Barrel", 1) }, recipe: false);
         f.Good("tar", lore: " ");
         f.Good("waste");
@@ -93,7 +95,9 @@ public sealed class EconomyChecksFurtherTests
         f.Good("ore");
         f.Good("steel", inputs: new[] { ("ore", 1), ("ghost", 1) });
         f.Good("barrel", inputs: new[] { ("steel", 1), ("ghost", 1) }, fills: new[] { "Barrel" });
+        f.Good("plate", inputs: new[] { ("steel", 1) }, fills: new[] { "Plate" });
         f.Gear("cannon", new[] { ("Barrel", 1) });
+        f.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
         var faults = EconomyChecks.ConsumerDemand(f.Cache);
         Assert.Equal(new[] { "recipe:commodity:steel" }, faults.Select(x => x.Record));
         Assert.Contains("steel", faults[0].Message);

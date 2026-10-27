@@ -304,47 +304,156 @@ public sealed class EconomyChecksTests
         Assert.Empty(report.Faults);
     }
 
-    private static EconomyFixture Cannon()
+    private static string[] DemandRecords(EconomyFixture f) => EconomyChecks.ConsumerDemand(f.Cache).Select(x => x.Record).ToArray();
+
+    // A gear whose weapon draws the given commodity as ammunition (nothing when draws is null).
+    private static void Rifle(EconomyFixture f, string id, string draws, bool offered = true)
     {
-        var f = new EconomyFixture();
-        f.Good("ore");
-        f.Good("slag", inputs: new[] { ("ore", 1) });
-        f.Good("ingot", inputs: new[] { ("slag", 1) });
-        f.Good("steel", inputs: new[] { ("ingot", 1) });
-        f.Good("barrel", inputs: new[] { ("steel", 1), ("ore", 1) }, fills: new[] { "Barrel" });
-        f.Gear("cannon", new[] { ("Barrel", 1) });
-        return f;
+        var key = f.Gear(id, new[] { ("Frame", 1) }, offered);
+        f.EditItem<GearData>(key, g => g.Behaviors.Add(new InstantWeaponData
+        {
+            AmmoType = draws == null ? default : new CultRecordRef<SimpleCommodityData>(new CultRecordKey(EconomyFixture.Key(draws)))
+        }));
     }
 
     [Fact]
-    public void ConsumerDemandCoversTheSharedLayer()
-    {
-        using var f = Cannon();
-        // barrel is distance 1 (exempt); steel is 2 and ingot 3 (faults); slag is 4 and ore is raw (neither is).
-        var faults = EconomyChecks.ConsumerDemand(f.Cache);
-        Assert.Equal(new[] { "recipe:commodity:ingot", "recipe:commodity:steel" }, faults.Select(x => x.Record));
-        Assert.All(faults, x => Assert.Equal(EconomyChecks.LDemand, x.Invariant));
-
-        f.Good("pot", roles: new[] { ("Casing", 1) });
-        f.EditRecipe("commodity:steel", r => r.Fills.Add("Casing"));
-        Assert.Equal(new[] { "recipe:commodity:ingot" }, EconomyChecks.ConsumerDemand(f.Cache).Select(x => x.Record));
-        f.EditRecipe("commodity:ingot", r => r.Fills.Add("Casing"));
-        Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
-
-        f.Gate(("commodity:slag", true, false), ("commodity:steel", true, false));
-        f.EditRecipe("commodity:steel", r => r.Fills.Clear());
-        Assert.Equal(new[] { "recipe:commodity:steel" }, EconomyChecks.ConsumerDemand(f.Cache).Select(x => x.Record));
-    }
-
-    [Fact]
-    public void ConsumerDemandReadsHullsAsWellAsGear()
+    public void ConsumerDemandExemptsAGoodWhoseUsesLeadIntoOneGearRole()
     {
         using var f = new EconomyFixture();
         f.Good("ore");
         f.Good("ingot", inputs: new[] { ("ore", 1) });
+        f.Good("steel", inputs: new[] { ("ingot", 1) });
+        f.Good("barrel", inputs: new[] { ("steel", 1) }, fills: new[] { "Barrel" });
+        f.Gear("cannon", new[] { ("Barrel", 1) });
+        f.Gear("mortar", new[] { ("Barrel", 2) });
+        Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
+    }
+
+    [Fact]
+    public void ConsumerDemandCoversAGoodThatLeadsIntoTwoGearOrHullRoles()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore");
+        f.Good("slag", inputs: new[] { ("ore", 1) });
+        f.Good("ingot", inputs: new[] { ("slag", 1) });
+        f.Good("barrel", inputs: new[] { ("ingot", 1) }, fills: new[] { "Barrel" });
         f.Good("plate", inputs: new[] { ("ingot", 1) }, fills: new[] { "Plate" });
+        f.Gear("cannon", new[] { ("Barrel", 1) });
         f.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
-        Assert.Equal(new[] { "recipe:commodity:ingot" }, EconomyChecks.ConsumerDemand(f.Cache).Select(x => x.Record));
+        var faults = EconomyChecks.ConsumerDemand(f.Cache);
+        Assert.Equal(new[] { "recipe:commodity:ingot", "recipe:commodity:slag" }, faults.Select(x => x.Record));
+        Assert.All(faults, x => Assert.Equal(EconomyChecks.LDemand, x.Invariant));
+        Assert.Contains("Barrel and Plate", faults[0].Message);
+
+        // A consumer good taking a role that a good downstream of ingot fills clears the chain behind it.
+        f.Good("pot", roles: new[] { ("Casing", 1) });
+        f.EditRecipe("commodity:barrel", r => r.Fills.Add("Casing"));
+        Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
+    }
+
+    [Fact]
+    public void ConsumerDemandIgnoresTheStepWindow()
+    {
+        using var near = new EconomyFixture();
+        near.Good("ore");
+        near.Good("ingot", inputs: new[] { ("ore", 1) }, fills: new[] { "Barrel", "Plate" });
+        near.Gear("cannon", new[] { ("Barrel", 1) });
+        near.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
+        Assert.Equal(new[] { "recipe:commodity:ingot" }, DemandRecords(near));
+
+        using var far = new EconomyFixture();
+        far.Good("ore");
+        far.Good("c1", inputs: new[] { ("ore", 1) });
+        for (var i = 2; i <= 5; i++) far.Good("c" + i, inputs: new[] { ("c" + (i - 1), 1) });
+        far.Good("c6", inputs: new[] { ("c5", 1) }, fills: new[] { "Barrel", "Plate" });
+        far.Gear("cannon", new[] { ("Barrel", 1) });
+        far.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
+        Assert.Equal(new[] { "c1", "c2", "c3", "c4", "c5", "c6" }.Select(id => "recipe:commodity:" + id), DemandRecords(far));
+    }
+
+    [Fact]
+    public void ConsumerDemandCoversAGoodThatLeadsIntoUpkeep()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore");
+        f.Good("coke", inputs: new[] { ("ore", 1) });
+        f.Good("plate", inputs: new[] { ("ore", 1) }, fills: new[] { "Plate" }, upkeep: new[] { ("coke", 1) });
+        f.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
+        var fault = Assert.Single(EconomyChecks.ConsumerDemand(f.Cache));
+        Assert.Equal("recipe:commodity:coke", fault.Record);
+        Assert.Contains("upkeep", fault.Message);
+
+        f.Good("pot", roles: new[] { ("Casing", 1) });
+        f.EditRecipe("commodity:coke", r => r.Fills.Add("Casing"));
+        Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
+    }
+
+    [Fact]
+    public void ConsumerDemandCountsADrawnRoundAsOneUse()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore");
+        f.Good("casing", inputs: new[] { ("ore", 1) });
+        f.Good("round", inputs: new[] { ("casing", 1) });
+        Rifle(f, "rifle", "round");
+        Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
+
+        // Acid also feeds a warhead role: two uses, so it is shared; the casing still feeds only the round.
+        f.Good("acid", inputs: new[] { ("ore", 1) });
+        f.Good("warhead", inputs: new[] { ("acid", 1) }, fills: new[] { "Warhead" });
+        f.Gear("mine", new[] { ("Warhead", 1) });
+        f.EditRecipe("commodity:round", r => r.Inputs.Add(new CommodityCount { Commodity = EconomyFixture.Item(EconomyFixture.Key("acid")), Count = 1 }));
+        var fault = Assert.Single(EconomyChecks.ConsumerDemand(f.Cache));
+        Assert.Equal("recipe:commodity:acid", fault.Record);
+        Assert.Contains("Warhead and round", fault.Message);
+
+        // Without the weapon nothing is drawn, and acid has one use again.
+        f.EditItem<GearData>("gear:rifle", g => g.Behaviors.Clear());
+        Assert.Empty(EconomyChecks.ConsumerDemand(f.Cache));
+    }
+
+    [Fact]
+    public void ConsumerDemandTreatsTheGateAsNoUse()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore");
+        f.Good("ingot", inputs: new[] { ("ore", 1) }, fills: new[] { "Barrel", "Plate" });
+        f.Good("slug", inputs: new[] { ("ore", 1) }, fills: new[] { "Slug" });
+        f.Gear("cannon", new[] { ("Barrel", 1) });
+        f.Gear("sling", new[] { ("Slug", 1) });
+        f.Hull("tug", HullType.Ship, new[] { ("Plate", 1) });
+        f.Gate(("commodity:ingot", true, true), ("commodity:slug", true, true));
+        Assert.Equal(new[] { "recipe:commodity:ingot" }, DemandRecords(f));
+    }
+
+    [Fact]
+    public void SourceSinkCountsAWeaponsDrawAsASink()
+    {
+        static EconomyFault NoSink(EconomyFixture f) =>
+            EconomyChecks.SourceSink(f.Cache).FirstOrDefault(x => x.Record == "recipe:commodity:round" && x.Message.Contains("no sink"));
+        static EconomyFixture Catalog(string draws, bool offered)
+        {
+            var f = new EconomyFixture();
+            f.Good("ore");
+            f.Good("round", inputs: new[] { ("ore", 1) });
+            Rifle(f, "rifle", draws, offered);
+            return f;
+        }
+        using (var drawn = Catalog("round", true)) Assert.Null(NoSink(drawn));
+        using (var unoffered = Catalog("round", false)) Assert.Contains("no weapon draws it", NoSink(unoffered).Message);
+        using (var unset = Catalog(null, true)) Assert.NotNull(NoSink(unset));
+    }
+
+    [Fact]
+    public void ProductiveMembersAreSortedWhileTheMessageKeepsCycleOrder()
+    {
+        using var f = new EconomyFixture();
+        f.Good("loopa", inputs: new[] { ("loopc", 1) });
+        f.Good("loopc", inputs: new[] { ("loopb", 1) });
+        f.Good("loopb", inputs: new[] { ("loopa", 2) });
+        var fault = Assert.Single(EconomyChecks.Productive(f.Cache));
+        Assert.Equal(new[] { "commodity:loopa", "commodity:loopb", "commodity:loopc" }, fault.Members);
+        Assert.Contains("commodity:loopa -> commodity:loopc -> commodity:loopb", fault.Message);
     }
 
     [Fact]
