@@ -6,904 +6,645 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
+using CultMath;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
-using MessagePack;
+using UniRx;
 using Xunit;
 
-// Ore geography (aetheria-living-world, cut ore-geography): regions cut at the links out of boss zones, provinces grown inside
-// them, province types dealt per region from a deck, and the kind draw and ore yields they weight. Galaxies are built the way
-// the game builds them, from the authored settings and the shipped catalog.
-public sealed class OreGeographyTests : IDisposable
+// The demo's goal (aetheria-release, cut boss-gate): the boss zone spawns its faction's boss, and the exit gate opens
+// only when that boss is dead. The boss flies its faction's boss Loadout (cut boss-loadout). Every input is the production one: the demo galaxy, GenerateZone, the Zone death path,
+// and the run save.
+public sealed partial class RunStartTests
 {
-    private static readonly AuthoredSettings Authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
-    private static readonly CultCache Shared = RestoredHullsTests.OpenCatalog();
-    private static readonly Dictionary<(bool, uint), Galaxy> Built = new();
-
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-oregeography-" + Guid.NewGuid().ToString("N"));
-    private readonly List<CultCache> _caches = new();
-    private int _count;
-
-    public OreGeographyTests() => Directory.CreateDirectory(_root);
-
-    public void Dispose()
+    private ZonePack BossZonePack(Galaxy galaxy, ItemManager items, GalaxyZone zone, bool ambient = true, uint seed = 7)
     {
-        foreach (var cache in _caches) cache.Dispose();
-        Directory.Delete(_root, true);
+        items.Random = new CultMath.Random(seed);
+        return ZoneGenerator.GenerateZone(items, _zoneSettings, _planetSettings, galaxy, zone, galaxy.IsPrelude, ambient);
     }
 
-    // ---- fixtures
+    private Zone ZoneOf(Galaxy galaxy, GalaxyZone zone) =>
+        new Zone(_items, _planetSettings, BossZonePack(galaxy, _items, zone), zone, galaxy);
 
-    private (string Catalog, string Run) NewPaths()
+    private static Faction Zhestokost(Galaxy galaxy) => galaxy.Factions.Single(faction => faction.Name == "Zhestokost");
+
+    private ItemManager LoggingItems(List<string> log) =>
+        new ItemManager(_cache, new ProvenanceLedger(), AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings"), log.Add);
+
+    private static string HullName(ItemManager items, EntityPack pack) => items.GetData(pack.Hull).Name;
+
+    private HullData[] SoldShipHulls() => _cache.GetAll<FactionProductData>()
+        .Where(product => product.Manufacturer.IsSet())
+        .Select(product => _cache.Get(product.Design) as HullData)
+        .Where(hull => hull != null && hull.HullType == HullType.Ship && hull.Price > 0)
+        .Distinct().ToArray();
+
+    // A hull no product makes, so the market never offers it: a MessagePack copy of the first sold ship hull by name, renamed. It has
+    // no authored model, which a boss does not need. Stored once; asking again returns the same record.
+    private HullData BossTestHull()
     {
-        var dir = Path.Combine(_root, $"cache{_count++}");
-        Directory.CreateDirectory(dir);
-        return (Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"));
+        var existing = _cache.GetAll<HullData>().FirstOrDefault(hull => hull.Name == "Boss Test Hull");
+        if (existing != null) return existing;
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+        var like = SoldShipHulls().OrderBy(hull => hull.Name, StringComparer.Ordinal).First();
+        var boss = MessagePack.MessagePackSerializer.Deserialize<HullData>(MessagePack.MessagePackSerializer.Serialize(like, options), options);
+        boss.Name = "Boss Test Hull";
+        boss.Prefab = null;
+        boss.Visual = default;
+        return _cache.Get(_cache.Upsert(boss));
     }
 
-    // An empty writable catalog.
-    private CultCache Empty()
+    // A Loadout record at Loadouts.KeyOf(Name), the key Loadouts.Commit writes it under.
+    private void StoreLoadout(Loadout loadout) =>
+        Assert.True(_cache.Commit(batch => batch.Upsert(typeof(Loadout), loadout, Loadouts.KeyOf(loadout.Name))));
+
+    // A boss's fixed Loadout (ruling boss-gear-is-a-loadout), by the production capture: a seed-11 generated fit of the first sold
+    // ship hull by name, captured (Loadouts.Capture), cut down to its weapons so it is smaller than any generated fit (the tractor
+    // pickup and the rest are not in it), moved onto the given hull with no hull product, and stored under its name.
+    private Loadout MakeBossLoadout(HullData hull, string name)
     {
-        var (catalog, run) = NewPaths();
-        var cache = AetheriaStores.Open(catalog, run, catalogWritable: true);
-        _caches.Add(cache);
-        return cache;
+        var like = SoldShipHulls().OrderBy(h => h.Name, StringComparer.Ordinal).First();
+        var random = new CultMath.Random(11);
+        var generator = new LoadoutGenerator(ref random, _items, null, null, null, .5f);
+        var ship = (Ship) EntitySerializer.Unpack(_items, null, generator.GenerateShipLoadout(h => h == like));
+        var fit = Loadouts.Capture(_items, ship, name);
+        var armed = fit.Slots.Select((slot, index) => (slot, index))
+            .Where(entry => _cache.Get(entry.slot.Design).Behaviors.Any(behavior => behavior is WeaponData)).ToArray();
+        Assert.NotEmpty(armed);
+        Assert.True(armed.Length < fit.Slots.Count, "the generated fit needs gear besides weapons for this fixture to tell a Loadout from a fit");
+        var renumbered = armed.Select((entry, number) => (entry.index, number)).ToDictionary(entry => entry.index, entry => entry.number);
+        fit.WeaponGroups = fit.WeaponGroups.Select(group => group.Where(renumbered.ContainsKey).Select(index => renumbered[index]).ToArray()).ToArray();
+        fit.Slots = armed.Select(entry => entry.slot).ToList();
+        fit.Hull = _cache.RefOf(hull);
+        fit.HullProduct = default;
+        StoreLoadout(fit);
+        return fit;
     }
 
-    private static CultCache OpenCopy(string catalog, string run)
+    private static void SetBoss(Faction faction, Loadout loadout) => faction.BossLoadout = new CultRecordRef<Loadout>(Loadouts.KeyOf(loadout.Name));
+
+    // The demo's antagonist gets a boss Loadout on a hull nothing sells: the shipped catalog authors none.
+    private Loadout GiveAntagonistABoss(Galaxy galaxy)
     {
-        var cache = new CultCache(TestCatalog.Registry());
-        cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog, false), AetheriaStores.CatalogTypes);
-        cache.AddBackingStore(new SingleFileMessagePackBackingStore(run), AetheriaStores.RunTypes);
-        return cache;
+        var boss = MakeBossLoadout(BossTestHull(), "Antagonist Boss");
+        SetBoss(Zhestokost(galaxy), boss);
+        return boss;
     }
 
-    // A writable copy of the shipped catalog and a scratch run store.
-    private (CultCache Cache, string Catalog, string Run) Shipped()
+    // What a ship carries, cell by cell, as a Loadout would name it: position, rotation, design, product.
+    private static string[] Cells(ItemManager items, EntityPack pack)
     {
-        var (catalog, run) = NewPaths();
-        File.Copy(TestCatalog.Repo, catalog);
-        var cache = OpenCopy(catalog, run);
-        _caches.Add(cache);
-        return (cache, catalog, run);
+        var captured = Loadouts.Capture(items, (Ship) EntitySerializer.Unpack(items, null, pack), "probe");
+        return captured.Slots.OrderBy(slot => slot.Position.x).ThenBy(slot => slot.Position.y)
+            .Select(slot => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{items.ItemData.Get(slot.Design).Name},{(slot.Product.IsSet() ? items.ItemData.Get(slot.Product).Name : "-")}").ToArray();
     }
 
-    private static CultRecordRef<T> Put<T>(CultCache cache, string key, T document) where T : class
+    private string[] LoadoutCells(Loadout loadout) =>
+        loadout.Slots.OrderBy(slot => slot.Position.x).ThenBy(slot => slot.Position.y)
+            .Select(slot => $"{slot.Position.x},{slot.Position.y},{slot.Rotation},{_cache.Get(slot.Design).Name},{(slot.Product.IsSet() ? _cache.Get(slot.Product).Name : "-")}").ToArray();
+
+    private LoadoutGenerator GeneratorFor(Galaxy galaxy, ItemManager items, Faction faction, uint seed)
     {
-        cache.Commit(batch => batch.Upsert(typeof(T), document, new CultRecordKey(key)));
-        return new CultRecordRef<T>(new CultRecordKey(key));
+        var random = new CultMath.Random(seed);
+        return new LoadoutGenerator(ref random, items, galaxy, galaxy.Exit, faction, .5f);
     }
 
-    private static CultRecordRef<FieldKindData> Kind(CultCache cache, string name, float weight) =>
-        Put(cache, "field-kind:" + name, new FieldKindData { Name = name, CrossSection = 1f, GenerationWeight = weight });
-
-    private static CultRecordRef<ProvinceData> Province(CultCache cache, string name, int cards,
-        ProvinceKindWeight[] kinds = null, ProvinceOre[] ores = null) =>
-        Put(cache, "province:" + name, new ProvinceData
-        {
-            Name = name, GenerationWeight = cards,
-            Kinds = kinds?.ToList() ?? new List<ProvinceKindWeight>(), Ores = ores?.ToList() ?? new List<ProvinceOre>()
-        });
-
-    private static ProvinceKindWeight KindFactor(CultRecordRef<FieldKindData> kind, float weight) => new ProvinceKindWeight {Kind = kind, Weight = weight};
-    private static ProvinceOre OreFactor(CultRecordRef<SimpleCommodityData> ore, float weight) => new ProvinceOre {Commodity = ore, Weight = weight};
-    private static CultRecordRef<SimpleCommodityData> Ore(string name) => new CultRecordRef<SimpleCommodityData>(new CultRecordKey("ore:" + name));
-    private static FieldYield Yield(string ore, float abundance, bool regional = false) => new FieldYield {Commodity = Ore(ore), Abundance = abundance, Regional = regional};
-
-    private static int[][] Graph(int count, params (int, int)[] links)
-    {
-        var adjacency = Enumerable.Range(0, count).Select(_ => new List<int>()).ToArray();
-        foreach (var (a, b) in links)
-        {
-            adjacency[a].Add(b);
-            adjacency[b].Add(a);
-        }
-        return adjacency.Select(list => list.OrderBy(i => i).ToArray()).ToArray();
-    }
-
-    private static int[][] Line(int count) => Graph(count, Enumerable.Range(0, count - 1).Select(i => (i, i + 1)).ToArray());
-
-    private static int[][] AdjacencyOf(Galaxy galaxy) =>
-        galaxy.Zones.Select(zone => zone.AdjacentZones.Select(next => Array.IndexOf(galaxy.Zones, next)).ToArray()).ToArray();
-
-    private static int[] BossesOf(Galaxy galaxy) => galaxy.BossZones.Values.Select(zone => Array.IndexOf(galaxy.Zones, zone)).ToArray();
-
-    private static int ExitOf(Galaxy galaxy) => galaxy.Exit == null ? -1 : Array.IndexOf(galaxy.Zones, galaxy.Exit);
-
-    private static int[] RegionsOf(Galaxy galaxy) => Provinces.Regions(AdjacencyOf(galaxy), BossesOf(galaxy), ExitOf(galaxy));
-
-    private static bool[] ReachableAvoiding(int[][] adjacency, int from, int avoid)
-    {
-        var reached = new bool[adjacency.Length];
-        var stack = new Stack<int>();
-        reached[from] = true;
-        stack.Push(from);
-        while (stack.Count > 0)
-            foreach (var next in adjacency[stack.Pop()])
-                if (next != avoid && !reached[next])
-                {
-                    reached[next] = true;
-                    stack.Push(next);
-                }
-        return reached;
-    }
-
-    private static Galaxy Build(CultCache cache, bool prelude, uint seed, TutorialGenerationSettings cast = null) => prelude
-        ? new Galaxy(cast ?? Authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"), Authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-            cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed)
-        : new Galaxy(Authored.Read<SectorGenerationSettings>("SectorGenerationSettings"), Authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"),
-            cache, _ => { }, null, seed);
-
-    // Galaxy refuses some seeds (RestoredHullsTests calls it seed-dependent flakiness); those are skipped.
-    private static Galaxy TryBuild(CultCache cache, bool prelude, uint seed, TutorialGenerationSettings cast = null)
-    {
-        try { return Build(cache, prelude, seed, cast); }
-        catch (Exception) { return null; }
-    }
-
-    private static Galaxy SharedGalaxy(bool prelude, uint seed)
-    {
-        lock (Built)
-            return Built.TryGetValue((prelude, seed), out var known) ? known : Built[(prelude, seed)] = TryBuild(Shared, prelude, seed);
-    }
-
-    private static IEnumerable<Galaxy> Galaxies(bool prelude, uint last) =>
-        Enumerable.Range(1, (int) last).Select(seed => SharedGalaxy(prelude, (uint) seed)).Where(galaxy => galaxy != null);
-
-    // The demo's cast: the same fixed cast, with the province size chosen.
-    private static TutorialGenerationSettings Cast(int provinceZones)
-    {
-        var cast = DemoTerminus.Cast;
-        return new TutorialGenerationSettings
-        {
-            ProtagonistFaction = cast.ProtagonistFaction, AntagonistFaction = cast.AntagonistFaction, BufferFaction = cast.BufferFaction,
-            NeutralFactions = cast.NeutralFactions, QuestFaction = cast.QuestFaction, ZoneCount = cast.ZoneCount, LinkDensity = cast.LinkDensity,
-            ProvinceZones = provinceZones
-        };
-    }
-
-    private static Galaxy DemoGalaxy(CultCache cache, uint seed, int provinceZones = Provinces.DefaultZonesPerProvince)
-    {
-        var galaxy = TryBuild(cache, true, seed, Cast(provinceZones));
-        galaxy?.PlaceGate(galaxy.ResolveFaction(DemoTerminus.Cast.AntagonistFaction));
-        return galaxy;
-    }
-
-    private static bool ExitIsACutVertex(Galaxy galaxy)
-    {
-        var adjacency = AdjacencyOf(galaxy);
-        var exit = ExitOf(galaxy);
-        var start = Enumerable.Range(0, adjacency.Length).First(zone => zone != exit);
-        return ReachableAvoiding(adjacency, start, exit).Count(reached => reached) < adjacency.Length - 1;
-    }
-
-    private static string[] Shape(Galaxy galaxy) => galaxy.Provinces
-        .Select(province => $"{Array.IndexOf(galaxy.Zones, province.Seed)}:{province.Type.Key.Value}:" +
-                            string.Join(",", province.Zones.Select(zone => Array.IndexOf(galaxy.Zones, zone)).OrderBy(i => i)))
-        .ToArray();
-
-    // The live run as plain documents, as the game writes it, then Continue: Capture, Commit, and a Galaxy from the committed save.
-    private (SavedGame Game, SavedZone[] Zones) Capture(CultCache cache, Galaxy galaxy)
-    {
-        var items = new ItemManager(1u, cache, new ProvenanceLedger(), Authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
-        var zone = new Zone(items, RestoredHullsTests.AuthoredPlanetSettings(), new ZonePack(), galaxy.Entrance, galaxy);
-        return RunSave.Capture(cache, galaxy, zone, null, new SavedActionBarBinding[0], 0);
-    }
-
-    private static Galaxy Continue(CultCache cache, SavedGame game, SavedZone[] zones)
-    {
-        RunSave.Commit(cache, game, zones, new ProvenanceLedger());
-        return new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
-    }
-
-    // ---- the kind draw and the yields
-
-    // The pick as it stood before ore geography, spelled out here: one weighted draw by a stable hash of the site.
-    private static string BasePick(string site, CultCache catalog)
-    {
-        var kinds = catalog.GetAll<FieldKindData>()
-            .Where(kind => kind.GenerationWeight > 0f)
-            .Select(kind => (Key: catalog.RefOf(kind).Key, Weight: kind.GenerationWeight))
-            .OrderBy(kind => kind.Key.Value, StringComparer.Ordinal)
-            .ToArray();
-        if (kinds.Length == 0) return null;
-        var pick = site.StableHash() / 4294967296.0 * kinds.Sum(kind => (double) kind.Weight);
-        foreach (var kind in kinds)
-        {
-            if (pick < kind.Weight) return kind.Key.Value;
-            pick -= kind.Weight;
-        }
-        return kinds[kinds.Length - 1].Key.Value;
-    }
+    // What the pack holds, in order, by hull and faction: two zone packs that drew the same stream hold the same list.
+    private static string[] Roster(ItemManager items, ZonePack pack) =>
+        pack.Entities.Select(entity => $"{HullName(items, entity)}|{(entity.Faction.IsSet() ? entity.Faction.Key.ToString() : "-")}").ToArray();
 
     [Fact]
-    public void NoProvinceTypeIsTodaysPick()
+    public void Boss_spawns_once_in_boss_zone()
     {
-        var cache = Empty();
-        Kind(cache, "a", 1f);
-        Kind(cache, "b", 2f);
-        Kind(cache, "never", 0f);
-        Kind(cache, "c", 3.5f);
-        var dangling = new CultRecordRef<ProvinceData>(new CultRecordKey("province:missing"));
-        var seen = new HashSet<string>();
-        for (var i = 0; i < 2000; i++)
+        foreach (var seed in DemoSeeds.Take(3))
         {
-            var site = $"belt-{i}";
-            var expected = BasePick(site, cache);
-            seen.Add(expected);
-            Assert.Equal(expected, FieldKinds.Assign(site, cache, default).Key.Value);
-            Assert.Equal(expected, FieldKinds.Assign(site, cache, dangling).Key.Value);
-        }
-        Assert.Equal(3, seen.Count);
-        Assert.False(FieldKinds.Assign("belt-0", Empty(), default).IsSet());
-    }
-
-    [Fact]
-    public void AKindWhoseCombinedWeightIsNotPositiveIsNeverDrawn()
-    {
-        var cache = Empty();
-        var negative = Kind(cache, "negative", -1f);
-        Kind(cache, "positive", 1f);
-        var flipped = Province(cache, "flipped", 1, new[] {KindFactor(negative, -1f)});
-        for (var i = 0; i < 500; i++)
-        {
-            Assert.Equal("field-kind:positive", FieldKinds.Assign($"belt-{i}", cache, default).Key.Value);
-            Assert.Equal("field-kind:positive", FieldKinds.Assign($"belt-{i}", cache, flipped).Key.Value);
-        }
-
-        // With nothing positive left the belt has no kind, rather than the negative one.
-        var only = Empty();
-        var lone = Kind(only, "negative", -1f);
-        Assert.False(FieldKinds.Assign("belt-0", only, Province(only, "flipped", 1, new[] {KindFactor(lone, -1f)})).IsSet());
-    }
-
-    [Fact]
-    public void ProvinceWeightsTheKindDraw()
-    {
-        var cache = Empty();
-        var light = Kind(cache, "light", 1f);
-        var middle = Kind(cache, "middle", 2f);
-        Kind(cache, "heavy", 3f);
-        Kind(cache, "never", 0f);
-        var province = Province(cache, "p", 1, new[] {KindFactor(light, 0f), KindFactor(middle, 3f)});
-        var counts = new Dictionary<string, int>();
-        const int sites = 3000;
-        for (var i = 0; i < sites; i++)
-        {
-            var picked = FieldKinds.Assign($"belt-{i}", cache, province).Key.Value;
-            counts[picked] = counts.GetValueOrDefault(picked) + 1;
-        }
-        // light 1 x 0 = 0, middle 2 x 3 = 6, heavy 3 x 1 (unlisted) = 3
-        Assert.Equal(0, counts.GetValueOrDefault("field-kind:light"));
-        Assert.Equal(0, counts.GetValueOrDefault("field-kind:never"));
-        Assert.InRange(counts["field-kind:middle"] / (float) sites, 2f / 3 - .04f, 2f / 3 + .04f);
-        Assert.InRange(counts["field-kind:heavy"] / (float) sites, 1f / 3 - .04f, 1f / 3 + .04f);
-
-        // A province that zeroes every kind leaves the belt without one rather than ignoring it.
-        var barren = Province(cache, "barren", 1, new[] {KindFactor(light, 0f), KindFactor(middle, 0f), KindFactor(new CultRecordRef<FieldKindData>(new CultRecordKey("field-kind:heavy")), 0f)});
-        Assert.False(FieldKinds.Assign("belt-0", cache, barren).IsSet());
-    }
-
-    [Fact]
-    public void YieldScalesAbundanceByProvince()
-    {
-        var cache = Empty();
-        var kind = Put(cache, "field-kind:rock", new FieldKindData
-        {
-            Name = "rock",
-            Yields = new List<FieldYield> {Yield("iron", .5f), Yield("copper", 1f), Yield("copper", 1f), Yield("nothing", 0f), Yield("tin", 1f)}
-        });
-        var province = Province(cache, "p", 1, ores: new[] {OreFactor(Ore("iron"), 4f), OreFactor(Ore("tin"), 0f)});
-
-        var here = FieldKinds.Yield(kind, province, cache);
-        // copper's two entries are summed; iron is .5 x 4; tin is scaled to nothing; the zero-abundance ore is dropped; commodity key order
-        Assert.Equal(new[] {("ore:copper", 2f), ("ore:iron", 2f)}, here.Select(y => (y.Commodity.Key.Value, y.Amount)).ToArray());
-
-        var nowhere = FieldKinds.Yield(kind, default, cache);
-        Assert.Equal(new[] {("ore:copper", 2f), ("ore:iron", .5f), ("ore:tin", 1f)}, nowhere.Select(y => (y.Commodity.Key.Value, y.Amount)).ToArray());
-
-        Assert.Empty(FieldKinds.Yield(default, province, cache));
-        Assert.Empty(FieldKinds.Yield(new CultRecordRef<FieldKindData>(new CultRecordKey("field-kind:missing")), province, cache));
-    }
-
-    [Fact]
-    public void ARegionalOreYieldsOnlyWhereItsProvinceListsIt()
-    {
-        var cache = Empty();
-        var kind = Put(cache, "field-kind:rock", new FieldKindData
-        {
-            Name = "rock",
-            Yields = new List<FieldYield> {Yield("stone", 2f), Yield("iridium", 3f, regional: true)}
-        });
-        var lists = Province(cache, "lists", 1, ores: new[] {OreFactor(Ore("iridium"), 1f)});
-        var silent = Province(cache, "silent", 1);
-
-        string[] Held(CultRecordRef<ProvinceData> province) => FieldKinds.Yield(kind, province, cache).Select(y => y.Commodity.Key.Value).ToArray();
-        Assert.Equal(new[] {"ore:iridium", "ore:stone"}, Held(lists));
-        Assert.Equal(new[] {"ore:stone"}, Held(silent));
-        Assert.Equal(new[] {"ore:stone"}, Held(default));
-        Assert.Equal(3f, FieldKinds.Yield(kind, lists, cache).Single(y => y.Commodity.Key.Value == "ore:iridium").Amount);
-    }
-
-    // ---- regions
-
-    [Fact]
-    public void ARegionIsCutAtTheLinksOutOfABossZone()
-    {
-        // Two boss cut vertices on a path give three regions; each boss zone stays with the zone before it.
-        Assert.Equal(new[] {0, 0, 0, 3, 3, 5, 5}, Provinces.Regions(Line(7), new[] {2, 4}, 6));
-
-        // A boss zone with two links into the far side has both cut, and the far neighbours are one region.
-        var diamond = Graph(7, (0, 1), (1, 2), (2, 3), (2, 4), (3, 5), (4, 5), (5, 6));
-        Assert.Equal(new[] {0, 0, 0, 3, 3, 3, 3}, Provinces.Regions(diamond, new[] {2}, 6));
-
-        // A branch hanging off a boss zone is not on the exit side, so it stays near.
-        var pendant = Graph(6, (0, 1), (1, 2), (2, 3), (3, 4), (2, 5));
-        Assert.Equal(new[] {0, 0, 0, 3, 3, 0}, Provinces.Regions(pendant, new[] {2}, 4));
-
-        // Two adjacent boss zones: the link between them is the first one's crossing link, and the second is alone on its near side.
-        Assert.Equal(new[] {0, 0, 2, 3, 3}, Provinces.Regions(Line(5), new[] {1, 2}, 4));
-
-        // The exit may be zone 0.
-        Assert.Equal(new[] {0, 0, 2, 2, 2}, Provinces.Regions(Line(5), new[] {2}, 0));
-
-        // No boss zone, no exit, or a boss zone that is the exit: nothing is cut.
-        Assert.All(Provinces.Regions(Line(7), new int[0], 6), region => Assert.Equal(0, region));
-        Assert.All(Provinces.Regions(Line(7), new[] {2, 4}, -1), region => Assert.Equal(0, region));
-        Assert.All(Provinces.Regions(Line(7), new[] {6}, 6), region => Assert.Equal(0, region));
-
-        // Every zone is in exactly one region, named by its least zone.
-        var regions = Provinces.Regions(diamond, new[] {2}, 6);
-        for (var zone = 0; zone < regions.Length; zone++)
-        {
-            Assert.True(regions[zone] <= zone);
-            Assert.Equal(regions[zone], regions[regions[zone]]);
-        }
-    }
-
-    [Fact]
-    public void EveryBossZoneIsInTheRegionOfItsEntranceSide()
-    {
-        var checkedBosses = 0;
-        foreach (var galaxy in Galaxies(false, 8))
-        {
-            var adjacency = AdjacencyOf(galaxy);
-            var exit = ExitOf(galaxy);
-            var regionOf = RegionsOf(galaxy);
-            var bosses = BossesOf(galaxy).Distinct().Where(boss => boss != exit).ToArray();
-            foreach (var boss in bosses)
+            var galaxy = DemoGalaxy(seed);
+            GiveAntagonistABoss(galaxy);
+            var antagonist = Zhestokost(galaxy);
+            foreach (var zone in galaxy.Zones)
             {
-                var exitSide = ReachableAvoiding(adjacency, exit, boss);
-                foreach (var next in adjacency[boss])
-                {
-                    if (exitSide[next]) Assert.NotEqual(regionOf[boss], regionOf[next]);
-                    else Assert.Equal(regionOf[boss], regionOf[next]);
-                }
-                checkedBosses++;
-            }
-            Assert.Equal(bosses.Length + 1, regionOf.Distinct().Count());
-        }
-        Assert.True(checkedBosses >= 4, $"only {checkedBosses} boss zones were exercised");
-    }
+                var bosses = BossZonePack(galaxy, _items, zone).Entities.Where(entity => entity.Boss).ToArray();
+                if (zone != galaxy.Exit) { Assert.Empty(bosses); continue; }
 
-    // ---- provinces
-
-    [Fact]
-    public void PartitionIsContiguousCompleteAndInsideRegions()
-    {
-        var galaxies = Galaxies(false, 6).Concat(Galaxies(true, 6)).ToArray();
-        Assert.True(galaxies.Length >= 6);
-        foreach (var galaxy in galaxies)
-        {
-            var regionOf = RegionsOf(galaxy);
-            Assert.All(galaxy.Zones, zone => Assert.NotNull(zone.Province));
-            var members = galaxy.Provinces.SelectMany(province => province.Zones).ToArray();
-            Assert.Equal(galaxy.Zones.Length, members.Length);
-            Assert.Equal(galaxy.Zones.Length, members.Distinct().Count());
-            Assert.Equal(galaxy.Provinces.Select(province => Array.IndexOf(galaxy.Zones, province.Seed)).OrderBy(i => i), galaxy.Provinces.Select(province => Array.IndexOf(galaxy.Zones, province.Seed)));
-            foreach (var province in galaxy.Provinces)
-            {
-                Assert.Contains(province.Seed, province.Zones);
-                Assert.All(province.Zones, zone => Assert.Same(province, zone.Province));
-                var indices = province.Zones.Select(zone => Array.IndexOf(galaxy.Zones, zone)).ToArray();
-                Assert.Single(indices.Select(zone => regionOf[zone]).Distinct());
-                var reached = new HashSet<GalaxyZone> {province.Seed};
-                var stack = new Stack<GalaxyZone>(reached);
-                while (stack.Count > 0)
-                    foreach (var next in stack.Pop().AdjacentZones.Where(next => province.Zones.Contains(next) && reached.Add(next)))
-                        stack.Push(next);
-                Assert.Equal(province.Zones.Length, reached.Count);
+                var boss = Assert.Single(bosses);
+                Assert.IsType<ShipPack>(boss);
+                Assert.Same(antagonist, _cache.Get(boss.Faction));
+                Assert.Equal("Boss Test Hull", HullName(_items, boss));
+                // Generation is repeatable per zone: the same zone yields the same boss hull.
+                var again = Assert.Single(BossZonePack(galaxy, _items, zone).Entities, entity => entity.Boss);
+                Assert.Equal(HullName(_items, boss), HullName(_items, again));
             }
         }
     }
 
+    // A zone that is not ambient still has its boss: the boss is the goal, not traffic.
     [Fact]
-    public void PartitionCountFollowsProvinceZones()
+    public void Boss_spawns_in_a_zone_that_is_not_ambient()
     {
-        int Count(int[][] graph, int[] bosses, int exit, int perProvince, out int[] seedOf)
+        var galaxy = DemoGalaxy(1);
+        GiveAntagonistABoss(galaxy);
+        var pack = BossZonePack(galaxy, _items, galaxy.Exit, ambient: false);
+        Assert.Single(pack.Entities, entity => entity.Boss);
+        Assert.DoesNotContain(pack.Entities, entity => !entity.Boss && entity is ShipPack);
+    }
+
+    // Faction.BossLoadout owns the boss. A decoy Loadout sorts before it by name and by key, so a resolver that takes the first
+    // Loadout in the cache, or any Loadout but the referenced one, flies the wrong hull.
+    [Fact]
+    public void Boss_flies_its_factions_boss_loadout()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var sold = SoldShipHulls().OrderBy(hull => hull.Name, StringComparer.Ordinal).First();
+        StoreLoadout(new Loadout { Name = "Aaa Decoy", Hull = _cache.RefOf(sold) });
+        var loadout = GiveAntagonistABoss(galaxy);
+
+        Assert.Same(_cache.Get(antagonist.BossLoadout), Loadouts.BossOf(_cache, antagonist, out var refusal));
+        Assert.Equal(BossRefusal.None, refusal);
+        Assert.Equal("Antagonist Boss", loadout.Name);
+        var boss = Assert.Single(BossZonePack(galaxy, _items, galaxy.Exit).Entities, entity => entity.Boss);
+        Assert.IsType<ShipPack>(boss);
+        Assert.Same(antagonist, _cache.Get(boss.Faction));
+        Assert.Equal("Boss Test Hull", HullName(_items, boss));
+        var again = Assert.Single(BossZonePack(galaxy, _items, galaxy.Exit).Entities, entity => entity.Boss);
+        Assert.Equal(Cells(_items, boss), Cells(_items, again));
+    }
+
+    // Ruling boss-gear-is-a-loadout: the boss carries exactly its Loadout, nothing drawn. The Loadout is weapons only, so any
+    // pickup, extra gear, cargo or consumable on the boss is a generator pass that should not run.
+    [Fact]
+    public void Boss_carries_exactly_its_loadouts_cells()
+    {
+        var galaxy = DemoGalaxy(1);
+        var loadout = GiveAntagonistABoss(galaxy);
+        Assert.True(loadout.Slots.Count > 1);
+        Assert.All(loadout.Slots, slot => Assert.True(slot.Product.IsSet(), "a captured fit pins every product"));
+
+        foreach (var seed in new uint[] { 7, 8 })
         {
-            var regionOf = Provinces.Regions(graph, bosses, exit);
-            seedOf = Provinces.Partition(graph, regionOf, 7u, perProvince);
-            return seedOf.Distinct().Count();
-        }
+            var items = LoggingItems(new List<string>());
+            var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit, seed: seed).Entities, entity => entity.Boss);
+            Assert.Equal(LoadoutCells(loadout), Cells(items, boss));
+            Assert.All(boss.Equipment, entry => Assert.DoesNotContain(items.GetData(entry.item).Behaviors, behavior => behavior is PickupData));
+            Assert.Empty(boss.CargoContents.SelectMany(bay => bay));
+            Assert.Empty(boss.DockingBayContents.SelectMany(bay => bay));
 
-        Assert.Equal(3, Count(Line(20), new int[0], -1, 8, out _)); // 2.5 rounds up
-        Assert.Equal(2, Count(Line(12), new int[0], -1, 8, out _)); // 1.5 rounds up
-        Assert.Equal(1, Count(Line(5), new int[0], -1, 8, out _)); // a region smaller than ProvinceZones is one province
-        Assert.Equal(5, Count(Line(20), new int[0], -1, 4, out _));
-        Assert.Equal(1, Count(Line(20), new int[0], -1, 100, out _));
-
-        // Per region: a boss zone at 11 on a path of 30 leaves regions of 12 and 18 zones.
-        var path = Line(30);
-        var count = Count(path, new[] {11}, 29, 6, out var seedOf);
-        Assert.Equal(2 + 3, count);
-        Assert.Equal(2, seedOf.Take(12).Distinct().Count());
-        Assert.Equal(3, seedOf.Skip(12).Distinct().Count());
-        Assert.All(seedOf.Distinct(), seed => Assert.Equal(seed, seedOf[seed]));
-    }
-
-    [Fact]
-    public void PartitionIsDeterministic()
-    {
-        var links = new List<(int, int)>();
-        for (var i = 0; i < 36; i++)
-        {
-            if (i % 6 != 5) links.Add((i, i + 1));
-            if (i + 6 < 36) links.Add((i, i + 6));
-        }
-        var grid = Graph(36, links.ToArray());
-        var regionOf = Provinces.Regions(grid, new int[0], -1);
-        var first = Provinces.Partition(grid, regionOf, 1u, 8);
-        Assert.Equal(first, Provinces.Partition(grid, regionOf, 1u, 8));
-        Assert.Equal(first.Distinct().Count(), 5); // 36 / 8 = 4.5 rounds up
-        var differing = Enumerable.Range(2, 30).Count(seed => !Provinces.Partition(grid, regionOf, (uint) seed, 8).SequenceEqual(first));
-        Assert.True(differing > 20, $"only {differing} of 30 other run seeds moved the seeds");
-    }
-
-    [Fact]
-    public void TheDemoGalaxyIsOneRegionOfSeveralProvinces()
-    {
-        var cutVertexExits = 0;
-        var checkedGalaxies = 0;
-        for (uint seed = 1; seed <= 24; seed++)
-        {
-            var galaxy = TryBuild(Shared, true, seed, Cast(Provinces.DefaultZonesPerProvince));
-            if (galaxy == null) continue;
-            checkedGalaxies++;
-            Assert.All(RegionsOf(galaxy), region => Assert.Equal(0, region));
-            Assert.Equal(8, galaxy.Provinces.Length); // 64 zones / 8 per province
-            var before = Shape(galaxy);
-
-            galaxy.PlaceGate(galaxy.ResolveFaction(DemoTerminus.Cast.AntagonistFaction));
-            if (ExitIsACutVertex(galaxy)) cutVertexExits++;
-            // The boss zone is the exit: re-deriving from the saved graph, boss zones and Exit still finds one region, and PlaceGate moved nothing.
-            Assert.All(RegionsOf(galaxy), region => Assert.Equal(0, region));
-            Assert.Equal(before, Shape(galaxy));
-        }
-        Assert.True(checkedGalaxies >= 10);
-        Assert.True(cutVertexExits >= 3, $"only {cutVertexExits} demo galaxies had a cut-vertex Exit, so the case that splits a naive cut went unexercised");
-    }
-
-    [Fact]
-    public void ProvincesTakeNothingFromTheGalaxyStream()
-    {
-        string[] Describe(Galaxy g) => g.Zones.Select((zone, i) =>
-                $"{zone.Name}|{zone.Position.x:R},{zone.Position.y:R}|{string.Join(",", zone.AdjacentZones.Select(next => Array.IndexOf(g.Zones, next)))}|{zone.Owner?.Name}|{string.Join(",", zone.Factions.Select(f => f.Name))}")
-            .Concat(new[]
-            {
-                $"entrance {Array.IndexOf(g.Zones, g.Entrance)}", $"exit {ExitOf(g)}",
-                "bosses " + string.Join(",", g.BossZones.Select(b => $"{b.Key.Name}={Array.IndexOf(g.Zones, b.Value)}")),
-                "homes " + string.Join(",", g.HomeZones.Select(b => $"{b.Key.Name}={Array.IndexOf(g.Zones, b.Value)}"))
-            }).ToArray();
-
-        var (cache, _, _) = Shipped();
-        Province(cache, "one", 2);
-        Province(cache, "two", 1);
-        var compared = 0;
-        foreach (var prelude in new[] {false, true})
-            for (uint seed = 1; seed <= 4; seed++)
-            {
-                var without = SharedGalaxy(prelude, seed);
-                var with = TryBuild(cache, prelude, seed);
-                Assert.Equal(without == null, with == null);
-                if (without == null) continue;
-                Assert.Equal(Describe(without), Describe(with));
-                Assert.All(without.Provinces, province => Assert.False(province.Type.IsSet()));
-                Assert.All(with.Provinces, province => Assert.True(province.Type.IsSet()));
-                compared++;
-            }
-        Assert.True(compared >= 4);
-    }
-
-    [Fact]
-    public void PartitionSeedsAreTheLeastHashThenTheFarthestAndTiesGoToTheEarlierSeed()
-    {
-        var line = Line(9);
-        var regionOf = Provinces.Regions(line, new int[0], -1);
-        var zones = Enumerable.Range(0, 9).ToArray();
-        var tied = 0;
-        for (uint seed = 1; seed <= 60; seed++)
-        {
-            uint Hash(int zone) => $"{seed}:province-seed:{zone}".StableHash();
-            var first = zones.OrderBy(Hash).ThenBy(zone => zone).First();
-            var reach = zones.Max(zone => Math.Abs(zone - first));
-            var second = zones.Where(zone => Math.Abs(zone - first) == reach).OrderBy(Hash).First();
-            if (zones.Any(zone => Math.Abs(zone - first) == Math.Abs(zone - second))) tied++;
-            // 9 zones at 5 per province is two seeds; a zone midway between them goes to the first.
-            var expected = zones.Select(zone => Math.Abs(zone - first) <= Math.Abs(zone - second) ? first : second).ToArray();
-            Assert.Equal(expected, Provinces.Partition(line, regionOf, seed, 5));
-            // One province: the seed is the least hash.
-            Assert.All(Provinces.Partition(line, regionOf, seed, 100), seedOf => Assert.Equal(first, seedOf));
-        }
-        Assert.True(tied > 5, "fixture: too few run seeds put a zone midway between the seeds");
-    }
-
-    [Fact]
-    public void ListingAnEntryTwiceSumsItsWeights()
-    {
-        var cache = Empty();
-        var a = Kind(cache, "a", 1f);
-        Kind(cache, "b", 1f);
-        var twice = Province(cache, "twice", 1, new[] {KindFactor(a, 2f), KindFactor(a, 2f)}, new[] {OreFactor(Ore("iron"), 2f), OreFactor(Ore("iron"), 3f)});
-        var rock = Put(cache, "field-kind:rock", new FieldKindData {Name = "rock", GenerationWeight = 0f, Yields = new List<FieldYield> {Yield("iron", 1f)}});
-        Assert.Equal(5f, FieldKinds.Yield(rock, twice, cache).Single().Amount);
-        const int sites = 3000;
-        var share = Enumerable.Range(0, sites).Count(i => FieldKinds.Assign($"belt-{i}", cache, twice).Key.Value == "field-kind:a") / (float) sites;
-        Assert.InRange(share, 4f / 5 - .04f, 4f / 5 + .04f); // a: 1 x (2 + 2) against b: 1
-        Assert.InRange(Enumerable.Range(0, sites).Count(i => FieldKinds.Assign($"belt-{i}", cache, default).Key.Value == "field-kind:a") / (float) sites, .46f, .54f);
-    }
-
-    // ---- the deal
-
-    private static int[] Counts(CultRecordRef<ProvinceData>[] hand, params string[] types) =>
-        types.Select(type => hand.Count(card => card.Key.Value == "province:" + type)).ToArray();
-
-    [Fact]
-    public void ARegionWithAsManyProvincesAsCardsHoldsEveryType()
-    {
-        var cache = Empty();
-        Province(cache, "a", 3);
-        Province(cache, "b", 1);
-        Province(cache, "c", 2);
-        Province(cache, "zero", 0);
-        for (uint seed = 1; seed <= 40; seed++)
-        {
-            Assert.Equal(new[] {3, 1, 2}, Counts(Provinces.Deal(5, 6, seed, cache), "a", "b", "c"));
-            Assert.Equal(new[] {6, 2, 4}, Counts(Provinces.Deal(5, 12, seed, cache), "a", "b", "c"));
-            var more = Provinces.Deal(5, 8, seed, cache);
-            Assert.All(new[] {"a", "b", "c"}, type => Assert.Contains(more, card => card.Key.Value == "province:" + type));
-            Assert.DoesNotContain(more, card => card.Key.Value == "province:zero");
+            var captured = Loadouts.Capture(items, (Ship) EntitySerializer.Unpack(items, null, boss), "probe");
+            string[][] Groups(Loadout l) => l.WeaponGroups.Select(group => group.Select(i => $"{l.Slots[i].Position.x},{l.Slots[i].Position.y}").OrderBy(x => x, StringComparer.Ordinal).ToArray()).Where(group => group.Length > 0).ToArray();
+            Assert.Equal(Groups(loadout), Groups(captured));
         }
     }
 
+    // Ruling loadout-product-optional-context-chooses: a design-only slot takes the brand the boss's faction can get. The design has
+    // an outsider's product that sorts first by name, so a chooser that takes the first product by name builds the wrong brand.
     [Fact]
-    public void TheSameRunSeedDealsTheSameHand()
+    public void A_design_only_boss_slot_takes_a_brand_its_faction_can_get()
     {
-        var cache = Empty();
-        Province(cache, "a", 1);
-        Province(cache, "b", 1);
-        Province(cache, "never", 0);
-        string[] Hand(int region, uint seed) => Provinces.Deal(region, 6, seed, cache).Select(card => card.Key.Value).ToArray();
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        var loadout = GiveAntagonistABoss(galaxy);
+        var outfitter = GeneratorFor(galaxy, _items, antagonist, 1);
+        var open = loadout.Slots.First(slot => _cache.GetAll<FactionProductData>().Any(product => product.Design.Key.Equals(slot.Design.Key) && outfitter.IsAvailable(product)));
+        var template = _cache.GetAll<FactionProductData>().First(product => product.Design.Key.Equals(open.Design.Key));
+        open.Product = default;
+        StoreLoadout(loadout);
+
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+        var outsider = MessagePack.MessagePackSerializer.Deserialize<FactionProductData>(MessagePack.MessagePackSerializer.Serialize(template, options), options);
+        outsider.Name = "Aaa Outsider";
+        foreach (var faction in _cache.GetAll<Faction>().OrderBy(faction => faction.Name, StringComparer.Ordinal))
+        {
+            outsider.Manufacturer = _cache.RefOf(faction);
+            if (!outfitter.IsAvailable(outsider)) break;
+        }
+        Assert.False(outfitter.IsAvailable(outsider), "the outsider's maker is neither Zhestokost nor in its allegiance");
+        _cache.Upsert(outsider);
+
+        var gettable = _cache.GetAll<FactionProductData>().Where(product => product.Design.Key.Equals(open.Design.Key) && outfitter.IsAvailable(product)).Select(product => product.Name).ToArray();
+        Assert.NotEmpty(gettable);
+        foreach (var seed in new uint[] { 1, 2, 3, 4, 5 })
+        {
+            var items = LoggingItems(new List<string>());
+            var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit, seed: seed).Entities, entity => entity.Boss);
+            var cell = Assert.Single(Cells(items, boss), c => c.StartsWith($"{open.Position.x},{open.Position.y},"));
+            var brand = cell.Split(',').Last();
+            Assert.NotEqual("Aaa Outsider", brand);
+            Assert.Contains(brand, gettable);
+        }
+    }
+
+    // No generated fallback (rulings boss-gear-is-a-loadout, demo-boss-hull-invented): the shipped catalog authors no boss Loadout,
+    // so Zhestokost has no boss. The refusal happens before anything is drawn.
+    [Fact]
+    public void Boss_without_a_boss_loadout_is_refused()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        Assert.Null(Loadouts.BossOf(_cache, antagonist, out var refusal));
+        Assert.Equal(BossRefusal.Unset, refusal);
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        Assert.Contains(log, line => line.Contains("Zhestokost has no boss") && line.Contains("sets no Faction.BossLoadout"));
+        Assert.Contains(log, line => line.Contains("Galaxy.Exit") && line.Contains("exit-without-boss"));
+        Assert.False(RunGoal.ExitOpen(new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy)));
+
+        // Nothing was drawn for the refused boss: the zone is the zone with no boss mapped at all.
+        galaxy.BossZones.Clear();
+        var bare = BossZonePack(galaxy, LoggingItems(new List<string>()), galaxy.Exit);
+        Assert.NotEmpty(bare.Entities);
+        Assert.Equal(Roster(items, bare), Roster(items, pack));
+    }
+
+    // A reference to a Loadout the catalog does not hold is refused like no reference, and the log names the field, not the value.
+    [Fact]
+    public void A_missing_boss_loadout_is_refused()
+    {
+        var galaxy = DemoGalaxy(1);
+        var antagonist = Zhestokost(galaxy);
+        antagonist.BossLoadout = new CultRecordRef<Loadout>(Loadouts.KeyOf("No Such Loadout"));
+        Assert.Null(Loadouts.BossOf(_cache, antagonist, out var refusal));
+        Assert.Equal(BossRefusal.Missing, refusal);
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        Assert.Contains(log, line => line.Contains("Zhestokost has no boss") && line.Contains("names a Faction.BossLoadout that is not in the catalog"));
+        Assert.DoesNotContain(log, line => line.Contains("No Such Loadout") || line.Contains("sets no"));
+        Assert.DoesNotContain(log, line => line.Contains("Zhestokost has no boss") && line.Contains("No Such"));
+    }
+
+    // A boss Loadout whose slots do not fit gives no boss: the log names the Loadout and every fit failure, and the gate stays sealed.
+    [Fact]
+    public void An_unbuildable_boss_loadout_spawns_no_boss()
+    {
+        var galaxy = DemoGalaxy(1);
+        var loadout = GiveAntagonistABoss(galaxy);
+        loadout.Slots[0].Position = new int2(999, 999);
+        loadout.Slots[1].Position = new int2(998, 998);
+        StoreLoadout(loadout);
+
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit, ambient: false);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        var refusal = Assert.Single(log, line => line.Contains("Antagonist Boss") && line.Contains("does not fit"));
+        Assert.Equal(2, Regex.Matches(refusal, "does not fit").Count);
+        Assert.Contains("; ", refusal);
+        Assert.False(RunGoal.ExitOpen(new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy)));
+    }
+
+    // The existing market rule (ruling off-market-is-general): an item is on offer iff a product of it is. A hull no product makes
+    // is never drawn, stocked or chosen, yet the boss whose Loadout names it flies it.
+    [Fact]
+    public void A_hull_no_product_makes_is_never_on_offer()
+    {
+        var galaxy = DemoGalaxy(1);
+        var hull = BossTestHull();
+        GiveAntagonistABoss(galaxy);
+        Assert.DoesNotContain(hull, LoadoutGenerator.SoldHulls(_cache));
+        var items = LoggingItems(new List<string>());
+
         for (uint seed = 1; seed <= 20; seed++)
         {
-            Assert.Equal(Hand(3, seed), Hand(3, seed));
-            Assert.DoesNotContain("province:never", Hand(3, seed));
+            var generator = GeneratorFor(galaxy, items, Zhestokost(galaxy), seed);
+            var ship = generator.GenerateShipLoadout();
+            Assert.NotNull(ship);
+            Assert.NotEqual(hull.Name, HullName(items, ship));
+            var station = generator.GenerateStationLoadout();
+            Assert.DoesNotContain(EntitySerializer.Items(station), item => items.GetData(item).Name == hull.Name);
+            Assert.Null(generator.ChooseProduct(hull));
+            Assert.Null(generator.GenerateShipLoadout(candidate => candidate == hull));
         }
-        Assert.Contains(Enumerable.Range(2, 30), seed => !Hand(3, (uint) seed).SequenceEqual(Hand(3, 1u)));
 
-        // No card to deal: every province is unset, whether the catalog holds no type or only types of weight zero.
-        Assert.All(Provinces.Deal(0, 4, 1u, Empty()), card => Assert.False(card.IsSet()));
-        var zeroes = Empty();
-        Province(zeroes, "never", 0);
-        var hand = Provinces.Deal(0, 4, 1u, zeroes);
-        Assert.Equal(4, hand.Length);
-        Assert.All(hand, card => Assert.False(card.IsSet()));
+        var boss = Assert.Single(BossZonePack(galaxy, items, galaxy.Exit).Entities, entity => entity.Boss);
+        Assert.Equal(hull.Name, HullName(items, boss));
+    }
+
+    // PlaceFactionsMain reads BossOf: with no reference set there is no boss zone, a reference to nothing places none, and the one
+    // faction whose boss Loadout resolves is the one entry though another faction sorts first.
+    [Fact]
+    public void Main_galaxy_bosses_are_factions_with_a_boss_loadout()
+    {
+        Assert.Empty(RunStart.Generate(new MainGalaxy(), Inputs(() => 1)).BossZones);
+
+        var factions = _cache.GetAll<Faction>().OrderBy(faction => faction.Name, StringComparer.Ordinal).ToArray();
+        factions[0].BossLoadout = new CultRecordRef<Loadout>(Loadouts.KeyOf("No Such Loadout"));
+        Assert.Empty(RunStart.Generate(new MainGalaxy(), Inputs(() => 1)).BossZones);
+
+        var armed = MakeBossLoadout(BossTestHull(), "Main Boss");
+        SetBoss(factions[1], armed);
+        var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
+        var bossFaction = Assert.Single(galaxy.BossZones.Keys);
+        Assert.Equal(factions[1].Name, bossFaction.Name);
+        Assert.NotNull(Loadouts.BossOf(_cache, bossFaction, out _));
     }
 
     [Fact]
-    public void CardCountNotProbabilityIsTheWeight()
+    public void Exit_sealed_until_boss_dies()
     {
-        var cache = Empty();
-        Province(cache, "common", 3);
-        Province(cache, "rare", 1);
-        for (uint seed = 1; seed <= 200; seed++)
+        var galaxy = DemoGalaxy(1);
+        GiveAntagonistABoss(galaxy);
+        var exit = ZoneOf(galaxy, galaxy.Exit);
+        var boss = Assert.Single(exit.Entities, entity => entity.IsBoss);
+        Assert.True(RunGoal.BossAlive(exit));
+        Assert.False(RunGoal.ExitOpen(exit));
+
+        // Death removes the boss from the zone (the one death path), and that alone opens the gate.
+        boss.HeatstrokeDeath.OnNext(Unit.Default);
+        Assert.False(exit.Entities.Any(x => ReferenceEquals(x, boss)), "the boss is removed from the exit");
+        Assert.False(RunGoal.BossAlive(exit));
+        Assert.True(RunGoal.ExitOpen(exit));
+
+        // No other zone is ever an exit, boss or no boss.
+        foreach (var zone in galaxy.Zones.Where(zone => zone != galaxy.Exit))
+            Assert.False(RunGoal.ExitOpen(ZoneOf(galaxy, zone)));
+    }
+
+    // Continue: the mark is saved with the zone and restored, so a boss alive when the run was saved is alive after.
+    [Fact]
+    public void Boss_mark_survives_continue()
+    {
+        var (galaxy, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => 1));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        GiveAntagonistABoss(galaxy);
+        galaxy.Entrance.Contents = arena;
+        galaxy.Exit.Contents = ZoneOf(galaxy, galaxy.Exit);
+        var before = Assert.Single(galaxy.Exit.Contents.Entities, entity => entity.IsBoss);
+        Assert.False(RunGoal.ExitOpen(galaxy.Exit.Contents));
+
+        var (game, zones) = RunSave.Capture(_cache, galaxy, arena, staged.Player, new SavedActionBarBinding[0], 0);
+        RunSave.Commit(_cache, game, zones, _items.Lots);
+        var restored = new Galaxy(_cache, _cache.GetGlobal<SavedGame>(), _ => { });
+        var exit = new Zone(_items, _planetSettings, restored.Exit.PackedContents, restored.Exit, restored);
+
+        var after = Assert.Single(exit.Entities, entity => entity.IsBoss);
+        Assert.Equal(before.Name, after.Name);
+        Assert.Equal(before.Faction.Name, after.Faction.Name);
+        Assert.False(RunGoal.ExitOpen(exit));
+        after.HeatstrokeDeath.OnNext(Unit.Default);
+        Assert.True(RunGoal.ExitOpen(exit));
+    }
+
+    // The gate fails closed. The main galaxy puts its bosses on choke points, not at its exit, so its exit zone never gets
+    // one: the gate stays sealed on arrival and when every boss in the galaxy dies, because a boss that never existed is
+    // not a dead one.
+    [Fact]
+    public void Exit_sealed_where_no_boss_was_spawned_main_galaxy()
+    {
+        foreach (var seed in new uint[] { 1, 2, 3, 4, 5, 6, 7, 8 })
         {
-            Assert.Equal(new[] {3, 1}, Counts(Provinces.Deal(0, 4, seed, cache), "common", "rare"));
-            Assert.Equal(new[] {6, 2}, Counts(Provinces.Deal(0, 8, seed, cache), "common", "rare"));
+            var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => seed));
+            var exit = ZoneOf(galaxy, galaxy.Exit);
+            Assert.False(RunGoal.ExitOpen(exit), $"seed {seed}: the gate is open on arrival");
+            foreach (var boss in exit.Entities.Where(entity => entity.IsBoss).ToArray())
+                boss.HeatstrokeDeath.OnNext(Unit.Default);
+            Assert.False(RunGoal.ExitOpen(exit), $"seed {seed}: the gate is open with no boss spawned");
         }
     }
 
+    // The same for a demo exit whose boss could not be built: the zone logs the gap by name and the gate stays sealed.
     [Fact]
-    public void ARegionsHandDoesNotDependOnOtherRegions()
+    public void Exit_sealed_and_logged_when_the_boss_cannot_be_generated()
     {
-        var (cache, _, _) = Shipped();
-        Province(cache, "a", 1);
-        Province(cache, "b", 1);
-        Province(cache, "c", 1);
-        var hands = new List<string>();
-        var regionsChecked = 0;
-        foreach (var galaxy in new[] {false, true}.SelectMany(prelude => Enumerable.Range(1, 5).Select(seed => TryBuild(cache, prelude, (uint) seed))).Where(g => g != null))
+        var galaxy = DemoGalaxy(1);
+        galaxy.BossZones.Clear();
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        Assert.Contains(log, line => line.Contains("Galaxy.Exit") && line.Contains("exit-without-boss"));
+        var exit = new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy);
+        Assert.False(RunGoal.ExitOpen(exit));
+    }
+
+    // The gate is the exit zone's alone. The main galaxy puts bosses on choke points that are not its exit: such a zone's
+    // boss spawns and dies, and no gate opens, because the exit-zone condition is what keeps a slain boss from winning.
+    [Fact]
+    public void Exit_open_only_in_the_exit_zone()
+    {
+        var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
+        // The shipped catalog sets no boss Loadout, so the main galaxy places no boss: give a faction one and a boss zone that is
+        // not the exit, as the generator would for a faction with a boss Loadout. This Loadout pins its hull's brand, so any faction
+        // builds it whatever it can get.
+        var faction = galaxy.Factions.First();
+        var hull = SoldShipHulls().OrderBy(h => h.Name, StringComparer.Ordinal).First();
+        var gate = MakeBossLoadout(hull, "Gate Boss");
+        gate.HullProduct = _cache.RefOf(_cache.GetAll<FactionProductData>().OrderBy(product => product.Name, StringComparer.Ordinal).First(product => _cache.Get(product.Design) == hull));
+        StoreLoadout(gate);
+        SetBoss(faction, gate);
+        var bossZone = galaxy.Zones.First(zone => zone != galaxy.Exit);
+        galaxy.BossZones[faction] = bossZone;
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var zone = new Zone(items, _planetSettings, BossZonePack(galaxy, items, bossZone), bossZone, galaxy);
+        Assert.True(zone.Pack.BossSpawned, string.Join("; ", log));
+        Assert.NotEmpty(zone.Entities.Where(entity => entity.IsBoss));
+        foreach (var boss in zone.Entities.Where(entity => entity.IsBoss).ToArray())
+            boss.HeatstrokeDeath.OnNext(Unit.Default);
+        Assert.False(RunGoal.BossAlive(zone));
+        Assert.False(RunGoal.ExitOpen(zone));
+    }
+
+    // A boss killed before the save stays dead after it, and the gate stays open: the spawn fact travels with the zone.
+    [Fact]
+    public void Exit_open_after_save_of_a_slain_boss()
+    {
+        var galaxy = DemoGalaxy(1);
+        GiveAntagonistABoss(galaxy);
+        var exit = ZoneOf(galaxy, galaxy.Exit);
+        Assert.Single(exit.Entities, entity => entity.IsBoss).HeatstrokeDeath.OnNext(Unit.Default);
+        var repacked = exit.PackZone();
+        Assert.True(repacked.BossSpawned);
+        Assert.DoesNotContain(repacked.Entities, entity => entity.Boss);
+        Assert.True(RunGoal.ExitOpen(new Zone(_items, _planetSettings, repacked, galaxy.Exit, galaxy)));
+    }
+
+    // The gate shares no point with an adjacency wormhole: every one is farther from it than a ship's wormhole reach.
+    [Fact]
+    public void Exit_gate_shares_no_point_with_a_wormhole()
+    {
+        var ratio = float.Parse(File.ReadLines(Path.Combine(FindRepoRoot(), "Assets", "Resources", "Settings.asset"))
+            .Select(line => Regex.Match(line, @"^  WormholeDistanceRatio: (.+)$")).First(match => match.Success).Groups[1].Value.Trim(),
+            System.Globalization.CultureInfo.InvariantCulture);
+        var reach = AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings").WormholeExitRadius;
+        foreach (var seed in DemoSeeds)
         {
-            var regionOf = RegionsOf(galaxy);
-            foreach (var region in Enumerable.Range(0, galaxy.Zones.Length).GroupBy(zone => regionOf[zone]))
+            var galaxy = DemoGalaxy(seed);
+            var zone = ZoneOf(galaxy, galaxy.Exit);
+            var gate = RunGoal.ExitGatePosition(zone, ratio);
+            foreach (var adjacent in galaxy.Exit.AdjacentZones)
             {
-                var provinces = galaxy.Provinces.Where(province => regionOf[Array.IndexOf(galaxy.Zones, province.Seed)] == region.Key).ToArray();
-                var expected = Provinces.Deal(region.Key, provinces.Length, galaxy.Seed, cache);
-                // Keyed by the region's least zone: nothing outside the region and the run seed enters the hand.
-                Assert.Equal(expected.Select(card => card.Key.Value), provinces.Select(province => province.Type.Key.Value));
-                if (provinces.Length >= 3) hands.Add(string.Join(",", expected.Select(card => card.Key.Value)));
-                regionsChecked++;
+                var wormhole = math.normalize(adjacent.Position - galaxy.Exit.Position) * zone.Pack.Radius * ratio;
+                Assert.True(math.length(gate - wormhole) > 2 * reach, $"seed {seed}: the exit gate sits {math.length(gate - wormhole)} from a wormhole");
             }
         }
-        Assert.True(regionsChecked >= 10);
-        Assert.True(hands.Distinct().Count() > 1, "every region of three or more provinces was dealt the same hand");
     }
 
-    [Fact]
-    public void TheDealDrawsFromTheDeckInKeyOrderAndReshufflesWhenItRunsOut()
+    // The gate sits on the wormholes' radius, in the middle of the widest gap between neighbours, whatever the
+    // neighbours' number and order: an empty ring, one, two straddling the +-pi seam, and eight spread evenly (every gap
+    // under one radian). Checked against a brute-force sweep of every direction.
+    [Theory]
+    [InlineData(new double[0])]
+    [InlineData(new[] { 40.0 })]
+    [InlineData(new[] { 170.0, -170.0 })]
+    [InlineData(new[] { 100.0, 10.0, 20.0, 350.0, -90.0 })]
+    [InlineData(new[] { 0.0, 45.0, 90.0, 135.0, 180.0, -135.0, -90.0, -45.0 })]
+    public void Exit_gate_sits_in_the_widest_gap_at_the_wormhole_radius(double[] neighbourDegrees)
     {
-        var cache = Empty();
-        Province(cache, "c", 3);
-        Province(cache, "a", 2);
-        Province(cache, "b", 1);
-        for (uint seed = 1; seed <= 30; seed++)
-        {
-            // The rule restated: cards per type in key order, one weighted pick per draw at the draw's own site.
-            var types = new[] {"province:a", "province:b", "province:c"};
-            var full = new[] {2, 1, 3};
-            var remaining = (int[]) full.Clone();
-            var expected = new List<string>();
-            for (var n = 0; n < 10; n++)
+        var galaxy = DemoGalaxy(1);
+        var zone = ZoneOf(galaxy, galaxy.Exit);
+        const float ratio = 0.75f;
+        var radius = zone.Pack.Radius * ratio;
+        // Away from the origin and with close neighbours, so a direction taken from raw positions instead of the
+        // offset from the zone cannot pass.
+        var originalPosition = galaxy.Exit.Position;
+        var origin = galaxy.Exit.Position = math.float2(500, -300);
+        var original = galaxy.Exit.AdjacentZones;
+        galaxy.Exit.AdjacentZones = neighbourDegrees
+            .Select(degrees => new GalaxyZone
             {
-                if (remaining.Sum() == 0) remaining = (int[]) full.Clone();
-                var pick = $"{seed}:province-deal:7:{n}".StableHash() / 4294967296.0 * remaining.Sum();
-                var card = 0;
-                while (pick >= remaining[card]) pick -= remaining[card++];
-                remaining[card]--;
-                expected.Add(types[card]);
-            }
-            Assert.Equal(expected, Provinces.Deal(7, 10, seed, cache).Select(card => card.Key.Value));
-        }
-    }
+                Position = origin + math.float2((float) Math.Cos(degrees * Math.PI / 180), (float) Math.Sin(degrees * Math.PI / 180)) * 10
+            }).ToList();
+        float2 gate;
+        try { gate = RunGoal.ExitGatePosition(zone, ratio); }
+        finally { galaxy.Exit.AdjacentZones = original; galaxy.Exit.Position = originalPosition; }
 
-    // ---- belts
+        Assert.Equal(radius, math.length(gate), 2);
+        if (neighbourDegrees.Length == 0) { Assert.Equal(radius, gate.x, 2); Assert.Equal(0, gate.y, 2); return; }
 
-    private static IEnumerable<(AsteroidBeltData Belt, GalaxyZone Zone, ZonePack Pack)> Belts(CultCache cache, Galaxy galaxy, ItemManager items, int zones)
-    {
-        foreach (var zone in galaxy.Zones.Take(zones))
+        double Separation(double angle) => neighbourDegrees.Min(degrees =>
         {
-            var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, isTutorial: zone == galaxy.Entrance);
-            foreach (var belt in pack.Planets.Select(body => cache.Get(body)).OfType<AsteroidBeltData>())
-                yield return (belt, zone, pack);
-        }
-    }
-
-    private ItemManager Items(CultCache cache) => new ItemManager(1u, cache, new ProvenanceLedger(), Authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
-
-    private static void SilenceShippedKinds(CultCache cache)
-    {
-        foreach (var existing in cache.GetAll<FieldKindData>().ToArray())
-        {
-            existing.GenerationWeight = 0f;
-            cache.Upsert(existing);
-        }
-    }
-
-    [Fact]
-    public void GeneratedBeltsDrawByTheirZonesProvince()
-    {
-        var firstOnly = 0;
-        var secondOnly = 0;
-        for (uint seed = 1; seed <= 25 && (firstOnly < 3 || secondOnly < 3); seed++)
-        {
-            var (cache, _, _) = Shipped();
-            SilenceShippedKinds(cache);
-            var a = Kind(cache, "a", 1f);
-            var b = Kind(cache, "b", 1f);
-            Province(cache, "no-a", 1, new[] {KindFactor(a, 0f)});
-            Province(cache, "no-b", 1, new[] {KindFactor(b, 0f)});
-            var galaxy = TryBuild(cache, true, seed, Cast(Provinces.DefaultZonesPerProvince));
-            if (galaxy == null) continue;
-            foreach (var (belt, zone, _) in Belts(cache, galaxy, Items(cache), 24))
-            {
-                var kind = belt.Kind.Key.Value;
-                if (zone.Province.Type.Key.Value == "province:no-a")
-                {
-                    Assert.Equal("field-kind:b", kind);
-                    firstOnly++;
-                }
-                else
-                {
-                    Assert.Equal("field-kind:a", kind);
-                    secondOnly++;
-                }
-            }
-        }
-        Assert.True(firstOnly >= 3 && secondOnly >= 3, $"belts exercised: {firstOnly} and {secondOnly}");
-    }
-
-    [Fact]
-    public void FirstLoadAssignsByTheZonesProvince()
-    {
-        for (uint seed = 1; seed <= 25; seed++)
-        {
-            var (cache, catalogPath, runPath) = Shipped();
-            SilenceShippedKinds(cache);
-            var galaxy = TryBuild(cache, true, seed, Cast(Provinces.DefaultZonesPerProvince));
-            if (galaxy == null) continue;
-            var items = Items(cache);
-            // Generated while no kind could be picked: every belt is kindless, as one saved before field kinds existed.
-            var generated = Belts(cache, galaxy, items, 16).ToArray();
-            if (generated.Length < 4) continue;
-            Assert.All(generated, g => Assert.False(g.Belt.Kind.IsSet()));
-
-            var a = Kind(cache, "a", 1f);
-            Kind(cache, "b", 1f);
-            var noA = Province(cache, "no-a", 1, new[] {KindFactor(a, 0f)});
-            var packs = generated.GroupBy(g => g.Pack).ToArray();
-            var inProvince = packs[0].First().Zone;
-            inProvince.Province = new GalaxyProvince {Seed = inProvince, Type = noA, Zones = new[] {inProvince}};
-
-            var settings = RestoredHullsTests.AuthoredPlanetSettings();
-            var loaded = new Zone(items, settings, packs[0].Key, inProvince, galaxy);
-            foreach (var key in packs[0].Select(g => cache.RefOf(g.Belt).Key))
-                Assert.Equal(FieldKinds.Assign(key.Value, cache, noA).Key.Value, ((AsteroidBeltData) loaded.Planets[key]).Kind.Key.Value);
-            Assert.All(packs[0].Select(g => cache.RefOf(g.Belt).Key), key => Assert.Equal("field-kind:b", ((AsteroidBeltData) loaded.Planets[key]).Kind.Key.Value));
-
-            // No GalaxyZone: the unweighted pick.
-            var unweighted = 0;
-            foreach (var pack in packs.Skip(1))
-            {
-                var bare = new Zone(items, settings, pack.Key, null, null);
-                foreach (var key in pack.Select(g => cache.RefOf(g.Belt).Key))
-                {
-                    var kind = ((AsteroidBeltData) bare.Planets[key]).Kind.Key.Value;
-                    Assert.Equal(FieldKinds.Assign(key.Value, cache, default).Key.Value, kind);
-                    if (kind == "field-kind:a") unweighted++;
-                }
-            }
-            Assert.True(unweighted > 0, "fixture: no unweighted belt drew the kind the province forbids, so the province could not be told from none");
-
-            // Kept: a kind that would now win every pick changes nothing about a belt that has one.
-            var keys = packs[0].Select(g => cache.RefOf(g.Belt).Key).ToArray();
-            var assigned = keys.ToDictionary(key => key.Value, key => ((AsteroidBeltData) loaded.Planets[key]).Kind.Key.Value);
-            Kind(cache, "z", 1e6f);
-            var again = new Zone(items, settings, packs[0].Key, null, null);
-            foreach (var key in keys) Assert.Equal(assigned[key.Value], ((AsteroidBeltData) again.Planets[key]).Kind.Key.Value);
-
-            // Saved: a fresh open of the stores reads the assignment back.
-            cache.FlushAsync().Wait();
-            cache.Dispose();
-            _caches.Remove(cache);
-            var reopened = OpenCopy(catalogPath, runPath);
-            _caches.Add(reopened);
-            foreach (var key in keys) Assert.Equal(assigned[key.Value], ((AsteroidBeltData) reopened.Get(key)).Kind.Key.Value);
-            return;
-        }
-        Assert.Fail("no seed generated enough belts; the first-load path went unexercised");
-    }
-
-    // ---- save and continue
-
-    [Fact]
-    public void ProvincesSurviveSaveAndContinue()
-    {
-        var (cache, catalog, run) = Shipped();
-        Province(cache, "a", 1);
-        Province(cache, "b", 1);
-        Province(cache, "c", 1);
-        // Four zones to a province, so a galaxy's saved provinces differ from what the save constructor's default would derive.
-        var galaxy = Enumerable.Range(1, 25).Select(seed => DemoGalaxy(cache, (uint) seed, 4)).First(g => g != null);
-        Assert.Equal(16, galaxy.Provinces.Length);
-        var (game, zones) = Capture(cache, galaxy);
-        Assert.Equal(galaxy.Provinces.Length, game.Provinces.Count);
-        RunSave.Commit(cache, game, zones, new ProvenanceLedger());
-        cache.FlushAsync().Wait();
-        cache.Dispose();
-        _caches.Remove(cache);
-
-        // Reopened from disk with a type of overwhelming weight added: a saved run keeps what it was dealt.
-        var reopened = OpenCopy(catalog, run);
-        _caches.Add(reopened);
-        Put(reopened, "province:huge", new ProvinceData {Name = "huge", GenerationWeight = 1000000});
-        var restored = new Galaxy(reopened, reopened.GetGlobal<SavedGame>(), _ => { });
-        Assert.Equal(Shape(galaxy), Shape(restored));
-        Assert.DoesNotContain(restored.Provinces, province => province.Type.Key.Value == "province:huge");
-    }
-
-    [Fact]
-    public void AnOlderSaveGetsProvincesByTheSameRule()
-    {
-        var (cache, _, _) = Shipped();
-        var a = Province(cache, "a", 1);
-        Province(cache, "b", 1);
-        Province(cache, "c", 1);
-        var galaxy = Enumerable.Range(1, 40).Select(seed => DemoGalaxy(cache, (uint) seed)).First(g => g != null && ExitIsACutVertex(g));
-
-        // No key 15: the same Regions, Partition and Deal, from the saved graph, boss zones, Exit and seed.
-        var (older, olderZones) = Capture(cache, galaxy);
-        older.Provinces = null;
-        foreach (var zone in olderZones) zone.Province = 0;
-        Assert.Equal(Shape(galaxy), Shape(Continue(cache, older, olderZones)));
-
-        // A saved type that no longer resolves takes the card the region's Deal gives that province's place; the others are kept.
-        var (game, zones) = Capture(cache, galaxy);
-        game.Provinces[0].Type = new CultRecordRef<ProvinceData>(new CultRecordKey("province:gone"));
-        foreach (var province in game.Provinces.Skip(1)) province.Type = a;
-        var deal = Provinces.Deal(0, galaxy.Provinces.Length, galaxy.Seed, cache);
-        Assert.Contains(deal.Skip(1), card => card.Key.Value != a.Key.Value);
-        var restored = Continue(cache, game, zones);
-        Assert.Equal(deal[0].Key.Value, restored.Provinces[0].Type.Key.Value);
-        Assert.All(restored.Provinces.Skip(1), province => Assert.Equal(a.Key.Value, province.Type.Key.Value));
-        Assert.Equal(galaxy.Provinces.Select(p => Array.IndexOf(galaxy.Zones, p.Seed)), restored.Provinces.Select(p => Array.IndexOf(restored.Zones, p.Seed)));
-    }
-
-    // ---- the documents
-
-    [Fact]
-    public void YieldsAndProvincesRoundTrip()
-    {
-        var (cache, catalog, run) = Shipped();
-        var ore = Ore("iron");
-        var kind = Put(cache, "field-kind:rock", new FieldKindData {Name = "rock", Yields = new List<FieldYield> {Yield("iron", 1.5f), Yield("gold", 2f, regional: true)}});
-        var province = Put(cache, "province:rich", new ProvinceData
-        {
-            Name = "rich", GenerationWeight = 3,
-            Kinds = new List<ProvinceKindWeight> {KindFactor(kind, 2.5f)}, Ores = new List<ProvinceOre> {OreFactor(ore, 4f)}
+            var difference = Math.Abs(angle - degrees * Math.PI / 180) % (2 * Math.PI);
+            return difference > Math.PI ? 2 * Math.PI - difference : difference;
         });
-        cache.FlushAsync().Wait();
-        cache.Dispose();
-        _caches.Remove(cache);
+        var best = Enumerable.Range(0, 7200).Max(step => Separation(step * Math.PI / 3600));
+        Assert.True(Separation(Math.Atan2(gate.y, gate.x)) >= best - 0.002,
+            $"the gate's nearest wormhole is {Separation(Math.Atan2(gate.y, gate.x))} rad away; the widest gap's middle is {best}");
+    }
 
-        var reopened = OpenCopy(catalog, run);
-        _caches.Add(reopened);
-        var rock = reopened.Get(kind);
-        Assert.Equal(new[] {("ore:iron", 1.5f, false), ("ore:gold", 2f, true)}, rock.Yields.Select(y => (y.Commodity.Key.Value, y.Abundance, y.Regional)).ToArray());
-        var rich = reopened.Get(province);
-        Assert.Equal(3, rich.GenerationWeight);
-        Assert.Equal(new[] {("field-kind:rock", 2.5f)}, rich.Kinds.Select(k => (k.Kind.Key.Value, k.Weight)).ToArray());
-        Assert.Equal(new[] {("ore:iron", 4f)}, rich.Ores.Select(o => (o.Commodity.Key.Value, o.Weight)).ToArray());
+    // Two neighbours straight across leave two gaps of exactly pi: the first in ascending angle (from -pi) wins, so the
+    // gate sits at +radius on y, not -radius.
+    [Fact]
+    public void Exit_gate_takes_the_first_of_equal_gaps()
+    {
+        var galaxy = DemoGalaxy(1);
+        var zone = ZoneOf(galaxy, galaxy.Exit);
+        const float ratio = 0.75f;
+        var originalPosition = galaxy.Exit.Position;
+        var origin = galaxy.Exit.Position = math.float2(500, -300);
+        var original = galaxy.Exit.AdjacentZones;
+        galaxy.Exit.AdjacentZones = new List<GalaxyZone>
+        {
+            new GalaxyZone { Position = math.float2(510, -300) },
+            new GalaxyZone { Position = math.float2(490, -300) },
+        };
+        float2 gate;
+        try { gate = RunGoal.ExitGatePosition(zone, ratio); }
+        finally { galaxy.Exit.AdjacentZones = original; galaxy.Exit.Position = originalPosition; }
 
-        // A kind written before key 3 loads with no yields.
-        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(ItemData).Assembly);
-        var old = MessagePackSerializer.Deserialize<FieldKindData>(MessagePackSerializer.Serialize(new object[] {"Old", 1.5f, 2f}), options);
-        Assert.Equal("Old", old.Name);
-        Assert.Equal(2f, old.GenerationWeight);
-        Assert.Empty(old.Yields);
+        Assert.Equal(0, gate.x, 3);
+        Assert.Equal(zone.Pack.Radius * ratio, gate.y, 2);
+    }
+
+    // Soul's probes of cut boss-loadout pass s1, kept as behaviour: the rules the first eight tests let a mutant past.
+
+    [Fact]
+    public void The_boss_is_the_loadout_its_faction_names_even_when_another_loadout_shares_its_hull()
+    {
+        var galaxy = DemoGalaxy(1);
+        var decoy = MakeBossLoadout(BossTestHull(), "Aaa Same Hull");
+        decoy.Slots = decoy.Slots.Take(1).ToList();
+        decoy.WeaponGroups = new int[0][];
+        StoreLoadout(decoy);
+        var boss = GiveAntagonistABoss(galaxy);
+        Assert.True(boss.Slots.Count > decoy.Slots.Count);
+        var pack = Assert.Single(BossZonePack(galaxy, _items, galaxy.Exit).Entities, e => e.Boss);
+        Assert.Equal(LoadoutCells(boss), Cells(_items, pack));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_refused_boss_flies_no_catalog_loadout_and_draws_nothing(bool dangling)
+    {
+        var galaxy = DemoGalaxy(1);
+        var hull = SoldShipHulls().OrderBy(h => h.Name, StringComparer.Ordinal).First();
+        StoreLoadout(new Loadout { Name = "Aaa Decoy", Hull = _cache.RefOf(hull) });
+        if (dangling) Zhestokost(galaxy).BossLoadout = new CultRecordRef<Loadout>(Loadouts.KeyOf("CANARY-7f3a"));
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        var next = items.Random.NextFloat();
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, e => e.Boss);
+        Assert.DoesNotContain(log, l => l.Contains("CANARY"));
+        galaxy.BossZones.Clear();
+        var bareItems = LoggingItems(new List<string>());
+        var bare = BossZonePack(galaxy, bareItems, galaxy.Exit);
+        Assert.Equal(Roster(bareItems, bare), Roster(items, pack));
+        Assert.Equal(bareItems.Random.NextFloat(), next);
     }
 
     [Fact]
-    public void ABodySavedWithResourcesStillLoads()
+    public void A_design_only_boss_slot_whose_design_only_outsiders_make_refuses_the_boss()
     {
-        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(ItemData).Assembly);
-        var belt = new AsteroidBeltData {Name = "retired-key", Mass = 12f, Asteroids = new Asteroid[0]};
-        var bytes = MessagePackSerializer.Serialize(typeof(AsteroidBeltData), belt, options);
+        var galaxy = DemoGalaxy(1);
+        var faction = Zhestokost(galaxy);
+        var loadout = GiveAntagonistABoss(galaxy);
+        var outfitter = GeneratorFor(galaxy, _items, faction, 1);
+        var open = loadout.Slots.First(slot => _cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(slot.Design.Key) && outfitter.IsAvailable(p)));
+        var outsider = _cache.GetAll<Faction>().OrderBy(f => f.Name, StringComparer.Ordinal).First(f => f.Name != faction.Name && !faction.Allegiance.ContainsKey(_cache.RefOf(f)));
+        foreach (var p in _cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(open.Design.Key))) p.Manufacturer = _cache.RefOf(outsider);
+        Assert.Null(outfitter.ChooseProduct(_cache.Get(open.Design)));
+        open.Product = default;
+        StoreLoadout(loadout);
+        var log = new List<string>();
+        var pack = BossZonePack(galaxy, LoggingItems(log), galaxy.Exit, ambient: false);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, e => e.Boss);
+        Assert.Contains(log, l => l.Contains("Antagonist Boss") && l.Contains("no available product"));
+    }
 
-        // The same record with a non-empty key 4, the stored Resources of a body from before the key was retired.
-        var source = new System.Buffers.ReadOnlySequence<byte>(bytes);
-        var reader = new MessagePackReader(source);
-        var length = reader.ReadArrayHeader();
-        Assert.True(length > 4);
-        var output = new System.Buffers.ArrayBufferWriter<byte>();
-        var writer = new MessagePackWriter(output);
-        writer.WriteArrayHeader(length);
-        for (var key = 0; key < length; key++)
-        {
-            var start = reader.Position;
-            reader.Skip();
-            if (key == 4)
-            {
-                writer.WriteMapHeader(1);
-                writer.Write("ore:iron");
-                writer.Write(3.5f);
-            }
-            else writer.WriteRaw(source.Slice(start, reader.Position));
-        }
-        writer.Flush();
+    [Fact]
+    public void The_boss_path_draws_only_what_building_its_loadout_draws()
+    {
+        var galaxy = DemoGalaxy(1);
+        var loadout = GiveAntagonistABoss(galaxy);
+        var withBoss = LoggingItems(new List<string>());
+        Assert.True(BossZonePack(galaxy, withBoss, galaxy.Exit, ambient: false).BossSpawned);
+        var next = withBoss.Random.NextFloat();
+        galaxy.BossZones.Clear();
+        var expected = LoggingItems(new List<string>());
+        BossZonePack(galaxy, expected, galaxy.Exit, ambient: false);
+        var failures = new List<string>();
+        Assert.NotNull(Loadouts.Materialize(expected, null, loadout, GeneratorFor(galaxy, expected, Zhestokost(galaxy), 7).ChooseProduct, failures));
+        Assert.Empty(failures);
+        Assert.Equal(expected.Random.NextFloat(), next);
+    }
 
-        var loaded = (AsteroidBeltData) MessagePackSerializer.Deserialize(typeof(AsteroidBeltData), output.WrittenMemory, options);
-        Assert.Equal("retired-key", loaded.Name);
-        Assert.Equal(12f, loaded.Mass);
-        Assert.Empty(loaded.Asteroids);
+    [Fact]
+    public void An_unbuildable_boss_loadout_draws_nothing()
+    {
+        var galaxy = DemoGalaxy(1);
+        var loadout = GiveAntagonistABoss(galaxy);
+        loadout.Slots[0].Position = new int2(999, 999);
+        StoreLoadout(loadout);
+        var items = LoggingItems(new List<string>());
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        var next = items.Random.NextFloat();
+        galaxy.BossZones.Clear();
+        var bareItems = LoggingItems(new List<string>());
+        var bare = BossZonePack(galaxy, bareItems, galaxy.Exit);
+        Assert.Equal(Roster(bareItems, bare), Roster(items, pack));
+        Assert.Equal(bareItems.Random.NextFloat(), next);
     }
 }
