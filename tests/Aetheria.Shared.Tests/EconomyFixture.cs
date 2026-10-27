@@ -52,9 +52,11 @@ public sealed class EconomyFixture : IDisposable
     private void Sell(CultRecordKey design) =>
         Cache.Upsert(new FactionProductData { Name = design.Value, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = Maker });
 
-    // A commodity and its recipe. Roles make it a consumer good (a role recipe); Inputs make it a compound commodity.
+    // A commodity and its recipe. Roles make it a consumer good (a role recipe); Inputs make it a compound commodity; roleInputs are
+    // the roles its recipe takes, any filler will do.
     public string Good(string id, (string Id, int Count)[] inputs = null, string[] fills = null, int outputCount = 1, float cycle = 1,
-        int workforce = 0, (string Id, int Count)[] upkeep = null, string lore = "a good", (string Role, int Count)[] roles = null, CultRecordRef<StationKindData>? kind = null)
+        int workforce = 0, (string Id, int Count)[] upkeep = null, string lore = "a good", (string Role, int Count)[] roles = null, CultRecordRef<StationKindData>? kind = null,
+        (string Role, int Count)[] roleInputs = null)
     {
         var key = new CultRecordKey(Key(id));
         var roleList = (roles ?? Array.Empty<(string, int)>()).Select(r => new ItemRole { Name = r.Role, Count = r.Count }).ToList();
@@ -70,7 +72,8 @@ public sealed class EconomyFixture : IDisposable
             Upkeep = (upkeep ?? Array.Empty<(string, int)>()).Select(i => new CommodityCount { Commodity = Item(Key(i.Id)), Count = i.Count }).ToList(),
             StationKind = kind ?? Mill,
             LoreHook = lore,
-            Fills = (fills ?? Array.Empty<string>()).ToList()
+            Fills = (fills ?? Array.Empty<string>()).ToList(),
+            RoleInputs = (roleInputs ?? Array.Empty<(string, int)>()).Select(r => new ItemRole { Name = r.Role, Count = r.Count }).ToList()
         }, RecipeData.KeyOf(key));
         return key.Value;
     }

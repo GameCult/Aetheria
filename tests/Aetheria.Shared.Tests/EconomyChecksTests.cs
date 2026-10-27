@@ -53,6 +53,10 @@ public sealed class EconomyChecksTests
         yield return Case("upkeep that is not a commodity", f => f.EditRecipe("commodity:plate", r => r.Upkeep.Add(new CommodityCount { Commodity = EconomyFixture.Item("hull:skiff"), Count = 1 })), "recipe:commodity:plate");
         yield return Case("input naming nothing", f => f.EditRecipe("commodity:plate", r => r.Inputs.Add(new CommodityCount { Commodity = EconomyFixture.Item("commodity:ghost"), Count = 1 })), "recipe:commodity:plate");
         yield return Case("inputs on a role recipe", f => f.EditRecipe("gear:laser", r => r.Inputs.Add(new CommodityCount { Commodity = EconomyFixture.Item(Ore), Count = 1 })), "recipe:gear:laser");
+        yield return Case("role input count zero", f => f.EditRecipe("commodity:plate", r => r.RoleInputs.Add(new ItemRole { Name = "Plate", Count = 0 })), "recipe:commodity:plate", says: "Role 'Plate' count");
+        yield return Case("role input with no filler", f => f.EditRecipe("commodity:plate", r => r.RoleInputs.Add(new ItemRole { Name = "Mystery", Count = 1 })), "recipe:commodity:plate", says: "Role 'Mystery' has no commodity");
+        yield return Case("role input with an empty name", f => f.EditRecipe("commodity:plate", r => r.RoleInputs.Add(new ItemRole { Name = " ", Count = 1 })), "recipe:commodity:plate", says: "empty name");
+        yield return Case("role inputs on a role recipe", f => f.EditRecipe("gear:laser", r => r.RoleInputs.Add(new ItemRole { Name = "Plate", Count = 1 })), "recipe:gear:laser", says: "no RoleInputs");
         yield return Case("a role with no filler", f => f.EditItem<GearData>("gear:laser", g => g.Roles.Add(new ItemRole { Name = "Mystery" })), "recipe:gear:laser");
         yield return Case("a role count of zero", f => f.EditItem<GearData>("gear:laser", g => g.Roles[0].Count = 0), "recipe:gear:laser");
         yield return Case("fills on a design", f => f.EditRecipe("gear:laser", r => r.Fills.Add("Plate")), "recipe:gear:laser");
