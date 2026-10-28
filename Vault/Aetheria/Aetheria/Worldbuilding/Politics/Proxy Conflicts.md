@@ -1,2 +1,0 @@
-Corporations often fund and arm smaller factions, pirates, or privateers to act as deniable assets.
-These proxies carry out raids, sabotage, or resource denial operations without directly implicating their corporate sponsors, allowing corporations to maintain plausible deniability.

@@ -1,1 +1,0 @@
-*Above mortality, beyond the masses*

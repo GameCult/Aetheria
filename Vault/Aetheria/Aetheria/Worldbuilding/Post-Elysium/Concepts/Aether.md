@@ -1,3 +1,0 @@
-## Aether
-
-Aetheria’s namesake is the now-defunct scientific concept of aether, a propagation medium for light waves. In Elysium, aether is real, and this static reference frame can be manipulated to enable phenomena considered impossible in the universe as we know it. The Aetheric Field permeates all of Elysium and is essential to its function as an inescapable garden-prison for sentient life. It is an extremely high-level construct of the very technology humanity began to scratch the surface of when it started messing with FTL travel.

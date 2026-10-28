@@ -1,5 +1,0 @@
-## Pseudospace
-
-Elysium is a much stranger place than the core worlds would have you believe. They talk about pseudospace like it’s an incursion, a rift intruding upon their stable reality. But we brought flat space with us, we are the incursion. This universe’s natural state is one of chaos, alternate spatial topologies, twisted manifolds of space and time abound out there, and hyper-euclidean space is many times bigger than the flatlanders could ever conceive.
-
-Factions that only bother to explore flat space have a relatively uniform understanding of what to expect, but absolutely anything is possible when one of the corporations is brave enough to go all-in with the project of colonizing and exploiting Wonderland. We have a cultural divide now, between the Chaos factions who live on the periphery of stable Euclidean space, and the Flatlanders who build their camps on the few islands of stability poking from an infinite ocean of madness.

@@ -95,7 +95,6 @@ Packages/packages-lock.json
 GameData/run.cc
 GameData/player.cc
 GameData/RemovedMods/
-Vault/Aetheria/.obsidian/plugins/copilot/data.json
 
 # Agent scratch, sandboxed toolchain caches, and throwaway checkouts. These had
 # grown to 47 untracked entries; the worktree must stay legible, so they never

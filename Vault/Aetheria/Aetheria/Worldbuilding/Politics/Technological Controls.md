@@ -1,1 +1,0 @@
-The PSC deploys advanced monitoring systems, including satellite networks and [[Artificial General Intelligence]]-driven surveillance, to detect unauthorized use of weapons of mass destruction or breaches of neutral zones. Automated defense systems can neutralize threats in real-time, such as intercepting unauthorized missile launches.

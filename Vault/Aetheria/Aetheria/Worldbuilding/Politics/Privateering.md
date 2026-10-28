@@ -1,1 +1,0 @@
-Licensed privateers, operating under letters of marque from the PSC, raid enemy shipping lanes or colonies. This allows corporations to disrupt rivals while maintaining a veneer of legality and avoiding direct confrontation.

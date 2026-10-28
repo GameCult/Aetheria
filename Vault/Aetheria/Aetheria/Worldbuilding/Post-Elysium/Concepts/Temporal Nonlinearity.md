@@ -1,7 +1,0 @@
-### Temporal Nonlinearity
-
-One of the peculiarities of the Timeless’ purpose in constructing Elysium is that they, for their own inscrutable reasons, did not wish to actually exterminate any of the civilizations they quarantined to this isolated shard of bespoke spacetime. To ensure that the prisoners never manage to wipe themselves out, temporal contingencies were put in place. The timeline is split, with each species getting their own branch. The Aetheric Field, with its ability to directly interact with sapient minds, monitors the timelines and triggers a reset whenever the prime species is unable to continue existing.
-
-This means that humanity, with its competitiveness incentivizing reckless accelerationism and exploitation of every possible technology or resource regardless of its negative externalities, tends to speedrun its own destruction, leading to its relatively short timeline existing alongside those dedicated to other species much more capable of cooperation and collective survival.
-
-The Aetheric Field also incorporates some predictive capacity, a side effect of its pervasiveness and inherent ability to process information. Visions of the future accessed via the [[Aether]] are not prophetic, merely likely extrapolations of the timeline.

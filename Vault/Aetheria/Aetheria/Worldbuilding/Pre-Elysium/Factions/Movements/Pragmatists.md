@@ -1,2 +1,0 @@
-*Stability today, survival tomorrow*
-

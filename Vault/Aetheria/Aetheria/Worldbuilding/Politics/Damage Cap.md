@@ -1,1 +1,0 @@
-Each conflict is assigned a "damage cap," a monetary limit on the economic and infrastructural harm allowed. Corporations must pay fines or face sanctions if they exceed these caps, discouraging wanton destruction and encouraging precision strikes.

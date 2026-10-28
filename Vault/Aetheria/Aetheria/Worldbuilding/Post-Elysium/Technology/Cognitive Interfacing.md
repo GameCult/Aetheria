@@ -1,3 +1,0 @@
-### Cognitive Interfacing
-
-Elysium being designed as a prison for sapient civilizations, the regime of altered physics which permeates it and regulates its behavior, what we call the Aetheric Field, is fundamentally connected to the minds which inhabit it. Information density distorts the [[Aether]], and cognition interacts with it. The Timeless can use it at will to monitor the thoughts of sapients, and will sometimes snoop for their own entertainment. From time to time, they may even manifest to nudge the timeline or take pity on a suffering soul.

@@ -1,3 +1,0 @@
-### Aetheric Drive
-
-One of the inventions enabled by the existence of aether is a type of reactionless drive. Engineers discovered a mysterious loss of momentum in fast-moving systems when oscillating magnetic fields were arranged in a specific way. They discovered that the energy was being lost to the aether, and rapidly exploited this fact to build drives that could finally put an end to that bastard, Tsiolkovsky.

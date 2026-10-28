@@ -1,3 +1,0 @@
-Corporations must apply for "conflict permits" to engage in any form of warfare.
-
-These permits require detailed documentation of the scope, duration, assets involved, and intended objectives. The PSC approves or denies permits based on the potential impact on the broader economy. For example, [[Zhestokost]] might apply for a permit to seize a rival's asteroid mining operation, but the permit would specify limits on the force used and the duration of the engagement.

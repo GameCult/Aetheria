@@ -1,3 +1,0 @@
-### Negative Entropy
-
-Another consequence of the existence of [[Aether]] is a phenomenon known as negative entropy, which manifests as a powerful conversion of thermal energy into high-energy photons. Negent arises from the interaction of electromagnetic waves with the aether via a process understood in detail only by the Adrasteia corporation, which holds a virtual monopoly on the technology and requires a configuration of strange matter encountered only in Adrasteia-controlled pseudospace.

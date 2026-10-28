@@ -1,1 +1,0 @@
-Despite their militaristic and autocratic ideology, Zhestokost relies on other corporations for certain resources, technologies, and markets. For example, they might depend on [[NiteLife Energy]] for power generation or [[Finch Cybernetics]] for advanced cybernetic enhancements. Destroying these corporations would cripple Zhestokost's own operations.

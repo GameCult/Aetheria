@@ -1,2 +1,0 @@
-
-The world of Aetheria is the product of capitalism taken to its farthest conclusion—a corporate-owned jigsaw of commercialism, copyright law, and profiteering that puts a tangible price on everything from identity to interaction. You, the player, must navigate the complexities of a world based on trade and treachery, choosing your alliances with care and your battles with courage--and a shipload of futuristic weaponry.

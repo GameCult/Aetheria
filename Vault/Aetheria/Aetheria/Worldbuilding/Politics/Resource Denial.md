@@ -1,1 +1,0 @@
-Corporations may engage in operations to contaminate or booby-trap resource deposits, making them unusable for competitors without permanently destroying the resource itself. This approach weakens adversaries economically while preserving the solar system's resource base.

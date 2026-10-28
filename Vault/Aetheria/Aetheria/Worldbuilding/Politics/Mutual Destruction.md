@@ -1,1 +1,0 @@
-Unrestricted warfare, especially involving nuclear weapons, risks triggering a chain reaction of retaliation that could devastate the solar system's infrastructure. The resulting loss of resources and markets would be catastrophic for all corporations, including [[Zhestokost]], leading to a lose-lose scenario.

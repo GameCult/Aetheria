@@ -1,1 +1,0 @@
-Battles are typically small-scale, focusing on specific objectives like capturing a mining outpost, disrupting a trade route, or sabotaging a competitor's production facility. Large-scale conflicts are rare due to their potential to cause widespread economic damage, which is heavily discouraged by the PSC.
