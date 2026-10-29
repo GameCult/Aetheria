@@ -224,6 +224,8 @@ public class ActionGameManager : MonoBehaviour
     private bool _menuShown;
     private List<ActionBarSlot> _actionBarSlots = new List<ActionBarSlot>();
     private List<InputAction> _actionBarActions = new List<InputAction>();
+    // Each action bar slot's control path, index for index with _actionBarSlots.
+    private List<string> _actionBarPaths = new List<string>();
     private float _hitMarkerTime;
     
     public AetheriaInput Input { get; private set; }
@@ -437,6 +439,7 @@ public class ActionGameManager : MonoBehaviour
             var slot = Instantiate(ActionBarSlot, ActionBar);
             slot.Binding = null;
             _actionBarSlots.Add(slot);
+            _actionBarPaths.Add(controlPath);
             action.started += context => slot.Binding?.Activate();
             action.canceled += context => slot.Binding?.Deactivate();
 
@@ -494,16 +497,6 @@ public class ActionGameManager : MonoBehaviour
         #endregion
         
         StartGame();
-        
-        //if (!PlayerSettings.InputSettings.ActionBarInputs.Any())
-        {
-            var newbinds = Enumerable.Range(0, 64)//CurrentEntity.WeaponGroups
-                .Zip(
-                    bindings,
-                    (i, slot) =>
-                        slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, i)
-                );
-        }
         
         ConsoleController.AddCommand("revealzones",
             _ =>
@@ -804,6 +797,7 @@ public class ActionGameManager : MonoBehaviour
                 {
                     _actionBarSlots[i].Restore(saved.ActionBarBindings[i], CurrentEntity);
                 }
+                AutoBindWeaponGroups();
             }
         }
     }
@@ -995,6 +989,34 @@ public class ActionGameManager : MonoBehaviour
         if (DebugInfoText != null) DebugInfoText.text = "";
     }
 
+    // The weapon group a slot's input fires by default: mouse left, right and middle fire groups 1-3, and number key N fires group N.
+    private static int DefaultWeaponGroup(string controlPath) => controlPath switch
+    {
+        "<Mouse>/leftButton" => 0,
+        "<Mouse>/rightButton" => 1,
+        "<Mouse>/middleButton" => 2,
+        _ when controlPath.StartsWith("<Keyboard>/") && int.TryParse(controlPath.Substring("<Keyboard>/".Length), out var n) && n >= 1 => n - 1,
+        _ => -1
+    };
+
+    // Binds each slot's default weapon group to it when the group has weapons. Gear and consumables the player placed are
+    // kept; a slot holding a weapon group is rebound to the current ship, or cleared when its default group is now empty.
+    private void AutoBindWeaponGroups()
+    {
+        if (CurrentEntity?.WeaponGroups == null) return;
+        for (var i = 0; i < _actionBarSlots.Count; i++)
+        {
+            var slot = _actionBarSlots[i];
+            if (slot.Binding != null && slot.Binding is not ActionBarWeaponGroupBinding) continue;
+            var group = DefaultWeaponGroup(_actionBarPaths[i]);
+            if (group < 0) continue;
+            if (group < CurrentEntity.WeaponGroups.Length && CurrentEntity.WeaponGroups[group].weapons.Any())
+                slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, group);
+            else if (slot.Binding is ActionBarWeaponGroupBinding)
+                slot.Binding = null;
+        }
+    }
+
     private void BindToEntity(Entity entity)
     {
         if (!ZoneRenderer.EntityInstances.ContainsKey(entity))
@@ -1045,6 +1067,8 @@ public class ActionGameManager : MonoBehaviour
             crosshair.gameObject.SetActive(false);
         foreach (var group in _articulationGroups)
             group.crosshair.gameObject.SetActive(true);
+
+        AutoBindWeaponGroups();
         
         _shipSubscriptions.Add(CurrentEntity.Target.Subscribe(target =>
         {
