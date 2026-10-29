@@ -45,9 +45,9 @@ public class ThrusterData : BehaviorData
 public class Thruster : Behavior, IPowerConsumer
 {
     // Live: heat, quality, durability and power move this stat after construction, so it is read, never cached.
-    public float Thrust => Evaluate(_data.Thrust);
+    public float Thrust => Evaluate(_data.Thrust) * ItemManager.GameplaySettings.ThrustScale;
     // Thrust at a full grant, the same stat read without the power-supply term: what a column promises. Live, like Thrust.
-    public float NominalThrust => EvaluateNominalPower(_data.Thrust);
+    public float NominalThrust => EvaluateNominalPower(_data.Thrust) * ItemManager.GameplaySettings.ThrustScale;
     public float Torque { get; }
 
     // This thruster's effect per unit throttle at the given thrust, in the body frame: xy is the push (x starboard, y

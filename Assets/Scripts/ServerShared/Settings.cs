@@ -187,6 +187,11 @@ public class GameplaySettings
     public float ThermalQualityMin = 2;
     public float ThermalQualityMax = .25f;
     public float DefaultShutdownPerformance = .25f;
+    // Global flight tuning over every thruster's authored Thrust and every hull's authored Drag. Thrust is a tenth, the
+    // ratio gravity fell by in the honest-wells cut (aetheria-gravity:field-strength-ruled, 5 to 0.5 u/s^2): most ships
+    // cannot climb straight out of a well and use orbits instead; an overspecced hull still can.
+    public float ThrustScale = .1f;
+    public float DragScale = 1f;
     // Free-floating bodies (floating items, mines): drag on a launch velocity, drag on the force-driven drift, and
     // how strongly the zone force accelerates it.
     public float FloatingBodyDrag = .05f;

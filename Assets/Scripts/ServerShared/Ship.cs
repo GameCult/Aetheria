@@ -166,7 +166,7 @@ public class Ship : Entity
     {
         var velocityMagnitude = length(Velocity);
         if(velocityMagnitude > .01f)
-            Velocity = normalize(Velocity) * decay(velocityMagnitude, HullData.Drag, delta);
+            Velocity = normalize(Velocity) * decay(velocityMagnitude, HullData.Drag * ItemManager.GameplaySettings.DragScale, delta);
         
         Position.xz += Velocity * delta;
         
