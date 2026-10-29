@@ -201,6 +201,8 @@ public class ActionGameManager : MonoBehaviour
     private float3 _viewDirection;
     // The player's face-the-aim state (Left Shift held, Caps Lock latched); Ship.Turn is its only output.
     private readonly HelmInput _helm = new HelmInput();
+    // Seconds a held turn key takes to reach full turn rate.
+    public float KeyboardTurnRampTime = .4f;
     private TextMeshProUGUI _faceAimMark;
     private (HardpointData[] hardpoints, Transform[] barrels, PlaceUIElementWorldspace crosshair)[] _articulationGroups;
     // The outgoing progress indicators on the player's target: one per lock weapon (its Lock, shown only on a hostile target)
@@ -1335,7 +1337,9 @@ public class ActionGameManager : MonoBehaviour
                 {
                     ship.Command.Movement = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
                     _helm.Held = Input.Player.FaceAim.IsPressed();
-                    ship.Command.Turn = _helm.Demand(_viewDirection.xz, Input.Player.Turn.ReadValue<float>());
+                    var turnDigital = Input.Player.Turn.activeControl?.device is UnityEngine.InputSystem.Keyboard;
+                    var turnAxis = _helm.TurnAxis(Input.Player.Turn.ReadValue<float>(), turnDigital, Time.deltaTime, KeyboardTurnRampTime);
+                    ship.Command.Turn = _helm.Demand(_viewDirection.xz, turnAxis);
                 }
 
                 UpdateMusic();
