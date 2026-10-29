@@ -59,8 +59,10 @@ public class Stardust : MonoBehaviour
     // The dust is drawn by a command buffer on TargetCamera: a camera replays its buffers at their event and never culls them,
     // so the draw needs no bounds and no extent can fall short of how deep the field is.
     private CommandBuffer _draw;
-    // Before the [ImageEffectOpaque] nebula, so its march fogs the dust; a deferred camera skips the forward-opaque events when nothing forward-opaque is drawn (B46, B49).
-    private const CameraEvent DrawEvent = CameraEvent.BeforeImageEffectsOpaque;
+    // Into the G-buffer, so the dust's depth is in the depth texture the [ImageEffectOpaque] nebula marches against and the fog
+    // attenuates the dust by distance like any opaque surface. Drawn later (BeforeImageEffectsOpaque) it missed that depth and
+    // was fogged as if it were the far background.
+    private const CameraEvent DrawEvent = CameraEvent.AfterGBuffer;
 
     #endregion
 
@@ -105,7 +107,12 @@ public class Stardust : MonoBehaviour
         DetachDraw();
         _draw?.Release();
         _draw = new CommandBuffer { name = "Stardust" };
-        _draw.DrawProcedural(Matrix4x4.identity, ParticleMaterial, 0, MeshTopology.Triangles, 6, Span * Span);
+        _draw.SetRenderTarget(new RenderTargetIdentifier[]
+        {
+            BuiltinRenderTextureType.GBuffer0, BuiltinRenderTextureType.GBuffer1, BuiltinRenderTextureType.GBuffer2,
+            BuiltinRenderTextureType.CameraTarget
+        }, BuiltinRenderTextureType.CameraTarget);
+        _draw.DrawProcedural(Matrix4x4.identity, ParticleMaterial, ParticleMaterial.FindPass("DEFERRED"), MeshTopology.Triangles, 6, Span * Span);
         AttachDraw();
     }
 
