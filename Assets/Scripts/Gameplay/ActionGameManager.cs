@@ -226,6 +226,8 @@ public class ActionGameManager : MonoBehaviour
     private List<InputAction> _actionBarActions = new List<InputAction>();
     // Each action bar slot's control path, index for index with _actionBarSlots.
     private List<string> _actionBarPaths = new List<string>();
+    // Ships whose action bar has been set up: the default weapon-group binding runs once per ship, then the bar is the player's.
+    private HashSet<Entity> _actionBarSetUp = new HashSet<Entity>();
     private float _hitMarkerTime;
     
     public AetheriaInput Input { get; private set; }
@@ -797,7 +799,6 @@ public class ActionGameManager : MonoBehaviour
                 {
                     _actionBarSlots[i].Restore(saved.ActionBarBindings[i], CurrentEntity);
                 }
-                AutoBindWeaponGroups();
             }
         }
     }
@@ -999,8 +1000,9 @@ public class ActionGameManager : MonoBehaviour
         _ => -1
     };
 
-    // Binds each slot's default weapon group to it when the group has weapons. Gear and consumables the player placed are
-    // kept; a slot holding a weapon group is rebound to the current ship, or cleared when its default group is now empty.
+    // A new ship's first action bar: each slot's default weapon group when the group has weapons. Gear and consumables the
+    // player placed are kept; a slot holding another ship's weapon group is rebound to this ship, or cleared when its default
+    // group here is empty.
     private void AutoBindWeaponGroups()
     {
         if (CurrentEntity?.WeaponGroups == null) return;
@@ -1068,7 +1070,9 @@ public class ActionGameManager : MonoBehaviour
         foreach (var group in _articulationGroups)
             group.crosshair.gameObject.SetActive(true);
 
-        AutoBindWeaponGroups();
+        // A loaded run's bar is restored after this and replaces it, so a saved setup is never overwritten.
+        if (_actionBarSetUp.Add(CurrentEntity))
+            AutoBindWeaponGroups();
         
         _shipSubscriptions.Add(CurrentEntity.Target.Subscribe(target =>
         {
