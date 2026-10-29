@@ -405,9 +405,10 @@ public class EntityInstance : MonoBehaviour
         // The drawn pose first: the camera's LookAt and the barrels read this frame's pose, not the last frame's.
         var drawn = DrawAhead.Position(Entity, ActionGameManager.Clock.Lead);
         LocalSpace.localPosition = transform.position = drawn.ToUnity();
+        var lead = ActionGameManager.Clock.Lead;
         var aimDistance = !Entity.Target.Value.IsNone
             ? max(Entity.TargetRange, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance)
-            : 10000;
+            : SurfaceDistance(drawn, Entity.Aim, lead);
         LookAtPoint.position = transform.position + Entity.Aim.ToUnity() * aimDistance;
         foreach (var group in _groupAims)
         {
@@ -415,10 +416,45 @@ public class EntityInstance : MonoBehaviour
             if (weapon == null) { group.Value.position = LookAtPoint.position; continue; }
             var barrel = Barrels.TryGetValue(weapon.Item.Hardpoint, out var barrels) ? barrels[0].position : transform.position;
             var direction = FireControl.Solution(weapon, Entity, Entity.Target.Value).Direction;
-            group.Value.position = barrel + new Vector3(direction.x, 0, direction.y) * aimDistance;
+            var aimAt = barrel + new Vector3(direction.x, 0, direction.y) * aimDistance;
+            // Shots fly over the field: the group's aim point rides it, at the barrel's height above the field under the ship.
+            aimAt.y += Entity.RideHeight(float2(aimAt.x, aimAt.z), DrawAhead.Time(Entity.Zone, lead)) - drawn.y;
+            group.Value.position = aimAt;
         }
         if (_influenceInstance)
             _influenceInstance.position = new Vector3(drawn.x, 0, drawn.z);
+    }
+
+    // How far along `aim` from `from` the view ray meets the surface the ship rides, so an untargeted aim lands where the
+    // player looks on the field. Marches out in growing steps, then bisects the crossing; a ray that never comes down
+    // (looking level or up) aims at the horizon.
+    private float SurfaceDistance(CultMath.float3 from, CultMath.float3 aim, float lead)
+    {
+        const float horizon = 10000;
+        var time = DrawAhead.Time(Entity.Zone, lead);
+        float Above(float t)
+        {
+            var p = from + aim * t;
+            return p.y - Entity.RideHeight(p.xz, time);
+        }
+        var near = Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance;
+        if (Above(near) <= 0) return near;
+        var step = max(near, 8f);
+        for (var t = near; t < horizon; step *= 1.25f)
+        {
+            var next = min(t + step, horizon);
+            if (Above(next) <= 0)
+            {
+                for (var i = 0; i < 12; i++)
+                {
+                    var mid = (t + next) / 2;
+                    if (Above(mid) <= 0) next = mid; else t = mid;
+                }
+                return next;
+            }
+            t = next;
+        }
+        return horizon;
     }
 
     public virtual void OnDestroy()
