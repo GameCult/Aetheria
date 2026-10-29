@@ -164,9 +164,14 @@ public class Ship : Entity
 
     public override void Update(float delta)
     {
+        // No drag below top speed: ships coast and orbits do not decay; drag bleeds off only the excess over the hull's top
+        // speed (aetheria-gravity:ruling:no-drag-below-top-speed). The VelocityLimit clamp still caps it, so the excess is
+        // what this step's forces added; a soft cap, where surfing the beat is a temporary boost, is the ruling's other half.
         var velocityMagnitude = length(Velocity);
-        if(velocityMagnitude > .01f)
-            Velocity = normalize(Velocity) * decay(velocityMagnitude, HullData.Drag * ItemManager.GameplaySettings.DragScale, delta);
+        var topSpeed = float.PositiveInfinity;
+        foreach (var limit in GetBehaviors<VelocityLimit>()) topSpeed = min(topSpeed, limit.Limit);
+        if (velocityMagnitude > topSpeed)
+            Velocity = normalize(Velocity) * (topSpeed + decay(velocityMagnitude - topSpeed, HullData.Drag * ItemManager.GameplaySettings.DragScale, delta));
         
         Position.xz += Velocity * delta;
         
