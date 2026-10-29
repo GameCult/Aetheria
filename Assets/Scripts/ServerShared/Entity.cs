@@ -1821,6 +1821,13 @@ public abstract class Entity
     public virtual void Update(float delta)
     {
         TurnRate = 0;
+        // A parented entity (a docked ship) sits on its parent, active or not: docking deactivates the ship, so this pin
+        // comes before the inactive return, or the ship keeps whatever pose its own physics last gave it.
+        if (Parent != null)
+        {
+            Position = Parent.Position;
+            Velocity = Parent.Velocity;
+        }
         if (!_active) return;
 
         var velocityBefore = Velocity;
@@ -1937,12 +1944,7 @@ public abstract class Entity
         foreach(var child in Children)
             child.Update(delta);
 
-        if (Parent != null)
-        {
-            Position = Parent.Position;
-            Velocity = Parent.Velocity;
-        }
-        else Position.y = RideHeight(Position.xz);
+        if (Parent == null) Position.y = RideHeight(Position.xz);
 
         Acceleration = delta > 0f ? (Velocity + LimitClamp - velocityBefore) / delta : float2(0, 0);
         Manoeuvre.Observe(Acceleration, delta, ItemManager.GameplaySettings.SolutionWindow);

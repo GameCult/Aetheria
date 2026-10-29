@@ -167,15 +167,19 @@ public class Ship : Entity
         // No drag below top speed: ships coast and orbits do not decay; drag bleeds off only the excess over the hull's top
         // speed (aetheria-gravity:ruling:no-drag-below-top-speed). The VelocityLimit clamp still caps it, so the excess is
         // what this step's forces added; a soft cap, where surfing the beat is a temporary boost, is the ruling's other half.
-        var velocityMagnitude = length(Velocity);
-        var topSpeed = float.PositiveInfinity;
-        foreach (var limit in GetBehaviors<VelocityLimit>()) topSpeed = min(topSpeed, limit.Limit);
-        if (velocityMagnitude > topSpeed)
-            Velocity = normalize(Velocity) * (topSpeed + decay(velocityMagnitude - topSpeed, HullData.Drag * ItemManager.GameplaySettings.DragScale, delta));
-        
-        Position.xz += Velocity * delta;
-        
-        Velocity += Zone.GetForce(Position.xz) * delta;
+        // A docked ship has no flight of its own: its parent owns its pose (Entity.Update).
+        if (Parent == null)
+        {
+            var velocityMagnitude = length(Velocity);
+            var topSpeed = float.PositiveInfinity;
+            foreach (var limit in GetBehaviors<VelocityLimit>()) topSpeed = min(topSpeed, limit.Limit);
+            if (velocityMagnitude > topSpeed)
+                Velocity = normalize(Velocity) * (topSpeed + decay(velocityMagnitude - topSpeed, HullData.Drag * ItemManager.GameplaySettings.DragScale, delta));
+
+            Position.xz += Velocity * delta;
+
+            Velocity += Zone.GetForce(Position.xz) * delta;
+        }
         var normal = Zone.GetNormal(Position.xz);
         var shipRight = Direction.Rotate(ItemRotation.Clockwise);
         var forward = cross(float3(shipRight.x, 0, shipRight.y), normal);
