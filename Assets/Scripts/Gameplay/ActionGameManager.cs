@@ -601,6 +601,7 @@ public class ActionGameManager : MonoBehaviour
                 ship.Position.xz = _currentEntity.Position.xz + _currentEntity.Direction.Rotate(ItemRotation.Clockwise) * 30;
                 ship.Velocity = _currentEntity.Velocity;
                 Zone.Admit(ship, piloted: false);
+                UnbindEntity(); // or the ship you leave still owns your death
                 BindToEntity(ship);
             });
         //Temporary, or not
