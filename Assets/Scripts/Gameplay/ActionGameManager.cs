@@ -203,6 +203,8 @@ public class ActionGameManager : MonoBehaviour
     private readonly HelmInput _helm = new HelmInput();
     // Seconds a held turn key takes to reach full turn rate.
     public float KeyboardTurnRampTime = .4f;
+    // Whether the turn axis was last driven by keys; kept while released so the ramp down still applies.
+    private bool _turnDigital;
     private TextMeshProUGUI _faceAimMark;
     private (HardpointData[] hardpoints, Transform[] barrels, PlaceUIElementWorldspace crosshair)[] _articulationGroups;
     // The outgoing progress indicators on the player's target: one per lock weapon (its Lock, shown only on a hostile target)
@@ -1337,8 +1339,9 @@ public class ActionGameManager : MonoBehaviour
                 {
                     ship.Command.Movement = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
                     _helm.Held = Input.Player.FaceAim.IsPressed();
-                    var turnDigital = Input.Player.Turn.activeControl?.device is UnityEngine.InputSystem.Keyboard;
-                    var turnAxis = _helm.TurnAxis(Input.Player.Turn.ReadValue<float>(), turnDigital, Time.deltaTime, KeyboardTurnRampTime);
+                    if (Input.Player.Turn.activeControl is { } turnControl)
+                        _turnDigital = turnControl.device is UnityEngine.InputSystem.Keyboard;
+                    var turnAxis = _helm.TurnAxis(Input.Player.Turn.ReadValue<float>(), _turnDigital, Time.deltaTime, KeyboardTurnRampTime);
                     ship.Command.Turn = _helm.Demand(_viewDirection.xz, turnAxis);
                 }
 

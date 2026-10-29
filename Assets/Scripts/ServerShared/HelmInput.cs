@@ -15,13 +15,16 @@ public class HelmInput
 
     private float _turnAxis;
 
-    // The turn axis as the helm reads it. A digital input (keys) ramps from zero to full over rampTime so a tap feathers the
-    // turn; releasing it, or reversing, starts again from zero. An analog input passes straight through.
+    // The turn axis as the helm reads it. A digital input (keys) ramps up while held and back down while released, both at
+    // full scale per rampTime, so tapping at a rate holds a gentle turn; reversing cuts to zero and ramps the other way.
+    // An analog input passes straight through.
     public float TurnAxis(float raw, bool digital, float dt, float rampTime)
     {
-        if (!digital || rampTime <= 0 || raw == 0) return _turnAxis = raw;
+        if (!digital || rampTime <= 0) return _turnAxis = raw;
+        var step = dt / rampTime;
+        if (raw == 0) return _turnAxis = sign(_turnAxis) * max(0f, abs(_turnAxis) - step);
         if (sign(raw) != sign(_turnAxis)) _turnAxis = 0;
-        return _turnAxis = sign(raw) * min(abs(raw), abs(_turnAxis) + dt / rampTime);
+        return _turnAxis = sign(raw) * min(abs(raw), abs(_turnAxis) + step);
     }
 
     // The turn the player commands: the aim heading, resolved against the hull at each sim step, or the turn axis.
