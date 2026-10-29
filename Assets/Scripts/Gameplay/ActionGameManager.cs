@@ -577,6 +577,32 @@ public class ActionGameManager : MonoBehaviour
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
                 Zone.Admit(turret, piloted: false);
             });
+        // "fly Djinni": a freshly fitted ship of the named hull beside the current one, and you in it. The ship you leave
+        // stays where it is, unpiloted.
+        ConsoleController.AddCommand("fly",
+            args =>
+            {
+                var hullName = string.Join(" ", args);
+                if (_currentEntity == null || _currentEntity.Parent != null)
+                {
+                    ConsoleController.Instance.AppendLogLine("Refused: undock first");
+                    return;
+                }
+                var generator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, null, 2);
+                var pack = generator.GenerateShipLoadout(data => string.Equals(data.Name, hullName, StringComparison.InvariantCultureIgnoreCase));
+                if (pack == null)
+                {
+                    ConsoleController.Instance.AppendLogLine($"No ship hull named \"{hullName}\"");
+                    return;
+                }
+                var ship = (Ship) EntitySerializer.Unpack(ItemManager, Zone, pack);
+                ship.IsPlayerShip = true;
+                ship.Direction = _currentEntity.Direction;
+                ship.Position.xz = _currentEntity.Position.xz + _currentEntity.Direction.Rotate(ItemRotation.Clockwise) * 30;
+                ship.Velocity = _currentEntity.Velocity;
+                Zone.Admit(ship, piloted: false);
+                BindToEntity(ship);
+            });
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
 
