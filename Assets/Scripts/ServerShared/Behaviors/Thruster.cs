@@ -45,9 +45,10 @@ public class ThrusterData : BehaviorData
 public class Thruster : Behavior, IPowerConsumer
 {
     // Live: heat, quality, durability and power move this stat after construction, so it is read, never cached.
-    public float Thrust => Evaluate(_data.Thrust) * ItemManager.GameplaySettings.ThrustScale;
+    public float Thrust => Evaluate(_data.Thrust);
     // Thrust at a full grant, the same stat read without the power-supply term: what a column promises. Live, like Thrust.
-    public float NominalThrust => EvaluateNominalPower(_data.Thrust) * ItemManager.GameplaySettings.ThrustScale;
+    public float NominalThrust => EvaluateNominalPower(_data.Thrust);
+    // GameplaySettings.ThrustScale scales the push alone: it tunes how hard ships fight gravity, and turning does not.
     public float Torque { get; }
 
     // This thruster's effect per unit throttle at the given thrust, in the body frame: xy is the push (x starboard, y
@@ -56,7 +57,7 @@ public class Thruster : Behavior, IPowerConsumer
     public float3 Column(float thrust)
     {
         if (Item == null || !Item.Active.Value) return default;
-        var push = -float2(0, 1).Rotate(Item.EquippableItem.Rotation) * thrust / Entity.Mass;
+        var push = -float2(0, 1).Rotate(Item.EquippableItem.Rotation) * thrust * ItemManager.GameplaySettings.ThrustScale / Entity.Mass;
         return float3(push.x, push.y, Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass);
     }
 
@@ -117,7 +118,7 @@ public class Thruster : Behavior, IPowerConsumer
         if(_input > 0f && Item.PowerSupply > 1e-4f)
         {
             var thrust = Thrust;
-            Entity.Velocity -= Direction.xz * _input * thrust / Entity.Mass * dt;
+            Entity.Velocity -= Direction.xz * _input * thrust * ItemManager.GameplaySettings.ThrustScale / Entity.Mass * dt;
             var turnRate = _input * Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass;
             Entity.Direction = mul(Entity.Direction, CultMath.float2x2.Rotate(turnRate * dt));
             Entity.TurnRate += turnRate;
