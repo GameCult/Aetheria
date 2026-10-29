@@ -112,6 +112,43 @@ public class Ship : Entity
 
     #endregion
 
+    // The player's turn axis as a fraction of the hull's yaw extreme, banded so each thruster joins over an equal share of
+    // the input. The allocator serves a turn by the thrusters with the least translation per unit of yaw first and brings in
+    // the next as they saturate; here the thrusters yawing the asked way are ranked by that ratio, equal ratios form one band,
+    // and band i fills over input [i/k, (i+1)/k]. A hull whose best-ratio thrusters hold a small share of its yaw then gets
+    // half the travel of a two-band turn before its drives join, instead of the first tenth. Full input is still full yaw.
+    public float BandedTurn(float axis)
+    {
+        axis = clamp(axis, -1f, 1f);
+        if (axis == 0 || _allThrusters == null) return axis;
+        var direction = axis > 0 ? 1f : -1f;
+        var thrusters = new List<(float ratio, float yaw)>();
+        var total = 0f;
+        foreach (var thruster in _allThrusters)
+        {
+            var column = thruster.Column(thruster.NominalThrust);
+            var yaw = column.z * direction;
+            if (!(yaw > 0)) continue;
+            thrusters.Add((length(float2(column.x, column.y)) / yaw, yaw));
+            total += yaw;
+        }
+        if (!(total > 0)) return axis;
+        thrusters.Sort((a, b) => a.ratio.CompareTo(b.ratio));
+        var bands = new List<float>();
+        var bandRatio = float.NaN;
+        foreach (var (ratio, yaw) in thrusters)
+        {
+            if (bands.Count > 0 && abs(ratio - bandRatio) <= .02f * max(bandRatio, 1e-6f)) bands[bands.Count - 1] += yaw;
+            else { bands.Add(yaw); bandRatio = ratio; }
+        }
+        var travel = abs(axis) * bands.Count;
+        var band = min((int)travel, bands.Count - 1);
+        var served = 0f;
+        for (var i = 0; i < band; i++) served += bands[i];
+        served += (travel - band) * bands[band];
+        return direction * min(served / total, 1f);
+    }
+
     // Called by Entity.Update once the items' performance is current and before the power bus is stepped and the items
     // execute: liveness, thrust and the throttles they decide are one phase, the one Execute acts on. The lock is a
     // bound on the allocator's solve; intent reaches the allocator here and nowhere else.

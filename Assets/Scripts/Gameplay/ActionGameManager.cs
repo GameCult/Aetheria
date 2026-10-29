@@ -1342,7 +1342,7 @@ public class ActionGameManager : MonoBehaviour
                     if (Input.Player.Turn.activeControl is { } turnControl)
                         _turnDigital = turnControl.device is UnityEngine.InputSystem.Keyboard;
                     var turnAxis = _helm.TurnAxis(Input.Player.Turn.ReadValue<float>(), _turnDigital, Time.deltaTime, KeyboardTurnRampTime);
-                    ship.Command.Turn = _helm.Demand(_viewDirection.xz, turnAxis);
+                    ship.Command.Turn = _helm.Demand(_viewDirection.xz, ship.BandedTurn(turnAxis));
                 }
 
                 UpdateMusic();
