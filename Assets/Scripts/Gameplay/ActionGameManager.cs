@@ -1435,12 +1435,17 @@ public class ActionGameManager : MonoBehaviour
         else if (target.Entity != null)
             TargetIndicator.Target = DrawAhead.Position(target.Entity, lead).ToUnity();
         var distance = length(ViewDot.Target.ToCultMath() - ownDrawn);
+        var ownField = DrawAhead.Height(CurrentEntity.Zone, ownDrawn.xz, lead);
         foreach (var (_, barrels, crosshair) in _articulationGroups)
         {
             var averagePosition = Vector3.zero;
             foreach (var barrel in barrels)
                 averagePosition += barrel.position + barrel.forward * distance;
             averagePosition /= barrels.Length;
+            // Shots fly over the field, so the crosshair rides it too: the aim point's own field height, plus the barrels' height
+            // above the field under the ship. A level projection floats over downhill aim and sinks into uphill aim.
+            var aimPlanar = float2(averagePosition.x, averagePosition.z);
+            averagePosition.y += DrawAhead.Height(CurrentEntity.Zone, aimPlanar, lead) - ownField;
             crosshair.Target = averagePosition;
         }
         
