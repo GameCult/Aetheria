@@ -353,8 +353,6 @@ public sealed class ShipProductTests : IDisposable
         RefusedAndUntouched(path, "--mass", "5", "--mass", "6");
         // A valid flag beside a bad one writes nothing.
         RefusedAndUntouched(path, "--mass", "5", "--durability", "-2");
-        RefusedAndUntouched(bare, "--top-speed", "50");
-        RefusedAndUntouched(bare, "--mass", "5", "--top-speed", "50");
         // Two VelocityLimits leave no one top speed to set.
         RefusedAndUntouched(twin, "--top-speed", "50");
 
@@ -385,6 +383,15 @@ public sealed class ShipProductTests : IDisposable
         Assert.Equal((1f, 0f, 8000f), (ShipAuthoringStore.Load(path).Hull.Mass, ShipAuthoringStore.Load(path).Hull.Drag, ShipAuthoringStore.Load(path).Hull.Durability));
         Assert.Equal(0, Run("stats", bare, "--armor", "12").Code);
         Assert.Equal(12f, ShipAuthoringStore.Load(bare).Hull.Armor);
+
+        // A hull with no VelocityLimit gets exactly one from --top-speed, the only way a hull made without --like can
+        // satisfy validate; a second run edits that one rather than adding another.
+        Assert.Empty(ShipAuthoringStore.Load(bare).Hull.Behaviors.OfType<VelocityLimitData>());
+        Assert.Equal(0, Run("stats", bare, "--mass", "5", "--top-speed", "50").Code);
+        Assert.Equal(0, Run("stats", bare, "--top-speed", "60").Code);
+        var added = Assert.Single(ShipAuthoringStore.Load(bare).Hull.Behaviors.OfType<VelocityLimitData>()).TopSpeed;
+        Assert.Equal((60f, 60f), (added.Min, added.Max));
+        Assert.Equal(5f, ShipAuthoringStore.Load(bare).Hull.Mass);
     }
 
     [Fact]
