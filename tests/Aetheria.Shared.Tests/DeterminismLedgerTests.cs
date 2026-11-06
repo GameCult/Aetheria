@@ -48,7 +48,11 @@ public sealed partial class RunStartTests
     // go of a held weapon it no longer commands (target gone, untracked, another group the pick, Combat ended), where a held gun fired on
     // until a later step selected its group (the candidate change reverted: d9493bbe). Both together: the digest below. Releasing a beam or a
     // lock the same way (h7) moved nothing.
-    private const string TwoAiPinnedDigest = "85e85c46cfc66693c819dd294ad02f3cd0eae5486c8f152a97e2e2787f854274";
+    // Repinned an eighth time for the 2026-10-29 flight changes, each of which moves the digest on its own (measured at each commit on
+    // linux-x64, the pin holding at 2822a583e): thrust a tenth of authored (e0c1daa4e) ff89501b; no drag below top speed (845f6c3aa)
+    // 3f72b168; then ThrustScale scaling a thruster's push only (ffdba39ac) and no flight while docked (f3927e24d), the digest below
+    // at master a4be037a4, the same in the class alone, the test alone and the whole suite.
+    private const string TwoAiPinnedDigest = "30615241505fe8176cea6bc3b856f0a380753a01b0c7500e698fd5e36a75b869";
     private const float TwoAiSeconds = 60f;
 
     [Fact]
