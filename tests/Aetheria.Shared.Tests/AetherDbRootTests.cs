@@ -5,6 +5,11 @@ using Xunit;
 [CollectionDefinition("process working directory", DisableParallelization = true)]
 public sealed class ProcessWorkingDirectoryCollection { }
 
+// Console.Out is one per process. A test that swaps it to capture a command's output must run alone, or any other test's
+// Console.WriteLine lands in its capture (AnAuthorDryRun... caught RolesBackfillCommandTests' "Landed ..." line).
+[CollectionDefinition("process console", DisableParallelization = true)]
+public sealed class ProcessConsoleCollection { }
+
 // FindRoot reads the process working directory, so these run alone.
 [Collection("process working directory")]
 public sealed class AetherDbRootTests : IDisposable

@@ -5,6 +5,7 @@ using System.Linq;
 using GameCult.Caching;
 using Xunit;
 
+[Collection("process console")]
 public sealed class EconomyCommandTests
 {
     private sealed class Lambda : EconomyBatch

@@ -9,6 +9,7 @@ using Newtonsoft.Json.Linq;
 using Xunit;
 
 // Compose, ReadPackage and ReadNodeIds: the derived catalog a game would open, and the GLB node ids its anchors bind to.
+[Collection("process console")]
 public sealed class ShipModCatalogTests : IDisposable
 {
     private readonly TempDirectory _directory = new TempDirectory();
