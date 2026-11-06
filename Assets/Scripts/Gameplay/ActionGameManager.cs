@@ -590,12 +590,24 @@ public class ActionGameManager : MonoBehaviour
                 }
                 var generator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, null, 2);
                 var pack = generator.GenerateShipLoadout(data => string.Equals(data.Name, hullName, StringComparison.InvariantCultureIgnoreCase));
-                if (pack == null)
+                Ship ship;
+                if (pack != null) ship = (Ship) EntitySerializer.Unpack(ItemManager, Zone, pack);
+                else
                 {
-                    ConsoleController.Instance.AppendLogLine($"No ship hull named \"{hullName}\"");
-                    return;
+                    // An unoffered hull is drawn by nobody; it reaches a ship only through a Loadout (ruling off-market-is-general).
+                    var failures = new List<string>();
+                    var loadout = ItemManager.ItemData.GetAll<Loadout>().FirstOrDefault(l =>
+                        ItemManager.ItemData.Get(l.Hull) is { HullType: HullType.Ship } hull &&
+                        string.Equals(hull.Name, hullName, StringComparison.InvariantCultureIgnoreCase));
+                    ship = loadout == null ? null : Loadouts.Materialize(ItemManager, Zone, loadout, generator.ChooseProduct, failures) as Ship;
+                    if (ship == null)
+                    {
+                        ConsoleController.Instance.AppendLogLine(failures.Count > 0
+                            ? $"Cannot build \"{hullName}\": {string.Join("; ", failures)}"
+                            : $"No ship hull named \"{hullName}\" that a maker offers or a Loadout fits");
+                        return;
+                    }
                 }
-                var ship = (Ship) EntitySerializer.Unpack(ItemManager, Zone, pack);
                 ship.IsPlayerShip = true;
                 ship.Direction = _currentEntity.Direction;
                 ship.Position.xz = _currentEntity.Position.xz + _currentEntity.Direction.Rotate(ItemRotation.Clockwise) * 30;

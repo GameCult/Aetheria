@@ -245,8 +245,9 @@ catalog. Continue refuses a run naming a design the catalog no longer holds
    price and `ship-authoring product <ship.cc> <maker> --name <name>
    [--description <text>]` writes the package's product by that maker
    (`--remove` deletes it). A package with a product needs a price above 0,
-   because generation skips price 0; a package with none stays valid and is
-   console-only. Compose follows.
+   because generation skips price 0; a package with none stays valid but no
+   maker offers it, so generation never draws it. Console `fly <hull>` reaches such a hull only
+   through a catalog Loadout of it. Compose follows.
 3. A command-line validator rejects malformed cells, overlapping or dangling
    hardpoints, missing model nodes, and unresolved asset references with
    precise errors. It changes no live catalog or scene on failure. The
