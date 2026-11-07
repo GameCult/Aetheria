@@ -150,6 +150,48 @@ public sealed class RunSaveTests : IDisposable
         }
     }
 
+    // Galaxy.Factions and Galaxy.HomeZones.Keys are two orders of the same factions. A saved standing belongs to its
+    // faction, whichever order the galaxy lists them in.
+    [Fact]
+    public void StandingsSurviveSaveAndContinueWhenFactionOrderDiffersFromHomeZoneOrder()
+    {
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            cache.Upsert(new Faction { Name = "Borealis", ShortName = "BOR" });
+            cache.Upsert(new Faction { Name = "Corvid", ShortName = "COR" });
+            cache.FlushAsync().Wait();
+        }
+
+        using (var cache = Open())
+        {
+            var factions = cache.GetAll<Faction>().OrderBy(f => f.Name, StringComparer.Ordinal).ToArray();
+            var game = Game(cache, factions);
+            RunSave.Commit(cache, game, Zones(2, null, -1), new ProvenanceLedger());
+        }
+
+        var expected = new Dictionary<string, FactionRelationship>
+        {
+            { "Adrasteia", FactionRelationship.Hated }, { "Borealis", FactionRelationship.Friendly }, { "Corvid", FactionRelationship.Beloved }
+        };
+
+        using (var cache = Open())
+        {
+            var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
+            Assert.NotEqual(galaxy.Factions, galaxy.HomeZones.Keys);
+            foreach (var faction in galaxy.Factions) galaxy.FactionRelationships[faction] = expected[faction.Name];
+            var itemManager = new ItemManager(1u, cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
+            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0], 0);
+            RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
+        }
+
+        using (var cache = Open())
+        {
+            var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
+            Assert.Equal(expected, galaxy.Factions.ToDictionary(f => f.Name, f => galaxy.FactionRelationships[f]));
+        }
+    }
+
     // The run's credits ride the save: what Capture is given is what a later Continue reads from the run store.
     [Fact]
     public void CreditsSurviveContinue()
@@ -753,11 +795,14 @@ public sealed class RunSaveTests : IDisposable
         return new ZonePack { Orbits = { root, moon }, Planets = { body } };
     }
 
-    private static SavedGame Game(CultCache cache) => new SavedGame
+    private static SavedGame Game(CultCache cache) => Game(cache, cache.GetAll<Faction>().Single());
+
+    // HomeZones lists the factions in reverse of their saved order.
+    private static SavedGame Game(CultCache cache, params Faction[] factions) => new SavedGame
     {
-        Factions = new[] { cache.RefOf(cache.GetAll<Faction>().Single()) },
-        Relationships = new[] { FactionRelationship.Neutral },
-        HomeZones = new Dictionary<int, int> { { 0, 0 } },
+        Factions = factions.Select(f => cache.RefOf(f)).ToArray(),
+        Relationships = factions.Select(_ => FactionRelationship.Neutral).ToArray(),
+        HomeZones = factions.Select((_, i) => factions.Length - 1 - i).ToDictionary(i => i, _ => 0),
         BossZones = new Dictionary<int, int>(),
         DiscoveredZones = new[] { 0 },
         ActionBarBindings = new SavedActionBarBinding[0],
