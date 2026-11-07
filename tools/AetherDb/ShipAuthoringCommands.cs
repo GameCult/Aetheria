@@ -110,8 +110,11 @@ public static class ShipAuthoringCommands
                 var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
                 if (stats.TryGetValue("--top-speed", out var topSpeed))
                 {
-                    var limits = (hull.Behaviors ?? new List<BehaviorData>()).OfType<VelocityLimitData>().ToArray();
-                    if (limits.Length != 1) throw new InvalidOperationException($"{ship.Id}: --top-speed needs exactly one VelocityLimit on the hull; it has {limits.Length}.");
+                    hull.Behaviors ??= new List<BehaviorData>();
+                    var limits = hull.Behaviors.OfType<VelocityLimitData>().ToList();
+                    // A hull made without --like has none, and Validate refuses a ship hull without one: the first --top-speed adds it.
+                    if (limits.Count == 0) { limits.Add(new VelocityLimitData()); hull.Behaviors.Add(limits[0]); }
+                    if (limits.Count != 1) throw new InvalidOperationException($"{ship.Id}: --top-speed needs at most one VelocityLimit on the hull; it has {limits.Count}.");
                     // A fixed top speed, as every shipped hull authors one (Min equal to Max); its terms are kept.
                     limits[0].TopSpeed.Min = limits[0].TopSpeed.Max = topSpeed;
                 }

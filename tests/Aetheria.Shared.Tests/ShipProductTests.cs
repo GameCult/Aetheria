@@ -353,8 +353,6 @@ public sealed class ShipProductTests : IDisposable
         RefusedAndUntouched(path, "--mass", "5", "--mass", "6");
         // A valid flag beside a bad one writes nothing.
         RefusedAndUntouched(path, "--mass", "5", "--durability", "-2");
-        RefusedAndUntouched(bare, "--top-speed", "50");
-        RefusedAndUntouched(bare, "--mass", "5", "--top-speed", "50");
         // Two VelocityLimits leave no one top speed to set.
         RefusedAndUntouched(twin, "--top-speed", "50");
 
@@ -385,6 +383,10 @@ public sealed class ShipProductTests : IDisposable
         Assert.Equal((1f, 0f, 8000f), (ShipAuthoringStore.Load(path).Hull.Mass, ShipAuthoringStore.Load(path).Hull.Drag, ShipAuthoringStore.Load(path).Hull.Durability));
         Assert.Equal(0, Run("stats", bare, "--armor", "12").Code);
         Assert.Equal(12f, ShipAuthoringStore.Load(bare).Hull.Armor);
+        // A hull with no top speed (create without --like) gets its one VelocityLimit from the first --top-speed.
+        Assert.Equal(0, Run("stats", bare, "--top-speed", "50").Code);
+        var added = ShipAuthoringStore.Load(bare).Hull.Behaviors.OfType<VelocityLimitData>().Single().TopSpeed;
+        Assert.Equal((50f, 50f), (added.Min, added.Max));
     }
 
     [Fact]
