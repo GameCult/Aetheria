@@ -45,6 +45,8 @@ public class SavedGame
     [Key(11)]
     public bool IsTutorial;
 
+    // Read only by a save written before Standings: its entries follow galaxy.Factions order, not Factions order, so
+    // Galaxy trusts it only when the two orders cannot differ (see Galaxy's save constructor).
     [Key(12)]
     public FactionRelationship[] Relationships;
 
@@ -61,6 +63,21 @@ public class SavedGame
     // gets Regions, Partition and Deal from its saved graph, boss zones, Exit and seed.
     [Key(15)]
     public List<SavedProvince> Provinces;
+
+    // Each faction's standing, keyed by the faction itself so no list order can misplace it. Written by RunSave.Capture;
+    // null in a save written before it, which then reads Relationships.
+    [Key(16)]
+    public List<SavedStanding> Standings;
+}
+
+[MessagePackObject]
+public class SavedStanding
+{
+    [Key(0)]
+    public CultRecordRef<Faction> Faction;
+
+    [Key(1)]
+    public FactionRelationship Relationship;
 }
 
 [MessagePackObject]
@@ -87,7 +104,8 @@ public static class RunSave
             DiscoveredZones = galaxy.DiscoveredZones.Select(dz => Array.IndexOf(galaxy.Zones, dz)).ToArray(),
             Background = galaxy.Background,
             Factions = factions.Select(f => cache.RefOf(f)).ToArray(),
-            Relationships = galaxy.Factions.Select(f => galaxy.FactionRelationships[f]).ToArray(),
+            Standings = galaxy.Factions.Select(f => new SavedStanding
+                {Faction = cache.RefOf(f), Relationship = galaxy.FactionRelationships[f]}).ToList(),
             HomeZones = galaxy.HomeZones.ToDictionary(
                 x => Array.IndexOf(factions, x.Key),
                 x => Array.IndexOf(galaxy.Zones, x.Value)),

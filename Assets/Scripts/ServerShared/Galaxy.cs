@@ -58,10 +58,14 @@ public class Galaxy
         Seed = savedGame.Seed;
         
         Factions = savedGame.Factions.Select(faction => cultCache.Get(faction)).ToArray();
-        for (var i = 0; i < Factions.Length; i++)
-        {
-            FactionRelationships[Factions[i]] = savedGame.Relationships[i];
-        }
+        if (savedGame.Standings != null)
+            foreach (var standing in savedGame.Standings)
+                FactionRelationships[cultCache.Get(standing.Faction)] = standing.Relationship;
+        else
+            // A save before Standings wrote Relationships in an order it did not record; it is right only for a
+            // galaxy that never reordered, and is all that save holds.
+            for (var i = 0; i < Factions.Length; i++)
+                FactionRelationships[Factions[i]] = savedGame.Relationships[i];
         
         var savedZones = savedGame.Zones.Select(zone => cultCache.Get(zone)).ToArray();
         Zones = savedZones.Select(zone =>

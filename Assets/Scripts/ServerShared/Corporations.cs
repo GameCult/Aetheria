@@ -47,14 +47,7 @@ public class Faction
     [Inspectable, CultReference(typeof(Faction), many: true), CultInspectorRange(0, 1), JsonProperty("allegiance"), Key(12)]
     public Dictionary<CultRecordRef<Faction>, float> Allegiance = new Dictionary<CultRecordRef<Faction>, float>();
 
-    [Inspectable, JsonProperty("overworldMusic"), Key(13)]
-    public uint OverworldMusic;
-
-    [Inspectable, JsonProperty("combatMusic"), Key(14)]
-    public uint CombatMusic;
-
-    [Inspectable, JsonProperty("bossMusic"), Key(15)]
-    public uint BossMusic;
+    // Keys 13 to 15 (overworldMusic, combatMusic, bossMusic) held Wwise ids; retired, never reuse them.
 
     // Key 16 is reserved for Relations (operator ruling faction-relations-field).
 
