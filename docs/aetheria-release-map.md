@@ -514,7 +514,7 @@ record.
 | follow-up | `belt-render-reads-index` | full game | Belt rendering through the index. |
 | follow-up | `c4-ship-element-ids` | full game | Variants campaign. |
 | follow-up | `variants-python-raw-push` | full game | Variants campaign. |
-| follow-up | `mod-hull-changed-under-run` | full game | Mod edits under a run; demo hulls are first-party. |
+| follow-up | `mod-hull-changed-under-run` | full game | Mod edits under a run; demo hulls are first-party. Done 2026-11-10 (#6): `RunSave.RequireLayouts` makes Continue refuse a run whose gear no longer fits its hull's edited cells or hardpoints, naming the hull. |
 | follow-up | `ship-lods` | full game | Only if a profile shows cost. |
 | follow-up | `hull-decals` | full game | Insignia and damage decals. |
 | follow-up | `hull-player-paint` | full game | Player liveries. |
