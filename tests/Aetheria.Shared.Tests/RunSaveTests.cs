@@ -592,6 +592,47 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(before, File.ReadAllBytes(Run));
     }
 
+    // Continue from a hull's edited layout: a mod package edited in place keeps its key, so the design check passes, but
+    // gear saved against the old hardpoints must not be loaded onto the new ones (equipping would silently drop it).
+    [Fact]
+    public void RunWhoseHullHardpointMovedRefusesContinueNamingTheHull()
+    {
+        var hullKey = new CultRecordKey("mod-hull:mod.skiff");
+        HullData Skiff(int2 hardpointAt) => new HullData
+        {
+            Name = "Skiff",
+            Shape = new Shape(4, 4),
+            Hardpoints = new List<HardpointData> { new HardpointData { Type = HardpointType.Sensors, Position = hardpointAt, Shape = new Shape() } }
+        };
+        CultRecordRef<ItemData> lamp;
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            cache.UpsertAsync(typeof(HullData), Skiff(new int2(1, 1)), hullKey).GetAwaiter().GetResult();
+            lamp = new CultRecordRef<ItemData>(cache.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape() }).Key);
+            cache.FlushAsync().Wait();
+        }
+        using (var cache = Open())
+        {
+            var pack = BarePack(new EquippableItem { Data = new CultRecordRef<ItemData>(hullKey), Lot = 1 });
+            pack.Equipment = new[] { (new int2(1, 1), new EquippableItem { Data = lamp, Lot = 1 }) };
+            var lots = new ProvenanceLedger { NextLot = 2 };
+            lots.Lots[1] = new Lot { Origin = new Attributed() };
+            RunSave.Commit(cache, Game(cache), new[] { ZoneOf(pack) }, lots);
+        }
+        using (var cache = Open()) RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>());
+
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            cache.UpsertAsync(typeof(HullData), Skiff(new int2(3, 3)), hullKey).GetAwaiter().GetResult();
+            cache.FlushAsync().Wait();
+        }
+        using (var cache = Open())
+        {
+            var refusal = Assert.Throws<InvalidOperationException>(() => RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()));
+            Assert.Contains("changed hulls: Skiff", refusal.Message);
+        }
+    }
+
     // --- RequireDesigns: what it walks, what it lists ---------------------------------------------------------------
 
     // Commits a run whose zones the caller builds, then returns RequireDesigns' refusal message, or null when it passes.

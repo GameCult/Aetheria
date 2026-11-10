@@ -158,7 +158,7 @@ public static class RunSave
         var named = designs.Where(key => key.IsSet()).Distinct()
             .Where(key => cache.Get<ItemData>(key) == null)
             .Select(key => key.Value).OrderBy(key => key, StringComparer.Ordinal).ToArray();
-        if (named.Length == 0) return;
+        if (named.Length == 0) { RequireLayouts(cache, game); return; }
         const string modHull = "mod-hull:";
         var mods = named.Where(key => key.StartsWith(modHull, StringComparison.Ordinal)).Select(key => key.Substring(modHull.Length)).ToArray();
         var others = named.Where(key => !key.StartsWith(modHull, StringComparison.Ordinal)).ToArray();
@@ -166,6 +166,35 @@ public static class RunSave
             (mods.Length > 0 ? $"; missing mod ships: {string.Join(", ", mods)}" : "") +
             (others.Length > 0 ? $"; missing other designs: {string.Join(", ", others)}" : "") +
             ". Reinstall them, or start a new game.");
+    }
+
+    // Continue's second gate: a hull's cells or hardpoints edited under a saved run must still hold what the run
+    // equipped on it (a package edited in place keeps its key, so the design check above passes). Each saved piece of
+    // gear must sit where equipping would accept it on the hull as the catalog holds it now, by the same rules
+    // (HardpointData.TakesAt for hardpoint gear, interior cells for tools); occupancy is not rechecked, the save
+    // carries only what equipping admitted.
+    private static void RequireLayouts(CultCache cache, SavedGame game)
+    {
+        var moved = new SortedSet<string>(StringComparer.Ordinal);
+        void Check(EntityPack pack)
+        {
+            if (pack.Hull.Data.Key.IsSet() && cache.Get<ItemData>(pack.Hull.Data.Key) is HullData hull)
+                foreach (var (position, item) in pack.Equipment.Concat(pack.CargoBays).Concat(pack.DockingBays))
+                {
+                    if (!item.Data.Key.IsSet() || !(cache.Get<ItemData>(item.Data.Key) is EquippableItemData design)) continue;
+                    var fits = design.HardpointType == HardpointType.Tool
+                        ? design.Shape.Coordinates.All(cell => hull.InteriorCells[position + design.Shape.Rotate(cell, item.Rotation)])
+                        : hull.Hardpoints.Any(hardpoint => hardpoint.TakesAt(design, position - hardpoint.Position));
+                    if (!fits) moved.Add(hull.Name);
+                }
+            foreach (var child in pack.Children) Check(child);
+        }
+        foreach (var zoneRef in game.Zones ?? Array.Empty<CultRecordRef<SavedZone>>())
+            foreach (var pack in cache.Get(zoneRef).Contents?.Entities ?? new List<EntityPack>())
+                Check(pack);
+        if (moved.Count > 0)
+            throw new InvalidOperationException("This run's equipment no longer fits its hulls' layouts; changed hulls: " +
+                string.Join(", ", moved) + ". Restore the earlier version of the mod, or start a new game.");
     }
 
     private static InvalidOperationException MalformedSave(string where) =>
