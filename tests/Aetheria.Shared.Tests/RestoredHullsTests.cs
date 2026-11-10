@@ -31,7 +31,15 @@ public sealed class RestoredHullsTests
     // (tools/AetherDb/AuthoredSettings.cs) is the same headless YAML reader tools/AetherDb already uses to
     // inspect Settings.asset outside Unity; this loads the real GameplaySettings the same way instead of
     // hand-copying its fields a second time.
-    internal static GameplaySettings Settings() => AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+    internal static GameplaySettings Settings() => PinnedFlight(AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings"));
+
+    // The authored settings with the global thrust tuning at 1 (GameplaySettings.ThrustScale, 0.1 in play): tests that pin
+    // what a thruster, a hull or a brain does read the gear's own thrust, so a retune of the knob does not move them.
+    internal static GameplaySettings PinnedFlight(GameplaySettings settings)
+    {
+        settings.ThrustScale = 1f;
+        return settings;
+    }
 
     // Same composition FireControlCut7Tests.OpenReadOnlyRealCatalog uses: a registry scoped to the shipped
     // assembly's own [CultDocument] types, so this test's own process-wide type registration never pollutes the

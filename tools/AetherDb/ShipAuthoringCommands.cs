@@ -8,7 +8,7 @@ using System.Linq;
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | starter <mods-dir> <stable-id> <name> --like <shipped hull name> | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | compose <shipped.cc> <derived.cc> <mods-dir>";
 
     private static readonly string[] StatFlags = { "--mass", "--durability", "--armor", "--drag", "--top-speed" };
 
@@ -78,6 +78,12 @@ public static class ShipAuthoringCommands
                 Console.WriteLine($"Created draft {path}; fill its model bindings and schematic in Blender.");
                 return 0;
             }
+            if (args[0] == "starter" && args.Length == 6 && args[4] == "--like")
+            {
+                var path = ShipStarterCommand.Write(args[1], args[2], args[3], ShippedShipHull(args[5]));
+                Console.WriteLine($"Wrote a flyable starter package {path}; replace its stand-in model through Blender and Package, then set price and product.");
+                return 0;
+            }
             if (args[0] == "price" && args.Length == 3)
             {
                 // Judged before the file is touched: a refusal leaves it byte-identical.
@@ -110,11 +116,14 @@ public static class ShipAuthoringCommands
                 var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
                 if (stats.TryGetValue("--top-speed", out var topSpeed))
                 {
-                    hull.Behaviors ??= new List<BehaviorData>();
-                    var limits = hull.Behaviors.OfType<VelocityLimitData>().ToList();
-                    // A hull made without --like has none, and Validate refuses a ship hull without one: the first --top-speed adds it.
-                    if (limits.Count == 0) { limits.Add(new VelocityLimitData()); hull.Behaviors.Add(limits[0]); }
-                    if (limits.Count != 1) throw new InvalidOperationException($"{ship.Id}: --top-speed needs at most one VelocityLimit on the hull; it has {limits.Count}.");
+                    var limits = (hull.Behaviors ?? new List<BehaviorData>()).OfType<VelocityLimitData>().ToArray();
+                    if (limits.Length > 1) throw new InvalidOperationException($"{ship.Id}: --top-speed needs at most one VelocityLimit on the hull; it has {limits.Length}.");
+                    // A hull made without --like has none, and this is its only way to get one: validate refuses a ship without a top speed.
+                    if (limits.Length == 0)
+                    {
+                        limits = new[] { new VelocityLimitData() };
+                        (hull.Behaviors ??= new List<BehaviorData>()).Add(limits[0]);
+                    }
                     // A fixed top speed, as every shipped hull authors one (Min equal to Max); its terms are kept.
                     limits[0].TopSpeed.Min = limits[0].TopSpeed.Max = topSpeed;
                 }

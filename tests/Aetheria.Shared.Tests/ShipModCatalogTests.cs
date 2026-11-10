@@ -501,6 +501,28 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.True(File.Exists(target), error);
     }
 
+    // starter: a complete package from nothing but a hull to take stats from. The package must pass the reader the game boots
+    // with (GLB node ids and mesh roles included) and plan a rig, and a second run must not touch the first package.
+    [Fact]
+    public void StarterWritesAPackageTheGameLoadsAndPlansARigFrom()
+    {
+        var like = new HullData { Name = "Like", HullType = HullType.Ship, Mass = 1234, Behaviors = { new VelocityLimitData() } };
+        var mods = Path.Combine(_directory.Path, "GameData", "Mods");
+        var path = ShipStarterCommand.Write(mods, "probe.starter", "Probe Starter", like);
+
+        var package = ShipModCatalog.ReadPackage(path);
+        Assert.Equal(("Probe Starter", 1234f), (package.Hull.Name, package.Hull.Mass));
+        var plan = ShipModPlan.Build(package.Hull, package.Visual);
+        Assert.Equal(2, plan.Thrusters.Length);
+        Assert.Single(plan.Radiators);
+        Assert.Equal(new[] { 1, 1 }, plan.Weapons.Select(weapon => weapon.Muzzles.Length));
+        Assert.Equal(package.Hull.Shape.Width * package.Hull.Shape.Height, package.Hull.Shape.Cells.Cast<bool>().Count(cell => cell));
+
+        var before = File.ReadAllBytes(path);
+        Assert.Throws<InvalidOperationException>(() => ShipStarterCommand.Write(mods, "probe.starter", "Other", like));
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
     [Fact]
     public void CentreCommandPrintsShapeCenterOfMass()
     {

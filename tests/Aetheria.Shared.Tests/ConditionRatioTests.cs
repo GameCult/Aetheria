@@ -28,7 +28,8 @@ public sealed class ConditionRatioTests : IDisposable
     {
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },
-        QualityPriceModifier = new ExponentialLerp()
+        QualityPriceModifier = new ExponentialLerp(),
+        ThrustScale = 1f // these pin a thruster's authored push, not the global flight tuning
     };
 
     private static PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };

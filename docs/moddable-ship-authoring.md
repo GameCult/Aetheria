@@ -63,6 +63,11 @@ be empties. Package exports the collection, Grease Pencil excluded, to
 collection holds exactly one Grease Pencil object, and shows AetherDb's
 verdict in the panel. It runs the AetherDb in the game folder's `ModTools`
 (see Tools below).
+A package made with `create` and no `--like` has no top speed, which `validate` refuses; `ship-authoring stats <ship.cc> --top-speed <v>`
+adds the one `VelocityLimit` it needs (and edits it on a later run).
+Without Blender, `ship-authoring starter <mods-dir> <id> <name> --like <shipped hull>` writes a complete flyable package: the
+shipped hull's stats, a 4×6 grid carrying two thrusters, a radiator, two energy guns and the internal modules, and a boxed
+`ship.glb` with every anchor. The model is a stand-in to replace through Blender and **Package**.
 `ship-authoring inspect <ship.cc>` reads drafts; `validate` requires complete
 hull, model, and anchor authoring, and judges `ship.glb` once it exists.
 
@@ -240,8 +245,9 @@ catalog. Continue refuses a run naming a design the catalog no longer holds
    price and `ship-authoring product <ship.cc> <maker> --name <name>
    [--description <text>]` writes the package's product by that maker
    (`--remove` deletes it). A package with a product needs a price above 0,
-   because generation skips price 0; a package with none stays valid and is
-   console-only. Compose follows.
+   because generation skips price 0; a package with none stays valid but no
+   maker offers it, so generation never draws it. Console `fly <hull>` reaches such a hull only
+   through a catalog Loadout of it. Compose follows.
 3. A command-line validator rejects malformed cells, overlapping or dangling
    hardpoints, missing model nodes, and unresolved asset references with
    precise errors. It changes no live catalog or scene on failure. The
