@@ -224,9 +224,11 @@ at the same commit.
   stat); `SoundBank` is catalog key 21 (`:403-404`).
 - Gone since B5: the `AetherDrive` audio calls and its `RpmAudioParameter` and
   `TorqueRatioAudioParameter` fields (grep 0), and the `EntityInstance` block that read
-  `item.Data.SoundBank` (grep 0). Follow-up `wwise-catalog-fields` still names both; its live
-  set is `SoundBank` (key 21), `AudioStats` (key 22) and `Faction.OverworldMusic`,
-  `CombatMusic`, `BossMusic` (`Corporations.cs:52-59`, keys 13 to 15).
+  `item.Data.SoundBank` (grep 0). Follow-up `wwise-catalog-fields` retired the rest: `SoundBank`
+  (key 21), `AudioStats` (key 22, with `AudioStat`) and `Faction.OverworldMusic`, `CombatMusic`,
+  `BossMusic` (keys 13 to 15) are deleted, their keys left as never-reuse comments. The shipped
+  `GameData/Aetheria.cc` still carries the old values (29 equippables with a `SoundBank`, 2 factions
+  with music); the reader skips unknown keys and the next catalog write drops them.
 - `WwiseMetadata.cs` (91 lines) and `WwiseSoundBinding.cs` (21 lines) are used only by that
   surface; both have `.meta` files. A repo-wide grep outside `docs` finds the Wwise symbols in
   exactly these files: `ChargedWeapon.cs`, `InstantWeapon.cs`, `Reactor.cs`, `Thruster.cs`,

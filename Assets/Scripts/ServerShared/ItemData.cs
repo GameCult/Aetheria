@@ -417,11 +417,7 @@ public abstract class EquippableItemData : CraftedItemData
     [Inspectable, CultInspectorAssetGuid, JsonProperty("actionIcon"), Key(20)]
     public string ActionBarIcon;
 
-    [Inspectable, JsonProperty("soundBank"), Key(21)]
-    public uint SoundBank;
-
-    [Inspectable, JsonProperty("audioStats"), Key(22)]
-    public List<AudioStat> AudioStats = new List<AudioStat>();
+    // Keys 21 (soundBank) and 22 (audioStats) held Wwise ids; audio is native Unity plus AquaSynth now. Retired; never reuse them.
     
     [IgnoreMember]
     public abstract HardpointType HardpointType { get; }
@@ -453,16 +449,6 @@ public abstract class EquippableItemData : CraftedItemData
             return saturate(unlerp(MinimumTemperature, plateauLow, temperature));
         return saturate(unlerp(MaximumTemperature, plateauHigh, temperature));
     }
-}
-
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
-public class AudioStat
-{
-    [Inspectable, JsonProperty("parameter"), Key(0)]
-    public uint Parameter;
-
-    [Inspectable, JsonProperty("stat"), Key(1)]
-    public PerformanceStat Stat = new PerformanceStat();
 }
 
 [CultDocument("aetheria.geardata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
