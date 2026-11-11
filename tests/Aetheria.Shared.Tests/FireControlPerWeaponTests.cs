@@ -1392,4 +1392,18 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var r = Build(magazine: 2);
         Assert.Equal(0, r.Gun.Weapon.Reserve);
     }
+
+    // A magazine weapon that names no ammunition still reloads free and keeps firing: only an AmmoType makes a reload cost a crate.
+    // Kills: TakeReloadRound refusing when AmmoType is unset, which would silence every unfed magazine gun after one magazine.
+    [Fact]
+    public void AMagazineWeaponWithNoAmmunitionTypeStillReloadsFree()
+    {
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 40f, magazine: 2, auto: true, reload: 3f);
+        r.Shooter.SetTarget(TargetRef.None);
+        Aim(r, float2(0, 1));
+        var shots = 0;
+        r.Zone.ShotCommitted.Subscribe(_ => shots++);
+        Run(r, 30f);
+        Assert.True(shots > 4, $"an unfed magazine weapon fires past its first magazine, fired {shots}");
+    }
 }

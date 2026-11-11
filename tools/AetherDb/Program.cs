@@ -1105,11 +1105,6 @@ public static class Program
         return 0;
     }
 
-    // Damage falloff (aetheria-release, damage-curve-fate-ruled): every gun and beam authors an effective range at a
-    // fraction of its Range (Min and Max scaled, Terms copied so the effective range wears and heats as the range does)
-    // and a damage multiplier at maximum range. Guided weapons, lock weapons and mine layers keep the unauthored
-    // defaults (no falloff). The command upserts every weapon design, which is also what drops the retired damage curve
-    // (key 7) from the stored records. Idempotent: the values are functions of Range alone. Dry run unless "apply".
     // Read-only: what every weapon design draws per shot (reactor energy, magazine, rounds), so ammunition rulings are audited
     // against the catalog and not against names.
     private static int WeaponAmmo()
@@ -1123,6 +1118,11 @@ public static class Program
         return 0;
     }
 
+    // Damage falloff (aetheria-release, damage-curve-fate-ruled): every gun and beam authors an effective range at a
+    // fraction of its Range (Min and Max scaled, Terms copied so the effective range wears and heats as the range does)
+    // and a damage multiplier at maximum range. Guided weapons, lock weapons and mine layers keep the unauthored
+    // defaults (no falloff). The command upserts every weapon design, which is also what drops the retired damage curve
+    // (key 7) from the stored records. Idempotent: the values are functions of Range alone. Dry run unless "apply".
     private static int RangeFalloff(string[] args)
     {
         var apply = args.Contains("apply");
