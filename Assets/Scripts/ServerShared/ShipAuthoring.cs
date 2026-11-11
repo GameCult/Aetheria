@@ -33,6 +33,9 @@ public sealed class ShipJoint
     [Key(2)] public float[] Axes;
     [Key(3)] public float[] Min;
     [Key(4)] public float[] Max;
+
+    // Element identity, derived from the bone id so it never changes across rewrites.
+    [Key(5)] [CultElementId(nameof(Id))] public string ElementId = "";
 }
 
 [MessagePackObject]
@@ -50,6 +53,9 @@ public sealed class ShipAnchor
     [Key(4)] public int Order;
     // On a weapon-mount anchor: the id of the nearest joint above its node in the model; null or empty is a fixed mount.
     [Key(5)] public string Joint;
+
+    // Element identity, derived from the anchor id so it never changes across rewrites.
+    [Key(6)] [CultElementId(nameof(Id))] public string ElementId = "";
 }
 
 // Evaluated or baked Grease Pencil stroke coordinates in Blender's right-handed Z-up
@@ -64,6 +70,9 @@ public sealed class ShipPolyline
     [Key(4)] public float[] Opacities;
     [Key(5)] public bool Cyclic;
     [Key(6)] public float[] Color;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(7)] [CultElementId] public string Id = "";
 }
 
 public static class ShipAuthoringStore

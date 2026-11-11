@@ -281,7 +281,7 @@ public sealed partial class ContactRevealTests
         var reader = new MessagePackReader(sensor);
         Assert.Equal(2, reader.ReadArrayHeader());
         Assert.Equal(5, reader.ReadInt32());
-        Assert.Equal(14, reader.ReadArrayHeader());
+        Assert.Equal(38, reader.ReadArrayHeader());
         for (var slot = 0; slot < 13; slot++) reader.Skip();
         Assert.Equal(2f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, EmissionWire).Min);
         Assert.Equal(2f, JObject.Parse(JsonConvert.SerializeObject(new SensorData { InterceptFactor = Const(2) }))["interceptFactor"].ToObject<PerformanceStat>().Min);
@@ -291,7 +291,7 @@ public sealed partial class ContactRevealTests
         reader = new MessagePackReader(bytes);
         Assert.Equal(2, reader.ReadArrayHeader());
         reader.Skip(); // the arm's union index
-        Assert.Equal(37, reader.ReadArrayHeader()); // 35 and 36 are the weapon base's EffectiveRange and DamageAtMaxRange
+        Assert.Equal(38, reader.ReadArrayHeader()); // 35 and 36 are the weapon base's EffectiveRange and DamageAtMaxRange, 37 the element id
         for (var slot = 0; slot < 34; slot++) reader.Skip();
         Assert.Equal(3f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, EmissionWire).Min);
         Assert.Equal(3f, JObject.Parse(JsonConvert.SerializeObject(new LauncherData { InterceptFactor = Const(3) }))["interceptFactor"].ToObject<PerformanceStat>().Min);

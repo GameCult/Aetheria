@@ -78,6 +78,9 @@ public class SavedStanding
 
     [Key(1)]
     public FactionRelationship Relationship;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 [MessagePackObject]
@@ -88,6 +91,9 @@ public class SavedProvince
 
     [Key(1)]
     public CultRecordRef<ProvinceData> Type;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 // The run's lifecycle over the run store. Only Commit creates SavedGame, SavedZone and ProvenanceLedger records;
@@ -301,6 +307,9 @@ public class SavedZone
 ]
 public abstract class SavedActionBarBinding
 {
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 [MessagePackObject]

@@ -40,6 +40,9 @@ public class VerseRole
 {
     [Key(1)] public string Name;
     [Key(2)] public VerseReferentKind Binds;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(3)] [CultElementId] public string Id = "";
 }
 
 // The actor is the invoking subject and is never a role.

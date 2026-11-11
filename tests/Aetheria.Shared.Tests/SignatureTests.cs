@@ -501,7 +501,7 @@ public sealed class SignatureTests : IDisposable
         var reader = new MessagePackReader(bytes);
         Assert.Equal(2, reader.ReadArrayHeader());
         Assert.Equal(22, reader.ReadInt32());
-        Assert.Equal(4, reader.ReadArrayHeader());
+        Assert.Equal(38, reader.ReadArrayHeader());
         reader.Skip(); // Group
         Assert.Equal(1f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, Options).Min);
         Assert.Equal(2f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, Options).Min);

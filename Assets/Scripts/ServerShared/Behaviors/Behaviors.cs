@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
 using CultMath;
@@ -212,4 +213,7 @@ public abstract class BehaviorData
     {
         return base.ToString().FormatTypeName();
     }
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(37)] [CultElementId] public string Id = "";
 }

@@ -63,6 +63,9 @@ public class CommodityCount
 
     [JsonProperty("count"), Key(1)]
     public int Count = 1;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 // A region gate's trade with the world beyond it: what the outside buys and sells, at what price and at most how fast.
@@ -96,6 +99,9 @@ public class OutsideMarketRow
 
     [JsonProperty("ratePerHour"), Key(4)]
     public float RatePerHour;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(5)] [CultElementId] public string Id = "";
 }
 
 // The one reader of recipes: which recipe makes a good, a recipe's role slots (RoleInputsOf), which commodities fill a role, and

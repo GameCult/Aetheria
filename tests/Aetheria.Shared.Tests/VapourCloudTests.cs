@@ -419,7 +419,7 @@ public sealed class VapourCloudTests : IDisposable
         var reader = new MessagePackReader(bytes);
         Assert.Equal(2, reader.ReadArrayHeader());
         Assert.Equal(42, reader.ReadInt32());
-        Assert.Equal(4, reader.ReadArrayHeader());
+        Assert.Equal(38, reader.ReadArrayHeader());
         reader.Skip();
         Assert.Equal(1f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min);
         Assert.Equal(2f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min);

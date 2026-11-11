@@ -67,6 +67,9 @@ public class ChunkWearPack
 
     [JsonProperty("brokenUntil"), Key(3)]
     public double? BrokenUntil;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(4)] [CultElementId] public string Id = "";
 }
 
 [JsonObject(MemberSerialization.OptIn)]
@@ -149,6 +152,9 @@ public class FieldYield
 
     [JsonProperty("regional"), Key(2)]
     public bool Regional;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(3)] [CultElementId] public string Id = "";
 }
 
 // Ore geography (rulings provinces-within-regions, ores-are-regional): a kind of ground, authored. A region deals its
@@ -182,6 +188,9 @@ public class ProvinceKindWeight
 
     [JsonProperty("weight"), Key(1)]
     public float Weight = 1;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
@@ -192,6 +201,9 @@ public class ProvinceOre
 
     [JsonProperty("weight"), Key(1)]
     public float Weight = 1;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 // Mining Cut 3 (Q16 B): the one owner of which kind a belt is. Ore geography: and of what it yields.
@@ -485,6 +497,9 @@ public class Asteroid
 
     [JsonProperty("rotationSpeed"), Key(3)]
     public float RotationSpeed;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(4)] [CultElementId] public string Id = "";
 }
 
 [CultDocument("aetheria.orbitdata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]

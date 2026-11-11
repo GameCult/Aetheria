@@ -833,7 +833,7 @@ public sealed class ShipRigTests : IDisposable
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HardpointData).Assembly);
         var hardpoint = new HardpointData { Type = HardpointType.Thruster, Shape = new Shape(), Transform = "t", FiringArc = 40f, Row = "left" };
         var fields = MessagePackSerializer.Deserialize<object[]>(MessagePackSerializer.Serialize(hardpoint, options), options);
-        Assert.Equal(8, fields.Length);
+        Assert.Equal(9, fields.Length);
         Assert.Equal(40f, Convert.ToSingle(fields[6]));
         Assert.Equal("left", fields[7]);
         Assert.Null(MessagePackSerializer.Deserialize<object[]>(MessagePackSerializer.Serialize(new HardpointData { Shape = new Shape() }, options), options)[7]);
@@ -842,7 +842,7 @@ public sealed class ShipRigTests : IDisposable
         thruster.Thrust.Max = 5f;
         thruster.Slew.Max = 90f;
         var slew = MessagePackSerializer.Deserialize<object[]>(MessagePackSerializer.Serialize(thruster, options), options);
-        Assert.Equal(7, slew.Length);
+        Assert.Equal(38, slew.Length); // the behavior base's element id is key 37
         Assert.Equal(MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(thruster.Slew, options), options),
             MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(slew[6], options), options));
         Assert.NotEqual(MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(thruster.Thrust, options), options),
