@@ -1328,9 +1328,9 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
     // One launcher-shaped weapon (magazine 2, reload 3 s, Missiles) held on its trigger at no target, `crates` of Missiles in the
     // hold. Returns the rig and a counter of committed shots.
-    private (Rig Rig, Func<int> Shots) AmmoRig(int crates)
+    private (Rig Rig, Func<int> Shots) AmmoRig(int crates, int magazine = 2)
     {
-        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 40f, magazine: 2, auto: true, crates: crates, reload: 3f);
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 40f, magazine: magazine, auto: true, crates: crates, reload: 3f);
         r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var shots = 0;
@@ -1405,5 +1405,49 @@ public sealed class FireControlPerWeaponTests : IDisposable
         r.Zone.ShotCommitted.Subscribe(_ => shots++);
         Run(r, 30f);
         Assert.True(shots > 4, $"an unfed magazine weapon fires past its first magazine, fired {shots}");
+    }
+
+    // A weapon that names an AmmoType is magazine-fed whatever MagazineSize says (0 or 1 is a magazine of one): it fires one round, every
+    // reload takes a crate, and with none it fires no more. Kills: UseAmmo/reload ignoring AmmoType at MagazineSize <= 1 (free fire, or
+    // fire that never touches the cargo).
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void ASingleRoundAmmunitionFedWeaponFiresOnePerCrateAndNoMore(int magazine)
+    {
+        var (r, shots) = AmmoRig(crates: 2, magazine: magazine);
+        Assert.Equal(1, r.Gun.Weapon.Ammo);
+        Run(r, 2f);
+        Assert.Equal(1, shots());
+        Assert.Equal(2, r.Gun.Weapon.Reserve);
+        Run(r, 30f);
+        Assert.Equal(3, shots());
+        Assert.Equal(0, r.Gun.Weapon.Reserve);
+        Assert.Equal(0, r.Gun.Weapon.Ammo);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void ASingleRoundAmmunitionFedWeaponWithNoCrateFiresOnceAndNoMore(int magazine)
+    {
+        var (r, shots) = AmmoRig(crates: 0, magazine: magazine);
+        Run(r, 30f);
+        Assert.Equal(1, shots());
+    }
+
+    // With no AmmoType a magazine of 0 or 1 is no magazine: the weapon fires free, as before. Kills: the new rule leaking onto unfed weapons.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void AWeaponWithNoAmmunitionTypeAndNoRealMagazineFiresFree(int magazine)
+    {
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 40f, magazine: magazine, auto: true, reload: 3f);
+        r.Shooter.SetTarget(TargetRef.None);
+        Aim(r, float2(0, 1));
+        var shots = 0;
+        r.Zone.ShotCommitted.Subscribe(_ => shots++);
+        Run(r, 30f);
+        Assert.True(shots > 4, $"an unfed weapon fires on, fired {shots}");
     }
 }

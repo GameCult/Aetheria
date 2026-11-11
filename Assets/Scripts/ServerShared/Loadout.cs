@@ -157,11 +157,12 @@ public static class Loadouts
     // spawner is to pass LoadoutGenerator.ChooseProduct, with no fallback to any manufacturer; RunStart does, and so does the
     // boss in ZoneGenerator, which is built here too from its faction's Loadout (Loadouts.BossOf). The hull's type
     // picks the entity: a ship hull builds a Ship, a turret hull an OrbitalEntity with no orbit, which stays where it is
-    // put; a station hull is refused. The entity always gets exactly WeaponGroupCount groups; a loadout with fewer is
+    // put; a station hull is refused. The entity is stocked with the crates its weapons draw (StockAmmunition) unless the caller
+    // authors the cargo itself and passes stockAmmunition false. The entity always gets exactly WeaponGroupCount groups; a loadout with fewer is
     // padded with empty groups. A stated quality mints every lot of the fit at it, drawing nothing (a scenario states
     // one for a fit its checks rest on).
     public static Entity Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
-        Func<CraftedItemData, FactionProductData> choose, List<string> failures, float? quality = null)
+        Func<CraftedItemData, FactionProductData> choose, List<string> failures, float? quality = null, bool stockAmmunition = true)
     {
         var cache = itemManager.ItemData;
         var reported = failures.Count;
@@ -202,7 +203,22 @@ public static class Loadouts
             built[g] = (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
         }
         entity.WeaponGroups = built;
+        if (stockAmmunition) StockAmmunition(itemManager, entity);
         return entity;
+    }
+
+    // The crates an entity's weapons reload from: LoadoutGenerator.AmmunitionCrates of each distinct AmmoType, stopping when no hold takes
+    // another. The one owner of ammunition stock: every path that fits weapons onto a new entity (the generator, a Loadout's Materialize,
+    // so a scenario's Fit, a boss, a console-built ship) ends here. A saved or packed entity is never stocked: its cargo is its own.
+    // Draws nothing from the random stream, so adding it moves no other roll.
+    public static void StockAmmunition(ItemManager itemManager, Entity entity)
+    {
+        foreach (var key in entity.Weapons.Select(weapon => weapon.WeaponData.AmmoType).Where(type => type.IsSet()).Select(type => type.Key).Distinct())
+        {
+            var crates = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Quantity = LoadoutGenerator.AmmunitionCrates };
+            if (!entity.CargoBays.Any(bay => bay.TryStore(crates)))
+                itemManager.Log($"{entity.Name}: no room for {LoadoutGenerator.AmmunitionCrates} crates of {key.Value}.");
+        }
     }
 
     // The hull, then each slot's gear, made by the given builders and equipped to the loadout's cells: the one placement of
