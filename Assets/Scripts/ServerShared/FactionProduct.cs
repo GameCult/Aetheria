@@ -61,6 +61,9 @@ public class ProductRole
 
     [Inspectable, JsonProperty("standardDeviation"), Key(2)]
     public float StandardDeviation = .15f;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(3)] [CultElementId] public string Id = "";
 }
 
 // A bin of one of the maker's lines (ruling maker-design-tiers-allowed): the line it bins (the same design and maker, itself

@@ -21,7 +21,7 @@ public sealed class SmokeRoundsCommandTests : IDisposable
     private readonly Dictionary<string, byte[]> _shipped = new Dictionary<string, byte[]>();
 
     private static byte[] Pack(WeaponItemData design) =>
-        MessagePackSerializer.Serialize(design, CultDocumentMessagePackSerialization.OptionsFor(typeof(WeaponItemData).Assembly));
+        ElementIdBlind.Pack(design, typeof(WeaponItemData));
 
     public SmokeRoundsCommandTests()
     {

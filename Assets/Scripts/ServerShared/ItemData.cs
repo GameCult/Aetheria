@@ -348,6 +348,9 @@ public class ItemRole
 
     [Inspectable, JsonProperty("count"), Key(1)]
     public int Count = 1;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 [CultDocument("aetheria.compoundcommoditydata", "1"), Inspectable, MessagePackObject]
@@ -635,6 +638,9 @@ public class HardpointData
     }
     
     private static Dictionary<HardpointType, float3> _tintColors;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(8)] [CultElementId] public string Id = "";
 }
 
 // What a PerformanceStat reads to resolve one number: the lot it prices quality against, and the per-context
@@ -680,6 +686,9 @@ public class StatTerm
     // The design role whose part quality this term reads; unset reads the item's effective quality (Lot.EffectiveQuality).
     // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
     [Inspectable, JsonProperty("role"), Key(2)] public string Role;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(3)] [CultElementId] public string Id = "";
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]

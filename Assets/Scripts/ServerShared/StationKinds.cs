@@ -35,6 +35,9 @@ public class StationKindStandIn
     // The kind whose model this faction builds in place of the owning kind's.
     [JsonProperty("kind"), Key(1)]
     public CultRecordRef<StationKindData> Kind;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 // The one owner of which kinds a faction builds, which kind a station gets, and which hull kind stands in.

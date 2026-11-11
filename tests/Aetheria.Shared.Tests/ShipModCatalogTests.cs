@@ -796,7 +796,7 @@ public sealed class ShipModCatalogTests : IDisposable
     // Every stored record's key, schema and payload bytes. StoredAt is a write timestamp, not record content.
     private static Dictionary<string, string> Records(string path) =>
         GameCult.Caching.MessagePack.CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(path)).Records
-            .ToDictionary(record => record.Key, record => record.SchemaId + ":" + Convert.ToHexString(record.Payload));
+            .ToDictionary(record => record.Key, record => record.SchemaId + ":" + Convert.ToHexString(ElementIdBlind.Payload(TestCatalog.Registry(), record.SchemaId, record.Payload)));
 
     private void AssertOnlyTheDerivedFile()
     {

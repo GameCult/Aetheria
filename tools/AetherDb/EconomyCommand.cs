@@ -45,6 +45,10 @@ public sealed class EconomyAuthor
     private void Write(Type type, object document, CultRecordKey key)
     {
         if (!_touched.Contains(key.Value)) _touched.Add(key.Value);
+        // A cache refuses to write one type onto a key another type holds (write ownership by written type): a batch that turns
+        // a compound good into a raw one removes the old record first.
+        var held = _catalog.Get(key);
+        if (held != null && held.GetType() != type) _catalog.Remove(key);
         _catalog.UpsertAsync(type, document, key).GetAwaiter().GetResult();
     }
 }

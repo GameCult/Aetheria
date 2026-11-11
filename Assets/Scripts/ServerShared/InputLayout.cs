@@ -29,7 +29,10 @@ public class InputLayout
  Union(0, typeof(InputLayoutRowSpacer)),
  Union(1, typeof(InputLayoutKeyRow))
 ]
-public abstract class InputLayoutRow { }
+public abstract class InputLayoutRow { 
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(1)] [CultElementId] public string Id = "";
+}
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class InputLayoutRowSpacer : InputLayoutRow
@@ -52,6 +55,9 @@ public class InputLayoutKeyRow : InputLayoutRow
 public abstract class InputLayoutColumn
 {
     [Key(0), JsonProperty("width")] public float Width;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(5)] [CultElementId] public string Id = "";
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]

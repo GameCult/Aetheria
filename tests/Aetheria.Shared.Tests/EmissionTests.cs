@@ -281,7 +281,7 @@ public sealed partial class ContactRevealTests
         var reader = new MessagePackReader(sensor);
         Assert.Equal(2, reader.ReadArrayHeader());
         Assert.Equal(5, reader.ReadInt32());
-        Assert.Equal(14, reader.ReadArrayHeader());
+        Assert.Equal(38, reader.ReadArrayHeader());
         for (var slot = 0; slot < 13; slot++) reader.Skip();
         Assert.Equal(2f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, EmissionWire).Min);
         Assert.Equal(2f, JObject.Parse(JsonConvert.SerializeObject(new SensorData { InterceptFactor = Const(2) }))["interceptFactor"].ToObject<PerformanceStat>().Min);

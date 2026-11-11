@@ -331,7 +331,7 @@ public sealed class ShipProductTests : IDisposable
         var path = Package("mod.skiff", "Skiffhull", 0);
         var bare = Path.Combine(ShipFixture.WritePackage(Mods, "mod.bare", "Barehull", tweak: ship => ship.Hull.Behaviors.Clear()), "ship.cc");
         var twin = Path.Combine(ShipFixture.WritePackage(Mods, "mod.twin", "Twinhull",
-            tweak: ship => ship.Hull.Behaviors.Add(ship.Hull.Behaviors.OfType<VelocityLimitData>().First())), "ship.cc");
+            tweak: ship => ship.Hull.Behaviors.Add(new VelocityLimitData())), "ship.cc");
         void RefusedAndUntouched(string file, params string[] flags)
         {
             var before = File.ReadAllBytes(file);

@@ -22,7 +22,7 @@ public sealed class LaunchSuppressorCommandTests : IDisposable
     private readonly string[] _shippedProducts;
 
     private static byte[] Pack(GearData design) =>
-        MessagePackSerializer.Serialize(design, CultDocumentMessagePackSerialization.OptionsFor(typeof(GearData).Assembly));
+        ElementIdBlind.Pack(design, typeof(GearData));
 
     private static string Describe(CultCache cache, FactionProductData product) =>
         $"{cache.Get(product.Design).Name} | {product.Name} | {cache.Get(product.Manufacturer).ShortName} | {product.Description} | " +

@@ -92,6 +92,9 @@ public class Lot
         foreach (var fill in Roles) sum += Math.Min(fill.Quality, Quality);
         return sum / Roles.Count;
     }
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(5)] [CultElementId] public string Id = "";
 }
 
 // One filled slot: the design's role name and how good the part that went into it turned out to be. Stats read it through
@@ -101,6 +104,9 @@ public class RoleFill
 {
     [Key(0)] public string Role;
     [Key(1)] public float Quality;
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 
 // Who built a lot, where, and from what. Terminus mints Attributed placeholders; Produced and Extracted are the

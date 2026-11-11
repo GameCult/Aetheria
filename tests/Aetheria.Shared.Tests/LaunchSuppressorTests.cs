@@ -299,7 +299,7 @@ public sealed partial class ContactRevealTests
         var reader = new MessagePackReader(bytes);
         Assert.Equal(2, reader.ReadArrayHeader());
         Assert.Equal(49, reader.ReadInt32()); // loot-2 holds 48; a key reused across branches would collide on the wire
-        Assert.Equal(4, reader.ReadArrayHeader()); // Group is key 0, then the three stats
+        Assert.Equal(38, reader.ReadArrayHeader()); // array-format union: the base's element id sits at key 37, so every behavior row is 38 long; Group is key 0, then the three stats
 
         var back = Assert.IsType<LaunchSuppressorData>(MessagePackSerializer.Deserialize<BehaviorData>(bytes, options));
         Assert.Equal(.25f, back.Factor.Min);

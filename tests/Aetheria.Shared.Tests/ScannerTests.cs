@@ -484,7 +484,7 @@ public sealed partial class ContactRevealTests
         var reader = new MessagePackReader(bytes);
         Assert.Equal(2, reader.ReadArrayHeader());
         Assert.Equal(51, reader.ReadInt32()); // sensor-catalog holds 50; a key reused across branches would collide on the wire
-        Assert.Equal(4, reader.ReadArrayHeader()); // Group is key 0, then the three stats
+        Assert.Equal(38, reader.ReadArrayHeader()); // array-format union: the base's element id sits at key 37, so every behavior row is 38 long; Group is key 0, then the three stats
         reader.Skip();
         Assert.Equal(200f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min); // key 1 Range
         Assert.Equal(2f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min); // key 2 ScanTime

@@ -203,7 +203,7 @@ public sealed partial class ContactRevealTests
         var reader = new MessagePackReader(bytes);
         Assert.Equal(2, reader.ReadArrayHeader());
         Assert.Equal(50, reader.ReadInt32());
-        Assert.Equal(2, reader.ReadArrayHeader()); // Group is key 0, then Multiple
+        Assert.Equal(38, reader.ReadArrayHeader()); // array-format union: the base's element id sits at key 37, so every behavior row is 38 long; Group is key 0, then Multiple
 
         var back = Assert.IsType<ListenerData>(MessagePackSerializer.Deserialize<BehaviorData>(bytes, options));
         Assert.Equal(2.5f, back.Multiple.Min);

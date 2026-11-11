@@ -180,24 +180,20 @@ public sealed class ShipAuthoringTests
         Assert.IsAssignableFrom<MessagePackSerializationException>(pull.InnerException);
     }
 
-    // A store header with a nil format stamp is refused by the runtime with NotSupportedException; Load names the file.
+    // A store header with a nil format stamp is refused by the runtime with CultStoreUnreadableException; Load names the file.
     [Fact]
     public void LoadNamesTheFileWhoseFormatStampIsNil()
     {
         using var directory = new TempDirectory();
         var path = Path.Combine(directory.Path, "nilstamp.cc");
-        File.WriteAllBytes(path, CultDocumentMessagePackSerialization.SerializeSnapshot(new CultPersistedStoreSnapshot
-        {
-            FormatVersion = null,
-            SchemaCatalog = Array.Empty<CultSchemaCatalogEntry>(),
-            Records = Array.Empty<CultPersistedRecord>(),
-        }));
+        // The runtime no longer writes a store without a format stamp, so the header is spelled by hand: [nil, [], []].
+        File.WriteAllBytes(path, new byte[] { 0x93, 0xC0, 0x90, 0x90 });
         var error = Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(path));
         Assert.Contains(path, error.Message);
-        Assert.IsType<NotSupportedException>(error.InnerException);
+        Assert.IsType<CultStoreUnreadableException>(error.InnerException);
     }
 
-    // A store format this runtime does not know is refused on read with NotSupportedException from the attach; Load names the file.
+    // A store format this runtime does not know is refused on read with CultStoreUnreadableException from the attach; Load names the file.
     [Fact]
     public async Task LoadNamesTheFileWhoseStoreFormatIsNewer()
     {
@@ -213,7 +209,7 @@ public sealed class ShipAuthoringTests
         File.WriteAllBytes(path, CultDocumentMessagePackSerialization.SerializeSnapshot(snapshot));
         var error = Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(path));
         Assert.Contains(path, error.Message);
-        Assert.IsType<NotSupportedException>(error.InnerException);
+        Assert.IsType<CultStoreUnreadableException>(error.InnerException);
     }
 
     // Decodes one record's payload of the named schema to its slot array, lets the edit change it, and stores it again.

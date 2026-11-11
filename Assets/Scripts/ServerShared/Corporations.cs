@@ -84,5 +84,8 @@ public class FactionPlace
     // treats an invalid entry as absent; AetherDb place-names refuses a table that holds one.
     public static bool IsValidName(string name) =>
         !string.IsNullOrEmpty(name) && name == name.Trim() && !name.StartsWith("EAC-", StringComparison.OrdinalIgnoreCase);
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(2)] [CultElementId] public string Id = "";
 }
 

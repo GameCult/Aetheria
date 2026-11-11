@@ -294,4 +294,7 @@ public abstract class EntityPack
 
         return _price;
     }
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(23)] [CultElementId] public string Id = "";
 }

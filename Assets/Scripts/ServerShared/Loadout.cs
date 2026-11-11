@@ -28,6 +28,9 @@ public class LoadoutSlot
     [Key(1)] public ItemRotation Rotation;
     [Key(2)] public CultRecordRef<EquippableItemData> Design;
     [Key(3)] public CultRecordRef<FactionProductData> Product; // unset: design-only, chosen at materialization
+
+    // Element identity: minted by the cache on write; "" means unset.
+    [Key(4)] [CultElementId] public string Id = "";
 }
 
 // Why a faction has no boss Loadout to build; see Loadouts.BossOf.
