@@ -202,7 +202,22 @@ public static class Loadouts
             built[g] = (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
         }
         entity.WeaponGroups = built;
+        StockAmmunition(itemManager, entity);
         return entity;
+    }
+
+    // The crates an entity's weapons reload from: LoadoutGenerator.AmmunitionCrates of each distinct AmmoType, stopping when no hold takes
+    // another. The one owner of ammunition stock: every path that fits weapons onto a new entity (the generator, a Loadout's Materialize,
+    // so a scenario's Fit, a boss, a console-built ship) ends here. A saved or packed entity is never stocked: its cargo is its own.
+    // Draws nothing from the random stream, so adding it moves no other roll.
+    public static void StockAmmunition(ItemManager itemManager, Entity entity)
+    {
+        foreach (var key in entity.Weapons.Select(weapon => weapon.WeaponData.AmmoType).Where(type => type.IsSet()).Select(type => type.Key).Distinct())
+        {
+            var crates = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Quantity = LoadoutGenerator.AmmunitionCrates };
+            if (!entity.CargoBays.Any(bay => bay.TryStore(crates)))
+                itemManager.Log($"{entity.Name}: no room for {LoadoutGenerator.AmmunitionCrates} crates of {key.Value}.");
+        }
     }
 
     // The hull, then each slot's gear, made by the given builders and equipped to the loadout's cells: the one placement of

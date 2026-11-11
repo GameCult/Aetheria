@@ -234,12 +234,7 @@ public class SchematicDisplay : MonoBehaviour
                         x.ListElement.CooldownFill.anchorMax = new Vector2(x.Cooldown.Progress, 1);
                     x.ListElement.DurabilityLabel.text = $"{(int)(x.Row.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
                     if (x.Weapon.WeaponData.AmmoType.IsSet())
-                    {
-                        if(x.Weapon.WeaponData.MagazineSize > 1)
-                            x.ListElement.AmmoLabel.text = $"{x.Weapon.Ammo}/{x.Weapon.Reserve}";
-                        else
-                            x.ListElement.AmmoLabel.text = _entity.CountItemsInCargo(x.Weapon.WeaponData.AmmoType.Key).ToString();
-                    }
+                        x.ListElement.AmmoLabel.text = $"{x.Weapon.Ammo}/{x.Weapon.Reserve}";
                 }
 
                 if (x.ListElement.RangeLabel)

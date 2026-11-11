@@ -133,13 +133,13 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public InstantWeapon(InstantWeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;
-        _ammo = data.MagazineSize;
+        _ammo = Magazine;
     }
 
     public InstantWeapon(InstantWeaponData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
-        _ammo = data.MagazineSize;
+        _ammo = Magazine;
     }
 
     protected void Trigger()
@@ -229,9 +229,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         if (!_coolingDown || !(_cooldown < 0)) return false;
         _overshoot = min(-_cooldown * CountdownSpan, dt);
         _coolingDown = false;
-        if (_data.MagazineSize > 0 && _ammo == 0 && TakeReloadRound())
+        if (Magazine > 0 && _ammo == 0 && TakeReloadRound())
         {
-            _ammo = _data.MagazineSize;
+            _ammo = Magazine;
             OnReloadComplete?.Invoke();
         }
         else
@@ -250,7 +250,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         return true;
     }
 
-    private float CountdownSpan => max(ShortestCycle, _data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown);
+    private float CountdownSpan => max(ShortestCycle, Magazine > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown);
 
     // A countdown that starts outside a round (a charge failing) carries the last one's overshoot like every restart.
     protected void StartCountdown()
@@ -266,9 +266,13 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         return overshoot;
     }
 
+    // A weapon that names an AmmoType is magazine-fed whatever MagazineSize says: its magazine is at least one round, every round
+    // leaves it and the reload takes a crate. A weapon with no AmmoType and a magazine of one or none fires free.
+    private int Magazine => _data.AmmoType.IsSet() ? max(1, _data.MagazineSize) : _data.MagazineSize;
+
     private bool UseAmmo(float dt)
     {
-        if (_data.MagazineSize <= 1) return true;
+        if (!_data.AmmoType.IsSet() && _data.MagazineSize <= 1) return true;
         
         if (_ammo > 0)
         {
