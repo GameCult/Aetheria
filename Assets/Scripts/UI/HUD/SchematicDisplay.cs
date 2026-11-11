@@ -132,8 +132,8 @@ public class SchematicDisplay : MonoBehaviour
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
             {
-                x.ListElement.InfiniteAmmoIcon.gameObject.SetActive(!x.Weapon.WeaponData.AmmoType.IsSet());
-                x.ListElement.AmmoLabel.gameObject.SetActive(x.Weapon.WeaponData.AmmoType.IsSet());
+                x.ListElement.InfiniteAmmoIcon.gameObject.SetActive(!x.Weapon.ShowsAmmoReadout);
+                x.ListElement.AmmoLabel.gameObject.SetActive(x.Weapon.ShowsAmmoReadout);
             }
         }
     }
@@ -233,7 +233,7 @@ public class SchematicDisplay : MonoBehaviour
                     if (x.Cooldown != null)
                         x.ListElement.CooldownFill.anchorMax = new Vector2(x.Cooldown.Progress, 1);
                     x.ListElement.DurabilityLabel.text = $"{(int)(x.Row.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
-                    if (x.Weapon.WeaponData.AmmoType.IsSet())
+                    if (x.Weapon.ShowsAmmoReadout)
                         x.ListElement.AmmoLabel.text = x.Weapon.AmmoReadout;
                 }
 
