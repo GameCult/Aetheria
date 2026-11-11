@@ -193,5 +193,10 @@ public sealed partial class RunStartTests
         Assert.Equal(reserve.ToString(), Label("Fed Beam"));
         Assert.Equal($"{ship.Weapons.Single(w => _items.GetData(w.Item.EquippableItem).Name == "Fed Gun").Ammo}/{reserve}", Label("Fed Gun"));
         Assert.Equal("", Label("Plain Gun"));
+        // The HUD shows the label (not the infinite-ammunition icon) exactly for the weapons that read something.
+        bool Shown(string name) => ship.Weapons.Single(weapon => _items.GetData(weapon.Item.EquippableItem).Name == name).ShowsAmmoReadout;
+        Assert.True(Shown("Fed Gun"));
+        Assert.True(Shown("Fed Beam"));
+        Assert.False(Shown("Plain Gun"));
     }
 }
