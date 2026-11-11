@@ -14,14 +14,27 @@ internal static class ConsoleProbe
 
     public static string WrittenBy(Action act)
     {
+        Capture<int>(() => { act(); return 0; }, out var output, out _);
+        return output;
+    }
+
+    // The action's result with what it wrote to Console.Out and Console.Error on this thread.
+    public static T Capture<T>(Func<T> act, out string output, out string error)
+    {
         lock (Gate)
         {
-            var previous = Console.Out;
-            var probe = new ThreadWriter(Environment.CurrentManagedThreadId);
-            Console.SetOut(probe);
-            try { act(); }
-            finally { Console.SetOut(previous); }
-            return probe.Mine.ToString();
+            var (previousOut, previousError) = (Console.Out, Console.Error);
+            var (probeOut, probeError) = (new ThreadWriter(Environment.CurrentManagedThreadId), new ThreadWriter(Environment.CurrentManagedThreadId));
+            Console.SetOut(probeOut);
+            Console.SetError(probeError);
+            try { return act(); }
+            finally
+            {
+                Console.SetOut(previousOut);
+                Console.SetError(previousError);
+                output = probeOut.Mine.ToString();
+                error = probeError.Mine.ToString();
+            }
         }
     }
 
