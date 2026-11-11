@@ -9,7 +9,7 @@ using Xunit;
 // the run early. The draw is counted in crates (one reload per crate) and each drawn crate is put back, so the count is not capped by the stock.
 public sealed partial class RunStartTests
 {
-    // Ten minutes: longer than any session the Arcs and Pursuit briefs ask a tester for.
+    // Ceiling of the window: a shooter holding every gun down dies of heat at ~250-270 s, so the draws are bounded by heat death, not by this.
     public const float RunSeconds = 600f;
 
     // Crates each armed entity of the scenario draws over the run, keyed by (index in the stage's entities, -1 for the player; ammunition name),
@@ -50,7 +50,6 @@ public sealed partial class RunStartTests
             if (playerFires)
                 foreach (var weapon in player.Weapons.Where(weapon => weapon.WeaponData.AmmoType.IsSet())) weapon.Activate();
             arena.Update(SimClock.GameStep);
-            if (false) System.IO.File.AppendAllText(System.Environment.GetEnvironmentVariable("TMPDIR") + "/dbg.txt", $"{scenario.Name} t={tick*SimClock.GameStep:F0} active={player.Active} me={player.Position} " + string.Join(",", player.Weapons.Select(w => w.WeaponData.AmmoType.IsSet() ? w.Ammo + "/" + w.Reserve : "e")) + "\n");
             foreach (var (entity, index) in shooters)
                 foreach (var key in entity.Weapons.Where(weapon => weapon.WeaponData.AmmoType.IsSet()).Select(weapon => weapon.WeaponData.AmmoType.Key).Distinct())
                 {

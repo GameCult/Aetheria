@@ -8,8 +8,8 @@ public sealed class Pursuit : Scenario
     // cloud breaking a sensor's lock, and well outside the 40 at which AStrongCloseSensorBurnsThrough shows a close
     // sensor burning through.
     private const float Astern = 300;
-    // Crates each shooter's hold is stocked with: the measured draw over a run (ScenarioAmmunitionRunTests: ten minutes of play, or until the
-    // shooter dies of heat) plus half again and one where the hold has room. The player laid four crates of Mines and drew
+    // Crates each shooter's hold is stocked with: the measured draw over a run (ScenarioAmmunitionRunTests: at most ten minutes of play, and in
+    // practice the ~250-270 s a shooter holding every gun down lasts before it dies of heat; a pilot who vents heat is unmeasured) plus half again and one where the hold has room. The player laid four crates of Mines and drew
     // 33 Ammo; its hold takes 54 crates after five consumables and Mines, so its Ammo stops at 39. The pursuer drew 31 Ammo and one Missiles. A launcher
     // that drew under a reload carries the default three crates.
     public const int MineCrates = 7, PlayerAmmoCrates = 39, PlayerMissileCrates = 3, PursuerAmmoCrates = 47, PursuerMissileCrates = 3;

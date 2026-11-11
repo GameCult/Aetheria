@@ -21,8 +21,8 @@ public sealed class Arcs : Scenario
     public static readonly CultMath.float2 Bow = float2(0, 400), Stern = float2(0, -400), Turret = float2(600, 300),
         Port = float2(-400, 0), Starboard = float2(400, 0);
 
-    // Crates of ammunition each shooter's hold is stocked with: the measured draw over a run (ScenarioAmmunitionRunTests: ten minutes of play,
-    // or until the shooter dies of heat) plus half again and one. The turret drew 14 Ammo with the player in its range; the player drew 27 Ammo
+    // Crates of ammunition each shooter's hold is stocked with: the measured draw over a run (ScenarioAmmunitionRunTests: at most ten minutes of play, and in
+    // practice the ~260 s a shooter holding every gun down lasts before it dies of heat; a pilot who vents heat is unmeasured) plus half again and one. The turret drew 14 Ammo with the player in its range; the player drew 27 Ammo
     // holding every gun down. The guided launchers fire only on a lock, which that run cannot give them, so they carry the default three crates.
     public const int TurretAmmoCrates = 22, PlayerAmmoCrates = 42, PlayerMissileCrates = 3;
 
