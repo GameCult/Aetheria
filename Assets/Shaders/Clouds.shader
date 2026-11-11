@@ -29,7 +29,7 @@
             #pragma fragment frag
 
             #include "UnityCG.cginc"
-			#include "Assets/Plugins/GPU Noise/SimplexNoise3D.cginc"
+			#include "Packages/org.gamecult.cultmath/Shaders/CultMath.hlsl"
 
             struct appdata
             {
@@ -64,7 +64,7 @@
                 float sum = 0;	
                 for(int i = 0; i < 6; i++) 
                 {
-                    sum += snoise(p * freq + Parallax * ParallaxDirection) * amp;
+                    sum += cultmath_snoise(p * freq + Parallax * ParallaxDirection) * amp;
                     parallax /= ParallaxLacunarity;
                     freq *= NoiseLacunarity;
                     amp *= NoiseGain;
@@ -83,7 +83,7 @@
             fixed4 frag (v2f i) : SV_Target
             {
                 float3 p = float3(i.uv,_Time.x*Speed);
-                float noise = saturate((1-abs(snoise(p*NoiseFrequency/2))) * fbm(p));
+                float noise = saturate((1-abs(cultmath_snoise(p*NoiseFrequency/2))) * fbm(p));
                 return noise * _Color * (1-length(i.uv)/FadeDistance);
             }
             ENDCG

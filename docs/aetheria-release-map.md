@@ -7459,7 +7459,9 @@ That file's Cut 4 (AI heading planner) and Cut 5 (combat facing) are carried as 
   is `stage.Generated("Djinni")`, `EvasionTermTests.cs:520`, so the target's fit follows the galaxy). The
   cause is 0.3.0's breaking `snoise` kernel (its CHANGELOG), read in C# by `Settings.cs:72-73` (galaxy
   cloud density), `GlobalData.cs:30` and `Environment.cs:132,144`. Shaders use the GPU Noise plugin, not
-  CultMath (`Background.shader:39`), so nothing on the GPU moves. Every other DemoTerminus test passes.
+  CultMath (`Background.shader:39`), so nothing on the GPU moved at 0.3.0. GalaxyMap, Clouds, SimplexBrush and
+  Lightning.compute now include `CultMath.hlsl`; Background keeps its 2D gradient copy because CultMath has no 2D
+  `snoise_grad`. Every other DemoTerminus test passes.
   Between the tags CultMath also adds `phacelle` (MPL-2.0 files), `cellular`, `smin_grad`, the `*_grad`
   noises and `BoundedLeastSquares`; no existing signature changes.
 - **TA9. The pin guard.** `Directory.Build.targets:21` conditions `VerifyCultLibRevision` on a

@@ -5,7 +5,7 @@
 #define NUM_THREAD_X 64
 
 #include "LightningVertex.cginc"
-#include "Assets/Plugins/GPU Noise/SimplexNoise2D.cginc"
+#include "Packages/org.gamecult.cultmath/Shaders/CultMath.hlsl"
 
 struct Node
 {
@@ -46,7 +46,7 @@ float fbm(float2 p)
     float sum = 0;	
     for(int i = 0; i < 4; i++) 
     {
-        sum += snoise(p * freq) * amp;
+        sum += cultmath_snoise(p * freq) * amp;
         freq *= _NoiseLacunarity;
         amp *= _NoiseGain;
     }
