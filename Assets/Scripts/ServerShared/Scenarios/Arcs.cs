@@ -1,3 +1,4 @@
+using System.Linq;
 using static CultMath.math;
 using static ItemRotation;
 
@@ -19,6 +20,8 @@ public sealed class Arcs : Scenario
     // (Clockwise) along +x and the port mount (CounterClockwise) along -x.
     public static readonly CultMath.float2 Bow = float2(0, 400), Stern = float2(0, -400), Turret = float2(600, 300),
         Port = float2(-400, 0), Starboard = float2(400, 0);
+
+    public const int TurretAmmoCrates = 30;
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();
 
@@ -49,12 +52,14 @@ public sealed class Arcs : Scenario
             ("Compact Reactor", int2(3, 3), None),
             ("Turret Control Module", int2(3, 5), None),
             ("not if i see you first", int2(4, 5), None), // Compact Sensor
-            ("Panopticon Prime", int2(3, 6), None)); // Fire Control Array
+            ("Panopticon Prime", int2(3, 6), None), // Fire Control Array
+            ("Store-All Plus", int2(3, 1), None)); // Cargo Bay: the only 2x2 the turret hull has free
 
         stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
         stage.Place(stage.Bare("Longinus"), Bow);
         stage.Place(stage.Bare("Longinus"), Stern);
-        stage.Place(turret, Turret, stance: ScenarioStance.Hostile);
+        // The turret's guns reload from its hold, a crate of Ammo per 100-round magazine: both guns firing without pause spend about 3.5 crates a minute, so 30 outlast any session.
+        stage.Cargo(stage.Place(turret, Turret, stance: ScenarioStance.Hostile), Enumerable.Repeat("Ammo", TurretAmmoCrates).ToArray());
         stage.Place(stage.Bare("Longinus"), Port);
         stage.Place(stage.Bare("Longinus"), Starboard);
     }

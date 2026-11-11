@@ -166,4 +166,32 @@ public sealed partial class RunStartTests
         }
         Assert.True(fed > 0, "fixture: some new-run player ship carries an ammunition-fed weapon");
     }
+
+    // The HUD's ammunition label (Weapon.AmmoReadout): a magazine gun reads "magazine/reserve", a beam that names an AmmoType has no magazine (it
+    // draws a crate per interval) and reads its reserve alone, a weapon that draws nothing reads empty. Kills: a label that prints the beam's
+    // never-filled magazine as "0/N", or one that drops the magazine from a gun's.
+    [Fact]
+    public void TheAmmoLabelShowsAMagazineOnlyForAWeaponThatHasOne()
+    {
+        var (hull, _) = FedFit(bay: true);
+        var rounds = _cache.GetAll<WeaponItemData>().Single(item => item.Name == "Fed Gun").Behaviors.OfType<WeaponData>().Single().AmmoType;
+        _cache.Upsert(new WeaponItemData
+        {
+            Name = "Fed Beam", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 1,
+            Behaviors = { new ConstantWeaponData { AmmoType = rounds } }
+        });
+        EquippableItemData Design(string name) => _cache.GetAll<EquippableItemData>().Single(item => item.Name == name);
+        var loadout = new Loadout { Name = "label", Hull = _cache.RefOf(_cache.GetAll<HullData>().Single(h => h.Name == hull)), WeaponGroups = new int[0][] };
+        foreach (var (name, x) in new[] { ("Fed Gun", 3), ("Fed Beam", 2), ("Plain Gun", 1), ("Fed Bay", 4) })
+            loadout.Slots.Add(new LoadoutSlot { Position = int2(x, 3), Rotation = ItemRotation.None, Design = _cache.RefOf(Design(name)) });
+        var failures = new List<string>();
+        var ship = Loadouts.Materialize(_items, null, loadout, _ => null, failures);
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+
+        string Label(string name) => ship.Weapons.Single(weapon => _items.GetData(weapon.Item.EquippableItem).Name == name).AmmoReadout;
+        var reserve = LoadoutGenerator.AmmunitionCrates;
+        Assert.Equal(reserve.ToString(), Label("Fed Beam"));
+        Assert.Equal($"{ship.Weapons.Single(w => _items.GetData(w.Item.EquippableItem).Name == "Fed Gun").Ammo}/{reserve}", Label("Fed Gun"));
+        Assert.Equal("", Label("Plain Gun"));
+    }
 }

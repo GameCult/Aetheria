@@ -46,6 +46,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     {
         get => _ammo;
     }
+    public override bool HasMagazine => false;
     
     public float Progress
     {

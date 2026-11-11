@@ -1,3 +1,4 @@
+using System.Linq;
 using static CultMath.math;
 using static ItemRotation;
 
@@ -7,6 +8,7 @@ public sealed class Pursuit : Scenario
     // cloud breaking a sensor's lock, and well outside the 40 at which AStrongCloseSensorBurnsThrough shows a close
     // sensor burning through.
     private const float Astern = 300;
+    public const int MineCrates = 10;
 
     public override string Name => "Pursuit";
     public override string Id => "pursuit";
@@ -55,7 +57,8 @@ public sealed class Pursuit : Scenario
             ("Store-All Plus", int2(2, 8), None)); // Cargo Bay
 
         var player = stage.Player(layer, float2(0, 0), facing: float2(0, 1));
-        stage.Cargo(player, "Morning Fog", "Morning Fog", "Morning Fog", "send it", "send it");
+        // The Mine Launcher reloads a magazine of six from a crate of Mines: ten crates are sixty-six mines, minutes of laying at its cooldown, more than a chase lasts.
+        stage.Cargo(player, new[] { "Morning Fog", "Morning Fog", "Morning Fog", "send it", "send it" }.Concat(Enumerable.Repeat("Mines", MineCrates)).ToArray());
         stage.Place(pursuer, float2(0, -Astern), facing: float2(0, 1), stance: ScenarioStance.Hostile, piloted: true);
     }
 }

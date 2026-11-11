@@ -32,16 +32,13 @@ public static class Extensions
 
     // Every loadable type assignable to this one. An assembly whose dependencies are missing (a Unity plugin
     // referencing UnityEngine outside Unity) still yields the types that do load.
-    private static readonly Dictionary<Type, Type[]> ChildClasses = new Dictionary<Type, Type[]>();
-    public static Type[] GetAllChildClasses(this Type type)
+    // Read from parallel loaders (catalog validation, parallel tests), so the memo is concurrent.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Type[]> ChildClasses = new System.Collections.Concurrent.ConcurrentDictionary<Type, Type[]>();
+    public static Type[] GetAllChildClasses(this Type type) => ChildClasses.GetOrAdd(type, t => AppDomain.CurrentDomain.GetAssemblies().SelectMany(assembly =>
     {
-        if (ChildClasses.TryGetValue(type, out var children)) return children;
-        return ChildClasses[type] = AppDomain.CurrentDomain.GetAssemblies().SelectMany(assembly =>
-        {
-            try { return assembly.GetTypes(); }
-            catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null); }
-        }).Where(type.IsAssignableFrom).ToArray();
-    }
+        try { return assembly.GetTypes(); }
+        catch (ReflectionTypeLoadException e) { return e.Types.Where(x => x != null); }
+    }).Where(t.IsAssignableFrom).ToArray());
 
     public static string SplitCamelCase(this string str) =>
         Regex.Replace(Regex.Replace(str, @"(\P{Ll})(\P{Ll}\p{Ll})", "$1 $2"), @"(\p{Ll})(\P{Ll})", "$1 $2");

@@ -104,6 +104,12 @@ public abstract class Weapon : ActivatedBehavior
     public abstract int Ammo { get; }
     // Rounds in the ship's cargo that reload this weapon's magazine: crates of AmmoType, 0 when the weapon draws none.
     public int Reserve => _data.AmmoType.IsSet() ? Entity.CountItemsInCargo(_data.AmmoType.Key) : 0;
+    // Whether Ammo counts a magazine. A weapon that names an AmmoType and fires from one (InstantWeapon) does; a beam (ConstantWeapon) draws one
+    // crate per AmmoInterval straight from the cargo and has none.
+    public virtual bool HasMagazine => true;
+    // What the HUD's ammunition label shows: "magazine/reserve" for a magazine weapon, the reserve alone for one without a magazine, empty when
+    // the weapon draws no ammunition. The one rule the HUD reads, so the label cannot show a magazine a weapon does not have.
+    public string AmmoReadout => !_data.AmmoType.IsSet() ? "" : HasMagazine ? $"{Ammo}/{Reserve}" : Reserve.ToString();
     public WeaponData WeaponData => _data;
     public float RangeFactor(float at) => WeaponData.RangeFactor(MinRange, EffectiveRange, Range, _data.DamageAtMaxRange, at);
     

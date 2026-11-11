@@ -14,8 +14,8 @@ public static class StationKindsCatalog
 
     private static readonly (string id, string name, string description)[] Table =
     {
-        ("mining", "Mining Station", "Extracts ore (Rock, New Metals, Gold, Uranium, Potassium) from bodies and belts; consumes tools and food."),
-        ("volatiles", "Volatiles Station", "Skims Hydrogen, Methane and Water from gas giants and ice; consumes tools."),
+        ("mining", "Mining Station", "Extracts ore (Rock, New Metals, Gold, Uranium, Potassium) and Diamond from bodies and belts; consumes tools and food."),
+        ("volatiles", "Volatiles Station", "Skims Hydrogen, Methane, Ammonia and Water from gas giants and ice; consumes tools."),
         ("agriculture", "Agriculture Station", "Grows Organics (Algae, Fungi, Bacteria, Animal Products) from Water and Potassium; feeds residential."),
         ("processing", "Processing Station", "Refines ore and volatiles into Metals, Alloys and Compounds."),
         ("fabrication", "Fabrication Station", "Turns Alloys and Compounds into Manufacturing compounds, Assemblies, gear, Ammo and consumer goods."),
@@ -32,6 +32,9 @@ public static class StationKindsCatalog
         ("black-market", "Black Market", "Buys anything, fences stolen cargo."),
         ("waystation", "Waystation", "Fuel, repair and medicine along a corridor."),
     };
+
+    // A kind's authored description: the one text a fresh catalog gets and an economy batch restates.
+    public static string DescriptionOf(string id) => Table.Single(row => row.id == id).description;
 
     public static int Run(CultCache cache, bool apply, TextWriter output)
     {
