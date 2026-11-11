@@ -35,4 +35,23 @@ public sealed partial class RunStartTests
             }
         Assert.True(fed > 0, "fixture: some generated ship carries an ammunition-fed weapon");
     }
+
+    // A generated turret reloads from its own hold like a ship: every ammunition type its weapons draw has crates in it. Kills: a turret
+    // path that skips StockAmmunition, which leaves an ammo-fed turret quiet after one magazine.
+    [Fact]
+    public void GeneratedTurretsCarryTheAmmunitionTheirWeaponsDraw()
+    {
+        var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
+        var fed = 0;
+        for (var i = 0; i < 60; i++)
+        {
+            var turret = EntitySerializer.Unpack(_items, null, generator.GenerateTurretLoadout());
+            foreach (var key in turret.Weapons.Select(w => w.WeaponData.AmmoType).Where(t => t.IsSet()).Select(t => t.Key).Distinct())
+            {
+                fed++;
+                Assert.Equal(LoadoutGenerator.AmmunitionCrates, turret.CountItemsInCargo(key));
+            }
+        }
+        Assert.True(fed > 0, "fixture: some generated turret carries an ammunition-fed weapon");
+    }
 }

@@ -76,6 +76,7 @@ public class LoadoutGenerator
         var entity = new OrbitalEntity(ItemManager, null, hull, default, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
+        StockAmmunition(entity);
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
     }
 
