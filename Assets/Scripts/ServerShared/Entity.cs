@@ -1525,7 +1525,8 @@ public abstract class Entity
 
     // Check whether the given item will fit when its origin is placed at the given coordinate. For hardpoint gear,
     // hardpoint is the one hardpoint the item would occupy there (HardpointAt); Tool gear occupies none.
-    private bool ItemFits(EquippableItemData itemData, HullData hullData, EquippableItem item, int2 hullCoord, out HardpointData hardpoint)
+    private bool ItemFits(EquippableItemData itemData, HullData hullData, EquippableItem item, int2 hullCoord, out HardpointData hardpoint,
+        EquippedItem moving = null)
     {
         hardpoint = null;
         // Items without specific hardpoints on the ship can be freely rotated and placed anywhere
@@ -1538,13 +1539,13 @@ public abstract class Entity
                 // general gear may take it until hardpoint gear claims it, which is the same rule
                 // UnoccupiedSpace reports, so what generation is offered and what equipping accepts agree.
                 var itemCoord = hullCoord + itemData.Shape.Rotate(i, item.Rotation);
-                if (!hullData.InteriorCells[itemCoord] || GearOccupancy[itemCoord.x, itemCoord.y] != null)
+                if (!hullData.InteriorCells[itemCoord] || !IsFree(itemCoord.x, itemCoord.y, moving))
                     return false;
             }
         }
         else
         {
-            hardpoint = HardpointAt(itemData, hullData, hullCoord);
+            hardpoint = HardpointAt(itemData, hullData, hullCoord, moving);
             if (hardpoint == null) return false;
             item.Rotation = hardpoint.Rotation;
         }
@@ -1552,27 +1553,33 @@ public abstract class Entity
         return true;
     }
 
+    // A cell is free when no gear occupies it, or when the only occupant is the item being moved: a re-place of
+    // equipped gear is judged against the hull minus that item's own cells (the caller unequips, then equips).
+    private bool IsFree(int x, int y, EquippedItem moving) => GearOccupancy[x, y] == null || GearOccupancy[x, y] == moving;
+
     // The one placement rule for hardpoint gear. At this origin the item lies within a hardpoint of its type, turned to
     // that hardpoint's rotation (HardpointData.TakesAt, the fit rule); its own cells are free, since a hardpoint's
     // leftover cells may hold general gear (operator, 2026-09-30: "saving slots in a hardpoint can be a valid tradeoff
     // for crowded ships"); and that hardpoint holds no other hardpoint item, since it holds one at most.
-    private HardpointData HardpointAt(EquippableItemData itemData, HullData hullData, int2 hullCoord)
+    private HardpointData HardpointAt(EquippableItemData itemData, HullData hullData, int2 hullCoord, EquippedItem moving)
     {
         foreach (var hardpoint in hullData.Hardpoints)
         {
             if (!hardpoint.TakesAt(itemData, hullCoord - hardpoint.Position)) continue;
             var ownCellsFree = itemData.Shape.Coordinates
                 .Select(v => hullCoord + itemData.Shape.Rotate(v, hardpoint.Rotation))
-                .All(c => GearOccupancy[c.x, c.y] == null);
+                .All(c => IsFree(c.x, c.y, moving));
             var holdsAnother = hardpoint.Shape.Coordinates
                 .Select(v => GearOccupancy[hardpoint.Position.x + v.x, hardpoint.Position.y + v.y])
-                .Any(occupant => occupant != null && occupant.Data.HardpointType != HardpointType.Tool);
+                .Any(occupant => occupant != null && occupant != moving && occupant.Data.HardpointType != HardpointType.Tool);
             if (ownCellsFree && !holdsAnother) return hardpoint;
         }
         return null;
     }
 
-    // Check whether the given item will fit when its origin is placed at the given coordinate on the hull
+    // Check whether the given item will fit when its origin is placed at the given coordinate on the hull. An item that
+    // is already equipped here is judged without its own cells, so a gun can be moved within its own hardpoint;
+    // TryEquip stays strict (it never sees an item as its own occupant), so equipping an equipped item twice is refused.
     public bool ItemFits(EquippableItem item, int2 hullCoord)
     {
         // Don't allow equipping while deployed
@@ -1580,7 +1587,7 @@ public abstract class Entity
 
         var itemData = ItemManager.GetData(item);
         var hullData = ItemManager.GetData(Hull) as HullData;
-        return ItemFits(itemData, hullData, item, hullCoord, out _);
+        return ItemFits(itemData, hullData, item, hullCoord, out _, Equipment.FirstOrDefault(e => e.EquippableItem == item));
     }
 
     public bool TryFindSpace(EquippableItem item, out int2 hullCoord)
