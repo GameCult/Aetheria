@@ -26,13 +26,14 @@ that some intermediate pins read a single-file v3 store silently and drop the id
 writers, keep a pre-upgrade copy of any real store (`GameData/Aetheria.cc` and the mod packages are tracked in git; player saves and
 run stores are not), and do not roll the pin back after a store has been written under the new one.
 
-The shipped mod packages (`GameData/Mods/aetheria.wren/ship.cc`, `aetheria.nakovalnya/ship.cc`) once held values in the retired
-`HullData` slots 21 and 22 (Wwise sound bank and audio stats), which the new CultLib refuses to write over
+The shipped mod packages (`GameData/Mods/aetheria.wren/ship.cc`, `aetheria.nakovalnya/ship.cc`) held only default
+placeholders (`0` and `[]`) in the retired `HullData` slots 21 and 22, which the new CultLib refuses to write over
 (`CultSchemaConflictException`). They were regenerated with `AetherDb ship-authoring regenerate <ship.cc> apply`, which loads the
 records, writes them into a fresh file under the current schema, requires them to read back identical and replaces the file. Both
 now hold persisted element ids and nil in slots 21 and 22; `EveryShippedModPackageCanBeWrittenOver` fails if a package regresses.
 A mod file that fails the same way is regenerated the same way. A rewritten catalog is about 15% larger: every behavior row is 38
-slots, mostly nil.
+slots, mostly nil. A regenerated ship package can still shrink: the old nakovalnya file stored its floats as float64 and the
+fresh write stores the typed `float` fields as float32 (40059 to 30457 bytes; each value equals the old one rounded to float32).
 
 The Unity manifest (`Packages/manifest.json`) pins `org.gamecult.cultlib` at `cultlib-unity-v3.0.0` and `org.gamecult.cultmath` at
 `cultmath-unity-v0.5.1` (the version v3.0.0 depends on). `org.gamecult.caching.unity` stays at `caching-unity-v2.0.0`: it is editor
