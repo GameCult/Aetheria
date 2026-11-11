@@ -168,7 +168,8 @@ public sealed class ScenarioStage
     }
 
     // Items in the entity's first cargo bay, one per name. A name is an equippable or consumable design (open: the stage
-    // chooses its product) or a product of one (pinned); a name that is neither is a failure.
+    // chooses its product) or a product of one (pinned), or a commodity (one unit: the crates an AmmoType weapon reloads
+    // from); a name that is none of these is a failure.
     public void Cargo(Entity entity, params string[] names)
     {
         if (entity == null) return;
@@ -177,6 +178,13 @@ public sealed class ScenarioStage
         var bay = entity.CargoBays.FirstOrDefault();
         foreach (var name in names)
         {
+            var commodity = _items.ItemData.GetAll<SimpleCommodityData>().FirstOrDefault(data => data.Name == name);
+            if (commodity != null)
+            {
+                if (bay == null || !bay.TryStore(new SimpleCommodity { Data = new CultRecordRef<ItemData>(_items.ItemData.RefOf<ItemData>(commodity).Key), Quantity = 1 }))
+                    _failures.Add($"{where}: no room for {name}");
+                continue;
+            }
             var (data, product) = NamedOrProduct<CraftedItemData>(name, where, found => found is EquippableItemData || found is ConsumableItemData);
             if (data == null) continue;
             var build = Loadouts.Resolve(_items, _items.ItemData.RefOf(data),
