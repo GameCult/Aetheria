@@ -78,6 +78,11 @@ public sealed partial class RunStartTests
             Name = "Fed Gun", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 1,
             Behaviors = { new InstantWeaponData { AmmoType = rounds, MagazineSize = 0 } }
         });
+        _cache.Upsert(new WeaponItemData
+        {
+            Name = "Plain Gun", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 1,
+            Behaviors = { new InstantWeaponData { MagazineSize = 0 } }
+        });
         var interior = new Shape(4, 4);
         foreach (var cell in interior.AllCoordinates) interior[cell] = true;
         _cache.Upsert(new CargoBayData { Name = "Fed Bay", Shape = new Shape(), InteriorShape = interior, Price = 20, Durability = 4 });
@@ -97,6 +102,27 @@ public sealed partial class RunStartTests
         var weapon = Assert.Single(staged.Player.Weapons);
         Assert.True(weapon.WeaponData.AmmoType.IsSet(), "fixture: the gun draws ammunition");
         Assert.Equal(LoadoutGenerator.AmmunitionCrates, weapon.Reserve);
+    }
+
+    // The Loadout path with the DEFAULT stocking argument (what the boss in ZoneGenerator and the console `fly` call): a ship built from a
+    // Loadout holds the crates its fed weapon draws, and one whose only weapon draws nothing holds none. Kills: Materialize
+    // dropping its default StockAmmunition (every Loadout-built armed ship fires one magazine).
+    [Theory]
+    [InlineData("Fed Gun", LoadoutGenerator.AmmunitionCrates)]
+    [InlineData("Plain Gun", 0)]
+    public void ALoadoutBuiltShipIsStockedByDefaultWithWhatItsWeaponsDraw(string gun, int crates)
+    {
+        var (hull, _) = FedFit(bay: true);
+        EquippableItemData Design(string name) => _cache.GetAll<EquippableItemData>().Single(item => item.Name == name);
+        var loadout = new Loadout { Name = "default stock", Hull = _cache.RefOf(_cache.GetAll<HullData>().Single(h => h.Name == hull)), WeaponGroups = new int[0][] };
+        loadout.Slots.Add(new LoadoutSlot { Position = int2(3, 3), Rotation = ItemRotation.None, Design = _cache.RefOf(Design(gun)) });
+        loadout.Slots.Add(new LoadoutSlot { Position = int2(4, 3), Rotation = ItemRotation.None, Design = _cache.RefOf(Design("Fed Bay")) });
+        var failures = new List<string>();
+        var ship = Loadouts.Materialize(_items, null, loadout, _ => null, failures);
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        var weapon = Assert.Single(ship.Weapons);
+        Assert.Equal(gun == "Fed Gun", weapon.WeaponData.AmmoType.IsSet());
+        Assert.Equal(crates, ship.CargoBays.Sum(bay => bay.Cargo.Keys.OfType<SimpleCommodity>().Sum(c => c.Quantity)));
     }
 
     // A scenario that authors a fit's cargo (stage.Cargo) gets exactly that cargo: its author named what the hold holds, so no crates are added.
