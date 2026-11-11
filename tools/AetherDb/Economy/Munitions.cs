@@ -32,7 +32,9 @@ public sealed class Munitions : EconomyBatch
         // Zhestokost has no station model of any kind yet. Its first planned model is the supply depot (ruling faction-station-models),
         // so its industrial kinds stand in on the depot until their own models land. One hop: depot itself has no Zhestokost stand-in.
         var zhestokost = FactionRef("Zhestokost");
-        foreach (var kind in new[] { "processing", "fabrication", "munitions-works" })
+        // The feed stock for the chain (MunitionsFeed) is extracted and grown where the arsenal's planners can reach it, so the mining,
+        // volatiles and agriculture kinds stand in on the depot too until the factions that own those industries place them.
+        foreach (var kind in new[] { "processing", "fabrication", "munitions-works", "mining", "volatiles", "agriculture" })
             StandIn(kind, zhestokost, "depot");
 
         // Interface goods: named by this chain, owned by another.
@@ -153,6 +155,15 @@ public sealed class Munitions : EconomyBatch
             "A missile crate is a warhead and a motor in one box, and the box is the arsenal's most counted object: Zhestokost ties each launcher crew's allowance to a serial range, so a cache of loose crates is either a deserter's or a quartermaster's crime.",
             new string[0], (warhead, 1), (motor, 1));
 
+        // Mines: the crate the mine launcher reloads from, a warhead per mine laid. Shape and stack as Missiles.
+        var mines = new SimpleCommodityData { Name = "Mines", Shape = new Shape(), MaxStack = 5, Mass = 7f, Price = 1400,
+            Description = "Crated proximity mines: a high-explosive warhead in a steel drum with a fuzed trigger. The crate a mine launcher reloads from." };
+        _a.Put(mines, CommodityKey("mines"));
+        var minesRef = new CultRecordRef<ItemData>(CommodityKey("mines"));
+        Recipe(minesRef, "munitions-works", 900, 20, 2,
+            "A mine is a warhead with patience. Every blockade that holds a lane for a season is paid for in crates of these, and a convoy captain who finds a lane suddenly quiet counts the hours since the last tender came through.",
+            new string[0], (warhead, 1), (steel, 2));
+
         var dispenser = Compound("mine-dispenser", "Mine Dispenser", "A rack and ejector that lays mines in a pattern.", 20f, 1600);
         Recipe(dispenser, "fabrication", 900, 20, 1,
             "Little more than steel and actuators, which is why every convoy navy can build one and every blockade starts with one.",
@@ -171,6 +182,22 @@ public sealed class Munitions : EconomyBatch
             {
                 foreach (var data in w.Behaviors.OfType<WeaponData>()) data.AmmoType = new CultRecordRef<SimpleCommodityData>(CommodityKey("missiles"));
             });
+
+        // Every ballistic gun draws a round (ruling ballistics-real-ammo). The Light Machine Gun had no magazine, a free hose; it gets a
+        // real one so a single Ammo crate reloads it like the other guns. The mine launcher draws a Mines crate.
+        foreach (var gun in new[] { "Slug Rifle", "Long Slug Rifle", "Light Machine Gun" })
+            _a.Edit<WeaponItemData>(gun, w =>
+            {
+                foreach (var data in w.Behaviors.OfType<WeaponData>())
+                {
+                    data.AmmoType = new CultRecordRef<SimpleCommodityData>(ammo.Key);
+                    if (gun == "Light Machine Gun") { data.MagazineSize = 100; data.ReloadTime = 3f; }
+                }
+            });
+        _a.Edit<WeaponItemData>("Mine Launcher", w =>
+        {
+            foreach (var data in w.Behaviors.OfType<WeaponData>()) data.AmmoType = new CultRecordRef<SimpleCommodityData>(CommodityKey("mines"));
+        });
     }
 
     private CultRecordRef<Faction> FactionRef(string name)
