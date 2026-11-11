@@ -48,7 +48,13 @@ public sealed partial class RunStartTests
     // go of a held weapon it no longer commands (target gone, untracked, another group the pick, Combat ended), where a held gun fired on
     // until a later step selected its group (the candidate change reverted: d9493bbe). Both together: the digest below. Releasing a beam or a
     // lock the same way (h7) moved nothing.
-    private const string TwoAiPinnedDigest = "85e85c46cfc66693c819dd294ad02f3cd0eae5486c8f152a97e2e2787f854274";
+    // Repinned an eighth time, once (suite-honest), for the flight-model changes that landed after h6 and never repinned this
+    // entry (bisected on master, each intended): e0c1daa4e made ThrustScale default 0.1, 845f6c3aa removed drag below top speed,
+    // ffdba39ac made ThrustScale scale the push only, and 8c5a904cb pinned the fixtures to ThrustScale=1. Pull requests 8 and 9
+    // moved the digest and returned it to 52fbb10d, which master already measured before this cut. The authored-cargo and
+    // ammunition-data blob of this cut moved nothing (52fbb10d measured with it merged in). Fixtures run ThrustScale=1 while play
+    // uses 0.1, so this digest pins the fight's logic, not the shipped feel.
+    private const string TwoAiPinnedDigest = "52fbb10df2559829a11f3a38aae0783f3f1858b0499f6f46794a267a747adacb";
     private const float TwoAiSeconds = 60f;
 
     [Fact]
@@ -255,7 +261,7 @@ public sealed partial class RunStartTests
         Assert.Equal(first.digest, second.digest);
     }
 
-    private static string HostClass() =>
+    internal static string HostClass() =>
         (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "linux"
             : RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows"
             : RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "osx" : "other")

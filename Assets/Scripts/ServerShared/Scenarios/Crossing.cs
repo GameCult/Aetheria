@@ -6,8 +6,8 @@ public sealed class Crossing : Scenario
     public override string Name => "Crossing";
     public override string Id => "crossing";
     public override string Brief => "A Lightning Projector at the starboard gun and a Cell Blaster at the port gun, an unpiloted Djinni coasting across the bow " +
-                                    "close ahead and an unpiloted one waiting at range. The crosser is launched to port at 50 m/s and only coasts: nothing steers it, " +
-                                    "its hull drag slows it to about 25 m/s at the bow line, and it does not shoot back. Make the pass coasting: give no throttle until the Djinni has crossed the bow, then fly freely " +
+                                    "close ahead and an unpiloted one waiting at range. The crosser is launched to port at 25 m/s and only coasts: nothing steers it, " +
+                                    "a hull coasts at its launch speed below its top speed, and it does not shoot back. Make the pass coasting: give no throttle until the Djinni has crossed the bow, then fly freely " +
                                     "(thrusting from the start carries you past it). Verify: as the Djinni crosses close, FastBlast lands some and projector " +
                                     "almost none; against the Djinni at range both land. Fly it again without the Fire Control Array: " +
                                     "with it the small gun lands more.";
@@ -16,13 +16,15 @@ public sealed class Crossing : Scenario
 
     // Where the Djinni sit: the player is at Origin facing +z. Origin is 250 m or more from every body, where the zone's
     // pull is weakest (about 1.4 u/s^2; the sum of the wells never drops to nothing, and at the old origin the player sat on the star).
-    // The crosser is unpiloted and placed moving at the Djinni's 50 m/s cap, so its pass is ballistic: bent by the field and slowed
-    // by hull drag (it reaches the bow line at about 25 m/s relative to the player, 3.6 s in), and nothing steers it.
+    // The crosser is unpiloted and placed moving at 25 m/s, well under the Djinni's 50 m/s top speed, so its pass is ballistic: a hull
+    // coasts below its top speed (aetheria-gravity:ruling:no-drag-below-top-speed) and only the field bends it, so it reaches the
+    // bow line at 25 m/s relative to the player, 3.6 s in, and nothing steers it. (Launched at the cap with drag slowing it to 25 m/s,
+    // as this scenario was first tuned, it would now hold 50 m/s and cross in 2.6 s.)
     // CrosserAt is the centre of the start window in which the pass holds: shifting it by 10 m along either axis keeps the pass
     // inside the test's time and distance windows (CrossingHoldsAcrossTheStartWindow).
     // The waiting Djinni sits inside the Lightning Projector's arc at 80% of its Range.
     public static readonly CultMath.float2 Origin = float2(724, 124);
-    public static readonly CultMath.float2 CrosserAt = Origin + float2(-128, 45), CrosserFacing = float2(1, 0), CrosserVelocity = float2(50, 0);
+    public static readonly CultMath.float2 CrosserAt = Origin + float2(-90, 45), CrosserFacing = float2(1, 0), CrosserVelocity = float2(25, 0);
     // The fighter is staged at this quality, so its gear and the range below do not ride the item stream.
     public const float StagedQuality = .6f;
     // The Lightning Projector's Range in metres at the staged fit: 996.99 after the three seconds the test settles for

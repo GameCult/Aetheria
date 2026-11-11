@@ -308,9 +308,17 @@ public sealed partial class MiningCut3Tests : IDisposable
 
     // ChunkInfo's value is not changed by moving its arithmetic under PassiveInfo: six observers at different
     // places and bearings, one with a second sensor so the average is live, read the same chunk, and every value
-    // matches the bits recorded at base 12dfcef5, before the extraction (a different order of the multiplication
-    // by the chunk's brightness moves them in the last bits).
-    private static readonly uint[] ChunkInfoAtBase = new uint[] { 1045120030u, 1039274086u, 1030543422u, 1029120970u, 1036363351u, 1035122917u };
+    // matches the bits the code before the extraction (base 12dfcef5) gives on the same host class (a different order of
+    // the multiplication by the chunk's brightness moves them in the last bits). The bits are per host class because
+    // the sensor's bearing term (acos, curve) is libm arithmetic, which rounds differently on Windows and Linux; replays
+    // are trusted only on the host class that recorded them (ruling replays-per-host-class). windows-x64 is the recording the
+    // test was written with; linux-x64 is base 12dfcef5 run on Linux, which gives 1039274088 where Windows gave 1039274086 for
+    // the second observer, and the current code gives the same bits as that base.
+    private static readonly System.Collections.Generic.Dictionary<string, uint[]> ChunkInfoAtBase = new()
+    {
+        ["windows-x64"] = new uint[] { 1045120030u, 1039274086u, 1030543422u, 1029120970u, 1036363351u, 1035122917u },
+        ["linux-x64"] = new uint[] { 1045120030u, 1039274088u, 1030543422u, 1029120970u, 1036363351u, 1035122917u },
+    };
 
     [Fact]
     public void ChunkInfoIsBitIdenticalToItsValueBeforeTheExtraction()
@@ -329,7 +337,9 @@ public sealed partial class MiningCut3Tests : IDisposable
 
         Assert.All(values, v => Assert.InRange(v, 1e-4f, .99f)); // a live, unsaturated reading at every place
         var actual = values.Select(Bits).ToArray();
-        Assert.True(actual.SequenceEqual(ChunkInfoAtBase), "ChunkInfo bits: " + string.Join(",", actual));
+        var host = RunStartTests.HostClass();
+        Assert.True(ChunkInfoAtBase.TryGetValue(host, out var pinned), $"ChunkInfo bits: host class {host} has no recording; measured " + string.Join(",", actual));
+        Assert.True(actual.SequenceEqual(pinned), $"ChunkInfo bits on {host}: " + string.Join(",", actual) + " pinned " + string.Join(",", pinned));
     }
 
     // A chunk outside every sun's light is dark: no visibility, no info, and it cannot be picked, while a lit

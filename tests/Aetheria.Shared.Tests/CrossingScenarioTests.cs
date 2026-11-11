@@ -10,7 +10,7 @@ using float3 = CultMath.float3;
 public sealed partial class RunStartTests
 {
     // Crossing: the demo's cast; projector and Cell Blaster fitted in separate weapon groups with the Fire Control Array
-    // aboard; an unpiloted hostile Djinni, coasting at the Djinni's speed cap, that crosses the bow inside 400 m; and an unpiloted neutral one inside the Lightning Projector's
+    // aboard; an unpiloted hostile Djinni, coasting at 25 m/s, that crosses the bow inside 400 m; and an unpiloted neutral one inside the Lightning Projector's
     // arc, short of its Range and beyond three quarters of it.
     [Fact]
     public void CrossingConditions()
@@ -43,12 +43,12 @@ public sealed partial class RunStartTests
         Assert.True(toCrosser.z > 0, "the crosser starts ahead");
         Assert.True(abs(dot(crosser.Direction, player.Direction)) <= sin(radians(30f)) + 1e-4f,
             "the crosser faces within 30 degrees of perpendicular to the player's bow");
-        // It is placed moving: toward the bow line at most of the Djinni's 50 m/s cap, so its run is its own and not only the
+        // It is placed moving: toward the bow line at the scenario's 25 m/s, so its run is its own and not only the
         // arena's pull on the player.
         var crosserVelocity = ((Ship) crosser).Velocity;
         Assert.True(crosserVelocity.x * toCrosser.x < 0, "the crosser starts moving toward the bow line");
-        Assert.True(abs(crosserVelocity.x) >= 40f, "the crosser's speed toward the bow line is most of the Djinni's speed cap");
-        Assert.True(length(crosserVelocity) >= 40f, "the crosser starts at most of the Djinni's speed cap");
+        Assert.Equal(25f, abs(crosserVelocity.x), 3);
+        Assert.Equal(25f, length(crosserVelocity), 3);
 
         Assert.False(player.IsHostileTo(waiting) || waiting.IsHostileTo(player), "the waiting Djinni is neutral");
         Assert.Equal(0, AgentsOf(arena, waiting));
@@ -71,7 +71,7 @@ public sealed partial class RunStartTests
         Assert.True(length(pass.Ahead) < CrossingMetres, "the crosser passes inside the stated distance");
         Assert.True(FireControl.InArc(small, float3(pass.Ahead.x, 0, pass.Ahead.y)), "Cell Blaster bears on the crosser as it crosses");
         Assert.True(dot(FireControl.MountDirection(small), float3(player.Direction.x, 0, player.Direction.y)) > 0, "Cell Blaster mounts forward");
-        // At seed 112 with no input the pass is at about 3.6 s and 45 m; a seed, field or staging change that loses it moves these.
+        // At seed 112 with no input the pass is at about 3.6 s and 45 m, at 25 m/s relative (a hull under its top speed coasts, so the launch speed holds); a seed, field or staging change that loses it moves these.
         Assert.InRange(pass.Seconds, CrossingEarliest, CrossingLatest);
         Assert.InRange(length(pass.Ahead), 30f, 60f);
     }
