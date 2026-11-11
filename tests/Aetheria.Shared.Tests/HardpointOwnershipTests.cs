@@ -142,6 +142,65 @@ public sealed partial class RunStartTests
         Assert.Null(entity.EquippedHull.Hardpoint);
     }
 
+    private static Shape Bar(int width)
+    {
+        var bar = new Shape(width, 1);
+        foreach (var cell in bar.AllCoordinates) bar[cell] = true;
+        return bar;
+    }
+
+    // Scenarios batch-4 minor: dragging an equipped gun within its own hardpoint. The UI asks ItemFits about the dragged
+    // item at its current and nudged origin, then TryUnequip and TryEquip at the target. The gun's own cells are not
+    // occupied against itself, so the nudge that overlaps its current cells is accepted and the sequence lands there.
+    [Fact]
+    public void AnEquippedGunCanBeMovedWithinItsOwnHardpoint()
+    {
+        var hull = ScratchHull("Minor Drag Mount", 9, Mount(HardpointType.Ballistic, 1, 1, Bar(3)));
+        var gun = ScratchGear("Minor Drag Gun", HardpointType.Ballistic, Bar(2));
+        var entity = BareHull(hull);
+        var unit = Instance(gun);
+        Assert.True(entity.TryEquip(unit, int2(1, 1)));
+        var equipped = entity.Equipment.Single(i => i.Data == gun);
+
+        Assert.True(entity.ItemFits(unit, int2(1, 1)), "its current origin");
+        Assert.True(entity.ItemFits(unit, int2(2, 1)), "nudged one cell, overlapping its own cells");
+
+        Assert.NotNull(entity.TryUnequip(equipped));
+        Assert.True(entity.TryEquip(unit, int2(2, 1)));
+        Assert.Equal(int2(2, 1), entity.Equipment.Single(i => i.Data == gun).Position);
+        Assert.Same(hull.Hardpoints[0], entity.Equipment.Single(i => i.Data == gun).Hardpoint);
+    }
+
+    // Ignoring the item's own cells does not ignore anyone else's: a second hardpoint item cannot share the hardpoint,
+    // and TryEquip never treats an item as its own occupant, so equipping an equipped item again is refused.
+    [Fact]
+    public void MovingAnEquippedItemStillRespectsOtherOccupantsAndTryEquipStaysStrict()
+    {
+        var hull = ScratchHull("Minor Drag Strict", 9, Mount(HardpointType.Ballistic, 1, 1, Bar(4)));
+        var gun = ScratchGear("Minor Strict Gun", HardpointType.Ballistic, Bar(2));
+        var other = ScratchGear("Minor Strict Other", HardpointType.Ballistic, Bar(1));
+        var entity = BareHull(hull);
+        var unit = Instance(gun);
+        Assert.True(entity.TryEquip(unit, int2(1, 1)));
+        Assert.False(entity.TryEquip(Instance(other), int2(3, 1)), "the hardpoint holds one hardpoint item");
+        Assert.False(entity.TryEquip(unit, int2(2, 1)), "TryEquip is strict: no duplicate of an equipped item");
+        Assert.Single(entity.Equipment, i => i.Data == gun);
+    }
+
+    // A tool dragged within its own cells is judged the same way.
+    [Fact]
+    public void AnEquippedToolCanBeMovedOverItsOwnCells()
+    {
+        var hull = ScratchHull("Minor Drag Tool Hull", 9);
+        var tool = ScratchGear("Minor Drag Tool", HardpointType.Tool, Bar(2));
+        var entity = BareHull(hull);
+        var unit = Instance(tool);
+        Assert.True(entity.TryEquip(unit, int2(1, 1)));
+        Assert.True(entity.ItemFits(unit, int2(2, 1)), "nudged over its own cell");
+        Assert.False(entity.TryEquip(unit, int2(2, 1)), "TryEquip never sees an item as its own occupant");
+        Assert.Single(entity.Equipment, i => i.Data == tool);
+    }
+
     // The design's cells, turned to a rotation, moved so the lowest x and y are zero. Written here from the cells alone
     // (the game's turn directions, up to translation), so it is not Shape.Rotate checking itself.
     private static HashSet<(int x, int y)> Normalized(IEnumerable<int2> cells, ItemRotation rotation)
