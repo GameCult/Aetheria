@@ -18,6 +18,10 @@ public sealed class ScenarioStage
     private readonly List<string> _failures = new List<string>();
     private readonly List<Placement> _placed = new List<Placement>();
     private int _placements;
+    // The entities this stage built from a fit (a packed fit is a saved ship, whose cargo is its own) and those whose cargo the scenario
+    // authored with Cargo: the rest are stocked with the crates their weapons draw when staging ends (StockUnauthoredAmmunition).
+    private readonly HashSet<Entity> _fitted = new HashSet<Entity>();
+    private readonly HashSet<Entity> _cargoAuthored = new HashSet<Entity>();
 
     internal ScenarioStage(ItemManager items, Zone arena, string startingHull, TutorialGenerationSettings tutorialGenerationSettings)
     {
@@ -40,6 +44,14 @@ public sealed class ScenarioStage
     public int Credits { get; set; }
 
     internal IReadOnlyList<string> Failures => _failures;
+
+    // Staging's last step: a fitted entity whose cargo the scenario did not author gets the crates its weapons draw, like every other
+    // newly built armed entity (Loadouts.StockAmmunition). Draws nothing, so it moves no item roll.
+    internal void StockUnauthoredAmmunition()
+    {
+        foreach (var entity in _fitted.Where(entity => !_cargoAuthored.Contains(entity)))
+            Loadouts.StockAmmunition(_items, entity);
+    }
     internal bool PlayerPlaced { get; private set; }
     internal Ship PlayerShip { get; private set; }
     internal IReadOnlyList<Placement> Placed => _placed;
@@ -160,6 +172,7 @@ public sealed class ScenarioStage
     public void Cargo(Entity entity, params string[] names)
     {
         if (entity == null) return;
+        _cargoAuthored.Add(entity);
         var where = $"cargo of {entity.Name}";
         var bay = entity.CargoBays.FirstOrDefault();
         foreach (var name in names)
@@ -183,7 +196,8 @@ public sealed class ScenarioStage
         else
         {
             var failures = new List<string>();
-            entity = Loadouts.Materialize(_items, Arena, fit.Loadout, _choose, failures, fit.Quality);
+            entity = Loadouts.Materialize(_items, Arena, fit.Loadout, _choose, failures, fit.Quality, stockAmmunition: false);
+            if (entity != null) _fitted.Add(entity);
             _failures.AddRange(failures.Select(failure => $"{where} ({fit.Loadout.Name}): {failure}"));
             if (entity == null) return null;
         }

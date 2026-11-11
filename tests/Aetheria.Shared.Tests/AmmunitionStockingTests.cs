@@ -99,6 +99,18 @@ public sealed partial class RunStartTests
         Assert.Equal(LoadoutGenerator.AmmunitionCrates, weapon.Reserve);
     }
 
+    // A scenario that authors a fit's cargo (stage.Cargo) gets exactly that cargo: its author named what the hold holds, so no crates are added.
+    // Kills: stocking that ignores authored cargo and puts missiles into a scenario whose check counts what the hold carries.
+    [Fact]
+    public void AScenarioFitWhoseCargoIsAuthoredIsNotStocked()
+    {
+        var (hull, slots) = FedFit(bay: true);
+        var (_, _, staged, failures) = Launch(new Scripted(false, stage =>
+            stage.Cargo(stage.Player(stage.Fit(hull, slots), float2(0, 0)), "Fed Gun")), Inputs(() => GalaxySeed));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        Assert.Equal(0, Assert.Single(staged.Player.Weapons).Reserve);
+    }
+
     // With no hold to put crates in there are none, and the fit still builds: stocking is bounded by what the ship can carry, never a failure.
     [Fact]
     public void AScenarioFitWithNoBayCarriesNoCratesAndStillBuilds()

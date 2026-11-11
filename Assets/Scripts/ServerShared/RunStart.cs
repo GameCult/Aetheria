@@ -44,6 +44,7 @@ public static class RunStart
         if (!stage.PlayerPlaced)
             failures.Add("player: the scenario places no player");
         if (failures.Count > reported) return null;
+        stage.StockUnauthoredAmmunition();
 
         var player = stage.PlayerShip;
         player.IsPlayerShip = true;
