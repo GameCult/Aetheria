@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text.RegularExpressions;
 using GameCult.Caching;
 using Xunit;
 
@@ -33,5 +34,33 @@ public sealed class StationKindDescriptionTests
         Assert.Contains("Ammonia", Extracted("volatiles"));
         Assert.Contains("Diamond", cache.Get<StationKindData>(StationKindData.KeyOf("mining")).Description);
         Assert.Contains("Ammonia", cache.Get<StationKindData>(StationKindData.KeyOf("volatiles")).Description);
+    }
+
+    // Kills: a station-kind description naming a commodity no recipe yields or consumes (Uranium, Hydrogen, Bacteria, Fungi and
+    // Animal Products were named by the shipped descriptions with no recipe behind them).
+    [Fact]
+    public void EveryCommodityAStationKindNamesIsMadeOrTakenByARecipe()
+    {
+        using var db = AetherDb.Open();
+        var c = db.Cache;
+        var used = c.GetAll<RecipeData>().SelectMany(r => r.Inputs.Select(i => i.Commodity.Key.Value).Append(r.Output.Key.Value)).ToHashSet();
+        var commodities = c.GetAll<SimpleCommodityData>().ToArray();
+        Assert.True(commodities.Length >= 20 && used.Count >= 20, $"fixture: the catalog holds its commodities and recipes ({commodities.Length}, {used.Count})");
+        var kinds = c.GetAll<StationKindData>().ToArray();
+        Assert.True(kinds.Length >= 17, $"fixture: the catalog holds its station kinds ({kinds.Length})");
+        var orphans = from kind in kinds
+                      from good in commodities
+                      where Regex.IsMatch(kind.Description ?? "", @"\b" + Regex.Escape(good.Name) + @"\b") && !used.Contains(c.RefOf(good).Key.Value)
+                      select $"{kind.Name} names {good.Name}";
+        Assert.True(!orphans.Any(), string.Join("\n", orphans));
+    }
+
+    // Kills: the fresh-catalog text and the shipped catalog saying different things about the same kind.
+    [Fact]
+    public void TheShippedDescriptionsAreTheAuthoredTable()
+    {
+        using var db = AetherDb.Open();
+        foreach (var id in new[] { "mining", "volatiles", "agriculture", "habitat-support", "power" })
+            Assert.Equal(StationKindsCatalog.DescriptionOf(id), db.Cache.Get<StationKindData>(StationKindData.KeyOf(id)).Description);
     }
 }
