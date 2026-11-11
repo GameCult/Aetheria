@@ -60,7 +60,7 @@ public class LoadoutGenerator
         OutfitEntity(entity);
         EquipPickup(entity);
         StockConsumables(entity, ShipConsumableChance, ShipConsumableUnits);
-        StockAmmunition(entity);
+        Loadouts.StockAmmunition(ItemManager, entity);
         return EntitySerializer.Pack(entity);
     }
 
@@ -76,7 +76,7 @@ public class LoadoutGenerator
         var entity = new OrbitalEntity(ItemManager, null, hull, default, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        StockAmmunition(entity);
+        Loadouts.StockAmmunition(ItemManager, entity);
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
     }
 
@@ -165,18 +165,6 @@ public class LoadoutGenerator
         {
             var instance = ItemManager.CreateInstance(product);
             if (!entity.CargoBays.Any(bay => bay.TryStore(instance))) break;
-        }
-    }
-
-    // The crates the ship's weapons reload from: AmmunitionCrates of each distinct AmmoType, stopping when no hold takes another.
-    // Draws nothing from the random stream, so adding it moves no other roll.
-    private void StockAmmunition(Entity entity)
-    {
-        foreach (var key in entity.Weapons.Select(weapon => weapon.WeaponData.AmmoType).Where(type => type.IsSet()).Select(type => type.Key).Distinct())
-        {
-            var crates = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Quantity = AmmunitionCrates };
-            if (!entity.CargoBays.Any(bay => bay.TryStore(crates)))
-                ItemManager.Log($"{entity.Name}: no room for {AmmunitionCrates} crates of {key.Value}.");
         }
     }
 
