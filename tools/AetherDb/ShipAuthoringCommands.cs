@@ -1,4 +1,5 @@
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,7 +9,7 @@ using System.Linq;
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | starter <mods-dir> <stable-id> <name> --like <shipped hull name> | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | starter <mods-dir> <stable-id> <name> --like <shipped hull name> | regenerate <ship.cc> [apply] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | compose <shipped.cc> <derived.cc> <mods-dir>";
 
     private static readonly string[] StatFlags = { "--mass", "--durability", "--armor", "--drag", "--top-speed" };
 
@@ -82,6 +83,39 @@ public static class ShipAuthoringCommands
             {
                 var path = ShipStarterCommand.Write(args[1], args[2], args[3], ShippedShipHull(args[5]));
                 Console.WriteLine($"Wrote a flyable starter package {path}; replace its stand-in model through Blender and Package, then set price and product.");
+                return 0;
+            }
+            if (args[0] == "regenerate" && (args.Length == 2 || args.Length == 3 && args[2] == "apply"))
+            {
+                // A package written before a record dropped a persisted slot cannot be written over (CultSchemaConflictException,
+                // retired slots stay read-only). Its decoded records go into a fresh file under today's schema, which must read
+                // back identical, and the fresh file replaces the old only with `apply`. Retired slots are the only content lost.
+                var (hull, ship, products) = ShipAuthoringStore.Load(args[1]);
+                var fresh = Path.GetFullPath(args[1]) + ".regenerating";
+                File.Delete(fresh);
+                try
+                {
+                    using (var cache = ShipAuthoringStore.Open(fresh, writable: true))
+                    {
+                        ShipAuthoringStore.Write(cache, hull, ship);
+                        foreach (var product in products) ShipAuthoringStore.WriteProduct(cache, ship.Id, product);
+                        cache.FlushAsync().Wait();
+                    }
+                    var (hull2, ship2, products2) = ShipAuthoringStore.Load(fresh);
+                    ShipAuthoringStore.ValidateLoaded(hull2, ship2, products2);
+                    var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+                    byte[] Pack<T>(T value) => MessagePack.MessagePackSerializer.Serialize(value, options);
+                    var same = Pack(hull).AsSpan().SequenceEqual(Pack(hull2)) && Pack(ship).AsSpan().SequenceEqual(Pack(ship2)) &&
+                               products.Length == products2.Length &&
+                               products.OrderBy(p => p.Manufacturer.Key.Value, StringComparer.Ordinal).Zip(
+                                   products2.OrderBy(p => p.Manufacturer.Key.Value, StringComparer.Ordinal),
+                                   (a, b) => Pack(a).AsSpan().SequenceEqual(Pack(b))).All(equal => equal);
+                    if (!same) throw new InvalidOperationException($"{ship.Id}: the regenerated file does not read back as the records that went in; {args[1]} is untouched.");
+                    Console.WriteLine($"{ship.Id}: {new FileInfo(args[1]).Length} bytes -> {new FileInfo(fresh).Length} bytes, {hull.Hardpoints.Count} hardpoints, {ship.Anchors.Count} anchors, {products.Length} products read back identical.");
+                    if (args.Length == 3) File.Move(fresh, args[1], overwrite: true);
+                    else Console.WriteLine("Dry run; add apply to replace the file.");
+                }
+                finally { File.Delete(fresh); File.Delete(fresh + ".lock"); }
                 return 0;
             }
             if (args[0] == "price" && args.Length == 3)

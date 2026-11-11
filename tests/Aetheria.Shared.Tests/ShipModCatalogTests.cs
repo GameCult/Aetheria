@@ -624,7 +624,8 @@ public sealed class ShipModCatalogTests : IDisposable
         ShipModCatalog.Compose(Shipped, second, secondMods);
         ShipModCatalog.Compose(Shipped, Path.Combine(_directory.Path, "Derived3", "Aetheria.modded.cc"), firstMods);
 
-        Assert.Equal(Records(Derived), Records(second));
+        // Two packages written separately carry separately minted ids: same content, ids blank.
+        Assert.Equal(Records(Derived, blindMods: true), Records(second, blindMods: true));
         Assert.Equal(Records(Derived), Records(Path.Combine(_directory.Path, "Derived3", "Aetheria.modded.cc")));
         Assert.Contains(ShipModCatalog.HullKey("mod.c").Value, Records(Derived).Keys);
     }
@@ -793,10 +794,15 @@ public sealed class ShipModCatalogTests : IDisposable
             ShipModCatalog.PackageOf(cache, hull, Mods)).Message);
     }
 
-    // Every stored record's key, schema and payload bytes. StoredAt is a write timestamp, not record content.
-    private static Dictionary<string, string> Records(string path) =>
+    // Every stored record's key, schema and payload bytes. StoredAt is a write timestamp, not record content. The shipped
+    // catalog holds no element ids, so each open mints new random ones for the records Compose copies from it; those are
+    // always compared with ids blank. A mod package's records carry the ids its ship.cc persisted and are compared as stored,
+    // unless the two sides are packages written separately (blindMods), where each write minted its own.
+    private static Dictionary<string, string> Records(string path, bool blindMods = false) =>
         GameCult.Caching.MessagePack.CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(path)).Records
-            .ToDictionary(record => record.Key, record => record.SchemaId + ":" + Convert.ToHexString(ElementIdBlind.Payload(TestCatalog.Registry(), record.SchemaId, record.Payload)));
+            .ToDictionary(record => record.Key, record => record.SchemaId + ":" + Convert.ToHexString(
+                !blindMods && ShipModCatalog.IsModKey(new CultRecordKey(record.Key)) ? record.Payload
+                    : ElementIdBlind.Payload(TestCatalog.Registry(), record.SchemaId, record.Payload)));
 
     private void AssertOnlyTheDerivedFile()
     {
