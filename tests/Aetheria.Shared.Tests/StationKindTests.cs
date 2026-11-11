@@ -248,17 +248,17 @@ public sealed class StationKindTests : IDisposable
     {
         var world = World.Make(this, zenithOffered: false);
         var hub = world.Sell(world.Zh, "trade-hub", "Zh Hub");
-        world.StandIn("mining", world.Zh, "trade-hub");
-        var mining = world.Cache.Get(Kind("mining"));
+        world.StandIn("salvage", world.Zh, "trade-hub");
+        var salvage = world.Cache.Get(Kind("salvage"));
 
-        Assert.Contains(Kind("mining").Key.Value, StationKinds.KindsOf(world.Cache, world.Zh).Select(kind => kind.Key.Value));
-        Assert.Equal(Kind("trade-hub").Key, StationKinds.HullKindFor(world.Cache, world.Zh, Kind("mining")).Key);
+        Assert.Contains(Kind("salvage").Key.Value, StationKinds.KindsOf(world.Cache, world.Zh).Select(kind => kind.Key.Value));
+        Assert.Equal(Kind("trade-hub").Key, StationKinds.HullKindFor(world.Cache, world.Zh, Kind("salvage")).Key);
         for (uint seed = 1; seed <= 10; seed++)
         {
-            var pack = world.Generator(world.Zh, seed).GenerateStationLoadout(Kind("mining"));
+            var pack = world.Generator(world.Zh, seed).GenerateStationLoadout(Kind("salvage"));
             Assert.Equal("Zh Hub", world.HullName(pack));
-            Assert.Equal(Kind("mining").Key, pack.Kind.Key);
-            Assert.Equal(mining.Name, pack.Name);
+            Assert.Equal(Kind("salvage").Key, pack.Kind.Key);
+            Assert.Equal(salvage.Name, pack.Name);
         }
         var own = world.Generator(world.Zh).GenerateStationLoadout(Kind("trade-hub"));
         Assert.Equal(hub.Name, own.Name);
