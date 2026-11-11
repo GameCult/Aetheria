@@ -5,6 +5,38 @@ using System.Linq;
 using GameCult.Caching;
 using Xunit;
 
+// What the calling thread writes to Console while an action runs. Console is process-global and tests run in parallel, so a plain
+// SetOut capture also collects other tests' diagnostic prints (the race that failed these tests in full-suite runs): the probe
+// keeps only writes made on the thread that runs the action, and the gate keeps two probes from restoring each other's writer.
+internal static class ConsoleProbe
+{
+    private static readonly object Gate = new object();
+
+    public static string WrittenBy(Action act)
+    {
+        lock (Gate)
+        {
+            var previous = Console.Out;
+            var probe = new ThreadWriter(Environment.CurrentManagedThreadId);
+            Console.SetOut(probe);
+            try { act(); }
+            finally { Console.SetOut(previous); }
+            return probe.Mine.ToString();
+        }
+    }
+
+    private sealed class ThreadWriter : TextWriter
+    {
+        private readonly int _thread;
+        public readonly System.Text.StringBuilder Mine = new System.Text.StringBuilder();
+        public ThreadWriter(int thread) => _thread = thread;
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+        public override void Write(char value) { if (Environment.CurrentManagedThreadId == _thread) lock (Mine) Mine.Append(value); }
+        public override void Write(string value) { if (Environment.CurrentManagedThreadId == _thread) lock (Mine) Mine.Append(value); }
+        public override void Write(char[] buffer, int index, int count) { if (Environment.CurrentManagedThreadId == _thread) lock (Mine) Mine.Append(buffer, index, count); }
+    }
+}
+
 public sealed class EconomyCommandTests
 {
     private sealed class Lambda : EconomyBatch
@@ -286,17 +318,13 @@ public sealed class EconomyCommandTests
         using var db = AetherDb.Open();
         var expected = new StringWriter();
         var expectedCode = EconomyCommand.Report(db.Cache, expected);
-        var console = new StringWriter();
-        var previous = Console.Out;
-        Console.SetOut(console);
         var output = new StringWriter();
-        int code;
-        try { code = EconomyCommand.Run(new[] { "report" }, output); }
-        finally { Console.SetOut(previous); }
+        int code = 0;
+        var console = ConsoleProbe.WrittenBy(() => code = EconomyCommand.Run(new[] { "report" }, output));
         Assert.Equal(expectedCode, code);
         Assert.NotEmpty(expected.ToString());
         Assert.Equal(expected.ToString(), output.ToString());
-        Assert.Empty(console.ToString());
+        Assert.Empty(console);
     }
 
     [Fact]
@@ -306,17 +334,13 @@ public sealed class EconomyCommandTests
         var before = File.ReadAllBytes(path);
         var expected = new StringWriter();
         var expectedCode = EconomyCommand.Author(path, new EconomyBatch[] { new Munitions() }, false, expected);
-        var console = new StringWriter();
-        var previous = Console.Out;
-        Console.SetOut(console);
         var output = new StringWriter();
-        int code;
-        try { code = EconomyCommand.Run(new[] { "author", "Munitions" }, output); }
-        finally { Console.SetOut(previous); }
+        int code = 0;
+        var console = ConsoleProbe.WrittenBy(() => code = EconomyCommand.Run(new[] { "author", "Munitions" }, output));
         Assert.Equal(expectedCode, code);
         Assert.NotEmpty(expected.ToString());
         Assert.Equal(expected.ToString(), output.ToString());
-        Assert.Empty(console.ToString());
+        Assert.Empty(console);
         Assert.Equal(before, File.ReadAllBytes(path));
     }
 
