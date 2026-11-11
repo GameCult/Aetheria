@@ -102,6 +102,8 @@ public abstract class Weapon : ActivatedBehavior
     public abstract float DamagePerSecond { get; }
     public abstract float RangeDamagePerSecond(float range);
     public abstract int Ammo { get; }
+    // Rounds in the ship's cargo that reload this weapon's magazine: crates of AmmoType, 0 when the weapon draws none.
+    public int Reserve => _data.AmmoType.IsSet() ? Entity.CountItemsInCargo(_data.AmmoType.Key) : 0;
     public WeaponData WeaponData => _data;
     public float RangeFactor(float at) => WeaponData.RangeFactor(MinRange, EffectiveRange, Range, _data.DamageAtMaxRange, at);
     

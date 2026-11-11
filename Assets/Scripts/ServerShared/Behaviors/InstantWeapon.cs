@@ -229,13 +229,24 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         if (!_coolingDown || !(_cooldown < 0)) return false;
         _overshoot = min(-_cooldown * CountdownSpan, dt);
         _coolingDown = false;
-        if (_data.MagazineSize > 0 && _ammo == 0)
+        if (_data.MagazineSize > 0 && _ammo == 0 && TakeReloadRound())
         {
             _ammo = _data.MagazineSize;
             OnReloadComplete?.Invoke();
         }
         else
             OnCooldownComplete?.Invoke();
+        return true;
+    }
+
+    // A reload pays a round (ruling ballistics-real-ammo): one unit of the weapon's AmmoType leaves the cargo as the magazine refills,
+    // and with none to take the magazine stays empty. A weapon with no AmmoType reloads free.
+    private bool TakeReloadRound()
+    {
+        if (!_data.AmmoType.IsSet()) return true;
+        var cargo = Entity.FindItemInCargo(_data.AmmoType.Key);
+        if (cargo == null) return false;
+        if (cargo.ItemsOfType[_data.AmmoType.Key][0] is SimpleCommodity simpleCommodity) cargo.Remove(simpleCommodity, 1);
         return true;
     }
 
@@ -265,18 +276,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             return true;
         }
         
-        var hasAmmo = true;
-        if (_data.AmmoType.IsSet())
-        {
-            var cargo = Entity.FindItemInCargo(_data.AmmoType.Key);
-            if (cargo != null)
-            {
-                var item = cargo.ItemsOfType[_data.AmmoType.Key][0];
-                if (item is SimpleCommodity simpleCommodity)
-                    cargo.Remove(simpleCommodity, 1);
-            }
-            else hasAmmo = false;
-        }
+        // The reload starts only if a round is there to load; FinishCountdown takes it.
+        var hasAmmo = !_data.AmmoType.IsSet() || Entity.CountItemsInCargo(_data.AmmoType.Key) > 0;
         if(hasAmmo)
         {
             OnReloadBegin?.Invoke();

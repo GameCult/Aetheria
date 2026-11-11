@@ -141,6 +141,14 @@ public sealed class Munitions : EconomyBatch
             "The same powder as a gun charge, shaped to burn for seconds instead of milliseconds: missile stocks and gun stocks compete for one powder train.",
             new[] { "thruster" }, (powder, 2), (steel, 1));
 
+        // Missiles: the crate a launcher design reloads from. One crate is one magazine reload (UseAmmo removes one unit of the weapon's
+        // AmmoType at an empty magazine), the same convention as Ammo for guns. A crate is a warhead and a motor per two missiles' worth
+        // of magazine; the guidance package (seeker and fin actuators) waits on the electronics chain, so the recipe does not yet draw it.
+        var missiles = Simple("missiles", "Missiles", "Crated guided munitions: a high-explosive warhead mated to a rocket motor on a launch rail. The crate a launcher reloads from; the rounds are real, only the reactor energy of the launch is not.", 8f, 1800);
+        Recipe(missiles, "munitions-works", 1200, 24, 2,
+            "A missile crate is a warhead, a motor and a seeker in one box, and the box is the arsenal's most counted object: Zhestokost ties each launcher crew's allowance to a serial range, so a cache of loose crates is either a deserter's or a quartermaster's crime.",
+            new string[0], (warhead, 1), (motor, 1));
+
         var dispenser = Compound("mine-dispenser", "Mine Dispenser", "A rack and ejector that lays mines in a pattern.", 20f, 1600);
         Recipe(dispenser, "fabrication", 900, 20, 1,
             "Little more than steel and actuators, which is why every convoy navy can build one and every blockade starts with one.",
@@ -151,6 +159,14 @@ public sealed class Munitions : EconomyBatch
         foreach (var gun in new[] { "Light Machine Gun", "Autocannon", "Long Slug Rifle", "Charged Scattergun", "Slug Rifle", "Flak Gun", "Cluster Cannon", "Point Defense Gun" })
             Design(gun, 1800, 30, "A ballistic gun is a barrel and a feed; the round brings the energy.");
         Design("Mine Launcher", 1800, 24, "A dispenser and the warheads it lays.");
+
+        // Launchers draw real rounds (ruling ballistics-real-ammo): the reactor energy per shot stays as authored, and each magazine
+        // reload consumes one Missiles crate.
+        foreach (var launcher in new[] { "Guided Missile Launcher", "Long-Range Missile Rack", "Short-Range Missile Rack", "Incendiary Rocket Pod", "Swarm Rocket Pod" })
+            _a.Edit<WeaponItemData>(launcher, w =>
+            {
+                foreach (var data in w.Behaviors.OfType<WeaponData>()) data.AmmoType = new CultRecordRef<SimpleCommodityData>(missiles.Key);
+            });
     }
 
     private CultRecordRef<Faction> FactionRef(string name)
