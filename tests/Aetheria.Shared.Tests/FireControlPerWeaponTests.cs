@@ -85,7 +85,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         (ItemRotation Rotation, float Arc)[] mounts = null, bool beam = false, WeaponFuse? fuse = null, float blast = 0f,
         float range = 100f, float targetRange = 60f, float accuracy = 1f, float minHit = .2f, bool lockWeapon = false,
         bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false, float damage = 100f,
-        float effective = float.PositiveInfinity, float damageAtMax = 0f, float velocity = 0f, float targetLayerHeight = 0f)
+        float effective = float.PositiveInfinity, float damageAtMax = 0f, float velocity = 0f, float targetLayerHeight = 0f, int? crates = null, float reload = 1f)
     {
         mounts ??= new[] { (ItemRotation.None, 0f) };
         var hullData = new HullData
@@ -144,10 +144,20 @@ public sealed class FireControlPerWeaponTests : IDisposable
         behavior.Heat = Constant(heat);
         behavior.Visibility = Constant(visibility);
         behavior.MagazineSize = magazine;
+        behavior.ReloadTime = reload;
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
+        // An ammunition-fed weapon: it names the Missiles commodity, and the shooter carries `crates` of it in a bay.
+        if (crates.HasValue)
+        {
+            var bayShape = new Shape(4, 4);
+            foreach (var cell in bayShape.AllCoordinates) bayShape[cell] = true;
+            cache.Upsert(new CargoBayData { Name = "Bay", Shape = new Shape(), InteriorShape = bayShape, Price = 20, Durability = 4 });
+            cache.Upsert(new SimpleCommodityData { Name = "Missiles", Shape = new Shape(), Price = 1, MaxStack = 100 });
+            behavior.AmmoType = new CultRecordRef<SimpleCommodityData>(cache.RefOf<ItemData>(cache.GetByName<SimpleCommodityData>("Missiles")).Key);
+        }
         cache.Upsert(hullData);
         cache.Upsert(shooterHullData);
         cache.Upsert(new WeaponItemData
@@ -219,6 +229,13 @@ public sealed class FireControlPerWeaponTests : IDisposable
             Assert.True(shooter.TryEquip(d, new int2(mounts.Length, 0)));
             var item = shooter.Equipment.Single(x => x.EquippableItem == d);
             rig.Decoy = new Gun { Item = item, Weapon = (Weapon) item.Behaviors.Single(b => b is Weapon) };
+        }
+        if (crates.HasValue)
+        {
+            var bay = new EquippedCargoBay(items, Make("Bay", lot++, 4), new int2(1, 1), shooter, "bay");
+            shooter.CargoBays.Add(bay);
+            if (crates.Value > 0)
+                Assert.True(bay.TryStore(new SimpleCommodity { Data = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<SimpleCommodityData>("Missiles")), Quantity = crates.Value }));
         }
         var targeting = Make("Targeting", lot++, 1);
         Assert.True(shooter.TryFindSpace(targeting, out var tpos));
@@ -1305,5 +1322,88 @@ public sealed class FireControlPerWeaponTests : IDisposable
         weapon.Activate();
 
         Assert.False(weapon.CanFire);
+    }
+
+    // ==== Ruling ballistics-real-ammo: an ammunition-fed weapon pays a round per magazine reload, no free reload ====
+
+    // One launcher-shaped weapon (magazine 2, reload 3 s, Missiles) held on its trigger at no target, `crates` of Missiles in the
+    // hold. Returns the rig and a counter of committed shots.
+    private (Rig Rig, Func<int> Shots) AmmoRig(int crates)
+    {
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 40f, magazine: 2, auto: true, crates: crates, reload: 3f);
+        r.Shooter.SetTarget(TargetRef.None);
+        Aim(r, float2(0, 1));
+        var shots = 0;
+        r.Zone.ShotCommitted.Subscribe(_ => shots++);
+        r.Gun.Weapon.Activate();
+        return (r, () => shots);
+    }
+
+    private static void Run(Rig r, float seconds)
+    {
+        for (var t = 0f; t < seconds; t += .25f) { r.Gun.Weapon.Activate(); r.Zone.Update(.25f); }
+    }
+
+    // With no crate in the hold the magazine is fired once and the gun then stays empty, however long the trigger is held. Kills:
+    // a reload that refills the magazine without taking a crate (UseAmmo or FinishCountdown refilling on the timer alone).
+    [Fact]
+    public void AnAmmunitionFedWeaponWithNoCratesFiresItsMagazineAndNoMore()
+    {
+        var (r, shots) = AmmoRig(crates: 0);
+        Run(r, 30f);
+        Assert.Equal(2, shots());
+        Assert.Equal(0, r.Gun.Weapon.Ammo);
+    }
+
+    // One crate is one reload: after ReloadTime the full magazine fires again, the crate is gone, and then the gun is empty. Kills:
+    // a reload that consumes no crate, or more than one, or refills a partial magazine.
+    [Fact]
+    public void OneCrateReloadsTheWholeMagazineOnceAfterTheReloadTime()
+    {
+        var (r, shots) = AmmoRig(crates: 1);
+        Run(r, 2f);
+        Assert.Equal(2, shots());
+        Assert.Equal(1, r.Gun.Weapon.Reserve);
+        Run(r, 30f);
+        Assert.Equal(4, shots());
+        Assert.Equal(0, r.Gun.Weapon.Reserve);
+        Assert.Equal(0, r.Gun.Weapon.Ammo);
+    }
+
+    // The reserve a HUD shows is the cargo count of the weapon's ammunition, and it falls by one when the magazine reloads. Kills: a
+    // Reserve that reads a constant, the wrong commodity, or a count that ignores the stack quantity.
+    [Fact]
+    public void TheReserveIsTheCargoCountOfTheAmmunitionAndFallsByOnePerReload()
+    {
+        var (r, shots) = AmmoRig(crates: 3);
+        Assert.Equal(3, r.Gun.Weapon.Reserve);
+        Assert.Equal(3, r.Shooter.CountItemsInCargo(r.Gun.Weapon.WeaponData.AmmoType.Key));
+        Run(r, 2f);
+        Assert.Equal(2, shots());
+        Assert.Equal(3, r.Gun.Weapon.Reserve);
+        Run(r, 3.5f);
+        Assert.Equal(2, r.Gun.Weapon.Reserve);
+    }
+
+    // A weapon with no ammunition type has no reserve.
+    [Fact]
+    public void AWeaponThatDrawsNoAmmunitionHasNoReserve()
+    {
+        var r = Build(magazine: 2);
+        Assert.Equal(0, r.Gun.Weapon.Reserve);
+    }
+
+    // A magazine weapon that names no ammunition still reloads free and keeps firing: only an AmmoType makes a reload cost a crate.
+    // Kills: TakeReloadRound refusing when AmmoType is unset, which would silence every unfed magazine gun after one magazine.
+    [Fact]
+    public void AMagazineWeaponWithNoAmmunitionTypeStillReloadsFree()
+    {
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 40f, magazine: 2, auto: true, reload: 3f);
+        r.Shooter.SetTarget(TargetRef.None);
+        Aim(r, float2(0, 1));
+        var shots = 0;
+        r.Zone.ShotCommitted.Subscribe(_ => shots++);
+        Run(r, 30f);
+        Assert.True(shots > 4, $"an unfed magazine weapon fires past its first magazine, fired {shots}");
     }
 }

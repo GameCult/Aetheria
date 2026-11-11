@@ -36,6 +36,7 @@ public static class Program
             case "brownout-migrate": return BrownoutMigrate(args.Contains("apply"));
             case "roles-migrate": return RolesMigrate(args.Contains("apply"));
             case "firing-arc-migrate": return FiringArcMigrate(args.Contains("apply"));
+            case "weapon-ammo": return WeaponAmmo();
             case "range-falloff": return RangeFalloff(args.Skip(1).ToArray());
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
@@ -1101,6 +1102,19 @@ public static class Program
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
         });
         Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
+        return 0;
+    }
+
+    // Read-only: what every weapon design draws per shot (reactor energy, magazine, rounds), so ammunition rulings are audited
+    // against the catalog and not against names.
+    private static int WeaponAmmo()
+    {
+        var db = AetherDb.Open();
+        Console.WriteLine($"{"weapon",-28} {"behaviour",-20} {"energy",-11} {"mag",5} {"reload",6} ammo");
+        foreach (var item in db.Cache.GetAll<WeaponItemData>().OrderBy(i => i.Name, StringComparer.Ordinal))
+            foreach (var w in item.Behaviors.OfType<WeaponData>())
+                Console.WriteLine($"{item.Name,-28} {w.GetType().Name,-20} {w.Energy.Min}-{w.Energy.Max,-6} {w.MagazineSize,5} {w.ReloadTime,6} " +
+                    (w.AmmoType.IsSet() ? db.Cache.Get<SimpleCommodityData>(w.AmmoType.Key)?.Name ?? w.AmmoType.Key.Value : "-"));
         return 0;
     }
 

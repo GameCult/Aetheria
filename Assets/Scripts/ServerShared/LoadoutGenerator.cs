@@ -24,6 +24,10 @@ public class LoadoutGenerator
     public const float ShipConsumableChance = .1f;
     public const int ShipConsumableUnits = 1;
 
+    // Ammunition-fed weapons reload from cargo (ruling ballistics-real-ammo), so a generated ship carries this many crates of every
+    // distinct AmmoType its weapons draw: enough to fight on past the first magazine, few enough to leave the rest of the hold.
+    public const int AmmunitionCrates = 3;
+
     public LoadoutGenerator(
         ref Random random,
         ItemManager itemManager,
@@ -56,6 +60,7 @@ public class LoadoutGenerator
         OutfitEntity(entity);
         EquipPickup(entity);
         StockConsumables(entity, ShipConsumableChance, ShipConsumableUnits);
+        StockAmmunition(entity);
         return EntitySerializer.Pack(entity);
     }
 
@@ -71,6 +76,7 @@ public class LoadoutGenerator
         var entity = new OrbitalEntity(ItemManager, null, hull, default, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
+        StockAmmunition(entity);
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
     }
 
@@ -159,6 +165,18 @@ public class LoadoutGenerator
         {
             var instance = ItemManager.CreateInstance(product);
             if (!entity.CargoBays.Any(bay => bay.TryStore(instance))) break;
+        }
+    }
+
+    // The crates the ship's weapons reload from: AmmunitionCrates of each distinct AmmoType, stopping when no hold takes another.
+    // Draws nothing from the random stream, so adding it moves no other roll.
+    private void StockAmmunition(Entity entity)
+    {
+        foreach (var key in entity.Weapons.Select(weapon => weapon.WeaponData.AmmoType).Where(type => type.IsSet()).Select(type => type.Key).Distinct())
+        {
+            var crates = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Quantity = AmmunitionCrates };
+            if (!entity.CargoBays.Any(bay => bay.TryStore(crates)))
+                ItemManager.Log($"{entity.Name}: no room for {AmmunitionCrates} crates of {key.Value}.");
         }
     }
 
