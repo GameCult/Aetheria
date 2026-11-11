@@ -54,7 +54,10 @@ public sealed partial class RunStartTests
     // moved the digest and returned it to 52fbb10d, which master already measured before this cut. The authored-cargo and
     // ammunition-data blob of this cut moved nothing (52fbb10d measured with it merged in). Fixtures run ThrustScale=1 while play
     // uses 0.1, so this digest pins the fight's logic, not the shipped feel.
-    private const string TwoAiPinnedDigest = "52fbb10df2559829a11f3a38aae0783f3f1858b0499f6f46794a267a747adacb";
+    // Repinned a ninth time, once (scenarios-batch4-minors): the catalog restores the five station-reactor products' quality
+    // spread (station-reactor-spread), and that blob alone moved the digest (the same tree with the old catalog measured 52fbb10d;
+    // the path from role spread to the fight was not traced).
+    private const string TwoAiPinnedDigest = "9c70a3ee234fb3b879f721a4a4abf13dd83bf56fd8733690d356b89b8a392258";
     private const float TwoAiSeconds = 60f;
 
     [Fact]

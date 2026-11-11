@@ -59,6 +59,7 @@ public static class Program
             case "inspection-scanner": return InspectionScannerCatalog(args.Contains("apply"));
             case "product-lines": return ProductLinesCommand.Run(args.Skip(1).ToArray());
             case "minor-power-factions": return MinorPowerFactionsCommand.Run(args.Skip(1).ToArray());
+            case "station-reactor-spread": return StationReactorSpreadCommand.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             case "assembly-from-maker": return AssemblyFromMakerCommand.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             case "place-names":
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
