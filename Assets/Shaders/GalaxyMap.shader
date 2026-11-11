@@ -36,7 +36,7 @@ Shader "Unlit/GalaxyMap"
 			#pragma fragment frag
 			
 			#include "UnityCG.cginc"
-			#include "Assets/Plugins/GPU Noise/SimplexNoise2D.cginc"
+			#include "Packages/org.gamecult.cultmath/Shaders/CultMath.hlsl"
 
 			struct appdata
 			{
@@ -86,8 +86,8 @@ Shader "Unlit/GalaxyMap"
                 for(int i = 0; i < octaves; i++) 
                 {
                 	if(i<4)
-						sum += (1-abs(snoise(p * freq))) * amp;
-                	else sum += abs(snoise(p * freq)) * amp;
+						sum += (1-abs(cultmath_snoise(p * freq))) * amp;
+                	else sum += abs(cultmath_snoise(p * freq)) * amp;
                     freq *= NoiseLacunarity;
                     amp *= NoiseGain;
                 }

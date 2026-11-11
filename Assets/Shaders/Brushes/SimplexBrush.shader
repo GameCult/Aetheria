@@ -25,7 +25,7 @@ Category {
 			#pragma target 2.0
 
 			#include "UnityCG.cginc"
-			#include "Assets/Plugins/GPU Noise/SimplexNoise3D.cginc"
+			#include "Packages/org.gamecult.cultmath/Shaders/CultMath.hlsl"
 
 			float _Depth;
 			float _Power;
@@ -68,7 +68,7 @@ Category {
 			fixed4 frag (v2f i) : SV_Target
 			{
 				float dist = length(i.texcoord - float2(.5,.5));
-				return powerPulse(dist * 2,_Power) * (_Depth * abs(snoise(float3(i.texcoord1.xy*_Frequency,_Time.y*_Speed)))+_Constant);
+				return powerPulse(dist * 2,_Power) * (_Depth * abs(cultmath_snoise(float3(i.texcoord1.xy*_Frequency,_Time.y*_Speed)))+_Constant);
 			}
 			ENDCG 
 		}
