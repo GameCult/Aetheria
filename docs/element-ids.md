@@ -20,10 +20,15 @@ the registry refuses to open otherwise, naming the type and list.
 
 ## The bump is one-way
 
-A store holding element ids is format v3 (single file) or v5 (directory). A pin older than `abd1a92e` can open a single-file v3
-store without error and drops the ids on its next write (CultLib #98). So: upgrade readers before writers, keep a pre-upgrade
-copy of any real store (`GameData/Aetheria.cc` and the mod packages are tracked in git; player saves and run stores are not),
-and do not roll the pin back after a store has been written under the new one.
+A store holding element ids is format v3 (single file) or v5 (directory). The previous pin, `b8fc5eb0`, refuses a v3 store loudly
+(`NotSupportedException: Store format cultcache.store.v3 is not readable`; checked by Soul on PR 12). CultLib #98 (`7002c252`) records
+that some intermediate pins read a single-file v3 store silently and drop the ids on the next write. So: upgrade readers before
+writers, keep a pre-upgrade copy of any real store (`GameData/Aetheria.cc` and the mod packages are tracked in git; player saves and
+run stores are not), and do not roll the pin back after a store has been written under the new one.
+
+Shipped mod packages (`GameData/Mods/*/ship.cc`) hold values in retired `HullData` slots 21 and 22. They read, but the new CultLib
+refuses to write over them (`CultSchemaConflictException`), so an in-place rewrite of those two files fails until their schema ids are
+declared compatible or the files are regenerated. A rewritten catalog is about 15% larger: every behavior row is 38 slots, mostly nil.
 
 The Unity manifest (`Packages/manifest.json`) still pins `caching-unity-v2.0.0` / `cultlib-unity-v2.0.1`; those move when CultLib
-tags a Unity release of 3.0. Until then the editor and the headless build consume different CultLib revisions.
+tags a Unity release of 3.0. Until then the Unity editor cannot compile `[CultElementId]` (the plugin DLLs at those tags lack the attribute): this branch is headless-only and must not merge to master before a Unity-consumable CultLib exists.
