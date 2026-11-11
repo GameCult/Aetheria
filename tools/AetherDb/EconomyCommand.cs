@@ -107,15 +107,16 @@ public static class EconomyCommand
     // atomically, so a refusal leaves Aetheria.cc byte-identical. A batch is compiled code and is reviewed as code: it is trusted not
     // to touch the real file, and the command refuses by name if the file changed under it. Added, changed and unchanged are read by
     // comparing the original and the copy on disk. A shape fault the batches introduce (present after, absent before, by rule and
-    // record) refuses; faults the catalog already held print and do not.
-    public static int Author(string catalogPath, IReadOnlyList<EconomyBatch> batches, bool apply, TextWriter output, CultDocumentRegistry registry = null)
+    // record) refuses; faults the catalog already held print and do not. The trial copy lives under scratchRoot (the temp folder unless a caller
+    // that audits it names a private one).
+    public static int Author(string catalogPath, IReadOnlyList<EconomyBatch> batches, bool apply, TextWriter output, CultDocumentRegistry registry = null, string scratchRoot = null)
     {
         if (apply && new FileInfo(catalogPath).IsReadOnly)
         {
             output.WriteLine("The batches are refused: Aetheria.cc is read-only. Clear the read-only flag, or check it out, and run again. The catalog is unchanged.");
             return 1;
         }
-        var scratch = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-economy-" + Guid.NewGuid().ToString("N"))).FullName;
+        var scratch = Directory.CreateDirectory(Path.Combine(scratchRoot ?? Path.GetTempPath(), "aetherdb-economy-" + Guid.NewGuid().ToString("N"))).FullName;
         try
         {
             var trial = Path.Combine(scratch, "Aetheria.cc");

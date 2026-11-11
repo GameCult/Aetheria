@@ -178,10 +178,19 @@ public sealed class EconomyCommandTests
     public void TheTrialCopyIsRemoved()
     {
         using var f = EconomyFixture.Healthy();
-        var before = Directory.GetDirectories(Path.GetTempPath(), "aetherdb-economy-*").Length;
-        Author(f, false, out _, a => Good(f, a, "coal"));
-        Author(f, true, out _, a => Good(f, a, "tar", lore: ""));
-        Assert.Equal(before, Directory.GetDirectories(Path.GetTempPath(), "aetherdb-economy-*").Length);
+        // A private scratch root: the temp folder is shared with every parallel test that runs the command, so counting it races.
+        var scratchRoot = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-economy-audit-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            foreach (var apply in new[] { false, true })
+            {
+                Flush(f);
+                var batch = new Lambda(a => Good(f, a, apply ? "tar" : "coal", lore: apply ? "" : "a good"));
+                EconomyCommand.Author(f.CatalogPath, new EconomyBatch[] { batch }, apply, new StringWriter(), TestCatalog.Registry(), scratchRoot);
+            }
+            Assert.Empty(Directory.GetFileSystemEntries(scratchRoot));
+        }
+        finally { Directory.Delete(scratchRoot, true); }
     }
 
     [Fact]
