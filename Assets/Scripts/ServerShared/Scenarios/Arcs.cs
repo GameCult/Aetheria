@@ -21,7 +21,10 @@ public sealed class Arcs : Scenario
     public static readonly CultMath.float2 Bow = float2(0, 400), Stern = float2(0, -400), Turret = float2(600, 300),
         Port = float2(-400, 0), Starboard = float2(400, 0);
 
-    public const int TurretAmmoCrates = 30;
+    // Crates of ammunition each shooter's hold is stocked with: the measured draw over a run (ScenarioAmmunitionRunTests: at most ten minutes of play, and in
+    // practice the ~260 s a shooter holding every gun down lasts before it dies of heat; a pilot who vents heat is unmeasured) plus half again and one. The turret drew 14 Ammo with the player in its range; the player drew 27 Ammo
+    // holding every gun down. The guided launchers fire only on a lock, which that run cannot give them, so they carry the default three crates.
+    public const int TurretAmmoCrates = 22, PlayerAmmoCrates = 42, PlayerMissileCrates = 3;
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();
 
@@ -43,7 +46,8 @@ public sealed class Arcs : Scenario
             ("not if i see you first", int2(5, 10), None), // Compact Sensor
             ("Panopticon Prime", int2(3, 6), Clockwise), // Fire Control Array
             ("🫳🔫", int2(8, 4), Clockwise), // Autocannon
-            ("ChargeBlast SG", int2(0, 4), CounterClockwise)); // Charged Scatter Blaster
+            ("ChargeBlast SG", int2(0, 4), CounterClockwise), // Charged Scatter Blaster
+            ("Store-All Plus", int2(4, 8), None)); // Cargo Bay: the only 2x2 the hull has free
         var turret = stage.Fit("Turret",
             ("ClearPath", int2(1, 2), None), // Light Machine Gun
             ("ClearPath", int2(5, 2), None), // Light Machine Gun
@@ -55,10 +59,11 @@ public sealed class Arcs : Scenario
             ("Panopticon Prime", int2(3, 6), None), // Fire Control Array
             ("Store-All Plus", int2(3, 1), None)); // Cargo Bay: the only 2x2 the turret hull has free
 
-        stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
+        var player = stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
+        stage.Cargo(player, Enumerable.Repeat("Ammo", PlayerAmmoCrates).Concat(Enumerable.Repeat("Missiles", PlayerMissileCrates)).ToArray());
         stage.Place(stage.Bare("Longinus"), Bow);
         stage.Place(stage.Bare("Longinus"), Stern);
-        // The turret's guns reload from its hold, a crate of Ammo per 100-round magazine: both guns firing without pause spend about 3.5 crates a minute, so 30 outlast any session.
+        // The turret's guns reload from its hold, a crate of Ammo per magazine.
         stage.Cargo(stage.Place(turret, Turret, stance: ScenarioStance.Hostile), Enumerable.Repeat("Ammo", TurretAmmoCrates).ToArray());
         stage.Place(stage.Bare("Longinus"), Port);
         stage.Place(stage.Bare("Longinus"), Starboard);

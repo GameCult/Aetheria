@@ -109,7 +109,9 @@ public abstract class Weapon : ActivatedBehavior
     public virtual bool HasMagazine => true;
     // What the HUD's ammunition label shows: "magazine/reserve" for a magazine weapon, the reserve alone for one without a magazine, empty when
     // the weapon draws no ammunition. The one rule the HUD reads, so the label cannot show a magazine a weapon does not have.
-    public string AmmoReadout => !_data.AmmoType.IsSet() ? "" : HasMagazine ? $"{Ammo}/{Reserve}" : Reserve.ToString();
+    public string AmmoReadout => !ShowsAmmoReadout ? "" : HasMagazine ? $"{Ammo}/{Reserve}" : Reserve.ToString();
+    // Whether the HUD shows the ammunition label at all (and not the infinite-ammunition icon): the weapon names an AmmoType.
+    public bool ShowsAmmoReadout => _data.AmmoType.IsSet();
     public WeaponData WeaponData => _data;
     public float RangeFactor(float at) => WeaponData.RangeFactor(MinRange, EffectiveRange, Range, _data.DamageAtMaxRange, at);
     

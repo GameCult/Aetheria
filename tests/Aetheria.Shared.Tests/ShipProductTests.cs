@@ -247,12 +247,8 @@ public sealed class ShipProductTests : IDisposable
 
     private static (int Code, string Output, string Error) Run(params string[] args)
     {
-        var (output, error) = (new StringWriter(), new StringWriter());
-        var (previousOut, previousError) = (Console.Out, Console.Error);
-        Console.SetOut(output);
-        Console.SetError(error);
-        try { return (ShipAuthoringCommands.Run(args), output.ToString(), error.ToString()); }
-        finally { Console.SetOut(previousOut); Console.SetError(previousError); }
+        var code = ConsoleProbe.Capture(() => ShipAuthoringCommands.Run(args), out var output, out var error);
+        return (code, output, error);
     }
 
     [Fact]
