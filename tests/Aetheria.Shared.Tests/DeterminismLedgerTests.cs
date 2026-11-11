@@ -255,7 +255,7 @@ public sealed partial class RunStartTests
         Assert.Equal(first.digest, second.digest);
     }
 
-    private static string HostClass() =>
+    internal static string HostClass() =>
         (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "linux"
             : RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows"
             : RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "osx" : "other")
