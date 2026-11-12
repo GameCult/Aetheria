@@ -136,7 +136,39 @@ public class MainMenu : MonoBehaviour
                 ShowSettings();
                 Fade(true);
             });
+        _nextMenu.panel.AddButton("Credits",
+            () =>
+            {
+                ShowCredits();
+                Fade(true);
+            });
         _nextMenu.panel.AddButton("Quit", Application.Quit);
+    }
+
+    // The third-party attributions the build must show, one button per entry with its notice in the detail pane. The
+    // list is Credits.All; this only renders it.
+    private void ShowCredits()
+    {
+        var credits = Credits.All(Resources.Load<TextAsset>(Credits.NounProjectResource).text);
+        Next("credits");
+        _nextMenu.detail.gameObject.SetActive(true);
+        _nextMenu.detail.Title.text = _nextMenu.panel.Title.text;
+        _nextMenu.detail.Title.color = Color.clear;
+        var selected = 0;
+        _nextMenu.detail.AddProperty(() => credits[selected].Name);
+        _nextMenu.detail.AddProperty(() => credits[selected].Licence);
+        _nextMenu.detail.AddProperty(() => credits[selected].Notice);
+        for (var i = 0; i < credits.Count; i++)
+        {
+            var index = i;
+            _nextMenu.panel.AddButton(credits[i].Name, () => selected = index);
+        }
+        _nextMenu.panel.AddButton("Back",
+            () =>
+            {
+                ShowMain();
+                Fade(false);
+            });
     }
 
     // New Game: every way to set up a run, each with its brief. A release build lists only the modes; the other ways
