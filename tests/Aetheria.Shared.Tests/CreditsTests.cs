@@ -25,8 +25,6 @@ namespace Aetheria.Shared.Tests
         private static readonly Regex LicenceLike = new Regex(
             @"^(LICEN[CS]E|COPYING|NOTICE|README|SOURCES|_SOURCES|Attribution)|OFL", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-        private static readonly string[] SkippedDirectories = { "bin", "obj", "Library" };
-
         // Discovered files whose own text names no holder and no licence, so there is nothing true to credit. A new
         // licence-like file is not here until someone has read it and written the reason.
         private static readonly System.Collections.Generic.Dictionary<string, string> ReviewedNotCredited = new System.Collections.Generic.Dictionary<string, string>
@@ -40,8 +38,6 @@ namespace Aetheria.Shared.Tests
         // repo, so they are not credited; each path must still exist, so this list cannot go stale unnoticed.
         private static readonly string[] UnlicensedWorks =
         {
-            "Assets/Fonts/Ubuntu",
-            "Assets/Fonts/Retro",
             "Assets/Plugins/Ink",
             "Assets/Plugins/GPUTrail",
             "Assets/Plugins/com.unity.uiextensions",
@@ -61,13 +57,70 @@ namespace Aetheria.Shared.Tests
             (Credits.AmbientCgFile, new[] { "ambientCG" }),
         };
 
+        // Fonts that state holder and licence in their own name tables: the credit's LicenceFile is the first font, and
+        // every font listed must embed the stated string (read from the file, not from the credit) and be shown by the
+        // credit. The ids are TrueType name ids: 0 is the copyright notice.
+        private static readonly (string credit, string[] fonts, string embedded)[] FontCredits =
+        {
+            (Credits.UbuntuFontFile, new[] { "Assets/Fonts/Ubuntu/Ubuntu-R.ttf", "Assets/Fonts/Ubuntu/Ubuntu-L.ttf", "Assets/Fonts/Ubuntu/Ubuntu-B.ttf", "Assets/Fonts/Ubuntu/UbuntuMono-R.ttf" },
+                "Copyright 2011 Canonical Ltd."),
+            (Credits.MontserratFontFile, new[] { "Assets/Fonts/Ubuntu/Montserrat-Thin.ttf" }, "Copyright(c) 2014 by Julieta Ulanovsky"),
+        };
+
+        // Fonts credited through a licence file in the repo (see Holders), not through their own text.
+        private static readonly string[] FontsCreditedByLicenceFile = { "Assets/Fonts/Emoji/Twemoji.ttf", "Assets/TextMesh Pro/Fonts/LiberationSans.ttf" };
+
+        // Fonts under Assets that are not credited, each with the reason; every one must be unreferenced by any prefab,
+        // scene, material or asset outside Assets/Fonts (checked), so shipping it is not a decision made by accident.
+        private static readonly System.Collections.Generic.Dictionary<string, string> ReviewedFonts = new System.Collections.Generic.Dictionary<string, string>
+        {
+            ["Assets/Fonts/Retro/LRT Oksana.ttf"] = "EULA forbids more than personal use; unreferenced; decision owed",
+            ["Assets/Fonts/Retro/LRT Oksana Bold.ttf"] = "EULA forbids more than personal use; unreferenced; decision owed",
+            ["Assets/Fonts/Ubuntu/UbuntuMono-B.ttf"] = "unreferenced; same holder and licence as UbuntuMono-R, which the Ubuntu credit covers",
+            ["Assets/Fonts/ftn_SourceSansPro-Regular.otf"] = "unreferenced; embeds Adobe copyright under the SIL OFL 1.1; credit it if it is ever used",
+        };
+
+        private static string[] FontFiles()
+        {
+            var root = Root();
+            return Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
+                .Where(path => path.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".otf", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        // Every name-table record of a TrueType/OpenType file with the given name id, decoded (platform 3 as UTF-16BE,
+        // platform 1 as Latin-1).
+        private static System.Collections.Generic.List<string> NameRecords(string relative, int nameId)
+        {
+            var d = File.ReadAllBytes(Path.Combine(Root(), relative));
+            int U16(int at) => (d[at] << 8) | d[at + 1];
+            long U32(int at) => ((long)d[at] << 24) | ((long)d[at + 1] << 16) | ((long)d[at + 2] << 8) | d[at + 3];
+            var found = new System.Collections.Generic.List<string>();
+            for (int i = 0, n = U16(4); i < n; i++)
+            {
+                var rec = 12 + 16 * i;
+                if (System.Text.Encoding.ASCII.GetString(d, rec, 4) != "name") continue;
+                var table = (int)U32(rec + 8);
+                int count = U16(table + 2), strings = table + U16(table + 4);
+                for (var j = 0; j < count; j++)
+                {
+                    var r = table + 6 + 12 * j;
+                    if (U16(r + 6) != nameId) continue;
+                    var text = System.Text.Encoding.GetEncoding(U16(r) == 3 ? "utf-16BE" : "latin1").GetString(d, strings + U16(r + 10), U16(r + 8));
+                    found.Add(text.Replace("\r", "").Trim());
+                }
+            }
+            return found;
+        }
+
         private static string[] LicenceLikeFiles()
         {
             var root = Root();
             return Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*", SearchOption.AllDirectories)
                 .Where(path => !path.EndsWith(".meta"))
                 .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
-                .Where(path => !path.Split('/').Any(segment => SkippedDirectories.Contains(segment)))
                 .Where(path => LicenceLike.IsMatch(Path.GetFileName(path)))
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
@@ -98,7 +151,7 @@ namespace Aetheria.Shared.Tests
         public void EveryCreditShowsTheHoldersItsOwnFileStates()
         {
             var credits = Load();
-            Assert.Equal(Holders.Select(h => h.file).Append(Credits.NounProjectFile).OrderBy(f => f, StringComparer.Ordinal),
+            Assert.Equal(Holders.Select(h => h.file).Append(Credits.NounProjectFile).Concat(FontCredits.Select(f => f.credit)).OrderBy(f => f, StringComparer.Ordinal),
                 credits.Select(credit => credit.LicenceFile).OrderBy(f => f, StringComparer.Ordinal));
             foreach (var (file, stated) in Holders)
             {
@@ -124,6 +177,47 @@ namespace Aetheria.Shared.Tests
 
         // Dash variants and case folded, so the file's en dash and the screen's hyphen compare equal.
         private static string Normal(string text) => text.Replace('\u2013', '-').Replace('\u2014', '-').Replace("\r", "").ToLowerInvariant();
+
+        // The credit text is typed; the font files are the authority on who holds them. A wrong holder, or a font in the
+        // family that does not carry it, fails here.
+        [Fact]
+        public void FontCreditsShowWhatTheFontsThemselvesEmbed()
+        {
+            var credits = Load();
+            foreach (var (creditFile, fonts, embedded) in FontCredits)
+            {
+                var notice = credits.Single(credit => credit.LicenceFile == creditFile).Notice;
+                Assert.Equal(creditFile, fonts[0]);
+                Assert.Contains(embedded, notice);
+                foreach (var font in fonts)
+                    Assert.True(NameRecords(font, 0).Count > 0 && NameRecords(font, 0).All(record => record.StartsWith(embedded)),
+                        $"{font} does not embed '{embedded}' as its copyright");
+            }
+            Assert.Contains("Ubuntu Font Licence 1.0", NameRecords(Credits.UbuntuFontFile, 0)[0]);
+            Assert.Contains("Ubuntu Font Licence 1.0", credits.Single(credit => credit.LicenceFile == Credits.UbuntuFontFile).Licence);
+            Assert.Contains("SIL Open Font License, Version 1.1", NameRecords(Credits.MontserratFontFile, 13)[0]);
+            Assert.Contains("SIL Open Font License 1.1", credits.Single(credit => credit.LicenceFile == Credits.MontserratFontFile).Licence);
+        }
+
+        [Fact]
+        public void EveryFontUnderAssetsIsCreditedOrReviewedAsUnreferenced()
+        {
+            var root = Root();
+            var accounted = FontCredits.SelectMany(f => f.fonts).Concat(FontsCreditedByLicenceFile).Concat(ReviewedFonts.Keys).ToArray();
+            var fonts = FontFiles();
+            Assert.Equal(Array.Empty<string>(), fonts.Where(font => !accounted.Contains(font)).ToArray());
+            Assert.Equal(Array.Empty<string>(), accounted.Where(font => !fonts.Contains(font)).ToArray());
+            // A reviewed font stays out of the credits only while nothing outside Assets/Fonts uses it.
+            var guids = ReviewedFonts.Keys.ToDictionary(font => font, font => Regex.Match(Read(font + ".meta"), @"guid: (\w+)").Groups[1].Value);
+            Assert.All(guids.Values, guid => Assert.Equal(32, guid.Length));
+            var users = Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
+                .Where(path => !path.StartsWith("Assets/Fonts/") && new[] { ".prefab", ".unity", ".mat", ".asset", ".controller" }.Any(ext => path.EndsWith(ext)))
+                .Select(path => (path, text: Read(path)))
+                .ToArray();
+            foreach (var (font, guid) in guids)
+                Assert.Equal(Array.Empty<string>(), users.Where(user => user.text.Contains(guid)).Select(user => user.path).ToArray());
+        }
 
         [Fact]
         public void TwemojiComesFirst()
