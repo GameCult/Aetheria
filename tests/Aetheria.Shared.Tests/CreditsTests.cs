@@ -23,7 +23,7 @@ namespace Aetheria.Shared.Tests
         // A file under Assets that looks like a licence, attribution, notice, readme or sources list. Each one is either
         // credited (the credit names it as its LicenceFile) or reviewed below with the reason it is not.
         private static readonly Regex LicenceLike = new Regex(
-            @"^(LICEN[CS]E|COPYING|NOTICE|README|SOURCES|_SOURCES|Attribution)|OFL", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            @"^(LICEN[CS]E|COPYING|NOTICE|README|SOURCES|_SOURCES|Attribution|UFL)|OFL", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         // Discovered files whose own text names no holder and no licence, so there is nothing true to credit. A new
         // licence-like file is not here until someone has read it and written the reason.
@@ -67,14 +67,14 @@ namespace Aetheria.Shared.Tests
             (Credits.ClassicNoiseFile, new[] { "Ashima Arts", "Stefan Gustavson" }),
         };
 
-        // Fonts that state holder and licence in their own name tables: the credit's LicenceFile is the first font, and
-        // every font listed must embed the stated string (read from the file, not from the credit) and be shown by the
+        // Fonts that state holder and licence in their own name tables: the credit's LicenceFile is the licence text shipped
+        // beside them (which must carry the licence and the stated holder), and every font listed must embed the stated string (read from the file, not from the credit) and be shown by the
         // credit. The ids are TrueType name ids: 0 is the copyright notice.
         private static readonly (string credit, string[] fonts, string embedded)[] FontCredits =
         {
-            (Credits.UbuntuFontFile, new[] { "Assets/Fonts/Ubuntu/Ubuntu-R.ttf", "Assets/Fonts/Ubuntu/Ubuntu-L.ttf", "Assets/Fonts/Ubuntu/Ubuntu-B.ttf", "Assets/Fonts/Ubuntu/UbuntuMono-R.ttf" },
+            (Credits.UbuntuLicenceFile, new[] { "Assets/Fonts/Ubuntu/Ubuntu-R.ttf", "Assets/Fonts/Ubuntu/Ubuntu-L.ttf", "Assets/Fonts/Ubuntu/Ubuntu-B.ttf", "Assets/Fonts/Ubuntu/UbuntuMono-R.ttf" },
                 "Copyright 2011 Canonical Ltd."),
-            (Credits.MontserratFontFile, new[] { "Assets/Fonts/Ubuntu/Montserrat-Thin.ttf" }, "Copyright(c) 2014 by Julieta Ulanovsky"),
+            (Credits.MontserratLicenceFile, new[] { "Assets/Fonts/Ubuntu/Montserrat-Thin.ttf" }, "Copyright(c) 2014 by Julieta Ulanovsky"),
         };
 
         // Fonts credited through a licence file in the repo (see Holders), not through their own text.
@@ -236,16 +236,19 @@ namespace Aetheria.Shared.Tests
             foreach (var (creditFile, fonts, embedded) in FontCredits)
             {
                 var notice = credits.Single(credit => credit.LicenceFile == creditFile).Notice;
-                Assert.Equal(creditFile, fonts[0]);
+                var licenceText = Read(creditFile);
+                Assert.Contains(creditFile.Contains("UFL") ? "UBUNTU FONT LICENCE Version 1.0" : "SIL OPEN FONT LICENSE Version 1.1", licenceText);
+                Assert.True(Path.GetDirectoryName(creditFile) == Path.GetDirectoryName(fonts[0]).Replace('\\', '/'), "licence text sits beside its fonts");
+                if (creditFile.Contains("OFL")) Assert.Contains(embedded, licenceText);
                 Assert.Contains(embedded, notice);
                 foreach (var font in fonts)
                     Assert.True(NameRecords(font, 0).Count > 0 && NameRecords(font, 0).All(record => record.StartsWith(embedded)),
                         $"{font} does not embed '{embedded}' as its copyright");
             }
-            Assert.Contains("Ubuntu Font Licence 1.0", NameRecords(Credits.UbuntuFontFile, 0)[0]);
-            Assert.Contains("Ubuntu Font Licence 1.0", credits.Single(credit => credit.LicenceFile == Credits.UbuntuFontFile).Licence);
-            Assert.Contains("SIL Open Font License, Version 1.1", NameRecords(Credits.MontserratFontFile, 13)[0]);
-            Assert.Contains("SIL Open Font License 1.1", credits.Single(credit => credit.LicenceFile == Credits.MontserratFontFile).Licence);
+            Assert.Contains("Ubuntu Font Licence 1.0", NameRecords(FontCredits[0].fonts[0], 0)[0]);
+            Assert.Contains("Ubuntu Font Licence 1.0", credits.Single(credit => credit.LicenceFile == Credits.UbuntuLicenceFile).Licence);
+            Assert.Contains("SIL Open Font License, Version 1.1", NameRecords(FontCredits[1].fonts[0], 13)[0]);
+            Assert.Contains("SIL Open Font License 1.1", credits.Single(credit => credit.LicenceFile == Credits.MontserratLicenceFile).Licence);
         }
 
         [Fact]

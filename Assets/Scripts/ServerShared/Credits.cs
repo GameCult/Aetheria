@@ -20,9 +20,9 @@ public static class Credits
     public const string PlaydeadFile = "Assets/Plugins/Playdead/LICENSE.txt";
     public const string NounProjectFile = "Assets/Resources/Sprites/Attribution.txt";
     public const string LiberationFile = "Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt";
-    // Fonts state their holder and licence in their own name tables; these are the font files the credit answers for.
-    public const string UbuntuFontFile = "Assets/Fonts/Ubuntu/Ubuntu-R.ttf";
-    public const string MontserratFontFile = "Assets/Fonts/Ubuntu/Montserrat-Thin.ttf";
+    // Fonts state their holder and licence in their own name tables; the licence texts shipped beside them are these.
+    public const string UbuntuLicenceFile = "Assets/Fonts/Ubuntu/UFL-1.0.txt";
+    public const string MontserratLicenceFile = "Assets/Fonts/Ubuntu/Montserrat-OFL-1.1.txt";
     public const string UniRxFile = "Assets/Plugins/UniRx/ReadMe.txt";
     public const string AmbientCgFile = "Assets/Materials/PBR/SOURCES.md";
     public const string KdTreeFile = "Assets/Scripts/ServerShared/NIH/KDTree/KDTree.cs";
@@ -72,14 +72,14 @@ public static class Credits
                 Name = "Ubuntu and Ubuntu Mono fonts",
                 Licence = "Ubuntu Font Licence 1.0",
                 Notice = "Copyright 2011 Canonical Ltd.",
-                LicenceFile = UbuntuFontFile
+                LicenceFile = UbuntuLicenceFile
             },
             new Credit
             {
                 Name = "Montserrat",
                 Licence = "SIL Open Font License 1.1",
                 Notice = "Copyright(c) 2014 by Julieta Ulanovsky",
-                LicenceFile = MontserratFontFile
+                LicenceFile = MontserratLicenceFile
             },
             new Credit
             {
