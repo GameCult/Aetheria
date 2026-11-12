@@ -84,10 +84,10 @@ public static class FireControl
     // Whether the shooter's next round from this weapon is refused: the weapons ask before they spend anything, so
     // a refused round costs no ammo, energy, sound, heat, wear or visibility (operator ruling 2026-09-30). The
     // answer is Solve's own -- there is no second copy of the arming test.
-    public static bool Refuses(Weapon weapon, Entity shooter) => Refuses(weapon, shooter, shooter.Target.Value.Entity);
+    public static bool Refuses(Weapon weapon, Entity shooter) => Refuses(weapon, shooter, shooter.Target.Value);
 
     // The same answer against a target the shooter's pilot has commanded but not yet applied.
-    public static bool Refuses(Weapon weapon, Entity shooter, Entity target) =>
+    public static bool Refuses(Weapon weapon, Entity shooter, TargetRef target) =>
         !IsMineLayer(weapon) && Solve(weapon, weapon.Item, shooter, target).Outcome == FireOutcome.Refused;
 
     // A mine layer lays a body, not a round: it is never refused, never arc-gated, and Fire routes it to Lay.
@@ -139,27 +139,18 @@ public static class FireControl
     // The one owner of a gun's solution against its subject (the designated target; ruling controls-solution-subject).
     // Bears: the gun can engage the subject, so the player fires on it without the aim. Free: the aim is inside the
     // arc, so the gun can fire along it. Direction: where a round from this gun travels and where its barrel points --
-    // the subject's intercept when it bears, else the arc-clamped aim. A chunk subject bears through its pose and
-    // flies the aim, as an untargeted round (Subject is null for it). Derived on every read and never stored: turrets
+    // the subject's intercept when it bears (a rock's too), else the arc-clamped aim. Subject is null for a rock. Derived on every read and never stored: turrets
     // traverse instantly in the simulation. Traverse is the weapon's Tracking (ruling mount-arc-gun-traverse), priced in
     // TrackingRate; this holds no slew state, and a rig's slew is presentation. It never prices; HitProbability is the one price.
     public static GunSolution Solution(Weapon weapon, Entity shooter, TargetRef subject)
     {
-        var bears = false;
-        if (subject.Entity != null) bears = Bears(weapon, shooter, subject.Entity, out _);
-        else if (subject.Chunk is ChunkId chunk)
-        {
-            var at = shooter.Zone.ChunkPose(chunk.Field, chunk.Index).xy;
-            bears = InArc(weapon.Item, float3(at.x, 0, at.y) - shooter.Position);
-        }
+        var bears = Bears(weapon, shooter, subject, out _);
         return new GunSolution
         {
             Subject = subject.Entity,
             Bears = bears,
             Free = InArc(weapon.Item, shooter.Aim),
-            Direction = bears && subject.Entity != null
-                ? TravelDirection(weapon, shooter, subject.Entity)
-                : AimDirection(weapon.Item, shooter)
+            Direction = bears ? TravelDirection(weapon, shooter, subject) : AimDirection(weapon.Item, shooter)
         };
     }
 
@@ -224,8 +215,8 @@ public static class FireControl
         return degrees(abs(offset.x * relativeVelocity.y - offset.y * relativeVelocity.x) / (range * range));
     }
 
-    public static float AngularVelocity(Entity source, Entity target) =>
-        AngularVelocity((target.Position - source.Position).xz, target.Velocity - source.Velocity);
+    public static float AngularVelocity(Entity source, TargetRef target) =>
+        AngularVelocity((PositionOf(source, target) - source.Position).xz, VelocityOf(source, target) - source.Velocity);
 
     // The gun's rate times the ship's gear over the unaided baseline (ruling tracking-per-gun, "gun times ship"): the
     // one product of the two. An unauthored gun is +infinity and so is its rate whatever the gear reads: a mount with no
@@ -241,13 +232,30 @@ public static class FireControl
     // be judged against another. This is the one function; CombatState (and FireControl.Fire below) both call
     // it instead of touching CultMath.first_order_intercept directly. Planar: source velocity is never fed in
     // (no shooter here leads its own motion into the shot), matching every existing call site this replaces.
-    public static float3 PredictedIntercept(Weapon weapon, Entity source, Entity target)
+    // Mining Cut 4b: a target is an entity or a rock; its position and velocity come from PositionOf and VelocityOf.
+    public static float3 PredictedIntercept(Weapon weapon, Entity source, TargetRef target)
     {
-        var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
+        var position = PositionOf(source, target);
+        var velocity = VelocityOf(source, target);
         return weapon.Velocity > .01f
-            ? first_order_intercept(source.Position, float3.zero, weapon.Velocity, target.Position, targetVelocity)
-            : target.Position;
+            ? first_order_intercept(source.Position, float3.zero, weapon.Velocity, position, float3(velocity.x, 0, velocity.y))
+            : position;
     }
+
+    // Where a target is now: an entity's position, a rock's pose at the shooter's height (everything here is planar).
+    private static float3 PositionOf(Entity source, TargetRef target)
+    {
+        if (target.Chunk is ChunkId chunk)
+        {
+            var at = source.Zone.ChunkPose(chunk.Field, chunk.Index).xy;
+            return float3(at.x, source.Position.y, at.y);
+        }
+        return target.Entity.Position;
+    }
+
+    // How fast a target moves: an entity's velocity, a rock's from Zone.ChunkVelocity, the one owner.
+    private static float2 VelocityOf(Entity source, TargetRef target) =>
+        target.Chunk is ChunkId chunk ? source.Zone.ChunkVelocity(chunk) : target.Entity.Velocity;
 
     // Cut 3, R1/R3: the targeting solution (0b table) -- pure, no draw, recomputed fresh on every call. AI
     // reads this to decide whether a shot is worth taking; the HUD reads it to draw a number; Fire below reads
@@ -263,13 +271,13 @@ public static class FireControl
     // freezes (R10), gated exactly as HitProbability gates. Nothing about the target's facing or silhouette
     // enters here; that is Silhouette's and PSpread's job, priced fresh by HitProbability below and again,
     // live, by Commit at the commit tick. 0 the moment any gate closes.
-    private static float PFire(Weapon weapon, Entity source, Entity target) => PFire(weapon, source, target, out _, out _, out _);
+    private static float PFire(Weapon weapon, Entity source, TargetRef target) => PFire(weapon, source, target, out _, out _, out _);
 
     // The `out range` overload is HitProbability's own gate call -- one computation of `target.Position -
     // source.Position`, not two. HitProbability used to recompute its own copy for PSpread, which is exactly
     // the kind of split authority Cut 3 named as the risk (two places computing the same vector, free to
     // drift or to have their subtraction order flipped in only one of them).
-    private static float PFire(Weapon weapon, Entity source, Entity target, out float range) =>
+    private static float PFire(Weapon weapon, Entity source, TargetRef target, out float range) =>
         PFire(weapon, source, target, out range, out _, out _);
 
     // The one answer to "does the shooter hold valid targeting data on this target": visible, in range and locked
@@ -279,25 +287,29 @@ public static class FireControl
     // visible, out of range) already denies the target. Planar (R7: the simulation is 2D): the range gate, the
     // burst reach and the range clamp all measure the same distance, so a target's height never moves one of
     // them without the others.
-    public static bool Designated(Weapon weapon, Entity source, Entity target, out float range)
+    // Mining Cut 4b: a rock is designated by the same range gates, seen when Entity.ChunkVisible says so; a
+    // LockWeapon (a launcher) is never designated on a rock (ruling Q12 = A, 2026-09-30).
+    public static bool Designated(Weapon weapon, Entity source, TargetRef target, out float range)
     {
         range = 0f;
-        if (target == null) return false;
-        range = length((target.Position - source.Position).xz);
-        return source.VisibleEntities.Contains(target) && range >= weapon.MinRange && range <= weapon.Range &&
+        if (target.IsNone) return false;
+        range = length((PositionOf(source, target) - source.Position).xz);
+        var inRange = range >= weapon.MinRange && range <= weapon.Range;
+        if (target.Chunk is ChunkId chunk) return inRange && !(weapon is LockWeapon) && source.ChunkVisible(chunk);
+        return source.VisibleEntities.Contains(target.Entity) && inRange &&
                !(weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked);
     }
 
     // Whether this gun can engage this target: designated and inside the arc. The one test of it; PFire prices a shot
     // at zero unless it holds, and Solution reads it to decide whether the gun fires on the target. `designated` is
     // the answer above, kept apart for Solve's burst flight: a designated target out of arc still sets the burst range.
-    public static bool Bears(Weapon weapon, Entity source, Entity target, out float range) =>
+    public static bool Bears(Weapon weapon, Entity source, TargetRef target, out float range) =>
         Bears(weapon, source, target, out range, out _);
 
-    private static bool Bears(Weapon weapon, Entity source, Entity target, out float range, out bool designated)
+    private static bool Bears(Weapon weapon, Entity source, TargetRef target, out float range, out bool designated)
     {
         designated = Designated(weapon, source, target, out range);
-        return designated && InArc(weapon.Item, target.Position - source.Position);
+        return designated && InArc(weapon.Item, PositionOf(source, target) - source.Position);
     }
 
     // `designated` is the answer above. `inArc` is Bears, asked only once a target is designated.
@@ -305,13 +317,14 @@ public static class FireControl
     // (operator rulings 2026-09-30): without valid data it has no target and bursts at max range; with data but
     // out of arc it bursts at the target's range, along the aim. The HUD reads Designated and the
     // arc from Solve and Inspect and decides nothing.
-    private static float PFire(Weapon weapon, Entity source, Entity target, out float range, out bool designated, out bool inArc)
+    private static float PFire(Weapon weapon, Entity source, TargetRef target, out float range, out bool designated, out bool inArc)
     {
         inArc = Bears(weapon, source, target, out range, out designated);
         if (!inArc) return 0f;
 
         var settings = source.ItemManager.GameplaySettings;
-        var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
+        var info = target.Chunk is ChunkId chunk ? source.ChunkInfo(chunk)
+            : source.EntityInfoGathered.TryGetValue(target.Entity, out var gathered) ? gathered : 0f;
         return Accuracy(source) * PSensor(settings, Resolution(source), info);
     }
 
@@ -364,22 +377,33 @@ public static class FireControl
         return (sil, pSpread, evasion);
     }
 
-    public static float HitProbability(Weapon weapon, Entity source, Entity target) =>
+    public static float HitProbability(Weapon weapon, Entity source, TargetRef target) =>
         HitProbability(weapon, source, target, (AimTarget?) null);
 
     // Priced on `aim` rather than the source's aim slot: the aim its pilot commands this step.
-    public static float HitProbability(Weapon weapon, Entity source, Entity target, AimTarget aim) =>
+    public static float HitProbability(Weapon weapon, Entity source, TargetRef target, AimTarget aim) =>
         HitProbability(weapon, source, target, (AimTarget?) aim);
 
     // A null aim reads source.ResolvedAim, after the gate, so a gated-out shot reads nothing more.
-    private static float HitProbability(Weapon weapon, Entity source, Entity target, AimTarget? aim)
+    // Mining Cut 4b: a rock is priced by the same factors as a ship at equal range, precision and info -- its disc
+    // through the same integrator, its evasion 0 (a rock is not a Ship), and no aim point: the disc is aimed at.
+    private static float HitProbability(Weapon weapon, Entity source, TargetRef target, AimTarget? aim)
     {
         var pFire = PFire(weapon, source, target, out var range);
         if (pFire <= 0f) return 0f;
 
-        var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
-        var (sil, pSpread, evasion) = Forecast(weapon, source, target, targetHull, Precision(source), range, aim ?? source.ResolvedAim);
-        return pFire * PMount(AngularVelocity(source, target), TrackingRate(weapon, source)) * pSpread * sil.POnHull * PDeviation(evasion, Tracking(source));
+        var pMount = PMount(AngularVelocity(source, target), TrackingRate(weapon, source));
+        if (target.Chunk is ChunkId chunk)
+        {
+            var mass = RockMass(source.Zone, chunk, Precision(source), out var span);
+            var pSpreadRock = PSpread(weapon.Spread, span, range, source.ItemManager.GameplaySettings.SchematicCellSize);
+            return pFire * pMount * pSpreadRock * mass * PDeviation(0f, Tracking(source));
+        }
+
+        var entity = target.Entity;
+        var targetHull = source.ItemManager.GetData(entity.Hull) as HullData;
+        var (sil, pSpread, evasion) = Forecast(weapon, source, entity, targetHull, Precision(source), range, aim ?? source.ResolvedAim);
+        return pFire * pMount * pSpread * sil.POnHull * PDeviation(evasion, Tracking(source));
     }
 
     // Presentation only: the debug HUD's view of exactly the factors HitProbability multiplies. It computes
@@ -457,7 +481,7 @@ public static class FireControl
     // at Fire (R10); HitProbability and Inspect recompute it fresh, at the current source/target positions,
     // for their forecast. Below a length of 1e-6 (point-blank, source and intercept coincide) it falls back
     // to world +z, the same fallback Apply used before this cut (`:463`).
-    public static float2 TravelDirection(Weapon weapon, Entity source, Entity target)
+    public static float2 TravelDirection(Weapon weapon, Entity source, TargetRef target)
     {
         var toIntercept = (PredictedIntercept(weapon, source, target) - source.Position).xz;
         return lengthsq(toIntercept) < 1e-6f ? float2(0, 1) : normalize(toIntercept);
@@ -505,12 +529,21 @@ public static class FireControl
     // The commit price's deviation: what the target has already moved off the frozen forecast, plus what it can and
     // does move off the line of fire (Evasion). The second part applies at any flight time, so an instant weapon
     // (flight time 0, realized deviation 0) still feels a jinking target.
-    public static float DeviationProbability(PendingShot shot, float now, out float deviation)
+    // Mining Cut 4b: a rock's deviation is where its pose is now against that projection, with no evasion; its
+    // zone is the shooter's (a shot that outlives its shooter is resolved by Step, which passes the zone it runs in).
+    public static float DeviationProbability(PendingShot shot, float now, out float deviation) =>
+        DeviationProbability(shot.Source?.Zone, shot, now, out deviation);
+
+    private static float DeviationProbability(Zone zone, PendingShot shot, float now, out float deviation)
     {
+        deviation = 0f;
+        if (shot.Target == null && shot.Chunk == null) return 1f;
         var elapsed = now - shot.FireTime;
         var predicted = shot.FireTargetPosition + shot.FireTargetVelocity * elapsed;
-        deviation = shot.Target == null ? 0f : length((shot.Target.Position - predicted).xz) + Evasion(shot.Target, shot.TravelDirection);
-        return shot.Target == null ? 1f : PDeviation(deviation, shot.Tracking);
+        deviation = shot.Chunk is ChunkId chunk
+            ? length(zone.ChunkPose(chunk.Field, chunk.Index).xy - predicted.xz)
+            : length((shot.Target.Position - predicted).xz) + Evasion(shot.Target, shot.TravelDirection);
+        return PDeviation(deviation, shot.Tracking);
     }
 
     // How far a target can and does move off the line of fire in the solution window: the term DeviationProbability
@@ -608,7 +641,7 @@ public static class FireControl
     // BurstReach the planar distance from the shooter at which the payload is delivered (a direct round's target, a fused
     // round's burst point, 0 for an untargeted direct round), which Fire's range factor reads for every outcome. Refused: a fused round whose blast
     // radius (its arming distance) exceeds the weapon's Range; it cannot be fired.
-    public static FireSolution Solve(Weapon weapon, EquippedItem item, Entity source, Entity target)
+    public static FireSolution Solve(Weapon weapon, EquippedItem item, Entity source, TargetRef target)
     {
         var pFire = PFire(weapon, source, target, out var fireRange, out var designated, out var inArc);
 
@@ -639,14 +672,14 @@ public static class FireControl
         // that leaves the zone cancels it like any other. A round whose Range is shorter than the arming distance
         // cannot be fired at all: it is refused, per round, where Range is read after Execute refreshed it (a
         // burst's later rounds and a power-starved Range included).
-        var engaged = fuse != null && !(designated && inArc) ? null : target;
+        var engaged = fuse != null && !(designated && inArc) ? TargetRef.None : target;
         var origin = source.Position;
         var travelDirection = Solution(weapon, source, target).Direction;
 
         var arming = fuse != null ? blastRadius : 0f;
-        var burstPosition = engaged != null ? engaged.Position : origin;
+        var burstPosition = !engaged.IsNone ? PositionOf(source, engaged) : origin;
         var flightDistance = 0f;
-        if (fuse != null && engaged != null)
+        if (fuse != null && !engaged.IsNone)
         {
             // Nothing bursts beyond max range: an intercept a receding target leads the round past Range is
             // pulled back along its own line to Range.
@@ -662,7 +695,7 @@ public static class FireControl
             burstPosition = Armed(origin, travelDirection, arming, origin + float3(travelDirection.x, 0, travelDirection.y) * reach);
             flightDistance = max(reach, arming);
         }
-        else if (engaged != null) flightDistance = fireRange;
+        else if (!engaged.IsNone) flightDistance = fireRange;
 
         var solution = new FireSolution
         {
@@ -710,8 +743,7 @@ public static class FireControl
             Lay(weapon, item, source);
             return 0;
         }
-        // Mining Cut 3: a chunk target fires as an untargeted round until Cut 4 routes shots at chunks.
-        var target = source.Target.Value.Entity;
+        var target = source.Target.Value;
         var now = zone.Time - age;
 
         // R1's engage gate and the shooter-side probability, evaluated now and frozen: nothing at commit time
@@ -721,7 +753,7 @@ public static class FireControl
         var solution = Solve(weapon, item, source, target);
         if (solution.Outcome == FireOutcome.Refused) return 0;
         // The mount factor is frozen with the shooter-side probability: nothing at commit time re-reads the sweep.
-        var pFire = solution.PFire * (solution.Engaged != null ? PMount(AngularVelocity(source, solution.Engaged), TrackingRate(weapon, source)) : 1f);
+        var pFire = solution.PFire * (!solution.Engaged.IsNone ? PMount(AngularVelocity(source, solution.Engaged), TrackingRate(weapon, source)) : 1f);
         var fireRange = solution.FireRange;
         var engaged = solution.Engaged;
         var travelDirection = solution.TravelDirection;
@@ -732,10 +764,11 @@ public static class FireControl
 
         var targetVelocity = float3.zero;
         var targetPosition = origin;
-        if (engaged != null)
+        if (!engaged.IsNone)
         {
-            targetVelocity = float3(engaged.Velocity.x, 0, engaged.Velocity.y);
-            targetPosition = engaged.Position - targetVelocity * age;
+            var velocity = VelocityOf(source, engaged);
+            targetVelocity = float3(velocity.x, 0, velocity.y);
+            targetPosition = PositionOf(source, engaged) - targetVelocity * age;
         }
         var flightTime = weapon.Velocity > .01f ? solution.FlightDistance / weapon.Velocity : 0f;
 
@@ -746,7 +779,8 @@ public static class FireControl
         {
             ShotId = zone.NextShotId(),
             Source = source,
-            Target = engaged,
+            Target = engaged.Entity,
+            Chunk = engaged.Chunk,
             Weapon = item,
             Aimed = aim.Item,
             AimedMount = aim.Mount,
@@ -773,7 +807,7 @@ public static class FireControl
             // The commit horizon exists so the target's facing can be read late (Bearing timing). A round fired at
             // nothing has no facing to read, so it commits at Fire: its burst point is decided from the poses of
             // the moment it leaves, and a Contact round short of max range can arrive as early as it truly does.
-            CommitTime = fuse != null && engaged == null ? now : now + max(0f, flightTime - commitHorizon),
+            CommitTime = fuse != null && engaged.IsNone ? now : now + max(0f, flightTime - commitHorizon),
             BurstPosition = burstPosition,
             Fuse = fuse,
             BlastRadius = blastRadius,
@@ -861,7 +895,7 @@ public static class FireControl
         {
             var shot = shots[i];
 
-            var targetGone = shot.Target != null && !zone.Entities.Contains(shot.Target);
+            var targetGone = TargetGone(zone, shot);
             if (targetGone)
             {
                 // Cut 11 (Soul C4): a shot whose target has left the zone resolves as a miss whichever
@@ -908,7 +942,7 @@ public static class FireControl
             if (i < 0) continue;
             var shot = shots[i];
 
-            var targetGone = shot.Target != null && !zone.Entities.Contains(shot.Target);
+            var targetGone = TargetGone(zone, shot);
             if (targetGone)
             {
                 // As in the commit walk: a shot whose target left the zone in this step resolves as a miss.
@@ -930,6 +964,10 @@ public static class FireControl
         }
     }
 
+    // A shot's target has left the zone, or a rock it flies at no longer exists (broken in flight): the shot is a miss.
+    private static bool TargetGone(Zone zone, PendingShot shot) =>
+        (shot.Target != null && !zone.Entities.Contains(shot.Target)) || (shot.Chunk is ChunkId chunk && !zone.ChunkExists(chunk));
+
     // R3/R4: the one roll. p_base was frozen at fire, PFire carrying the mount factor; the only thing measured live is how far the target has
     // actually strayed, by now, from where a straight-line projection of its fire-time velocity said it would
     // be -- forgiven by the targeting system's Tracking, likewise frozen at fire.
@@ -945,14 +983,24 @@ public static class FireControl
     // (bearing) -- is read live, here, at the commit tick. The Cut 7 guard extends to cover the new factors:
     // when PFire x pDeviation is already 0, no Silhouette is built. Shared by Commit's own roll and by the
     // debug HUD's forecast (TheHudEstimateIsTheCommitPrice) -- one function, one commit-time price.
-    public static float CommitProbability(PendingShot shot, float now, out Silhouette sil)
+    public static float CommitProbability(PendingShot shot, float now, out Silhouette sil) =>
+        CommitProbability(shot.Source?.Zone, shot, now, out sil);
+
+    // Mining Cut 4b: a rock's price is PFire x PDeviation x PSpread(span 2R) x the disc's mass; it reads no hull.
+    private static float CommitProbability(Zone zone, PendingShot shot, float now, out Silhouette sil)
     {
         sil = default;
-        if (shot.Target == null) return 0f;
+        if (shot.Target == null && shot.Chunk == null) return 0f;
 
-        var pDeviation = DeviationProbability(shot, now, out _);
+        var pDeviation = DeviationProbability(zone, shot, now, out _);
         var p = shot.PFire * pDeviation;
         if (p <= 0f) return 0f;
+
+        if (shot.Chunk is ChunkId chunk)
+        {
+            var mass = RockMass(zone, chunk, shot.Precision, out var span);
+            return p * PSpread(shot.Spread, span, shot.FireRange, zone.SchematicCellSize) * mass;
+        }
 
         var bearing = Bearing(shot.Target, shot.TravelDirection);
         var hullData = shot.Target.ItemManager.GetData(shot.Target.Hull) as HullData;
@@ -984,7 +1032,7 @@ public static class FireControl
         // drawing once is the documented way to get a correlated first output, and a follow-up to give
         // CultMath.Random a mixed-seed entry point of its own is recorded for a separate CultLib cut.
         var random = new Random(SimulationDice.Mix((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));
-        var p = CommitProbability(shot, now, out var sil);
+        var p = CommitProbability(zone, shot, now, out var sil);
 
         var hit = p > 0f && random.NextFloat() < p;
         var cell = int2.zero;
@@ -993,7 +1041,8 @@ public static class FireControl
         var shielded = false;
         var shieldBroken = false;
 
-        if (hit)
+        // A rock hit has no lane and no shield: Cell, Bearing and Lateral stay zero (Apply wears the rock).
+        if (hit && shot.Chunk == null)
         {
             // Cut 12.2: the same silhouette pOnHull drew its mass from -- same bearing (live, at this commit
             // tick), same sigma (the frozen Precision). A shot that passed the roll always lands on metal (R3:
@@ -1189,6 +1238,12 @@ public static class FireControl
             return;
         }
 
+        if (shot.Chunk is ChunkId rock)
+        {
+            ApplyRockHit(zone, shot, rock);
+            return;
+        }
+
         switch (shot.Fuse)
         {
             case null:
@@ -1199,6 +1254,27 @@ public static class FireControl
                 ApplyBlastHit(shot);
                 return;
         }
+    }
+
+    // Mining Cut 4b: a committed hit on a rock. A round without a fuse wears the rock by its Damage (the falloff was
+    // read at Fire) and publishes one absorb on the zone's ChunkCapabilities (through Publish, at height 0 like a blast's), at the
+    // rock's surface facing the shot and before the wear shrinks it. A contact or delayed round detonates at the rock's centre as it arrives (the
+    // arming rule kept), through Detonate, the one area owner.
+    private static void ApplyRockHit(Zone zone, PendingShot shot, ChunkId rock)
+    {
+        if (!shot.Outcome.Hit) return;
+
+        var centre = zone.ChunkPose(rock.Field, rock.Index).xy;
+        if (shot.Fuse == null)
+        {
+            var direction = float3(shot.TravelDirection.x, 0, shot.TravelDirection.y);
+            var surface = centre - shot.TravelDirection * zone.ChunkRadius(rock);
+            Publish(zone.ChunkCapabilities, AbsorbLayer.Hull, float3(surface.x, 0f, surface.y), direction, shot.Damage, shot.DamageType);
+            zone.Wear(rock, shot.Damage);
+            return;
+        }
+        var point = Armed(shot.FireOrigin, shot.TravelDirection, shot.BlastRadius, float3(centre.x, shot.FireOrigin.y, centre.y)).xz;
+        Detonate(zone, point, shot.BlastRadius, shot.Damage, shot.DamageType);
     }
 
     // Cut 12.3 (docs/fire-control-cut.md, "How a direct hit travels"): replaces Entity.ApplyHit's 0.5-step
@@ -1221,7 +1297,7 @@ public static class FireControl
 
         if (shot.Outcome.Shielded)
         {
-            Publish(shot.Target, AbsorbLayer.Shield, ImpactPoint(shot.Target, shot.Outcome.Cell),
+            Publish(shot.Target.Capabilities, AbsorbLayer.Shield, ImpactPoint(shot.Target, shot.Outcome.Cell),
                 float3(shot.TravelDirection.x, 0, shot.TravelDirection.y), shot.Damage, shot.DamageType);
             shot.Target.Shield.TakeHit(shot.DamageType, shot.Damage);
             return;
@@ -1266,7 +1342,7 @@ public static class FireControl
 
         for (var li = 0; li < laneCount; li++) ArrayPool<LaneCell>.Shared.Return(buffers[li]);
 
-        Publish(target, AbsorbLayer.Hull, ImpactPoint(target, shot.Outcome.Cell),
+        Publish(target.Capabilities, AbsorbLayer.Hull, ImpactPoint(target, shot.Outcome.Cell),
             float3(shot.TravelDirection.x, 0, shot.TravelDirection.y), shot.Damage, shot.DamageType);
         target.DamageHull(hullDamage);
     }
@@ -1278,17 +1354,18 @@ public static class FireControl
         return float3(world.x, target.Position.y, world.y);
     }
 
-    // The one publisher of an absorbed impact: once per receiver, on its Capabilities, before the damage it reports.
-    private static void Publish(Entity receiver, AbsorbLayer layer, float3 position, float3 direction, float magnitude, DamageType damageType) =>
-        receiver.Capabilities.PublishAbsorb(new AbsorbEvent(position, direction, magnitude, damageType, layer));
+    // The one publisher of an absorbed impact: once per receiver, on its CapabilityEvents (an entity's, or the zone's
+    // for a rock), before the damage it reports.
+    private static void Publish(CapabilityEvents receiver, AbsorbLayer layer, float3 position, float3 direction, float magnitude, DamageType damageType) =>
+        receiver.PublishAbsorb(new AbsorbEvent(position, direction, magnitude, damageType, layer));
 
-    // A blast's impact on one entity: at the blast point (on the entity's height), travelling from the blast out through
-    // the entity's centre, or zero when they coincide.
-    private static void PublishBlast(Entity entity, float2 blast, AbsorbLayer layer, float magnitude, DamageType damageType)
+    // A blast's impact on one receiver: at the blast point (at the receiver's height), travelling from the blast out
+    // through the receiver's planar centre, or zero when they coincide. An entity and a rock go through it alike.
+    private static void PublishBlast(CapabilityEvents receiver, float2 centre, float height, float2 blast, AbsorbLayer layer, float magnitude, DamageType damageType)
     {
-        var away = entity.Position.xz - blast;
+        var away = centre - blast;
         var direction = lengthsq(away) > 0f ? normalize(away) : float2.zero;
-        Publish(entity, layer, float3(blast.x, entity.Position.y, blast.y), float3(direction.x, 0, direction.y), magnitude, damageType);
+        Publish(receiver, layer, float3(blast.x, height, blast.y), float3(direction.x, 0, direction.y), magnitude, damageType);
     }
 
     // Cut 12.4(b) (docs/fire-control-cut.md, "Where P is"): a contact or delayed blast needs a committed hit --
@@ -1593,6 +1670,7 @@ public static class FireControl
             ShotId = shot.ShotId,
             Source = shot.Source,
             Target = shot.Target,
+            Chunk = shot.Chunk,
             Weapon = shot.Weapon,
             Result = result,
             Shielded = shielded,
@@ -1607,7 +1685,13 @@ public static class FireControl
 
     // Cut 12.4(b) (docs/fire-control-cut.md, "Area, per entity"): the one owner of blast damage -- a blast is
     // an area, not a bundle of rays (Q12-7 dissolved the ray model's remainder question along with the rays
-    // themselves). Splash's signature with the point made planar (R7). Callers: Apply's three fuse branches. Nothing draws: every candidate entity in radius takes its share, unconditionally.
+    // themselves). Splash's signature with the point made planar (R7). Callers: Apply's three fuse branches and
+    // Zone's mine step. Nothing draws: every candidate entity in radius takes its share, unconditionally.
+    //
+    // Mining cut 4a (docs/mining-cut-refresh.md, Q10 = A): this is also the one owner of blast area over rocks.
+    // After the entity pass, every unbroken rock whose disc the blast disc overlaps takes its lens share of the
+    // damage -- damage * lens / (pi r^2), the cells' own normaliser -- through Zone.Wear, and publishes one absorb
+    // on Zone.ChunkCapabilities first. Overlapping bodies each take their own overlap; shares off every body are lost.
     //
     // For each candidate (an entity whose centre lies within radius plus half its own hull diagonal --
     // CandidatesIncludeHullsWhoseCentreIsOutsideTheRadius, which Splash's centre-distance cull could not pass):
@@ -1673,7 +1757,7 @@ public static class FireControl
             {
                 if (shield.CanTakeHit(damageType, totalShare))
                 {
-                    PublishBlast(entity, worldPlanar, AbsorbLayer.Shield, totalShare, damageType);
+                    PublishBlast(entity.Capabilities, entity.Position.xz, entity.Position.y, worldPlanar, AbsorbLayer.Shield, totalShare, damageType);
                     shield.TakeHit(damageType, totalShare);
                     continue;
                 }
@@ -1703,10 +1787,36 @@ public static class FireControl
                     for (var i = 0; i < amounts.Length; i++) hullTotal += amounts[i];
                 }
 
-            PublishBlast(entity, worldPlanar, AbsorbLayer.Hull, totalShare, damageType);
+            PublishBlast(entity.Capabilities, entity.Position.xz, entity.Position.y, worldPlanar, AbsorbLayer.Hull, totalShare, damageType);
             entity.DamageHull(hullTotal);
         }
+
+        if (!(radius > 0f) || zone.AsteroidBelts.Count == 0) return; // no area, or no rocks to cover
+        // Rocks, through the targeting index (no observer: entities stay out of it). Reach is exact on a rock's
+        // centre, so it is the blast radius plus the widest any rock can be. Walked in (field, index) order so the
+        // order of wear -- and any later dice on it -- is fixed.
+        var rocks = _rockScratch ??= new List<TargetCandidate>();
+        zone.Targets.Within(new TargetSearch(worldPlanar, radius + Zone.LargestChunkRadius(zone.Settings)), rocks);
+        rocks.RemoveAll(c => !c.Target.Chunk.HasValue);
+        rocks.Sort((a, b) =>
+        {
+            var byField = string.CompareOrdinal(a.Target.Chunk.Value.Field.Value, b.Target.Chunk.Value.Field.Value);
+            return byField != 0 ? byField : a.Target.Chunk.Value.Index.CompareTo(b.Target.Chunk.Value.Index);
+        });
+        var discArea = PI * radius * radius;
+        foreach (var rock in rocks)
+        {
+            var chunk = rock.Target.Chunk.Value;
+            if (!zone.ChunkExists(chunk)) continue;
+            var centre = zone.ChunkPose(chunk.Field, chunk.Index).xy;
+            var share = damage * CircleCircleOverlap(length(centre - worldPlanar), radius, zone.ChunkRadius(chunk)) / discArea;
+            if (!(share > 0f)) continue;
+            PublishBlast(zone.ChunkCapabilities, centre, 0f, worldPlanar, AbsorbLayer.Hull, share, damageType);
+            zone.Wear(chunk, share);
+        }
     }
+
+    [ThreadStatic] private static List<TargetCandidate> _rockScratch;
 
     // Whether the disc reaches any occupied hull cell of the entity: Detonate's own coverage test (the same
     // ToSchematicPoint, SchematicCellSize and CircleSquareOverlap), so what triggers a mine and what its blast
@@ -1719,6 +1829,19 @@ public static class FireControl
         for (var i = 0; i < coords.Length; i++)
             if (CircleSquareOverlap(centre, rCells, coords[i]) > 0f) return true;
         return false;
+    }
+
+    // Mining cut 4a: the exact area shared by two discs at centre distance d -- the lens. Exactly zero when they are
+    // disjoint or tangent, and the smaller disc's whole area when one contains the other.
+    public static float CircleCircleOverlap(float d, float r1, float r2)
+    {
+        if (r1 <= 0f || r2 <= 0f || d >= r1 + r2) return 0f;
+        var small = min(r1, r2);
+        if (d <= abs(r1 - r2)) return PI * small * small;
+        var a = (d * d + r1 * r1 - r2 * r2) / (2f * d * r1);
+        var b = (d * d + r2 * r2 - r1 * r1) / (2f * d * r2);
+        var k = (-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2);
+        return r1 * r1 * acos(clamp(a, -1f, 1f)) + r2 * r2 * acos(clamp(b, -1f, 1f)) - .5f * sqrt(max(0f, k));
     }
 
     // Cut 12.4(b) (docs/fire-control-cut.md, "Exact overlap, in float"): the exact area of a unit square,
@@ -1876,9 +1999,7 @@ public static class FireControl
         var aimPoint = ResolveAimPoint(target, hull, aimed, mount);
         var a = dot(aimPoint, ell);
 
-        var pOnHull = 0f;
-        for (var i = 0; i < count; i++)
-            pOnHull += Phi((intervals[i].Hi - a) / sigma) - Phi((intervals[i].Lo - a) / sigma);
+        var pOnHull = Mass(new ReadOnlySpan<Interval>(intervals, 0, count), a, sigma);
 
         var span = count > 0 ? intervals[count - 1].Hi - intervals[0].Lo : 0f;
 
@@ -1892,6 +2013,27 @@ public static class FireControl
             Span = span,
             POnHull = saturate(pOnHull)
         };
+    }
+
+    // The one Gaussian integrator: the mass a normal of `sigma` about `aim` puts inside the merged, disjoint
+    // `intervals`. A hull's shadow and a rock's disc (one interval about its aim) both read it.
+    private static float Mass(ReadOnlySpan<Interval> intervals, float aim, float sigma)
+    {
+        var mass = 0f;
+        foreach (var interval in intervals)
+            mass += Phi((interval.Hi - aim) / sigma) - Phi((interval.Lo - aim) / sigma);
+        return mass;
+    }
+
+    // A rock is a disc of radius R schematic cells aimed at its centre: one interval [-R, R] about the aim, span 2R.
+    // The one price of it, read by HitProbability's forecast and by Commit, at the rock's radius now.
+    private static float RockMass(Zone zone, ChunkId chunk, float precision, out float span)
+    {
+        var radius = zone.ChunkCells(chunk);
+        span = 2f * radius;
+        Span<Interval> disc = stackalloc Interval[1];
+        disc[0] = new Interval { Lo = -radius, Hi = radius };
+        return saturate(Mass(disc, 0f, Sigma(precision)));
     }
 
     // Phi(z) = 1/2 (1 + erf(z / sqrt(2))): the standard normal CDF, CultMath's erf the one function underneath
@@ -2054,6 +2196,9 @@ public struct PendingShot
     public int ShotId;
     public Entity Source;
     public Entity Target;
+    // Mining Cut 4b: the rock a shot flies at, frozen at Fire; at most one of Target and Chunk is set. Unity reads
+    // Target only, so a rock shot draws untargeted until the Unity follow-up (mining-unity-chunk-presentation).
+    public ChunkId? Chunk;
     public EquippedItem Weapon;
     public EquippedItem Aimed;
     // The mount the aim was at, when it was at a mount rather than an item (Entity.ResolvedAim at Fire), frozen with Aimed:
@@ -2113,7 +2258,7 @@ public struct PendingShot
 
     // A fused round with no target: where it bursts is decided at its commit (the first hull its aim line meets), so its
     // damage reads the falloff there rather than at Fire.
-    public bool DeliveredAtCommit => Fuse != null && Target == null;
+    public bool DeliveredAtCommit => Fuse != null && Target == null && Chunk == null;
 }
 
 // What a round does when fired (FireControl.Solve): Direct resolves against its target, Burst detonates at a
@@ -2147,7 +2292,7 @@ public struct FireSolution
     public float FireRange;
     // Whether the shooter holds valid targeting data on the target (Designated); the HUD and the agents read it here.
     public bool Designated;
-    public Entity Engaged;
+    public TargetRef Engaged;
     public float2 TravelDirection;
     public float3 BurstPosition;
     public WeaponFuse? Fuse;
@@ -2313,6 +2458,7 @@ public sealed class ShotOutcome
     public int ShotId;
     public Entity Source;
     public Entity Target;
+    public ChunkId? Chunk;
     public EquippedItem Weapon;
     // What the commit decided, typed: a shot rolled and missed, rolled and hit, or was a fused round with no
     // target and so burst without rolling, or a proximity round whose roll missed but which detonates anyway

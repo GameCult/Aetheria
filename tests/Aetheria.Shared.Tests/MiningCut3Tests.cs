@@ -32,7 +32,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    private static PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };
+    internal static PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };
 
     private static GameplaySettings GameSettings() => new GameplaySettings
     {
@@ -49,7 +49,7 @@ public sealed partial class MiningCut3Tests : IDisposable
 
     // Every sun carries a well (the belts circle in it, c = 9), one sun whose light reaches 1000 units, and the chunk
     // curves MiningCut2Tests uses, so sizes and wear vary over the fixture's range.
-    private static PlanetSettings PlanetSettings(float lightRadius = 1000f) => new PlanetSettings
+    internal static PlanetSettings PlanetSettings(float lightRadius = 1000f) => new PlanetSettings
     {
         WellStrength = new ExponentialCurve { Constant = 9f },
         RocheLimit = new ExponentialCurve { Constant = 1f },
@@ -66,7 +66,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Keys = new[] { new float4(0, 1, 0, 0), new float4(1, .3f, 0, 0) }
     };
 
-    private sealed class Scene
+    internal sealed class Scene
     {
         public CultCache Cache;
         public ItemManager Items;
@@ -81,16 +81,16 @@ public sealed partial class MiningCut3Tests : IDisposable
 
     // A belt around the sun: its chunks orbit the origin at their own distances, so at zone time 0 a chunk of
     // phase p sits at distance × (cos 2πp, sin 2πp). `kind` null leaves the belt kindless, for the zone to assign.
-    private sealed class BeltSpec
+    internal sealed class BeltSpec
     {
         public Asteroid[] Asteroids;
         public FieldKindData Kind;
     }
 
-    private static Asteroid Rock(float distance, float phase = 0f, float size = .5f) =>
+    internal static Asteroid Rock(float distance, float phase = 0f, float size = .5f) =>
         new Asteroid { Distance = distance, Phase = phase, Size = size, RotationSpeed = .1f };
 
-    private Scene BuildScene(FieldKindData[] kinds = null, params BeltSpec[] belts) => BuildSceneAt(float2.zero, kinds, belts);
+    internal Scene BuildScene(FieldKindData[] kinds = null, params BeltSpec[] belts) => BuildSceneAt(float2.zero, kinds, belts);
 
     // The same scene with its sun, and so every belt centre, at `sunAt`.
     private Scene BuildSceneAt(float2 sunAt, FieldKindData[] kinds, params BeltSpec[] belts) =>
@@ -165,10 +165,10 @@ public sealed partial class MiningCut3Tests : IDisposable
         return scene;
     }
 
-    private static FieldKindData Kind(string name, float crossSection, float weight = 1f) =>
+    internal static FieldKindData Kind(string name, float crossSection, float weight = 1f) =>
         new FieldKindData { Name = name, CrossSection = crossSection, GenerationWeight = weight };
 
-    private static BeltSpec Belt(FieldKindData kind, params Asteroid[] asteroids) => new BeltSpec { Kind = kind, Asteroids = asteroids };
+    internal static BeltSpec Belt(FieldKindData kind, params Asteroid[] asteroids) => new BeltSpec { Kind = kind, Asteroids = asteroids };
 
     // A chunk's planar position now (zone time never advances in these tests).
     private static float2 At(Scene s, ChunkId chunk) => s.Zone.ChunkPose(chunk.Field, chunk.Index).xy;
@@ -180,14 +180,14 @@ public sealed partial class MiningCut3Tests : IDisposable
         return kind.CrossSection * PI * cells * cells * s.Zone.GetLight(At(s, chunk));
     }
 
-    private static GearData Gear(string name, BehaviorData behavior) => new GearData
+    internal static GearData Gear(string name, BehaviorData behavior) => new GearData
     {
         Name = name, Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 1,
         MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
         Behaviors = { behavior }
     };
 
-    private static EquippableItem Mint(Scene s, ItemData design) => new EquippableItem
+    internal static EquippableItem Mint(Scene s, ItemData design) => new EquippableItem
     {
         Data = s.Cache.RefOf<ItemData>(design),
         Durability = design is EquippableItemData equippable ? equippable.Durability : 0,

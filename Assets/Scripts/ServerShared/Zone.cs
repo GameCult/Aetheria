@@ -62,6 +62,9 @@ public class Zone
     // the entities, and one provider per belt. The reticle, cycling and any range query over rocks go through it;
     // nothing else scans a belt.
     public readonly TargetingIndex Targets = new TargetingIndex();
+    // Mining cut 4a: the receiver of every rock impact FireControl.Detonate publishes. Notification only: a presenter
+    // subscribes once per zone, and nothing in ServerShared reads it.
+    public readonly CapabilityEvents ChunkCapabilities = new CapabilityEvents();
     private readonly List<Sun> _suns = new List<Sun>();
 
     private HashSet<CultRecordKey> _updatedOrbits = new HashSet<CultRecordKey>();
@@ -674,6 +677,14 @@ public class Zone
         return belt.DamagedSize(chunk.Index, wear.Damage, Settings);
     }
 
+    // No rock of any belt, whole or worn, is wider than this (AsteroidSize's bound over every argument, so over the
+    // Asteroid.Size range the generator writes). The index's visibility bound and a blast's query reach both use it.
+    public static float LargestChunkRadius(PlanetSettings settings)
+    {
+        var size = settings.AsteroidSize;
+        return size.Exponent > 0 ? max(abs(size.Minimum), abs(size.Maximum)) : float.PositiveInfinity;
+    }
+
     // Cut 2: the only writer of chunk wear. Returns whether this hit broke the chunk. The break threshold is
     // strictly greater-than, matching the deleted per-tick miner's own comparison against accumulated damage:
     // damage exactly equal to hitpoints does not yet break the chunk, only damage that exceeds them does.
@@ -715,6 +726,20 @@ public class Zone
         return AsteroidBelts[belt].Pose(index, time, parentPosition, size);
     }
 
+    // Mining Cut 4b: the one owner of a chunk's planar velocity, the central difference of the pose function at zone
+    // time. Derived on every read, never stored: the intercept, the fire-time projection and the mount's sweep all
+    // read it here.
+    public float2 ChunkVelocity(ChunkId chunk)
+    {
+        const double h = .05;
+        var ahead = ChunkPose(chunk.Field, chunk.Index, _time + h).xy;
+        var behind = ChunkPose(chunk.Field, chunk.Index, _time - h).xy;
+        return (ahead - behind) / (float) (2 * h);
+    }
+
+    // A chunk's radius in schematic cells: what visibility and a shot's silhouette both measure it in.
+    public float ChunkCells(ChunkId chunk) => ChunkRadius(chunk) / SchematicCellSize;
+
     // Mining Cut 3 (docs/mining-cut-refresh.md): how bright a chunk is -- Reflector's rule (cross-section × the light
     // on it), with the field kind's reflectivity per schematic cell times the chunk's area in cells. Computed when
     // asked; nothing about it is stored. A worn chunk shrinks and dims; a broken one, or one of a kindless belt, is dark.
@@ -723,7 +748,7 @@ public class Zone
         if (!ChunkExists(chunk)) return 0f;
         var kind = _itemManager.ItemData.Get(((AsteroidBeltData) Planets[chunk.Field]).Kind);
         if (kind == null) return 0f;
-        var cells = ChunkRadius(chunk) / _itemManager.GameplaySettings.SchematicCellSize;
+        var cells = ChunkCells(chunk);
         return kind.CrossSection * PI * cells * cells * GetLight(ChunkPose(chunk.Field, chunk.Index).xy);
     }
 

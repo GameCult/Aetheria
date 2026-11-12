@@ -48,8 +48,7 @@ public sealed class BeltTargets : ITargetProvider
         _zone = zone;
         _field = field;
         _data = data;
-        var size = settings.AsteroidSize;
-        _largestRadius = size.Exponent > 0 ? max(abs(size.Minimum), abs(size.Maximum)) : float.PositiveInfinity;
+        _largestRadius = Zone.LargestChunkRadius(settings);
 
         var count = data.Asteroids.Length;
         _periods = new double[count];
