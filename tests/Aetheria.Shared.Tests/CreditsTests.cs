@@ -175,6 +175,11 @@ namespace Aetheria.Shared.Tests
 
         private static string Key(string text) => new string(text.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
 
+        // Words that follow "copyright" in licence and header prose and name no holder ("copyright notice", "COPYRIGHT HOLDERS BE
+        // LIABLE", "copyright laws"); a capitalised word after a bare "Copyright" is a holder unless it is one of these.
+        private static readonly string[] ProseAfterCopyright =
+            { "Notice", "Notices", "Holder", "Holders", "Owner", "Owners", "Law", "Laws", "Act", "Protection", "Statement", "Header", "Information", "Status", "Line", "Lines", "Text", "Licence", "License", "Material", "Works", "Work", "File", "Files" };
+
         // The holders a line of source states: the text after each marker, cut at the end of its sentence, as keys. A holder
         // is a year or a capitalised name; "copyright notice" in licence prose names nobody. Without a year the marker must
         // be "(c)", the copyright sign or a colon, so "Copyright Notice" prose is not a holder either.
@@ -185,7 +190,9 @@ namespace Aetheria.Shared.Tests
                 var holder = Regex.Replace(match.Groups["holder"].Value.Trim(), @"(\.(\s.*)?|\s*All rights reserved.*)$", "", RegexOptions.IgnoreCase).Trim(' ', '\t', ',', ';', '>', ']');
                 var marked = Regex.IsMatch(match.Value.Substring(0, match.Groups["holder"].Index - match.Index), @"\(c\)|\u00a9|:", RegexOptions.IgnoreCase);
                 var year = Regex.IsMatch(holder, @"^\d{4}");
-                if (holder.Length == 0 || !(year || (marked && char.IsUpper(holder[0])))) continue;
+                // "Copyright Epic Games, Inc." names a holder with no year or sign; licence prose after the word does not.
+                var named = holder.Length > 0 && char.IsUpper(holder[0]) && !ProseAfterCopyright.Contains(Regex.Match(holder, @"^\w+").Value, StringComparer.OrdinalIgnoreCase);
+                if (holder.Length == 0 || !(year || (named && (marked || Regex.IsMatch(match.Value, "^copyright", RegexOptions.IgnoreCase))))) continue;
                 yield return Key(Normal(holder));
             }
         }
@@ -212,9 +219,10 @@ namespace Aetheria.Shared.Tests
             Assert.Contains(Key("2015 Academy of Motion Picture Arts and Sciences (A.M.P.A.S"), keys.Keys);
             Assert.Contains("2016unitytechnologies", keys.Keys);
             Assert.Contains("2017supyrb", keys.Keys);
-            // The whole holder is compared, not a prefix of it, against each credit's notice on its own.
-            var shown = Load().Select(credit => Key(Normal(credit.Notice))).ToArray();
-            Assert.Equal(Array.Empty<string>(), keys.Where(k => !shown.Any(notice => notice.Contains(k.Key)) && !ReviewedHeaders.ContainsKey(k.Key)).Select(k => $"{k.Key} in {k.Value}").ToArray());
+            // The whole holder must equal a holder some credit's notice states, read by the same extractor: a bare year, a short
+            // name, or a prefix of a credited name is a different key and fails.
+            var shown = Load().SelectMany(credit => credit.Notice.Split('\n')).SelectMany(LineHolders).ToHashSet();
+            Assert.Equal(Array.Empty<string>(), keys.Where(k => !shown.Contains(k.Key) && !ReviewedHeaders.ContainsKey(k.Key)).Select(k => $"{k.Key} in {k.Value}").ToArray());
             Assert.Equal(Array.Empty<string>(), ReviewedHeaders.Keys.Where(k => !keys.ContainsKey(k)).ToArray());
         }
 
