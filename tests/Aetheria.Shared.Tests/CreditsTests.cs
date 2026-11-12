@@ -34,6 +34,12 @@ namespace Aetheria.Shared.Tests
             ["Assets/Plugins/Celestial Body/Textures/_Sources.txt"] = "URLs of the source textures only; states no licence",
         };
 
+        // Copyright lines found in source headers whose holder no credit shows, each with the reason; keyed like HeaderKeys.
+        private static readonly System.Collections.Generic.Dictionary<string, string> ReviewedHeaders = new System.Collections.Generic.Dictionary<string, string>
+        {
+            ["microsoftopen"] = "UniRx files derived from Rx.NET: the header names Microsoft Open Technologies and points at a License.txt that is not in the repo, so no licence is stated; decision owed",
+        };
+
         // Bundled works with no licence-like file at all, found by reading Assets. Their licences are not stated in the
         // repo, so they are not credited; each path must still exist, so this list cannot go stale unnoticed.
         private static readonly string[] UnlicensedWorks =
@@ -55,6 +61,10 @@ namespace Aetheria.Shared.Tests
             (Credits.KdTreeFile, new[] { "Vili Vol\u010dini / viliwonka" }),
             (Credits.SimplexNoiseFile, new[] { "Ashima Arts", "Ian McEwan", "Keijiro Takahashi" }),
             (Credits.AmbientCgFile, new[] { "ambientCG" }),
+            (Credits.UnityShaderFile, new[] { "Unity Technologies" }),
+            (Credits.AdditiveUiFile, new[] { "Unity Technologies", "Supyrb", "Johannes Deml" }),
+            (Credits.AcesFile, new[] { "Academy of Motion Picture Arts and Sciences", "A.M.P.A.S." }),
+            (Credits.ClassicNoiseFile, new[] { "Ashima Arts", "Stefan Gustavson" }),
         };
 
         // Fonts that state holder and licence in their own name tables: the credit's LicenceFile is the first font, and
@@ -130,6 +140,45 @@ namespace Aetheria.Shared.Tests
         private static string[] Unaccounted(string[] found, System.Collections.Generic.IEnumerable<string> credited) =>
             found.Where(path => !credited.Contains(path) && !ReviewedNotCredited.ContainsKey(path)).ToArray();
 
+        // The holder keys of every "Copyright ..." line in the source files under Assets: the year (when there is one) and
+        // the first two words of the holder, letters and digits only, lower case. Credits.cs is the credit text itself.
+        private static readonly Regex HeaderCopyright = new Regex(@"Copyright\s*(?:\([cC]\))?\s*(?:by\s+)?[<\[]?((?:\d{4}|[A-Z])[^\r\n]*)", RegexOptions.CultureInvariant);
+
+        private static string Key(string text) => new string(text.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+
+        private static System.Collections.Generic.Dictionary<string, string> HeaderKeys()
+        {
+            var root = Root();
+            var keys = new System.Collections.Generic.Dictionary<string, string>();
+            foreach (var path in Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*", SearchOption.AllDirectories)
+                         .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
+                         .Where(path => new[] { ".shader", ".hlsl", ".cginc", ".cs", ".compute" }.Any(ext => path.EndsWith(ext)) && path != "Assets/Scripts/ServerShared/Credits.cs"))
+                foreach (var line in Read(path).Split('\n'))
+                    foreach (Match match in HeaderCopyright.Matches(line))
+                    {
+                        var words = Regex.Replace(Regex.Replace(match.Groups[1].Value, @"\.\s.*", ""), @"[<>,]", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                            .Where(word => word != "by").ToArray();
+                        var year = words.Length > 0 && Regex.IsMatch(words[0], @"^\d{4}") ? 1 : 0;
+                        if (year == 0 && !Regex.IsMatch(line, @"\([cC]\)")) continue;
+                        keys.TryAdd(Key(string.Concat(words.Take(year + 2))), path);
+                    }
+            return keys;
+        }
+
+        // A copyright line in a source header is a notice the licence requires shown, so its holder is in a credit or in
+        // ReviewedHeaders with the reason; a removed credit, or a newly pasted header, fails here.
+        [Fact]
+        public void EveryCopyrightHolderInASourceHeaderIsCreditedOrReviewed()
+        {
+            var keys = HeaderKeys();
+            Assert.Contains("2015academyof", keys.Keys);
+            Assert.Contains("2016unitytechnologies", keys.Keys);
+            Assert.Contains("2017supyrb", keys.Keys);
+            var shown = Key(string.Join(" ", Load().Select(credit => Normal(credit.Notice))));
+            Assert.Equal(Array.Empty<string>(), keys.Where(k => !shown.Contains(k.Key) && !ReviewedHeaders.ContainsKey(k.Key)).Select(k => $"{k.Key} in {k.Value}").ToArray());
+            Assert.Equal(Array.Empty<string>(), ReviewedHeaders.Keys.Where(k => !keys.ContainsKey(k)).ToArray());
+        }
+
         [Fact]
         public void EveryLicenceLikeFileUnderAssetsIsCreditedOrReviewed()
         {
@@ -167,7 +216,7 @@ namespace Aetheria.Shared.Tests
                 {
                     var match = CopyrightLine.Match(line);
                     if (!match.Success) continue;
-                    var body = Regex.Replace(match.Groups[1].Value.Replace("[", "").Replace("]", "").Trim(), @"(\s*All rights reserved)?\.?$", "", RegexOptions.IgnoreCase);
+                    var body = Regex.Replace(match.Groups[1].Value.Replace("[", "").Replace("]", "").Trim(), @"(\.\s.*|\s*All rights reserved)?\.?$", "", RegexOptions.IgnoreCase);
                     Assert.True(notice.Contains(Normal(body)), $"the credit for {file} omits its copyright line '{body}'");
                 }
             }
@@ -176,7 +225,7 @@ namespace Aetheria.Shared.Tests
         private static readonly Regex CopyrightLine = new Regex(@"copyright\s*(?:\(c\)|\u00a9)?\s*(\[?\d.*)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         // Dash variants and case folded, so the file's en dash and the screen's hyphen compare equal.
-        private static string Normal(string text) => text.Replace('\u2013', '-').Replace('\u2014', '-').Replace("\r", "").ToLowerInvariant();
+        private static string Normal(string text) => text.Replace('\u2013', '-').Replace('\u2014', '-').Replace("\r", "").Replace(" by ", " ").ToLowerInvariant();
 
         // The credit text is typed; the font files are the authority on who holds them. A wrong holder, or a font in the
         // family that does not carry it, fails here.

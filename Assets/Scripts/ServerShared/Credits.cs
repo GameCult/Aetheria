@@ -27,6 +27,11 @@ public static class Credits
     public const string AmbientCgFile = "Assets/Materials/PBR/SOURCES.md";
     public const string KdTreeFile = "Assets/Scripts/ServerShared/NIH/KDTree/KDTree.cs";
     public const string SimplexNoiseFile = "Assets/Plugins/GPU Noise/SimplexNoise2D.cginc";
+    // Works whose notice is only a source-file header; each answers through the file whose header states it.
+    public const string UnityShaderFile = "Assets/Shaders/Particle Standard Unlit.shader";
+    public const string AdditiveUiFile = "Assets/Shaders/AdditiveUI.shader";
+    public const string AcesFile = "Assets/Shaders/CustomDoF/ACES.hlsl";
+    public const string ClassicNoiseFile = "Assets/Plugins/Celestial Body/Scripts/Shaders/Includes/SimplexNoise2.cginc";
     // The first line of the attribution file; the icon credits are the lines after it.
     public const string NounProjectHeading = "Noun Project";
     // Where the player build loads the Noun Project credit lines from (Resources path, no extension).
@@ -98,6 +103,39 @@ public static class Credits
                          "(https://github.com/ashima/webgl-noise). Translated to Unity shaders and modified by Keijiro Takahashi " +
                          "(https://github.com/keijiro/NoiseShader).",
                 LicenceFile = SimplexNoiseFile
+            },
+            new Credit
+            {
+                Name = "Celestial Body noise shaders",
+                Licence = "MIT",
+                Notice = "Copyright (C) 2011 Ashima Arts. Copyright (C) 2011 by Ashima Arts (Simplex noise). " +
+                         "Copyright (C) 2011 by Stefan Gustavson (Classic noise).",
+                LicenceFile = ClassicNoiseFile
+            },
+            new Credit
+            {
+                Name = "Unity built-in shaders",
+                Licence = "MIT",
+                Notice = "Copyright (c) 2016 Unity Technologies. Shader source adapted from Unity's built-in shaders " +
+                         "(Particle Standard Unlit, StretchedSkybox, MaskedWorldSpaceUI, MaskedWorldSpaceAdditiveUI).",
+                LicenceFile = UnityShaderFile
+            },
+            new Credit
+            {
+                Name = "AdditiveUI shaders",
+                Licence = "MIT for the Unity Technologies portion; the Supyrb portion states no licence",
+                Notice = "Copyright (c) 2017 Supyrb. All rights reserved. Author: Johannes Deml. " +
+                         "Built on Unity's built-in UI shader, copyright (c) 2016 Unity Technologies, MIT.",
+                LicenceFile = AdditiveUiFile
+            },
+            new Credit
+            {
+                Name = "ACES colour transforms",
+                Licence = "Academy Color Encoding System licence",
+                Notice = "Copyright 2015 Academy of Motion Picture Arts and Sciences (A.M.P.A.S.). " +
+                         "Portions contributed by others as indicated. All rights reserved. " +
+                         "Source: https://github.com/ampas/aces-dev",
+                LicenceFile = AcesFile
             },
             new Credit
             {
