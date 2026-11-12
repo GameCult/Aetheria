@@ -299,7 +299,7 @@ public sealed partial class RunStartTests
         Assert.False(RunGoal.ExitOpen(new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy)));
 
         // Nothing was drawn for the refused boss: the zone is the zone with no boss mapped at all.
-        galaxy.BossZones.Clear();
+        BossMappedElsewhere(galaxy, antagonist);
         var bare = BossZonePack(galaxy, LoggingItems(new List<string>()), galaxy.Exit);
         Assert.NotEmpty(bare.Entities);
         Assert.Equal(Roster(items, bare), Roster(items, pack));
@@ -632,7 +632,7 @@ public sealed partial class RunStartTests
         Assert.False(pack.BossSpawned);
         Assert.DoesNotContain(pack.Entities, e => e.Boss);
         Assert.DoesNotContain(log, l => l.Contains("CANARY"));
-        galaxy.BossZones.Clear();
+        BossMappedElsewhere(galaxy, Zhestokost(galaxy));
         var bareItems = LoggingItems(new List<string>());
         var bare = BossZonePack(galaxy, bareItems, galaxy.Exit);
         Assert.Equal(Roster(bareItems, bare), Roster(items, pack));
@@ -676,6 +676,14 @@ public sealed partial class RunStartTests
         Assert.Equal(expected.Random.NextFloat(), next);
     }
 
+    // "As if it had no boss" for a boss zone: the faction's gate stays mapped, because a mapped gate is what puts the demo's
+    // antagonist raids (DemoPressure) in every zone, but not at this zone, so no boss is asked for here.
+    private static void BossMappedElsewhere(Galaxy galaxy, Faction boss)
+    {
+        galaxy.BossZones.Clear();
+        galaxy.BossZones[boss] = galaxy.Entrance;
+    }
+
     // Everything a generated zone exposes afterwards: the serialized ledger, the roster and the gear of its ships, and
     // the next draw of the item stream. A faction's generator stream shows in the ships it outfitted, so it is in the pack.
     private string ZoneFacts(ItemManager items, ZonePack pack)
@@ -706,7 +714,7 @@ public sealed partial class RunStartTests
         Assert.Contains(log, line => line.Contains("Antagonist Boss") && line.Contains("cannot be built"));
 
         var bare = DemoGalaxy(1);
-        bare.BossZones.Clear();
+        BossMappedElsewhere(bare, bare.Factions.Single(faction => faction.Name == bossFaction));
         var bareItems = LoggingItems(new List<string>());
         var barePack = BossZonePack(bare, bareItems, bare.Exit);
         var expected = ZoneFacts(bareItems, barePack);

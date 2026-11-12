@@ -489,18 +489,37 @@ public static class ZoneGenerator
 
         if (!ambient) return pack;
 
-        var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + baseStationCount;
-        for (int i = 0; i < enemyCount; i++)
+        // A prelude galaxy with a boss zone is raided by its antagonist in proportion to depth toward the boss (DemoPressure
+        // owns the curve); every other galaxy keeps the nearest faction's presence-sized patrol.
+        var antagonist = galaxy.IsPrelude && galaxy.BossZones.Count > 0 ? galaxy.BossZones.Keys.Single() : null;
+        if (antagonist != null)
         {
-	        var ship = GetLoadoutGenerator(nearestFaction).GenerateShipLoadout();
-	        if (ship == null) continue;
-	        pack.Entities.Add(ship);
+	        var pressure = DemoPressure.At(DemoPressure.Depth(galaxy, galaxyZone));
+	        var raiders = GetLoadoutGenerator(antagonist);
+	        var ceiling = pressure.Hostiles == 0 ? 0 : DemoPressure.PriceCeiling(raiders.OfferedShipHulls().Select(hull => hull.Price).ToArray(), pressure.Tier);
+	        for (int i = 0; i < pressure.Hostiles; i++)
+	        {
+		        var ship = raiders.GenerateShipLoadout(hull => hull.Price <= ceiling);
+		        if (ship == null) continue;
+		        pack.Entities.Add(ship);
+	        }
+        }
+        else
+        {
+	        var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + baseStationCount;
+	        for (int i = 0; i < enemyCount; i++)
+	        {
+		        var ship = GetLoadoutGenerator(nearestFaction).GenerateShipLoadout();
+		        if (ship == null) continue;
+		        pack.Entities.Add(ship);
+	        }
         }
 
         // Neutral wanderers: ships belonging to a faction that neither owns the zone nor is its
         // nearest faction, so existing hostility rules leave them non-hostile to the player.
         // Testing affordance for hand-testing combat/targeting; none spawn if no faction qualifies.
-        var eligibleWandererFactions = EligibleWandererFactions(galaxy.Factions, galaxyZone.Owner, nearestFaction);
+        // The antagonist is no wanderer where DemoPressure raids: its presence is the curve's alone, and it is hostile.
+        var eligibleWandererFactions = EligibleWandererFactions(galaxy.Factions, galaxyZone.Owner, nearestFaction).Where(f => f != antagonist).ToArray();
         if (zoneSettings.NeutralWandererCount > 0 && eligibleWandererFactions.Length > 0)
         {
 	        var wandererFaction = eligibleWandererFactions[random.NextInt(eligibleWandererFactions.Length)];
