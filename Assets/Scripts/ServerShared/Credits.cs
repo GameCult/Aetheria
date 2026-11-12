@@ -31,6 +31,7 @@ public static class Credits
     public const string UnityShaderFile = "Assets/Shaders/Particle Standard Unlit.shader";
     public const string AdditiveUiFile = "Assets/Shaders/AdditiveUI.shader";
     public const string AcesFile = "Assets/Shaders/CustomDoF/ACES.hlsl";
+    public const string BezierPathFile = "Assets/Plugins/com.unity.uiextensions/Runtime/Scripts/Utilities/BezierPath.cs";
     public const string ClassicNoiseFile = "Assets/Plugins/Celestial Body/Scripts/Shaders/Includes/SimplexNoise2.cginc";
     // The first line of the attribution file; the icon credits are the lines after it.
     public const string NounProjectHeading = "Noun Project";
@@ -136,6 +137,14 @@ public static class Credits
                          "Portions contributed by others as indicated. All rights reserved. " +
                          "Source: https://github.com/ampas/aces-dev",
                 LicenceFile = AcesFile
+            },
+            new Credit
+            {
+                Name = "Bezier path (UI Extensions)",
+                Licence = "No named licence; permissive grant in the file header",
+                Notice = "Author: Herman Tulleken, dev.mag.org.za (http://devmag.org.za/2011/04/05/bzier-curves-a-tutorial/). " +
+                         "Use this code as you wish, at your own risk.",
+                LicenceFile = BezierPathFile
             },
             new Credit
             {

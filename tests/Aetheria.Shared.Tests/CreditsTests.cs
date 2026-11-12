@@ -40,6 +40,31 @@ namespace Aetheria.Shared.Tests
             ["microsoftopentechnologiesinc"] = "UniRx files derived from Rx.NET: the header names Microsoft Open Technologies and points at a License.txt that is not in the repo, so no licence is stated; decision owed",
         };
 
+        // Source headers that credit someone ("Credit X", "Based on ...", a source URL) without stating a copyright holder or
+        // a licence, so there is no true notice to show. Each is the exact line the file carries and the reason it is not a
+        // credit; the test reads the file, so a line that moves or goes cannot leave a stale entry.
+        private static readonly (string file, string line, string reason)[] ReviewedAttributionLines =
+        {
+            ("Assets/Shaders/StableFluids/Fluid.cs", "// https://github.com/keijiro/StableFluids", "names Keijiro's StableFluids as the source; states no holder and no licence"),
+            ("Assets/Shaders/StableFluids/Fluid.shader", "// https://github.com/keijiro/StableFluids", "names Keijiro's StableFluids as the source; states no holder and no licence"),
+            ("Assets/Shaders/StableFluids/Fluid.compute", "// Based on https://github.com/keijiro/StableFluids", "names Keijiro's StableFluids as the source; states no holder and no licence"),
+            ("Assets/Plugins/Celestial Body/Scripts/Shaders/Includes/Triplanar.cginc", "// Based on: medium.com/@bgolus/normal-mapping-for-a-triplanar-shader-10bf39dca05a", "cites bgolus's article for the technique; states no holder and no licence"),
+            ("Assets/Plugins/com.unity.uiextensions/Runtime/Scripts/Primitives/UILineTextureRenderer.cs", "/// Credit jonbro5556", "names a contributor; states no copyright and no licence"),
+            ("Assets/Plugins/com.unity.uiextensions/Runtime/Scripts/Primitives/UILineRenderer.cs", "/// Credit jack.sydorenko, firagon", "names contributors; states no copyright and no licence"),
+            ("Assets/Plugins/com.unity.uiextensions/Runtime/Scripts/Primitives/UILineRendererList.cs", "/// Credit jack.sydorenko, firagon", "names contributors; states no copyright and no licence"),
+            ("Assets/Plugins/com.unity.uiextensions/Runtime/Scripts/Utilities/CableCurve.cs", "/// Credit Farfarer", "names a contributor; states no copyright and no licence"),
+            ("Assets/Plugins/com.unity.uiextensions/Editor/BezierLineRendererEditor.cs", "///Credit Jason Horsburgh", "names a contributor; states no copyright and no licence"),
+        };
+
+        [Fact]
+        public void ReviewedAttributionLinesAreStillInTheirFiles()
+        {
+            Assert.Equal(Array.Empty<string>(), ReviewedAttributionLines
+                .Where(entry => !File.Exists(Path.Combine(Root(), entry.file)) || !Read(entry.file).Replace("\r", "").Split('\n').Any(line => line.Trim('\uFEFF', ' ', '\t') == entry.line))
+                .Select(entry => $"{entry.line} in {entry.file}").ToArray());
+            Assert.All(ReviewedAttributionLines, entry => Assert.False(string.IsNullOrWhiteSpace(entry.reason)));
+        }
+
         // Bundled works with no licence-like file at all, found by reading Assets. Their licences are not stated in the
         // repo, so they are not credited; each path must still exist, so this list cannot go stale unnoticed.
         private static readonly string[] UnlicensedWorks =
@@ -65,6 +90,7 @@ namespace Aetheria.Shared.Tests
             (Credits.AdditiveUiFile, new[] { "Unity Technologies", "Supyrb", "Johannes Deml" }),
             (Credits.AcesFile, new[] { "Academy of Motion Picture Arts and Sciences", "A.M.P.A.S." }),
             (Credits.ClassicNoiseFile, new[] { "Ashima Arts", "Stefan Gustavson" }),
+            (Credits.BezierPathFile, new[] { "Herman Tulleken", "Use this code as you wish" }),
         };
 
         // Fonts that state holder and licence in their own name tables: the credit's LicenceFile is the licence text shipped
