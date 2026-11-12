@@ -207,16 +207,29 @@ namespace Aetheria.Shared.Tests
             var fonts = FontFiles();
             Assert.Equal(Array.Empty<string>(), fonts.Where(font => !accounted.Contains(font)).ToArray());
             Assert.Equal(Array.Empty<string>(), accounted.Where(font => !fonts.Contains(font)).ToArray());
-            // A reviewed font stays out of the credits only while nothing outside Assets/Fonts uses it.
-            var guids = ReviewedFonts.Keys.ToDictionary(font => font, font => Regex.Match(Read(font + ".meta"), @"guid: (\w+)").Groups[1].Value);
-            Assert.All(guids.Values, guid => Assert.Equal(32, guid.Length));
-            var users = Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*", SearchOption.AllDirectories)
+            // A reviewed font stays out of the credits only while nothing outside Assets/Fonts uses it. Prefabs and scenes
+            // reference the TMP SDF asset made from the font, not the .ttf, so the search follows the font guid, then the
+            // guid of every file under Assets/Fonts that references a guid already followed: the font's own SDF asset, and
+            // any other SDF asset carrying it in a fallback table. A use is a file outside Assets/Fonts naming any of them.
+            var files = Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*", SearchOption.AllDirectories)
                 .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
-                .Where(path => !path.StartsWith("Assets/Fonts/") && new[] { ".prefab", ".unity", ".mat", ".asset", ".controller" }.Any(ext => path.EndsWith(ext)))
+                .Where(path => new[] { ".prefab", ".unity", ".mat", ".asset", ".controller" }.Any(ext => path.EndsWith(ext)))
                 .Select(path => (path, text: Read(path)))
                 .ToArray();
-            foreach (var (font, guid) in guids)
-                Assert.Equal(Array.Empty<string>(), users.Where(user => user.text.Contains(guid)).Select(user => user.path).ToArray());
+            var inFonts = files.Where(file => file.path.StartsWith("Assets/Fonts/")).ToArray();
+            var outside = files.Where(file => !file.path.StartsWith("Assets/Fonts/")).ToArray();
+            foreach (var font in ReviewedFonts.Keys)
+            {
+                var followed = new System.Collections.Generic.HashSet<string> { Regex.Match(Read(font + ".meta"), @"guid: (\w+)").Groups[1].Value };
+                Assert.All(followed, guid => Assert.Equal(32, guid.Length));
+                for (var grew = true; grew;)
+                {
+                    grew = false;
+                    foreach (var file in inFonts.Where(file => followed.Any(guid => file.text.Contains(guid))).ToArray())
+                        grew |= followed.Add(Regex.Match(Read(file.path + ".meta"), @"guid: (\w+)").Groups[1].Value);
+                }
+                Assert.Equal(Array.Empty<string>(), outside.Where(user => followed.Any(guid => user.text.Contains(guid))).Select(user => user.path).ToArray());
+            }
         }
 
         [Fact]
