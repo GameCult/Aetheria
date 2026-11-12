@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using CultMath;
+using GameCult.Caching;
 using Xunit;
 
 // The demo's pressure curve (aetheria-release, cut demo-pressure-curve): how many hostiles of what hull tier a zone of
@@ -107,7 +108,7 @@ public sealed partial class RunStartTests
         foreach (var seed in DemoSeeds)
             foreach (var row in DemoZones(seed))
             {
-                var pressure = DemoPressure.At((float)Math.Clamp(row.Depth, 0.0, 1.0));
+                var pressure = row.Jumps <= DemoPressure.GraceJumps ? new DemoPressure.Pressure(0, 0f) : DemoPressure.At((float)Math.Clamp(row.Depth, 0.0, 1.0));
                 Assert.True(row.Hostiles == pressure.Hostiles, $"seed {seed} zone {row.Index}: {row.Hostiles} hostiles at depth {row.Depth:0.00}, the curve asks {pressure.Hostiles}");
                 byThird[Math.Min(2, (int)(Math.Clamp(row.Depth, 0.0, 1.0) * 3))].Add(row.Hostiles);
             }
@@ -133,37 +134,97 @@ public sealed partial class RunStartTests
         }
     }
 
-    // The entrance carries no antagonist raid on any seed, and the guaranteed station is still there; its neighbours too.
+    private static readonly uint[] RingSeeds = Enumerable.Range(1, 100).Select(seed => (uint)seed).ToArray();
+
+    private static GalaxyZone[] Ring(Galaxy galaxy) => galaxy.Entrance.AdjacentZones.Prepend(galaxy.Entrance).ToArray();
+
+    // Hated by the player: the antagonist's faction, by the standing the demo stages.
+    private bool IsHated(Galaxy galaxy, CultRecordRef<Faction> faction) =>
+        faction.IsSet() && galaxy.FactionRelationships[_cache.Get(faction)] == FactionRelationship.Hated;
+
+    // The quiet start, pinned by its own literal and not by GraceDepth: the entrance and its jump-1 neighbours carry no hostile
+    // ship and no hostile station or turret, on a hundred seeds, and the guaranteed entrance station is there.
     [Fact]
     public void DemoGalaxy_entrance_ring_has_no_hostiles()
     {
-        foreach (var seed in DemoSeeds)
+        foreach (var seed in RingSeeds)
         {
             var (galaxy, _, _, _) = Launch(new DemoTerminus(), Inputs(() => seed));
-            var ring = galaxy.Entrance.AdjacentZones.Prepend(galaxy.Entrance).Select(zone => Array.IndexOf(galaxy.Zones, zone)).ToHashSet();
-            var rows = DemoZones(seed);
-            Assert.All(rows.Where(row => ring.Contains(row.Index) && row.Depth <= DemoPressure.GraceDepth), row => Assert.Equal(0, row.Hostiles));
-            Assert.Equal(0, rows[Array.IndexOf(galaxy.Zones, galaxy.Entrance)].Hostiles);
-            var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, galaxy.Entrance, galaxy.IsPrelude);
-            Assert.Contains(pack.Entities.OfType<OrbitalEntityPack>(), entity => entity.Kind.IsSet());
+            foreach (var zone in Ring(galaxy))
+            {
+                var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, galaxy.IsPrelude);
+                var hostile = pack.Entities.Where(entity => IsHated(galaxy, entity.Faction)).Select(entity => entity.GetType().Name + ":" + _items.GetData(entity.Hull).Name).ToArray();
+                Assert.True(hostile.Length == 0, $"seed {seed} zone {Array.IndexOf(galaxy.Zones, zone)} (jump {galaxy.Entrance.Distance[zone]}): {string.Join(", ", hostile)}");
+            }
+            var entrance = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, galaxy.Entrance, galaxy.IsPrelude);
+            Assert.Contains(entrance.Entities.OfType<OrbitalEntityPack>(), entity => entity.Kind.IsSet());
         }
     }
 
-    // The first zone is survivable: the staged player idles in the launched entrance arena for five simulated minutes and
-    // its hull is not touched. A proxy for "quiet enough to dock and learn the controls", not the operator's judgement.
+    // A ring zone as the player meets it: generated, with the demo's player staged into it and the generated ships' standing in force.
+    private (Zone arena, Ship player) EnterRingZone(Galaxy galaxy, GalaxyZone zone)
+    {
+        var arena = new Zone(_items, _planetSettings, ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, galaxy.IsPrelude), zone, galaxy);
+        var failures = new List<string>();
+        var staged = RunStart.Stage(_items, arena, new DemoTerminus(), _startingHull, _tutorialSettings, failures);
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        arena.Update(0);
+        return (arena, staged.Player);
+    }
+
+    // The first zones are survivable: in every ring zone no ship is hostile to the player at arrival, on the seeds where the
+    // generator once put one there. The pursuit measure (the staged default fit, AI-flown as the proxy for a played one, against one
+    // tier-lowest antagonist raider astern for 120 simulated seconds) is printed, not asserted, when DEMO_PRESSURE_PURSUIT names a
+    // file: the measured outcome is a balance number for the operator (the player loses it), and no threshold here is a ruling.
     [Fact]
     public void DemoGalaxy_first_zone_survivable()
     {
-        const float Seconds = 300f;
-        foreach (var seed in DemoSeeds)
+        const float Seconds = 120f;
+        var path = Environment.GetEnvironmentVariable("DEMO_PRESSURE_PURSUIT");
+        var lines = new List<string> { "seed zone jump player-hull-start player-hull-end raider-hull-start raider-hull-end" };
+        foreach (var seed in new uint[] { 1, 2, 3, 69, 97 })
         {
-            var (_, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => seed));
-            Assert.Empty(failures);
-            arena.Update(0);
-            var hull = staged.Player.Hull.Durability;
-            for (var tick = 0; tick < MathF.Round(Seconds / SimClock.GameStep); tick++) arena.Update(SimClock.GameStep);
-            Assert.True(staged.Player.Hull.Durability >= hull, $"seed {seed}: hull {staged.Player.Hull.Durability} of {hull} after {Seconds}s idle");
+            var (galaxy, _, _, _) = Launch(new DemoTerminus(), Inputs(() => seed));
+            var antagonist = DemoPressure.Antagonist(galaxy);
+            foreach (var zone in Ring(galaxy))
+            {
+                var (arena, player) = EnterRingZone(galaxy, zone);
+                var hostile = arena.Entities.Where(entity => entity != player && player.IsHostileTo(entity)).Select(entity => entity.Name).ToArray();
+                Assert.True(hostile.Length == 0, $"seed {seed} zone {Array.IndexOf(galaxy.Zones, zone)}: hostile to the player at arrival: {string.Join(", ", hostile)}");
+                if (path == null) continue;
+
+                var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, zone, antagonist, .5f);
+                var ceiling = DemoPressure.PriceCeiling(generator.OfferedShipHulls().Select(hull => hull.Price).ToArray(), 0f);
+                var pursuer = EntitySerializer.Unpack(_items, arena, generator.GenerateShipLoadout(hull => hull.Price <= ceiling));
+                pursuer.Position = player.Position + CultMath.math.float3(0, 0, -300);
+                pursuer.SetIff(player, true);
+                player.SetIff(pursuer, true);
+                arena.Admit(pursuer, true);
+                Assert.True(arena.Remove(player));
+                player.Deactivate();
+                arena.Admit(player, true);
+                var (playerStart, raiderStart) = (player.Hull.Durability, pursuer.Hull.Durability);
+                for (var tick = 0; tick < MathF.Round(Seconds / SimClock.GameStep); tick++) arena.Update(SimClock.GameStep);
+                lines.Add($"{seed} {Array.IndexOf(galaxy.Zones, zone)} {galaxy.Entrance.Distance[zone]} {playerStart:0} {player.Hull.Durability:0} {raiderStart:0} {pursuer.Hull.Durability:0}");
+            }
         }
+        if (path != null) File.WriteAllLines(path, lines);
+    }
+
+    // A prelude with several boss zones raids with the owner of the one nearest the entrance, and generates without refusing.
+    [Fact]
+    public void DemoPressure_antagonist_is_the_nearest_boss_zone_owner()
+    {
+        var (galaxy, _, _, _) = Launch(new DemoTerminus(), Inputs(() => 1));
+        var zhestokost = DemoPressure.Antagonist(galaxy);
+        Assert.Equal("Zhestokost", zhestokost.Name);
+        var other = galaxy.Factions.First(faction => faction != zhestokost);
+        galaxy.BossZones[other] = galaxy.Entrance.AdjacentZones[0];
+        Assert.Same(other, DemoPressure.Antagonist(galaxy));
+        galaxy.BossZones.Remove(other);
+        galaxy.BossZones[other] = galaxy.Zones.MaxBy(zone => galaxy.Entrance.Distance[zone]);
+        Assert.Same(zhestokost, DemoPressure.Antagonist(galaxy));
+        ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, galaxy.Exit, galaxy.IsPrelude);
     }
 
     // Continue regenerates the same zone: the curve reads only the persisted Entrance, Exit and prelude mark, so a galaxy

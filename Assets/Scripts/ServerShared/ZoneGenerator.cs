@@ -292,6 +292,13 @@ public static class ZoneGenerator
         var nearestFactionHomeZone = galaxy.HomeZones[nearestFaction];
         var factionPresence = galaxy.InfluenceOf(nearestFaction) - nearestFactionHomeZone.Distance[galaxyZone] + 1;
 
+        // In a prelude with a boss zone the antagonist raids by DemoPressure's curve (below); inside its grace its stations and
+        // turrets are as absent as its ships, so the zone's structures belong to the nearest faction that is not the antagonist.
+        var antagonist = DemoPressure.Antagonist(galaxy);
+        var structureFaction = antagonist != null && nearestFaction == antagonist && DemoPressure.InGrace(galaxy, galaxyZone)
+            ? galaxy.Factions.Where(f => f != antagonist).MinBy(f => galaxy.HomeZones[f].Distance[galaxyZone])
+            : nearestFaction;
+
         var storyStations = galaxyZone.Locations.Where(story => story.Type == LocationType.Station).ToArray();
         var stationCount = (int)(random.NextFloat() * (factionPresence + 1)) + storyStations.Length;
         // Enemy count below is based on this pre-override value, so the tutorial entrance doesn't gain an enemy
@@ -441,13 +448,13 @@ public static class ZoneGenerator
 	        var security = (SecurityLevel) ((int) ((1f - pow(random.NextFloat(), factionPresence / 2f)) * 3f));
 
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
-	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout(
-		        StationKinds.Choose(cache, nearestFaction, $"{seed}:station:{i}", itemManager.Log));
+	        var station = GetLoadoutGenerator(structureFaction).GenerateStationLoadout(
+		        StationKinds.Choose(cache, structureFaction, $"{seed}:station:{i}", itemManager.Log));
 	        if (station == null)
 	        {
 		        if (isTutorialEntrance)
 			        throw new InvalidOperationException(
-				        $"The tutorial entrance zone must always get a station, but {nearestFaction?.Name} has no station loadout to generate.");
+				        $"The tutorial entrance zone must always get a station, but {structureFaction?.Name} has no station loadout to generate.");
 		        continue;
 	        }
 	        station.Orbit = cache.RefOf(lagrangeOrbit);
@@ -455,7 +462,7 @@ public static class ZoneGenerator
 	        station.SecurityRadius = pack.Radius;
 	        pack.Entities.Add(station);
 
-	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2, StationReach(station), orbit);
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(structureFaction), 2, StationReach(station), orbit);
         }
 
         // A boss zone gets its faction's boss whether or not the zone is ambient: the boss is the run's goal, not
@@ -491,10 +498,9 @@ public static class ZoneGenerator
 
         // A prelude galaxy with a boss zone is raided by its antagonist in proportion to depth toward the boss (DemoPressure
         // owns the curve); every other galaxy keeps the nearest faction's presence-sized patrol.
-        var antagonist = galaxy.IsPrelude && galaxy.BossZones.Count > 0 ? galaxy.BossZones.Keys.Single() : null;
         if (antagonist != null)
         {
-	        var pressure = DemoPressure.At(DemoPressure.Depth(galaxy, galaxyZone));
+	        var pressure = DemoPressure.Of(galaxy, galaxyZone);
 	        var raiders = GetLoadoutGenerator(antagonist);
 	        var ceiling = pressure.Hostiles == 0 ? 0 : DemoPressure.PriceCeiling(raiders.OfferedShipHulls().Select(hull => hull.Price).ToArray(), pressure.Tier);
 	        for (int i = 0; i < pressure.Hostiles; i++)

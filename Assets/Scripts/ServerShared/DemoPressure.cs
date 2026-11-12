@@ -37,6 +37,24 @@ public static class DemoPressure
         return Math.Clamp(1f - (float)galaxy.Exit.Distance[zone] / way, 0f, 1f);
     }
 
+    // The entrance and this many jumps around it are quiet whatever the galaxy's depth scale, so a short galaxy's first
+    // neighbours are no deeper than the grace.
+    public const int GraceJumps = 1;
+
+    // No antagonist ship, station or turret holds a zone in grace.
+    public static bool InGrace(Galaxy galaxy, GalaxyZone zone) =>
+        galaxy.Entrance.Distance[zone] <= GraceJumps || Depth(galaxy, zone) <= GraceDepth;
+
+    // What the zone holds: the curve at its depth, none in grace.
+    public static Pressure Of(Galaxy galaxy, GalaxyZone zone) =>
+        InGrace(galaxy, zone) ? new Pressure(0, At(Depth(galaxy, zone)).Tier) : At(Depth(galaxy, zone));
+
+    // The faction that raids: the owner of the boss zone nearest the entrance (a prelude with several boss zones raids with
+    // that one), or null where this is no prelude with a boss zone.
+    public static Faction Antagonist(Galaxy galaxy) =>
+        !galaxy.IsPrelude || galaxy.BossZones.Count == 0 ? null
+            : galaxy.BossZones.MinBy(boss => galaxy.Entrance.Distance[boss.Value]).Key;
+
     public static Pressure At(float depth)
     {
         depth = Math.Clamp(depth, 0f, 1f);
