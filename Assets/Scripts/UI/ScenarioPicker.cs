@@ -30,7 +30,7 @@ public sealed class ScenarioPicker
     private static readonly Color Accent = new Color(1, .4458f, .05f);
     private int _selected;
     private bool _launched;
-    private bool _restoreDeselect;
+    private readonly FocusHold _focus = new FocusHold();
 
     private ScenarioPicker(PropertiesPanel list, PropertiesPanel detail, Action<Scenario> launch, Action back)
     {
@@ -115,7 +115,7 @@ public sealed class ScenarioPicker
         picker._launchButton.OnCancelAsObservable().Subscribe(_ => picker.Back());
 
         picker.StyleScrollbars();
-        picker.HoldFocus();
+        picker._focus.Hold();
         picker.Select(0);
         // Layout is not live until the frame after Show; edit mode has no frames.
         if (Application.isPlaying) Observable.NextFrame().Subscribe(_ => picker.FitViewport());
@@ -229,7 +229,7 @@ public sealed class ScenarioPicker
             _rows[i].colors = colors;
             _rows[i].targetGraphic.color = i == _selected ? Accent : _rowFills[i];
         }
-        Focus(_launchButton.gameObject);
+        FocusHold.Focus(_launchButton.gameObject);
         Reveal((RectTransform) _rows[_selected].transform);
     }
 
@@ -253,36 +253,42 @@ public sealed class ScenarioPicker
     {
         if (_launched) return;
         _launched = true;
-        Focus(null);
-        ReleaseFocus();
+        FocusHold.Focus(null);
+        _focus.Release();
         _launch(Selected);
     }
 
     // Leaves the screen; the same path for the Back button and Cancel.
     private void Back()
     {
-        Focus(null);
-        ReleaseFocus();
+        FocusHold.Focus(null);
+        _focus.Release();
         _back();
     }
+}
 
-    // While the picker is up, a click on empty space must not drop focus from Launch, or the arrows and Enter go dead.
-    // The input module's flag is scene-wide, so the picker takes it for its own lifetime and gives it back on leaving.
-    private void HoldFocus()
+// Keeps keyboard and gamepad focus on one control while a menu screen is up. While held, a click on empty space must
+// not drop focus, or the arrows and Enter go dead. The input module's flag is scene-wide, so the screen takes it for its
+// own lifetime and gives it back on leaving. The New Game and Credits screens both use it.
+public sealed class FocusHold
+{
+    private bool _restoreDeselect;
+
+    public void Hold()
     {
         if (EventSystem.current == null || !(EventSystem.current.currentInputModule is InputSystemUIInputModule module) || !module.deselectOnBackgroundClick) return;
         module.deselectOnBackgroundClick = false;
         _restoreDeselect = true;
     }
 
-    private void ReleaseFocus()
+    public void Release()
     {
         if (!_restoreDeselect) return;
         _restoreDeselect = false;
         if (EventSystem.current != null && EventSystem.current.currentInputModule is InputSystemUIInputModule module) module.deselectOnBackgroundClick = true;
     }
 
-    private static void Focus(GameObject target)
+    public static void Focus(GameObject target)
     {
         if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(target);
     }
