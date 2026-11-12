@@ -172,7 +172,7 @@ public sealed partial class RunStartTests
         return (arena, staged.Player);
     }
 
-    // The first zones are survivable: in every ring zone no ship is hostile to the player at arrival, on the seeds where the
+    // The first zones are survivable: in every ring zone no ship or structure of a Hated faction is in the arena at arrival, on the seeds where the
     // generator once put one there. The pursuit measure (the staged default fit, AI-flown as the proxy for a played one, against one
     // tier-lowest antagonist raider astern for 120 simulated seconds) is printed, not asserted, when DEMO_PRESSURE_PURSUIT names a
     // file: the measured outcome is a balance number for the operator (the player loses it), and no threshold here is a ruling.
@@ -189,7 +189,7 @@ public sealed partial class RunStartTests
             foreach (var zone in Ring(galaxy))
             {
                 var (arena, player) = EnterRingZone(galaxy, zone);
-                var hostile = arena.Entities.Where(entity => entity != player && player.IsHostileTo(entity)).Select(entity => entity.Name).ToArray();
+                var hostile = arena.Entities.Where(entity => entity != player && entity.Faction != null && galaxy.FactionRelationships[entity.Faction] == FactionRelationship.Hated).Select(entity => entity.Name).ToArray();
                 Assert.True(hostile.Length == 0, $"seed {seed} zone {Array.IndexOf(galaxy.Zones, zone)}: hostile to the player at arrival: {string.Join(", ", hostile)}");
                 if (path == null) continue;
 
