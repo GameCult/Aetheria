@@ -134,9 +134,9 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
 
         // Several partial hits under the threshold: still there, still shrinking.
-        Assert.False(f.Zone.Wear(chunk, hp * 0.3f));
+        Assert.False(f.Zone.Breaks(chunk, hp * 0.3f));
         Assert.True(f.Zone.ChunkExists(chunk));
-        Assert.False(f.Zone.Wear(chunk, hp * 0.3f));
+        Assert.False(f.Zone.Breaks(chunk, hp * 0.3f));
         Assert.True(f.Zone.ChunkExists(chunk));
 
         var before = f.Zone.ChunkRadius(chunk);
@@ -147,11 +147,11 @@ public sealed class MiningCut2Tests : IDisposable
         // break condition as strictly greater-than, not greater-or-equal (today's behaviour, kept deliberately
         // -- see Zone.Wear's own comment). Equal-to-hitpoints must not break the chunk.
         var remaining = hp - hp * 0.6f;
-        Assert.False(f.Zone.Wear(chunk, remaining));
+        Assert.False(f.Zone.Breaks(chunk, remaining));
         Assert.True(f.Zone.ChunkExists(chunk), "damage exactly equal to hitpoints must not break the chunk");
 
         // One more point of damage tips it over.
-        Assert.True(f.Zone.Wear(chunk, 0.01f));
+        Assert.True(f.Zone.Breaks(chunk, 0.01f));
         Assert.False(f.Zone.ChunkExists(chunk));
         Assert.Equal(0f, f.Zone.ChunkRadius(chunk));
     }
@@ -165,7 +165,7 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
         var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
 
-        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        Assert.True(f.Zone.Breaks(chunk, hp + 1f));
         Assert.False(f.Zone.ChunkExists(chunk));
 
         // Uneven steps that sum to just under the authored respawn time: still broken.
@@ -188,13 +188,13 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsB[index].Size);
         var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsB[index].Size);
 
-        Assert.True(f.Zone.Wear(chunk, hp * 1.5f));
+        Assert.True(f.Zone.Breaks(chunk, hp * 1.5f));
         f.Zone.Update(respawn + 1f);
         Assert.True(f.Zone.ChunkExists(chunk));
 
         // A hit well under hitpoints, on the freshly respawned chunk, must not break it -- if the old damage
         // (or the old broken state) leaked through, this hit alone would already be over any stale threshold.
-        Assert.False(f.Zone.Wear(chunk, hp * 0.4f));
+        Assert.False(f.Zone.Breaks(chunk, hp * 0.4f));
         Assert.True(f.Zone.ChunkExists(chunk));
         var radius = f.Zone.ChunkRadius(chunk);
         Assert.True(radius > 0f && radius < f.Zone.AsteroidBelts[f.BeltB].UndamagedSize(index, f.Settings));
@@ -211,7 +211,7 @@ public sealed class MiningCut2Tests : IDisposable
         var chunkA1 = new ChunkId(f.BeltA, 1);
 
         var hpA0 = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[0].Size);
-        Assert.True(f.Zone.Wear(chunkA0, hpA0 + 1f));
+        Assert.True(f.Zone.Breaks(chunkA0, hpA0 + 1f));
 
         Assert.False(f.Zone.ChunkExists(chunkA0));
         Assert.True(f.Zone.ChunkExists(chunkB0), "a different field at the same index must be unaffected");
@@ -230,8 +230,8 @@ public sealed class MiningCut2Tests : IDisposable
         var hpDamaged = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[4].Size);
         var hpBroken = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsB[3].Size);
 
-        Assert.False(f.Zone.Wear(damaged, hpDamaged * 0.45f));
-        Assert.True(f.Zone.Wear(broken, hpBroken + 5f));
+        Assert.False(f.Zone.Breaks(damaged, hpDamaged * 0.45f));
+        Assert.True(f.Zone.Breaks(broken, hpBroken + 5f));
         f.Zone.Update(1.3f);
 
         var damagedRadiusBefore = f.Zone.ChunkRadius(damaged);
@@ -255,7 +255,7 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[6].Size);
         var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[6].Size);
 
-        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        Assert.True(f.Zone.Breaks(chunk, hp + 1f));
         f.Zone.Update(respawn + 2f);
         Assert.True(f.Zone.ChunkExists(chunk), "sanity: this chunk must have respawned before packing");
 
@@ -333,20 +333,20 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
         var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
 
-        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        Assert.True(f.Zone.Breaks(chunk, hp + 1f));
         Assert.False(f.Zone.ChunkExists(chunk));
 
         // A hit well under hitpoints, inside the respawn window: must not break it (it is already broken) and
         // must not touch BrokenUntil.
         f.Zone.Update(respawn * 0.2f);
-        Assert.False(f.Zone.Wear(chunk, hp * 0.1f), "a hit on an already-broken chunk did not break it");
+        Assert.False(f.Zone.Breaks(chunk, hp * 0.1f), "a hit on an already-broken chunk did not break it");
         Assert.False(f.Zone.ChunkExists(chunk), "must still be absent -- the old bug un-broke it here");
         Assert.Equal(0f, f.Zone.ChunkRadius(chunk));
 
         // A second hit, this one alone well over hitpoints, inside the same window: still must not break it
         // (it is already broken) and must not push BrokenUntil further out.
         f.Zone.Update(respawn * 0.3f);
-        Assert.False(f.Zone.Wear(chunk, hp + 50f), "a hit on an already-broken chunk did not break it, even when large");
+        Assert.False(f.Zone.Breaks(chunk, hp + 50f), "a hit on an already-broken chunk did not break it, even when large");
         Assert.False(f.Zone.ChunkExists(chunk));
 
         // Just under the original respawn time (measured from the original break, not from either re-hit):
@@ -360,9 +360,9 @@ public sealed class MiningCut2Tests : IDisposable
         Assert.Equal(f.Zone.AsteroidBelts[f.BeltA].UndamagedSize(index, f.Settings), f.Zone.ChunkRadius(chunk), 4);
 
         // Worn again from fresh: breaks on the normal threshold, not one warped by the earlier no-op hits.
-        Assert.False(f.Zone.Wear(chunk, hp * 0.9f));
+        Assert.False(f.Zone.Breaks(chunk, hp * 0.9f));
         Assert.True(f.Zone.ChunkExists(chunk));
-        Assert.True(f.Zone.Wear(chunk, hp * 0.2f));
+        Assert.True(f.Zone.Breaks(chunk, hp * 0.2f));
         Assert.False(f.Zone.ChunkExists(chunk));
     }
 
@@ -377,9 +377,9 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsB[idx].Size);
         var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsB[idx].Size);
 
-        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        Assert.True(f.Zone.Breaks(chunk, hp + 1f));
         f.Zone.Update(respawn * 0.4f);
-        Assert.False(f.Zone.Wear(chunk, hp * 0.5f), "re-hit inside the window did not break an already-broken chunk");
+        Assert.False(f.Zone.Breaks(chunk, hp * 0.5f), "re-hit inside the window did not break an already-broken chunk");
 
         var pack = f.Zone.PackZone();
         var reloaded = new Zone(f.Items, f.Settings, pack, new GalaxyZone { Name = "MiningCut2ReHitReload", Owner = null }, null);
@@ -424,7 +424,7 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
         var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
 
-        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        Assert.True(f.Zone.Breaks(chunk, hp + 1f));
         f.Zone.Update(respawn); // zone time now equals BrokenUntil exactly, not "respawn plus a margin".
 
         Assert.True(f.Zone.ChunkExists(chunk), "must read as respawned the instant zone time reaches BrokenUntil, not strictly after it");
@@ -458,11 +458,11 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
         var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
 
-        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        Assert.True(f.Zone.Breaks(chunk, hp + 1f));
         f.Zone.Update(respawn);
         Assert.True(f.Zone.ChunkExists(chunk));
 
-        Assert.True(f.Zone.Wear(chunk, hp + 1f), "a hit on the instant of respawn breaks the respawned chunk again");
+        Assert.True(f.Zone.Breaks(chunk, hp + 1f), "a hit on the instant of respawn breaks the respawned chunk again");
         Assert.False(f.Zone.ChunkExists(chunk));
     }
 
@@ -477,9 +477,9 @@ public sealed class MiningCut2Tests : IDisposable
         var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
         var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
 
-        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        Assert.True(f.Zone.Breaks(chunk, hp + 1f));
         f.Zone.Update(respawn + 1f);
-        Assert.False(f.Zone.Wear(chunk, hp * 0.3f));
+        Assert.False(f.Zone.Breaks(chunk, hp * 0.3f));
 
         var packed = f.Zone.PackZone().ChunkWear.Find(w => w.Field.Equals(chunk.Field) && w.Index == index);
         Assert.NotNull(packed);
@@ -501,12 +501,12 @@ public sealed class MiningCut2Tests : IDisposable
         var undamaged = f.Zone.ChunkPose(f.BeltA, index).w;
         Assert.Equal(f.Zone.AsteroidBelts[f.BeltA].UndamagedSize(index, f.Settings), undamaged, 4);
 
-        Assert.False(f.Zone.Wear(chunk, hp * 0.6f));
+        Assert.False(f.Zone.Breaks(chunk, hp * 0.6f));
         var worn = f.Zone.ChunkPose(f.BeltA, index).w;
         Assert.Equal(f.Zone.ChunkRadius(chunk), worn, 4);
         Assert.True(worn < undamaged, "a worn chunk is smaller than an untouched one");
 
-        Assert.True(f.Zone.Wear(chunk, hp));
+        Assert.True(f.Zone.Breaks(chunk, hp));
         Assert.Equal(0f, f.Zone.ChunkPose(f.BeltA, index).w);
     }
 }
@@ -518,5 +518,17 @@ internal static class MiningCut2TestExtensions
         var list = new List<CultRecordRef<OrbitData>>();
         foreach (var key in keys) list.Add(new CultRecordRef<OrbitData>(key));
         return list;
+    }
+}
+
+internal static class ChunkWearTestExtensions
+{
+    // Wears the chunk and reports whether that hit broke it: Zone.Wear returns the damage absorbed, and a break is
+    // ChunkExists going from true to false.
+    public static bool Breaks(this Zone zone, ChunkId chunk, float damage)
+    {
+        var there = zone.ChunkExists(chunk);
+        zone.Wear(chunk, damage);
+        return there && !zone.ChunkExists(chunk);
     }
 }

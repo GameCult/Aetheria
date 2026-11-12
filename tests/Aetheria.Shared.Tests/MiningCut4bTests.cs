@@ -291,7 +291,7 @@ public sealed class MiningCut4bTests : IDisposable
         FireControl.Fire(rig.Gun, rig.GunItem, rig.Shooter);
         Assert.Empty(rig.Resolved);
 
-        Assert.True(rig.Zone.Wear(rig.Rock, 1e6f));
+        Assert.True(rig.Zone.Breaks(rig.Rock, 1e6f));
         Run(rig, 2.5f);
 
         var outcome = Assert.Single(rig.Resolved);
@@ -383,7 +383,7 @@ public sealed class MiningCut4bTests : IDisposable
         Assert.True(frozen.Hit, "fixture: the commit rolled a hit");
         Assert.Empty(rig.Resolved);
 
-        Assert.True(rig.Zone.Wear(rig.Rock, 1e6f));
+        Assert.True(rig.Zone.Breaks(rig.Rock, 1e6f));
         Run(rig, 2.5f);
 
         var outcome = Assert.Single(rig.Resolved);

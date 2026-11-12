@@ -70,7 +70,7 @@ public sealed partial class MiningCut3Tests
         var centre = float2(-300, 820);
         var s = BuildSceneAt(centre, 5000f, 1234.5, null, new[] { kind },
             Belt(kind, Annulus(rng, 3000, 200f, 900f)), Belt(kind, Annulus(rng, 700, 1000f, 1060f)));
-        for (var i = 0; i < 40; i++) Assert.True(s.Zone.Wear(new ChunkId(s.Belts[0], i * 73), 1e6f));
+        for (var i = 0; i < 40; i++) Assert.True(s.Zone.Breaks(new ChunkId(s.Belts[0], i * 73), 1e6f));
 
         var found = new List<ChunkId>();
         var nonEmpty = 0;

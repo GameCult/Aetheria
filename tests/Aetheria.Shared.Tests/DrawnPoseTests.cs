@@ -542,7 +542,7 @@ public sealed class DrawnPoseTests : IDisposable
         var chunk = new ChunkId(w.Belt, 5);
         var hitpoints = w.Zone.Settings.AsteroidHitpoints.Evaluate(w.Asteroids[5].Size);
         var unworn = w.Zone.ChunkRadius(chunk);
-        Assert.False(w.Zone.Wear(chunk, hitpoints * .9f));
+        Assert.False(w.Zone.Breaks(chunk, hitpoints * .9f));
         Assert.True(w.Zone.ChunkRadius(chunk) < unworn * .5f, "the rock has shrunk to less than half its size");
         Assert.Equal(before, Meshes());
     }

@@ -685,16 +685,17 @@ public class Zone
         return size.Exponent > 0 ? max(abs(size.Minimum), abs(size.Maximum)) : float.PositiveInfinity;
     }
 
-    // Cut 2: the only writer of chunk wear. Returns whether this hit broke the chunk. The break threshold is
+    // Cut 2: the only writer of chunk wear. Returns the damage the rock absorbed: the damage, or the hitpoints it had
+    // left when the hit broke it; 0 on a chunk that is already broken. Whether it broke is ChunkExists. The break threshold is
     // strictly greater-than, matching the deleted per-tick miner's own comparison against accumulated damage:
     // damage exactly equal to hitpoints does not yet break the chunk, only damage that exceeds them does.
-    // A chunk that is currently broken (zone time < BrokenUntil) absorbs nothing: this hit did not break it
-    // (it was already broken), and its wear stays zeroed until it respawns and starts fresh.
-    public bool Wear(ChunkId chunk, float damage)
+    // A chunk that is currently broken (zone time < BrokenUntil) absorbs nothing, and its wear stays zeroed until it
+    // respawns and starts fresh.
+    public float Wear(ChunkId chunk, float damage)
     {
         _wear.TryGetValue(chunk, out var wear);
         if (wear.BrokenUntil.HasValue && wear.BrokenUntil.Value > _time)
-            return false;
+            return 0f;
 
         var beltData = (AsteroidBeltData) Planets[chunk.Field];
         var size = beltData.Asteroids[chunk.Index].Size;
@@ -706,11 +707,11 @@ public class Zone
         {
             var respawnTime = Settings.AsteroidRespawnTime.Evaluate(size);
             _wear[chunk] = new ChunkWear { Damage = 0f, BrokenUntil = _time + respawnTime };
-            return true;
+            return max(hitpoints - wear.Damage, 0f);
         }
 
         _wear[chunk] = new ChunkWear { Damage = newDamage, BrokenUntil = null };
-        return false;
+        return damage;
     }
 
     // Cut 1 (docs/mining-cut.md): a chunk's pose is a pure function of zone time, computed when asked. No stored

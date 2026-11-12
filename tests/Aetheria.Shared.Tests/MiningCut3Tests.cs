@@ -416,7 +416,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var whole = s.Zone.ChunkVisibility(chunk);
         var hitpoints = PlanetSettings().AsteroidHitpoints.Evaluate(.5f);
 
-        Assert.False(s.Zone.Wear(chunk, hitpoints * .5f));
+        Assert.False(s.Zone.Breaks(chunk, hitpoints * .5f));
         var worn = s.Zone.ChunkVisibility(chunk);
         Assert.InRange(worn, whole * .05f, whole * .95f);
         Assert.Equal(ExpectedVisibility(s, chunk, kind), worn, 4);
@@ -433,7 +433,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Tick((observer, eyeAt));
         Assert.True(observer.ChunkVisible(chunk));
 
-        Assert.True(s.Zone.Wear(chunk, PlanetSettings().AsteroidHitpoints.Evaluate(.5f) * 2f));
+        Assert.True(s.Zone.Breaks(chunk, PlanetSettings().AsteroidHitpoints.Evaluate(.5f) * 2f));
         Assert.Equal(0f, s.Zone.ChunkVisibility(chunk));
         Assert.Equal(0f, observer.ChunkInfo(chunk));
         Assert.False(observer.SetTarget(chunk));
@@ -487,7 +487,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var centre = float2(400, -250); // off the origin, so a query that ignored the belt centre would disagree
         var s = BuildSceneAt(centre, new[] { kind }, Belt(kind, rocks));
         var belt = s.Belts[0];
-        Assert.True(s.Zone.Wear(new ChunkId(belt, 5), 1e6f)); // broken
+        Assert.True(s.Zone.Breaks(new ChunkId(belt, 5), 1e6f)); // broken
 
         var found = new List<ChunkId>();
         var sawSome = false;
@@ -555,7 +555,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.True(watcher.SetTarget(second));
         Tick((watcher, eyeAt));
         Assert.False(watcher.Target.Value.IsNone);
-        Assert.True(s.Zone.Wear(second, 1e6f));
+        Assert.True(s.Zone.Breaks(second, 1e6f));
         Tick((watcher, eyeAt));
         Assert.True(watcher.Target.Value.IsNone);
 
@@ -565,7 +565,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var third = new ChunkId(s.Belts[0], 2);
         Assert.True(docked.SetTarget(third));
         docked.Deactivate();
-        Assert.True(s.Zone.Wear(third, 1e6f));
+        Assert.True(s.Zone.Breaks(third, 1e6f));
         docked.Activate();
         Assert.True(docked.Target.Value.IsNone);
     }
