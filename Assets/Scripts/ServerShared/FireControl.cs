@@ -7,6 +7,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
+using GameCult.Caching;
 using static CultMath.math;
 using float2 = CultMath.float2;
 using float3 = CultMath.float3;
@@ -1234,7 +1235,7 @@ public static class FireControl
         // Detonate is still the one blast path.
         if (shot.Outcome.Result == ShotResult.Burst || shot.Fuse == WeaponFuse.Proximity)
         {
-            Detonate(zone, shot.Outcome.BurstPoint, shot.BlastRadius, shot.Damage, shot.DamageType);
+            Detonate(zone, shot.Outcome.BurstPoint, shot.BlastRadius, shot.Damage, shot.DamageType, shot);
             return;
         }
 
@@ -1270,11 +1271,12 @@ public static class FireControl
             var direction = float3(shot.TravelDirection.x, 0, shot.TravelDirection.y);
             var surface = centre - shot.TravelDirection * zone.ChunkRadius(rock);
             Publish(zone.ChunkCapabilities, AbsorbLayer.Hull, float3(surface.x, 0f, surface.y), direction, shot.Damage, shot.DamageType);
-            zone.Wear(rock, shot.Damage);
+            var absorbed = zone.Wear(rock, shot.Damage);
+            Extract(zone, rock, absorbed, shot.Source, SimulationDice.For(zone.DropSeed, SimulationDice.OreStream, (uint) shot.ShotId));
             return;
         }
         var point = Armed(shot.FireOrigin, shot.TravelDirection, shot.BlastRadius, float3(centre.x, shot.FireOrigin.y, centre.y)).xz;
-        Detonate(zone, point, shot.BlastRadius, shot.Damage, shot.DamageType);
+        Detonate(zone, point, shot.BlastRadius, shot.Damage, shot.DamageType, shot);
     }
 
     // Cut 12.3 (docs/fire-control-cut.md, "How a direct hit travels"): replaces Entity.ApplyHit's 0.5-step
@@ -1413,7 +1415,7 @@ public static class FireControl
         // the muzzle than the blast radius is detonated on at the radius, along the round's own flight line.
         var hullPoint = target.ToWorldPoint(schematicPoint);
         var worldPoint = Armed(shot.FireOrigin, shot.TravelDirection, shot.BlastRadius, float3(hullPoint.x, shot.FireOrigin.y, hullPoint.y)).xz;
-        Detonate(target.Zone, worldPoint, shot.BlastRadius, shot.Damage, shot.DamageType);
+        Detonate(target.Zone, worldPoint, shot.BlastRadius, shot.Damage, shot.DamageType, shot);
     }
 
     // Cut 12.4(b) (docs/fire-control-cut.md, "The penetrator", Q12-8): the one penetration-reach owner, moved
@@ -1715,7 +1717,7 @@ public static class FireControl
     // call: doing so would buy no behaviour, per ProbeC in the cut doc). Leftovers -- unoccupied-cell shares,
     // and whatever an item's pool does not absorb -- join one entity-wide hull total, applied through one
     // DamageHull call.
-    public static void Detonate(Zone zone, float2 worldPlanar, float radius, float damage, DamageType damageType)
+    public static void Detonate(Zone zone, float2 worldPlanar, float radius, float damage, DamageType damageType, PendingShot? shot = null)
     {
         // No distance prefilter: RectDiskOverlap is the one decider of whether the disc touches a hull. A
         // prefilter measured from Position (the centre of mass) with the bounding box's half-diagonal is not a
@@ -1804,6 +1806,9 @@ public static class FireControl
             return byField != 0 ? byField : a.Target.Chunk.Value.Index.CompareTo(b.Target.Chunk.Value.Index);
         });
         var discArea = PI * radius * radius;
+        // Mining Cut 5a: a shot's blast pays its Source for the rocks it wears, from the shot's own dice, once for the
+        // blast, drawn in the rock order above. A mine (no shot) wears rocks and yields nothing.
+        var dice = shot != null ? SimulationDice.For(zone.DropSeed, SimulationDice.OreStream, (uint) shot.Value.ShotId) : default;
         foreach (var rock in rocks)
         {
             var chunk = rock.Target.Chunk.Value;
@@ -1812,7 +1817,66 @@ public static class FireControl
             var share = damage * CircleCircleOverlap(length(centre - worldPlanar), radius, zone.ChunkRadius(chunk)) / discArea;
             if (!(share > 0f)) continue;
             PublishBlast(zone.ChunkCapabilities, centre, 0f, worldPlanar, AbsorbLayer.Hull, share, damageType);
-            zone.Wear(chunk, share);
+            var absorbed = zone.Wear(chunk, share);
+            if (shot != null) Extract(zone, chunk, absorbed, shot.Value.Source, dice);
+        }
+    }
+
+    // Mining Cut 5a: the one loot owner of a rock. A worn rock pays the shooter at the wear site, at arrival or detonation,
+    // from the shot's own dice: the damage it absorbed is that fraction of its hitpoints, and the same fraction of the
+    // units its size authors (AsteroidYield), so a rock pays its whole yield however many hits break it. Whole units, and
+    // one Bernoulli draw on the fraction. Each unit draws an ore by weight: the belt's yields for this province, scaled by
+    // exp(variance x g), g a stable hash of (field, index, ore) in [-1, 1) -- a rock's composition, derived here every call
+    // and never stored. A shot with no Source (a mine) yields nothing. The units go to the shooter's cargo bays in
+    // stacks; what does not fit, or everything when the shooter has left the zone, floats at the rock (ruling
+    // mining-overflow-floats).
+    // Draw order: the Bernoulli, then one draw per unit.
+    public static void Extract(Zone zone, ChunkId chunk, float absorbed, Entity shooter, Random dice)
+    {
+        if (shooter == null || !(absorbed > 0f)) return;
+        var settings = zone.Settings;
+        var belt = zone.AsteroidBelts[chunk.Field];
+        var catalog = shooter.ItemManager.ItemData;
+        var ores = FieldKinds.Yield(belt.Data.Kind, zone.GalaxyZone?.Province?.Type ?? default, catalog);
+        if (ores.Length == 0) return;
+
+        var size = belt.Data.Asteroids[chunk.Index].Size;
+        var owed = absorbed / settings.AsteroidHitpoints.Evaluate(size) * settings.AsteroidYield.Evaluate(size);
+        var units = (int) floor(owed);
+        if (dice.NextFloat() < owed - units) units++;
+        if (units == 0) return;
+
+        var weights = new float[ores.Length];
+        var total = 0f;
+        for (var i = 0; i < ores.Length; i++)
+        {
+            var g = $"{chunk.Field.Value}:{chunk.Index}:{ores[i].Commodity.Key.Value}".StableHash() / 2147483648.0 - 1.0;
+            total += weights[i] = ores[i].Amount * (float) Math.Exp(settings.ChunkCompositionVariance * g);
+        }
+        var counts = new int[ores.Length];
+        for (var unit = 0; unit < units; unit++)
+        {
+            var pick = dice.NextFloat() * total;
+            var ore = 0;
+            while (ore < ores.Length - 1 && pick >= weights[ore]) pick -= weights[ore++];
+            counts[ore]++;
+        }
+
+        var at = zone.ChunkPose(chunk.Field, chunk.Index).xy;
+        var velocity = zone.ChunkVelocity(chunk);
+        var present = zone.Entities.Contains(shooter);
+        for (var i = 0; i < ores.Length; i++)
+        {
+            var key = ores[i].Commodity.Key;
+            var maxStack = Math.Max(1, ((SimpleCommodityData) catalog.Get(ores[i].Commodity)).MaxStack);
+            for (var left = counts[i]; left > 0; left -= maxStack)
+            {
+                var stack = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Quantity = Math.Min(left, maxStack) };
+                // A partial store leaves the remainder in Quantity and returns false, so the next bay is offered the rest.
+                var stored = false;
+                if (present) foreach (var bay in shooter.CargoBays) if (stored = bay.TryStore(stack)) break;
+                if (!stored) zone.Release(stack, at, velocity);
+            }
         }
     }
 

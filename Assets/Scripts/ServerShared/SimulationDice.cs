@@ -18,6 +18,9 @@ public static class SimulationDice
     // seed (CombatSeed): the run seed feeds drops and mines only (ruling run-seed-drops-only), and placement never rides
     // ItemManager.Random.
     public const uint ScatterStream = 5;
+    // The ore a shot's wear of rocks pays, ordinal the shot's ShotId, on the zone's DropSeed (mined ore is a drop):
+    // FireControl.Extract is the one reader.
+    public const uint OreStream = 6;
 
     // 9.1 (docs/fire-control-cut.md): fmix32, MurmurHash3's 32-bit finalizer -- xor-shift, multiply,
     // xor-shift, multiply, xor-shift. Diffuses a structured seed (a zone seed XORed with a small,

@@ -22,7 +22,7 @@ public sealed class MiningCut4bTests : IDisposable
 
     public void Dispose() => _fixtures.Dispose();
 
-    private sealed class Rig
+    internal sealed class Rig
     {
         public MiningCut3Tests.Scene Scene;
         public Zone Zone => Scene.Zone;
@@ -56,11 +56,11 @@ public sealed class MiningCut4bTests : IDisposable
     }
 
     // `precision` 1 gives sigma 1 cell; accuracy 1 and a resolution that asks little of the info make PSensor 1.
-    private Rig Build(bool sensor = true, bool launcher = false, float damage = 10f, float velocity = 0f, float spread = 0f,
+    internal Rig Build(bool sensor = true, bool launcher = false, float damage = 10f, float velocity = 0f, float spread = 0f,
         float precision = 1f, float effective = float.PositiveInfinity, WeaponFuse? fuse = null, float blastRadius = 0f,
-        float rockSize = 0f, float crossSection = 20f, bool target = true, float tracking = 1000000f)
+        float rockSize = 0f, float crossSection = 20f, bool target = true, float tracking = 1000000f, FieldKindData kind = null)
     {
-        var kind = MiningCut3Tests.Kind("Asteroid", crossSection);
+        kind ??= MiningCut3Tests.Kind("Asteroid", crossSection);
         var scene = _fixtures.BuildScene(new[] { kind }, MiningCut3Tests.Belt(kind, MiningCut3Tests.Rock(Distance, .25f, rockSize)));
         var gear = MiningCut3Tests.Gear("Targeting", new TargetingSystemData
         {
@@ -209,7 +209,7 @@ public sealed class MiningCut4bTests : IDisposable
 
     // ==== resolution ====
 
-    private static void Run(Rig rig, float seconds)
+    internal static void Run(Rig rig, float seconds)
     {
         for (var elapsed = 0f; elapsed < seconds; elapsed += .01f) rig.Zone.Update(.01f);
     }
