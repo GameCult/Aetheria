@@ -7,7 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
 using UniRx;
+using UniRx.Triggers;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static CultMath.math;
@@ -139,36 +141,74 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.AddButton("Credits",
             () =>
             {
-                ShowCredits();
-                Fade(true);
+                if (ShowCredits()) Fade(true);
             });
         _nextMenu.panel.AddButton("Quit", Application.Quit);
     }
 
-    // The third-party attributions the build must show, one button per entry with its notice in the detail pane. The
-    // list is Credits.All; this only renders it.
-    private void ShowCredits()
+    // The third-party attributions the build must show, one button per entry; the selected entry's name, licence and one
+    // row per notice line fill the detail pane. The list is Credits.All; this only renders it. The screen follows the
+    // New Game screen: list rows are out of automatic navigation, the focused Back button takes Up and Down to step the
+    // selection and Cancel to leave, and a click on empty space does not drop that focus.
+    // False when the list could not be built and a dialog says why; the menu stays where it was.
+    private bool ShowCredits()
     {
-        var credits = Credits.All(Resources.Load<TextAsset>(Credits.NounProjectResource).text);
+        var attribution = Resources.Load<TextAsset>(Credits.NounProjectResource);
+        if (attribution == null)
+        {
+            Refuse("Credits are unavailable", $"{Credits.NounProjectResource} is missing from this build.");
+            return false;
+        }
+        IReadOnlyList<Credit> credits;
+        try { credits = Credits.All(attribution.text); }
+        catch (InvalidOperationException error)
+        {
+            Refuse("Credits are unavailable", error.Message);
+            return false;
+        }
         Next("credits");
-        _nextMenu.detail.gameObject.SetActive(true);
-        _nextMenu.detail.Title.text = _nextMenu.panel.Title.text;
-        _nextMenu.detail.Title.color = Color.clear;
-        var selected = 0;
-        _nextMenu.detail.AddProperty(() => credits[selected].Name);
-        _nextMenu.detail.AddProperty(() => credits[selected].Licence);
-        _nextMenu.detail.AddProperty(() => credits[selected].Notice);
+        var list = _nextMenu.panel;
+        var detail = _nextMenu.detail;
+        detail.gameObject.SetActive(true);
+        var focus = new FocusHold();
+        var selected = -1;
+        Button back = null;
+        void Leave()
+        {
+            FocusHold.Focus(null);
+            focus.Release();
+            ShowMain();
+            Fade(false);
+        }
+        void Select(int index)
+        {
+            selected = Mathf.Clamp(index, 0, credits.Count - 1);
+            var credit = credits[selected];
+            detail.Clear();
+            detail.Title.text = list.Title.text;
+            detail.Title.color = Color.clear;
+            detail.AddProperty(() => credit.Name);
+            detail.AddProperty(() => credit.Licence);
+            detail.AddSpacer();
+            foreach (var line in credit.Notice.Split('\n')) detail.AddProperty(() => line);
+            FocusHold.Focus(back.gameObject);
+        }
         for (var i = 0; i < credits.Count; i++)
         {
             var index = i;
-            _nextMenu.panel.AddButton(credits[i].Name, () => selected = index);
+            list.AddButton(credits[i].Name, () => Select(index)).Button.navigation = new Navigation { mode = Navigation.Mode.None };
         }
-        _nextMenu.panel.AddButton("Back",
-            () =>
-            {
-                ShowMain();
-                Fade(false);
-            });
+        back = list.AddButton("Back", Leave).Button;
+        back.navigation = new Navigation { mode = Navigation.Mode.None };
+        back.OnMoveAsObservable().Subscribe(move =>
+        {
+            if (move.moveDir == MoveDirection.Up) Select(selected - 1);
+            else if (move.moveDir == MoveDirection.Down) Select(selected + 1);
+        });
+        back.OnCancelAsObservable().Subscribe(_ => Leave());
+        focus.Hold();
+        Select(0);
+        return true;
     }
 
     // New Game: every way to set up a run, each with its brief. A release build lists only the modes; the other ways

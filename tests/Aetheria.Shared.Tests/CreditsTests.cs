@@ -190,12 +190,15 @@ namespace Aetheria.Shared.Tests
         {
             var menu = Regex.Replace(Read("Assets/Scripts/UI/MainMenu.cs"), @"/\*.*?\*/|//[^\n]*", "", RegexOptions.Singleline);
             var main = menu.Substring(menu.IndexOf("private void ShowMain()", StringComparison.Ordinal));
-            main = main.Substring(0, main.IndexOf("private void ShowCredits()", StringComparison.Ordinal));
+            main = main.Substring(0, main.IndexOf("private bool ShowCredits()", StringComparison.Ordinal));
             Assert.Contains("AddButton(\"Credits\"", main);
             Assert.Contains("ShowCredits()", main);
-            var credits = menu.Substring(menu.IndexOf("private void ShowCredits()", StringComparison.Ordinal));
+            var credits = menu.Substring(menu.IndexOf("private bool ShowCredits()", StringComparison.Ordinal));
             credits = credits.Substring(0, credits.IndexOf("private void ShowScenarios()", StringComparison.Ordinal));
             Assert.Contains("Credits.All(", credits);
+            // A build missing the attribution file refuses with a dialog instead of throwing in the click handler.
+            Assert.Contains("attribution == null", credits);
+            Assert.Contains("Refuse(", credits);
         }
     }
 }
