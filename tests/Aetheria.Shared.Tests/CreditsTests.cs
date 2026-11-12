@@ -37,7 +37,7 @@ namespace Aetheria.Shared.Tests
         // Copyright lines found in source headers whose holder no credit shows, each with the reason; keyed like HeaderKeys.
         private static readonly System.Collections.Generic.Dictionary<string, string> ReviewedHeaders = new System.Collections.Generic.Dictionary<string, string>
         {
-            ["microsoftopen"] = "UniRx files derived from Rx.NET: the header names Microsoft Open Technologies and points at a License.txt that is not in the repo, so no licence is stated; decision owed",
+            ["microsoftopentechnologiesinc"] = "UniRx files derived from Rx.NET: the header names Microsoft Open Technologies and points at a License.txt that is not in the repo, so no licence is stated; decision owed",
         };
 
         // Bundled works with no licence-like file at all, found by reading Assets. Their licences are not stated in the
@@ -140,11 +140,29 @@ namespace Aetheria.Shared.Tests
         private static string[] Unaccounted(string[] found, System.Collections.Generic.IEnumerable<string> credited) =>
             found.Where(path => !credited.Contains(path) && !ReviewedNotCredited.ContainsKey(path)).ToArray();
 
-        // The holder keys of every "Copyright ..." line in the source files under Assets: the year (when there is one) and
-        // the first two words of the holder, letters and digits only, lower case. Credits.cs is the credit text itself.
-        private static readonly Regex HeaderCopyright = new Regex(@"Copyright\s*(?:\([cC]\))?\s*(?:by\s+)?[<\[]?((?:\d{4}|[A-Z])[^\r\n]*)", RegexOptions.CultureInvariant);
+        // Every copyright marker in a source header: "Copyright", "copyright", "(c)" (not the tail of an identifier), the copyright sign, "Copyright (c)", with an optional
+        // colon and "by". A line is scanned marker by marker: a holder runs to the next marker or the end of the line, so a
+        // second holder on the same line is a holder of its own. Credits.cs is the credit text itself, so it is not scanned.
+        private const string Marker = @"(?:copyright(?:\s*(?:\(c\)|\u00a9))?|(?<!\w)\(c\)|\u00a9)";
+        private static readonly Regex HeaderCopyright = new Regex(
+            Marker + @"(?<explicit>\s*:)?\s*(?:by\s+)?[<\[]?(?<holder>.+?)(?=" + Marker + @"|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         private static string Key(string text) => new string(text.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+
+        // The holders a line of source states: the text after each marker, cut at the end of its sentence, as keys. A holder
+        // is a year or a capitalised name; "copyright notice" in licence prose names nobody. Without a year the marker must
+        // be "(c)", the copyright sign or a colon, so "Copyright Notice" prose is not a holder either.
+        private static System.Collections.Generic.IEnumerable<string> LineHolders(string line)
+        {
+            foreach (Match match in HeaderCopyright.Matches(line))
+            {
+                var holder = Regex.Replace(match.Groups["holder"].Value.Trim(), @"(\.(\s.*)?|\s*All rights reserved.*)$", "", RegexOptions.IgnoreCase).Trim(' ', '\t', ',', ';', '>', ']');
+                var marked = Regex.IsMatch(match.Value.Substring(0, match.Groups["holder"].Index - match.Index), @"\(c\)|\u00a9|:", RegexOptions.IgnoreCase);
+                var year = Regex.IsMatch(holder, @"^\d{4}");
+                if (holder.Length == 0 || !(year || (marked && char.IsUpper(holder[0])))) continue;
+                yield return Key(Normal(holder));
+            }
+        }
 
         private static System.Collections.Generic.Dictionary<string, string> HeaderKeys()
         {
@@ -154,14 +172,8 @@ namespace Aetheria.Shared.Tests
                          .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
                          .Where(path => new[] { ".shader", ".hlsl", ".cginc", ".cs", ".compute" }.Any(ext => path.EndsWith(ext)) && path != "Assets/Scripts/ServerShared/Credits.cs"))
                 foreach (var line in Read(path).Split('\n'))
-                    foreach (Match match in HeaderCopyright.Matches(line))
-                    {
-                        var words = Regex.Replace(Regex.Replace(match.Groups[1].Value, @"\.\s.*", ""), @"[<>,]", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                            .Where(word => word != "by").ToArray();
-                        var year = words.Length > 0 && Regex.IsMatch(words[0], @"^\d{4}") ? 1 : 0;
-                        if (year == 0 && !Regex.IsMatch(line, @"\([cC]\)")) continue;
-                        keys.TryAdd(Key(string.Concat(words.Take(year + 2))), path);
-                    }
+                    foreach (var key in LineHolders(line))
+                        keys.TryAdd(key, path);
             return keys;
         }
 
@@ -171,11 +183,12 @@ namespace Aetheria.Shared.Tests
         public void EveryCopyrightHolderInASourceHeaderIsCreditedOrReviewed()
         {
             var keys = HeaderKeys();
-            Assert.Contains("2015academyof", keys.Keys);
+            Assert.Contains(Key("2015 Academy of Motion Picture Arts and Sciences (A.M.P.A.S"), keys.Keys);
             Assert.Contains("2016unitytechnologies", keys.Keys);
             Assert.Contains("2017supyrb", keys.Keys);
-            var shown = Key(string.Join(" ", Load().Select(credit => Normal(credit.Notice))));
-            Assert.Equal(Array.Empty<string>(), keys.Where(k => !shown.Contains(k.Key) && !ReviewedHeaders.ContainsKey(k.Key)).Select(k => $"{k.Key} in {k.Value}").ToArray());
+            // The whole holder is compared, not a prefix of it, against each credit's notice on its own.
+            var shown = Load().Select(credit => Key(Normal(credit.Notice))).ToArray();
+            Assert.Equal(Array.Empty<string>(), keys.Where(k => !shown.Any(notice => notice.Contains(k.Key)) && !ReviewedHeaders.ContainsKey(k.Key)).Select(k => $"{k.Key} in {k.Value}").ToArray());
             Assert.Equal(Array.Empty<string>(), ReviewedHeaders.Keys.Where(k => !keys.ContainsKey(k)).ToArray());
         }
 
