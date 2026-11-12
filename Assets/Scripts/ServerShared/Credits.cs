@@ -19,6 +19,13 @@ public static class Credits
     public const string TwemojiFile = "Assets/Fonts/Emoji/LICENSE.txt";
     public const string PlaydeadFile = "Assets/Plugins/Playdead/LICENSE.txt";
     public const string NounProjectFile = "Assets/Resources/Sprites/Attribution.txt";
+    public const string LiberationFile = "Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt";
+    public const string UniRxFile = "Assets/Plugins/UniRx/ReadMe.txt";
+    public const string AmbientCgFile = "Assets/Materials/PBR/SOURCES.md";
+    public const string KdTreeFile = "Assets/Scripts/ServerShared/NIH/KDTree/KDTree.cs";
+    public const string SimplexNoiseFile = "Assets/Plugins/GPU Noise/SimplexNoise2D.cginc";
+    // The first line of the attribution file; the icon credits are the lines after it.
+    public const string NounProjectHeading = "Noun Project";
     // Where the player build loads the Noun Project credit lines from (Resources path, no extension).
     public const string NounProjectResource = "Sprites/Attribution";
 
@@ -46,6 +53,44 @@ public static class Credits
             },
             new Credit
             {
+                Name = "Liberation Sans",
+                Licence = "SIL Open Font License 1.1",
+                Notice = "Digitized data copyright (c) 2010 Google Corporation with Reserved Font Arimo, Tinos and Cousine. " +
+                         "Copyright (c) 2012 Red Hat, Inc. with Reserved Font Name Liberation.",
+                LicenceFile = LiberationFile
+            },
+            new Credit
+            {
+                Name = "UniRx",
+                Licence = "MIT",
+                Notice = "Created by Yoshifumi Kawai (neuecc)",
+                LicenceFile = UniRxFile
+            },
+            new Credit
+            {
+                Name = "KDTree",
+                Licence = "MIT",
+                Notice = "Copyright (c) 2018 Vili Volčini / viliwonka",
+                LicenceFile = KdTreeFile
+            },
+            new Credit
+            {
+                Name = "webgl-noise simplex noise",
+                Licence = "MIT",
+                Notice = "Copyright (C) 2011 Ashima Arts. Author: Ian McEwan, Ashima Arts " +
+                         "(https://github.com/ashima/webgl-noise). Translated to Unity shaders and modified by Keijiro Takahashi " +
+                         "(https://github.com/keijiro/NoiseShader).",
+                LicenceFile = SimplexNoiseFile
+            },
+            new Credit
+            {
+                Name = "ambientCG PBR materials",
+                Licence = "CC0 1.0 Universal",
+                Notice = "Texture sets from ambientCG (https://ambientcg.com), public domain",
+                LicenceFile = AmbientCgFile
+            },
+            new Credit
+            {
                 Name = "Noun Project icons",
                 Licence = "Noun Project attribution licence",
                 Notice = string.Join("\n", NounProjectLines(nounProjectAttribution)),
@@ -56,9 +101,16 @@ public static class Credits
         return credits;
     }
 
-    // The icon credit lines of the attribution file: everything after its "Noun Project" heading.
-    public static IEnumerable<string> NounProjectLines(string attribution) =>
-        (attribution ?? "").Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0).Skip(1);
+    // The icon credit lines of the attribution file: everything after its "Noun Project" heading, one line per icon (the
+    // file's "Other" sub-heading and its lines follow in the same list). A file that does not open with the heading is
+    // refused rather than having its first line dropped.
+    public static IEnumerable<string> NounProjectLines(string attribution)
+    {
+        var lines = (attribution ?? "").Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0).ToArray();
+        if (lines.Length < 2 || lines[0] != NounProjectHeading)
+            throw new InvalidOperationException($"{NounProjectFile} must open with the heading '{NounProjectHeading}' followed by icon credits");
+        return lines.Skip(1);
+    }
 
     // Throws on an entry a player-facing screen could not honestly show.
     public static void Validate(IReadOnlyList<Credit> credits)
