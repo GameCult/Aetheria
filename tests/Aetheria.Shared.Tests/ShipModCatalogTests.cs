@@ -328,6 +328,49 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Contains("GLB", excluded.Reason);
     }
 
+    // Bind is the one verdict on whether a mod hull exists: a package whose GLB names a node mesh the importer cannot build
+    // (dangling index, no POSITION, skinned node, no primitives) never reaches the boot catalog, so Preload has nothing left to refuse on file facts.
+    [Fact]
+    public void ABootCatalogHoldsNoHullTheImporterCannotBuild()
+    {
+        WritePackage("mod.good", hullName: "Good");
+        var broken = new Dictionary<string, (string From, string To)>
+        {
+            ["mod.dangling"] = (@"{""name"":""collider"",""mesh"":0", @"{""name"":""collider"",""mesh"":7"),
+            ["mod.nopos"] = (@"""attributes"":{""POSITION"":0}", @"""attributes"":{}"),
+            ["mod.skinned"] = (@"{""name"":""map"",""mesh"":0", @"{""name"":""map"",""mesh"":0,""skin"":0"),
+            ["mod.noprims"] = (@"""primitives"":[{""attributes"":{""POSITION"":0}}]", @"""primitives"":[]")
+        };
+        foreach (var (package, (from, to)) in broken)
+        {
+            WritePackage(package, hullName: package.Substring(4));
+            var json = ShipFixture.GlbJson(FixtureNodes);
+            Assert.Contains(from, json);
+            File.WriteAllBytes(Path.Combine(Mods, package, "skiff.glb"), ShipFixture.Glb(json.Replace(from, to), ShipFixture.MeshBytes()));
+        }
+
+        var (catalog, excluded) = ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods);
+
+        Assert.Equal(Derived, catalog);
+        Assert.Equal(broken.Keys.OrderBy(name => name, StringComparer.Ordinal), excluded.Select(e => e.Package).OrderBy(name => name, StringComparer.Ordinal));
+        Assert.All(excluded, e => Assert.Contains("needs a mesh", e.Reason));
+        using var cache = AetheriaStores.Open(catalog);
+        var hulls = cache.GetAll<HullData>().Where(hull => hull.Visual.IsSet()).ToArray();
+        Assert.Equal(new[] { "Good" }, hulls.Select(hull => hull.Name));
+        var keys = cache.AllStoredDocuments.Select(record => record.Key.Value).ToHashSet();
+        foreach (var package in broken.Keys)
+        {
+            Assert.DoesNotContain(ShipModCatalog.HullKey(package).Value, keys);
+            Assert.DoesNotContain(ShipModCatalog.AuthoringKey(package).Value, keys);
+        }
+        // Preload's own two steps over file facts, run headlessly: neither may refuse a hull the catalog holds.
+        foreach (var hull in hulls)
+        {
+            var package = ShipModCatalog.PackageOf(cache, hull, Mods);
+            ShipModPlan.Build(package.Hull, package.Visual);
+        }
+    }
+
     // The game's boot: a bad package is named and the rest boot; with none left, the shipped catalog boots.
     [Fact]
     public void TheBootCatalogSurvivesBadPackages()
