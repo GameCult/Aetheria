@@ -495,8 +495,9 @@ landed type differs from it by the one attribute.
       (the helper) [2 now].
     - `rg -n "ScriptableObject" Assets/Scripts/ServerShared` must stay 0.
   - operator:
-    - Play smoke: main menu, then New Game (tutorial). The tutorial galaxy generates,
-      and the starting ship is LonginusX.
+    - Play smoke: main menu, then New Game, then the Tutorial Galaxy scenario (listed under
+      development, in editor and development builds). The prelude galaxy generates, and the
+      starting ship is `Settings.StartingHullName` (`Longinus`).
     - In a station trade menu and the properties panel, item names show tier colours:
       Legendary orange, Uncommon green. None is black.
     - The inventory shows armour and durability gradients, and hit flashes use the

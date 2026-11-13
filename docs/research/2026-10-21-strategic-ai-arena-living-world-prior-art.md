@@ -390,7 +390,8 @@ Battlecode, Halite, CodinGame, BWAPI/SSCAIT/AIIDE/CIG, SC2 AI Arena, Lux, CodeCl
 - **The Colosseum follow-up.** `aetheria-release:follow_up:colosseum-npc-lab` (in force; owner "Aetheria Agents and
   the headless simulation") names its foundations:
   - an observation and action seam (agents hold live `Ship`, `Zone` and `ItemManager` references);
-  - seeding `ItemManager.Random` and the MIConvexHull randoms;
+  - seeding for tournament reproducibility: `ItemManager.Random` already takes the run's seed
+    (`RunStart.ItemSeed`), and no MIConvexHull source remains in the repo;
   - a replay recorder;
   - a headless tournament runner on Yggdrasil with ratings;
   - a primitive vocabulary;

@@ -504,7 +504,6 @@ record.
 | follow-up | `ambiguous-hardpoint-origin` | demo | Save correctness for package hulls. |
 | follow-up | `delaunay-exact-predicates` | demo | Galaxy links; a silently unlinked zone could strand a demo run. |
 | follow-up | `failed-start-scene-halts` | demo | The New Game failure path the demo's missing-cast refusal uses. |
-| follow-up | `stale-docs-after-scenarios-menu` | demo | Docs that describe the old New Game path. |
 | follow-up | `scratch-carry-drafts` | demo | The ship `.cc` draft bears on `demo-ship-cc-timing`. |
 | follow-up | `faction-lore-notes-r3` | full game | Vault setting notes; no demo cut reads them. |
 | follow-up | `mining-impacts-through-contract` | full game | Mining Cut 4 is parked. |
