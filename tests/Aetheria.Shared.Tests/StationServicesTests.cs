@@ -175,6 +175,46 @@ public sealed class StationServicesTests : IDisposable
         Assert.Contains(ore, open.Cargo.Keys);
     }
 
+    // The market absorbs a sold commodity (aetheria-release:ruling:station-market-absorbs-sold-commodity): a full hold
+    // stores what fits, the rest is taken, and the full price is paid; a hold with no room at all still pays.
+    [Fact]
+    public void TrySell_commodity_is_paid_in_full_when_the_station_hold_is_full()
+    {
+        var from = Ship().CargoBays.Single();
+        var ore = Ore(10);
+        Assert.True(from.TryStore(ore));
+        var station = Station();
+        while (station.CargoBays[0].TryStore(Mint("Gun"))) { }
+        var credits = 0;
+        Assert.True(StationServices.TrySell(from, station, ore, ref credits));
+        Assert.Equal(35, credits);
+        Assert.Empty(from.Cargo.Keys.OfType<SimpleCommodity>());
+        Assert.Empty(station.CargoBays[0].Cargo.Keys.OfType<SimpleCommodity>());
+    }
+
+    // A commodity the seller does not hold sells for nothing: not one never stored, and not a stale copy of a stack the sale
+    // already took. The held stack is untouched, and no credit is paid.
+    [Fact]
+    public void TrySell_commodity_not_in_the_hold_pays_nothing()
+    {
+        var from = Ship().CargoBays.Single();
+        var held = Ore(10);
+        Assert.True(from.TryStore(held));
+        var station = Station();
+        var credits = 500;
+
+        Assert.False(StationServices.TrySell(from, station, Ore(10), ref credits));
+        Assert.Equal(500, credits);
+        Assert.Empty(station.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>());
+        Assert.Equal(10, Assert.Single(from.Cargo.Keys.OfType<SimpleCommodity>()).Quantity);
+
+        Assert.True(StationServices.TrySell(from, station, held, ref credits));
+        var paid = credits;
+        Assert.False(StationServices.TrySell(from, station, held, ref credits));
+        Assert.Equal(paid, credits);
+        Assert.Equal(10, station.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>().Sum(c => c.Quantity));
+    }
+
     [Fact]
     public void Repair_restores_and_charges()
     {

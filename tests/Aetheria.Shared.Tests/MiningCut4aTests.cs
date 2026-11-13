@@ -181,7 +181,7 @@ public sealed partial class MiningCut3Tests
     {
         var (s, rock) = OneRock();
         var at = At(s, rock);
-        Assert.True(s.Zone.Wear(rock, 1e6f));
+        Assert.True(s.Zone.Breaks(rock, 1e6f));
         var subs = new List<IDisposable>();
         var absorbs = Absorbs(s, subs);
         FireControl.Detonate(s.Zone, at, 8f, 10f, DamageType.Kinetic);

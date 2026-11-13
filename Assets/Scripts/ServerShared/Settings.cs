@@ -29,6 +29,11 @@ public class PlanetSettings
     public ExponentialLerp AsteroidSize;
     public ExponentialLerp AsteroidHitpoints;
     public ExponentialLerp AsteroidRespawnTime;
+    // Units of ore a whole rock of normalized size s gives (FireControl.Extract), however many hits break it.
+    public ExponentialLerp AsteroidYield;
+    // How far a rock's mix of its belt's ores strays from the kind's ratio: each ore's weight is scaled by
+    // exp(variance x g), g in [-1, 1) a stable hash of (rock, ore). Zero reads the kind's ratio.
+    public float ChunkCompositionVariance;
     public float SecureAreaRadiusMultiplier = .45f;
 
 

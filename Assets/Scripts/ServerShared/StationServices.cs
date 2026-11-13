@@ -94,15 +94,22 @@ public static class StationServices
     public static int BuyableQuantity(ItemManager items, SimpleCommodity stock, int typed, int credits) =>
         Math.Max(1, Math.Min(Math.Min(typed, credits / BuyPrice(items, stock)), stock.Quantity));
 
-    // The sale: the item leaves the bay for one of the station's cargo bays and the station pays SellPrice. False,
-    // with the item in its bay and the credits unchanged, when no station bay can take it.
+    // The sale: the item leaves the bay and the station pays SellPrice. A crafted item goes to one of the station's
+    // cargo bays; false, with the item in its bay and the credits unchanged, when no bay can take it. A simple
+    // commodity always sells (aetheria-release:ruling:station-market-absorbs-sold-commodity): the bays take as much of
+    // the stack as fits and the market absorbs the rest, at the full price.
     public static bool TrySell(EquippedCargoBay from, Entity station, ItemInstance item, ref int credits)
     {
         var price = SellPrice(station.ItemManager, item);
-        var moved = item is SimpleCommodity commodity
-            ? station.CargoBays.Any(bay => from.TryTransferItem(bay, commodity, commodity.Quantity))
-            : station.CargoBays.Any(bay => from.TryTransferItem(bay, (CraftedItemInstance) item));
-        if (!moved) return false;
+        if (item is SimpleCommodity commodity)
+        {
+            if (!from.Cargo.ContainsKey(commodity)) return false;
+            var offered = commodity.Quantity;
+            for (var quantity = offered; quantity >= 1; quantity--)
+                if (station.CargoBays.Any(bay => from.TryTransferItem(bay, commodity, quantity))) break;
+            if (from.Cargo.ContainsKey(commodity)) from.Remove(commodity, commodity.Quantity);
+        }
+        else if (!station.CargoBays.Any(bay => from.TryTransferItem(bay, (CraftedItemInstance) item))) return false;
         credits += price;
         return true;
     }
