@@ -27,7 +27,6 @@ public static class Delaunay
         for (var i = 1; i < n; i++)
             if (points[order[i - 1]].x == points[order[i]].x && points[order[i - 1]].y == points[order[i]].y)
                 throw new ArgumentException($"Delaunay points {Math.Min(order[i - 1], order[i])} and {Math.Max(order[i - 1], order[i])} are the same point ({points[order[i]].x}, {points[order[i]].y})");
-        if (n < 2) return new List<(int a, int b)>();
 
         var x = new double[n + 3];
         var y = new double[n + 3];
