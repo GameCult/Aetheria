@@ -537,6 +537,23 @@ public sealed class StationServicesTests : IDisposable
     }
 
     [Fact]
+    public void SellOreLeavesALottedCommodityThatWasNotExtracted()
+    {
+        var ship = Ship();
+        var bay = ship.CargoBays.Single();
+        var data = _cache.GetByName<SimpleCommodityData>("Ore");
+        var lot = _items.Lots.Add(new Lot { Design = _cache.RefOf<ItemData>(data), Origin = new Attributed(), Quality = 1 });
+        Assert.NotEqual(0, lot);
+        var traded = new SimpleCommodity { Data = _cache.RefOf<ItemData>(data), Quantity = 6, Lot = lot };
+        Assert.True(bay.TryStore(traded));
+        var credits = 100;
+        Assert.Equal(0, StationServices.OreValue(_items, ship.CargoBays));
+        Assert.Equal(0, StationServices.TrySellOre(ship.CargoBays, Station(), ref credits));
+        Assert.Equal(100, credits);
+        Assert.Contains(traded, bay.Cargo.Keys);
+    }
+
+    [Fact]
     public void SellOreAcrossBaysAndShips()
     {
         var one = Ship();

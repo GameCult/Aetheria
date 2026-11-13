@@ -443,12 +443,15 @@ public class Zone
     {
         var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
         if (floating == null || (floating.Holder != null && !ReferenceEquals(floating.Holder, taker))) return false;
+        // The quantity is read before the store: a store that merges into a part-filled stack and spills the rest into a
+        // new cell rewrites the item's Quantity.
+        var stored = floating.Item is SimpleCommodity stack ? stack.Quantity : 1;
         if (!taker.CargoBays.Any(bay => bay.TryStore(floating.Item))) return false;
         FloatingItems.Remove(floating);
         CargoGained.OnNext(new CargoGain
         {
             Taker = taker, Design = floating.Item.Data, Lot = floating.Item.Lot, Kind = GainKind.Collected,
-            Stored = floating.Item is SimpleCommodity stack ? stack.Quantity : 1
+            Stored = stored
         });
         return true;
     }

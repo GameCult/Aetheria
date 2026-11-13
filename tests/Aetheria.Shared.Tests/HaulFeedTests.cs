@@ -144,6 +144,23 @@ public sealed class HaulFeedTests : IDisposable
     }
 
     [Fact]
+    public void APickupThatMergesAndSpillsReportsTheWholeStack()
+    {
+        var grit = MiningCut5aTests.Commodity("Grit", maxStack: 4);
+        var (rig, _, gains) = Mining(1, 1, (grit, 1f));
+        var taker = new Ship(rig.Scene.Items, rig.Zone, MiningCut3Tests.Mint(rig.Scene, rig.Scene.Hull), new EntitySettings());
+        rig.Zone.Admit(taker, piloted: false);
+        var bay = MiningCut5aTests.Bay(rig.Scene, taker, 2, 1, "Taker");
+        var design = rig.Scene.Cache.RefOf<ItemData>(grit);
+        Assert.True(bay.TryStore(new SimpleCommodity { Data = design, Lot = 7, Quantity = 3 }));
+        gains.Clear();
+        var floating = rig.Zone.Release(new SimpleCommodity { Data = design, Lot = 7, Quantity = 4 }, new float2(0, 0), new float2(0, 0));
+        Assert.True(rig.Zone.TryPickUp(taker, floating.Id));
+        Assert.Equal(7, MiningCut5aTests.Units(bay, "Grit", rig.Scene));
+        Assert.Equal((GainKind.Collected, 4, 0), (Assert.Single(gains).Kind, gains[0].Stored, gains[0].Adrift));
+    }
+
+    [Fact]
     public void TheLineNamesWhatWasTakenAndWhatFloated()
     {
         var (rig, bay, _) = Mining(4, 4, (MiningCut5aTests.Commodity("Rock"), 1f));
@@ -161,7 +178,10 @@ public sealed class HaulFeedTests : IDisposable
         var spill = HaulFeed.Line(new CargoGain { Taker = rig.Shooter, Design = design, Stored = 1, Adrift = 2, Kind = GainKind.Mined }, items);
         Assert.Contains("2 adrift", spill);
         Assert.Contains("Rock", spill);
-        Assert.DoesNotContain("adrift", HaulFeed.Line(new CargoGain { Taker = rig.Shooter, Design = design, Stored = 2, Kind = GainKind.Collected }, items));
+        var collected = HaulFeed.Line(new CargoGain { Taker = rig.Shooter, Design = design, Stored = 2, Kind = GainKind.Collected }, items);
+        Assert.DoesNotContain("adrift", collected);
+        Assert.Contains("Collected 2", collected);
+        Assert.Contains(hold, collected);
     }
 
     [Fact]
