@@ -3,7 +3,9 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System.Linq;
+using System.Collections.Generic;
 using CultMath;
+using UniRx;
 using Xunit;
 
 // The demo loop on the shipped catalog (aetheria-release, mining 5a and the ore sheet): the player's own gun breaks a rock
@@ -36,6 +38,8 @@ public sealed partial class RunStartTests
         arena.Update(.02f);
         Hold();
         Assert.True(player.SetTarget(rock), "the rock is a target");
+        var gains = new List<CargoGain>();
+        arena.CargoGained.Subscribe(gains.Add);
         laser.Activate();
         for (var elapsed = 0f; elapsed < 20f && arena.ChunkExists(rock); elapsed += .02f) { Hold(); arena.Update(.02f); }
         var info = player.ChunkInfo(rock);
@@ -46,13 +50,19 @@ public sealed partial class RunStartTests
             .Where(h => ores.Contains(_items.GetData(h.stack).Name)).ToArray();
         Assert.NotEmpty(held);
         Assert.Empty(arena.FloatingItems);
+        // The feed saw every unit that went into the hold and none float.
+        Assert.NotEmpty(gains);
+        Assert.All(gains, gain => Assert.Equal((GainKind.Mined, 0), (gain.Kind, gain.Adrift)));
+        Assert.Equal(held.Sum(h => h.stack.Quantity), gains.Sum(gain => gain.Stored));
 
         var zenith = arena.Entities.Single(entity => entity.HullData.Name == "Zenith");
         var credits = 0;
-        // Every ore stack goes: the market takes it all, whatever the full hold of Zenith has room for.
-        foreach (var (from, sold) in held) Assert.True(StationServices.TrySell(from, zenith, sold, ref credits), "the market takes the ore");
+        // Every mined stack goes in one sale: the market takes it all, whatever the full hold of Zenith has room for.
+        var value = StationServices.OreValue(_items, player.CargoBays);
+        Assert.True(value > 0);
+        Assert.Equal(gains.Sum(gain => gain.Stored), StationServices.TrySellOre(player.CargoBays, zenith, ref credits));
+        Assert.Equal(value, credits);
         Assert.DoesNotContain(player.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()), c => ores.Contains(_items.GetData(c).Name));
-        Assert.True(credits > 0, "the station pays for the ore");
 
         var cell = Enumerable.Range(0, player.MaxArmor.GetLength(0)).SelectMany(x => Enumerable.Range(0, player.MaxArmor.GetLength(1)).Select(y => (x, y)))
             .First(c => player.MaxArmor[c.x, c.y] > 0);
