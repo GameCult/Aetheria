@@ -597,8 +597,9 @@ public sealed class ShipModCatalogTests : IDisposable
     public void NodeIdsMapToTheirGlbNodeIndexSkippingNodesWithoutOne()
     {
         var path = Write("nodes.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
-            {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""mesh"":0,""extras"":{""aetheria.id"":""b""}}]}"));
-        Assert.Equal(new Dictionary<string, (uint, bool, int, bool)> { ["a"] = (1, false, -1, true), ["b"] = (4, true, -1, true) }, ShipModCatalog.ReadNodeIds(path));
+            {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""mesh"":0,""extras"":{""aetheria.id"":""b""}},{""mesh"":7,""extras"":{""aetheria.id"":""c""}}],
+            ""meshes"":[{""primitives"":[{""attributes"":{""POSITION"":0}}]}]}"));
+        Assert.Equal(new Dictionary<string, (uint, bool, int, bool)> { ["a"] = (1, false, -1, true), ["b"] = (4, true, -1, true), ["c"] = (5, false, -1, true) }, ShipModCatalog.ReadNodeIds(path));
     }
 
     [Fact]

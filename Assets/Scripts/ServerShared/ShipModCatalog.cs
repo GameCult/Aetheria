@@ -251,14 +251,15 @@ public static class ShipModCatalog
         foreach (var anchor in ship.Anchors)
             if (!modelNodes.ContainsKey(anchor.ModelNodeId))
                 throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={anchor.ModelNodeId} for anchor {anchor.Id}.");
-        // Assemble reads a renderer or collider mesh from these anchors' nodes and refuses without one, and reads the shield
-        // node's scale as three positive radii (ruling thrusters-radiators-are-meshes). These refusals stand in for Assemble's
-        // throws, so a package Compose includes is one the importer's assembler can build; the exhaust emission surface and
-        // the glowing radiator are meshes by that same ruling. A weapon mount and a tractor may be empties.
+        // Assemble reads a renderer or collider mesh from these anchors' nodes, and the shield node's scale as three positive
+        // radii (ruling thrusters-radiators-are-meshes). These refusals cover everything the package's files say about whether
+        // the importer can build a node (skin, dangling or empty mesh, not only "names a mesh") and are Assemble's only judge,
+        // so a package Compose includes is one the importer's assembler can build; the exhaust emission surface and the
+        // glowing radiator are meshes by that same ruling. A weapon mount and a tractor may be empties.
         foreach (var anchor in ship.Anchors)
             if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh" || anchor.Role == "map-icon" || anchor.Role == "hull-collider") &&
                 !modelNodes[anchor.ModelNodeId].HasMesh)
-                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} needs a mesh, but model node {anchor.ModelNodeId} has none.");
+                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} needs a mesh, but model node {anchor.ModelNodeId} has none the importer can build.");
         foreach (var anchor in ship.Anchors)
             if (anchor.Role == "shield" && !modelNodes[anchor.ModelNodeId].PositiveScale)
                 throw new InvalidOperationException($"{ship.Id}: shield anchor {anchor.Id} needs three positive scale radii on model node {anchor.ModelNodeId}, with no matrix.");
@@ -309,7 +310,23 @@ public static class ShipModCatalog
     private static bool PositiveScale(JObject node) =>
         node["matrix"] == null && (node["scale"] == null || node["scale"].Select(component => (double)component).All(component => component > 0));
 
-    // GLB is the xenos asset boundary. Only its node extras, whether each node names a mesh, and its nearest identified ancestor's node index
+    // A mesh the importer builds as a plain mesh node: no skin (glTFast makes a skinned node a SkinnedMeshRenderer, which
+    // Assemble's MeshRenderer/MeshFilter reads cannot see), a mesh index inside meshes, at least one primitive, and every
+    // primitive with POSITION and a mode absent or 4 (triangles). Geometry accessors and buffers are not read.
+    private static bool BuildsMesh(JObject json, JObject node)
+    {
+        if (node["skin"] != null && node["skin"].Type != JTokenType.Null) return false;
+        var meshes = json["meshes"] as JArray;
+        if (node["mesh"] == null || node["mesh"].Type != JTokenType.Integer || meshes == null) return false;
+        var index = (long)node["mesh"];
+        if (index < 0 || index >= meshes.Count) return false;
+        var primitives = (meshes[(int)index] as JObject)?["primitives"] as JArray;
+        return primitives != null && primitives.Count > 0 && primitives.All(primitive =>
+            primitive is JObject p && p["attributes"]?["POSITION"] != null &&
+            (p["mode"] == null || (p["mode"].Type == JTokenType.Integer && (int)p["mode"] == 4)));
+    }
+
+    // GLB is the xenos asset boundary. Only its node extras, whether each node carries a mesh the importer builds as a plain mesh node, and its nearest identified ancestor's node index
     // (-1 for none) are read here, plus whether the node's scale is three positive radii with no matrix; geometry belongs to the runtime importer.
     public static Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)> ReadNodeIds(string path)
     {
@@ -333,7 +350,7 @@ public static class ShipModCatalog
         {
             var id = (string)node["extras"]?["aetheria.id"];
             if (string.IsNullOrEmpty(id)) { index++; continue; }
-            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null, IdentifiedAncestor(parents, nodes, (int)index), PositiveScale(node))))
+            if (!ids.TryAdd(id, (index, BuildsMesh(json, node), IdentifiedAncestor(parents, nodes, (int)index), PositiveScale(node))))
                 throw new InvalidOperationException($"{path}: duplicate GLB node aetheria.id={id}.");
             index++;
         }

@@ -6,9 +6,10 @@ using GameCult.Caching;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-// Mod ships in the running game. Compose decides which mod hulls exist; Preload builds a prototype for each, keyed by the
-// hull's record key, into an inactive assembled copy that Instantiate clones synchronously, so LoadEntity never loads async.
-// A composed hull Preload cannot build is an import fault: Loading faults with ImportFault, naming every such hull's package.
+// Mod ships in the running game. Compose (Bind) is the one verdict on whether a mod hull exists, from the package's files;
+// Preload only builds a prototype for each, keyed by the hull's record key, into an inactive assembled copy that Instantiate
+// clones synchronously, so LoadEntity never loads async. ImportFault reports what the Unity importer made of a composed hull:
+// a composed hull Preload cannot build is an import fault: Loading faults with ImportFault, naming every such hull's package.
 // The prototypes are cache-only: rebuilt every boot from the catalog, the mod GLBs and the template.
 public static class ShipModShips
 {
@@ -101,6 +102,7 @@ public static class ShipModShips
             node.name = id;
             return node;
         }
+        // An importer report, not a verdict: Bind has already judged the file.
         MeshRenderer Renderer(string id)
         {
             var found = Node(id).GetComponentInChildren<MeshRenderer>(true);
@@ -130,9 +132,6 @@ public static class ShipModShips
         var surface = AddOrGet<HullCollider>(hullNode.gameObject);
 
         var shieldMarker = Node(plan.Shield);
-        var scale = shieldMarker.localScale;
-        if (!(scale.x > 0 && scale.y > 0 && scale.z > 0))
-            throw new InvalidOperationException($"{ship.Id}: the shield anchor scale must have three positive radii.");
         var shield = Object.Instantiate(template.Shield.GetComponent<ShieldManager>(), shieldMarker, false);
         Reset(shield.transform);
         AddOrGet<ShieldEnvelope>(shield.gameObject);

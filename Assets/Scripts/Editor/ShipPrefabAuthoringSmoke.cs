@@ -28,6 +28,8 @@ public static class ShipPrefabAuthoringSmoke
             ShipPrefabAuthoring.Configure(root);
             var ship = root.GetComponent<ShipInstance>();
             Require(ship != null && ship.ThrusterHardpoints.Length == 1 && ship.ThrusterHardpoints[0].Emitter != null, "thruster emitter");
+            Require(Array.TrueForAll(ship.ThrusterHardpoints[0].Emitter.sharedMaterials, material => material == ship.InvisibleMaterial),
+                "thruster emitter drawn with the invisible material only");
             Require(ship.WeaponHardpoints.Length == 1 && ship.WeaponHardpoints[0].FiringPoint.Length == 2, "weapon muzzles");
             Require(ship.WeaponHardpoints[0].FiringPoint[0].name == "Muzzle.0", "numeric muzzle order");
             Require(ship.RadiatorHardpoints.Length == 1 && ship.RadiatorHardpoints[0].Mesh != null, "radiator mesh");
