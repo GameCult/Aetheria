@@ -138,7 +138,11 @@ public sealed class SubstanceCleanBreakTests
         foreach (var meta in Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*.meta", SearchOption.AllDirectories))
         {
             var guid = File.ReadLines(meta).FirstOrDefault(l => l.StartsWith("guid: "))?.Substring("guid: ".Length).Trim();
-            if (guid != null) map[guid] = Path.GetRelativePath(root, meta).Replace('\\', '/');
+            if (guid == null) continue;
+            // A .meta whose asset is gone still carries the guid, so resolution must look beside it: the asset is the
+            // .meta path minus ".meta". Directory metas resolve to a folder.
+            var asset = meta.Substring(0, meta.Length - ".meta".Length);
+            if (File.Exists(asset) || Directory.Exists(asset)) map[guid] = Path.GetRelativePath(root, meta).Replace('\\', '/');
         }
         return map;
     }
@@ -216,7 +220,7 @@ public sealed class SubstanceCleanBreakTests
                 if (m.Groups[1].Value == "0") continue;
                 if (!m.Groups[2].Success) { problems.Add($"{rel} has a nonzero texture fileID with no guid: {m.Value}"); continue; }
                 var guid = m.Groups[2].Value;
-                if (!guidToMeta.TryGetValue(guid, out var meta)) problems.Add($"{rel} names {guid}, which has no .meta under Assets/");
+                if (!guidToMeta.TryGetValue(guid, out var meta)) problems.Add($"{rel} names {guid}, which has no .meta and asset under Assets/");
                 else if (meta.StartsWith("Assets/Materials/Substance", StringComparison.Ordinal)) problems.Add($"{rel} names {guid} inside the removed Substance tree");
                 else if (!File.ReadLines(Path.Combine(root, meta)).Any(l => l.StartsWith("TextureImporter:", StringComparison.Ordinal)))
                     problems.Add($"{rel} texture slot names {guid} ({meta}), which is not a TextureImporter asset");
@@ -240,7 +244,7 @@ public sealed class SubstanceCleanBreakTests
                 foreach (Match m in MaterialRef.Matches(lines[i]))
                 {
                     var guid = m.Groups[1].Value;
-                    if (!guidToMeta.TryGetValue(guid, out var meta)) problems.Add($"{rel}:{i + 1} names {guid}, which has no .meta under Assets/");
+                    if (!guidToMeta.TryGetValue(guid, out var meta)) problems.Add($"{rel}:{i + 1} names {guid}, which has no .meta and asset under Assets/");
                     else if (!meta.EndsWith(".mat.meta", StringComparison.Ordinal)) problems.Add($"{rel}:{i + 1} material slot names {guid} ({meta}), which is not a .mat");
                 }
         }
