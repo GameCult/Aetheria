@@ -106,6 +106,9 @@ public class ActionGameManager : MonoBehaviour
     }
 
     public static Galaxy CurrentGalaxy;
+    // Whether a run is live: a failed start and a finished run both clear the galaxy, and the scene's update paths (this
+    // manager's, the renderer's) step and draw nothing without one.
+    public static bool RunLive => CurrentGalaxy != null;
     // The scenario a new run starts from: MainMenu.Launch sets it, and StartGame's new-run branch consumes it once.
     public static Scenario PendingScenario;
 
@@ -1339,8 +1342,7 @@ public class ActionGameManager : MonoBehaviour
 
     void Update()
     {
-        // No live run (a start that failed, a run that ended): the main menu is up, and nothing steps a zone or reads a player.
-        if (CurrentGalaxy == null) return;
+        if (!RunLive) return;
         if(!_paused)
         {
             _time += Time.deltaTime;

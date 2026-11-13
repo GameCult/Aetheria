@@ -508,6 +508,7 @@ public class ZoneRenderer : MonoBehaviour
 
     void LateUpdate()
     {
+        if (!ActionGameManager.RunLive) return;
         Map.Draw(Zone, ActionGameManager.Clock.Lead);
     }
 
@@ -550,6 +551,7 @@ public class ZoneRenderer : MonoBehaviour
 
     void Update()
     {
+        if (!ActionGameManager.RunLive) return;
         var lead = ActionGameManager.Clock.Lead;
         GravityLowering.Lower(Zone, lead, ref _gravityWells);
         foreach (var loot in _floatingItems.Values)
