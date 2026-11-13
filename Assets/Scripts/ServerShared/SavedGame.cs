@@ -225,7 +225,7 @@ public static class RunSave
         var roots = zones
             .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())
             .SelectMany(EntitySerializer.Items)
-            .Where(item => item.Lot != 0)
+            .Where(item => item != null && item.Lot != 0)
             .Select(item => item.Lot);
         cache.Commit(batch =>
         {

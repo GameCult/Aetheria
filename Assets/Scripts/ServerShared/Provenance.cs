@@ -137,6 +137,8 @@ public class Produced : Provenance
 [MessagePackObject]
 public class Extracted : Provenance
 {
+    // Zone is the zone's index in galaxy.Zones (SavedGame's convention), -1 with no galaxy; Body is the belt.
     [Key(0)] public int Zone;
     [Key(1)] public CultRecordRef<SimpleCommodityData> Commodity;
+    [Key(2)] public CultRecordRef<BodyData> Body;
 }
