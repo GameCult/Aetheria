@@ -854,21 +854,12 @@ public class ActionGameManager : MonoBehaviour
         var scenario = PendingScenario;
         PendingScenario = null;
         var failures = new List<string>();
-        RunStart.Staged staged = null;
-        try
+        var staged = RunStart.Launch(() => RunSave.Replace(CultCache, () =>
         {
-            staged = RunSave.Replace(CultCache, () =>
-            {
-                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
-                PopulateLevel(CurrentGalaxy.Entrance);
-                return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures);
-            });
-        }
-        catch (Exception exception)
-        {
-            Debug.LogException(exception);
-            failures.Add(exception.Message);
-        }
+            RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
+            PopulateLevel(CurrentGalaxy.Entrance);
+            return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures);
+        }), failures, Debug.LogException);
 
         if (staged == null)
         {
@@ -1348,6 +1339,8 @@ public class ActionGameManager : MonoBehaviour
 
     void Update()
     {
+        // No live run (a start that failed, a run that ended): the main menu is up, and nothing steps a zone or reads a player.
+        if (CurrentGalaxy == null) return;
         if(!_paused)
         {
             _time += Time.deltaTime;
