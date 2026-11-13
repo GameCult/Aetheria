@@ -64,7 +64,7 @@ rows are kept for the combined test count.
   of the three pairs shares a file. So each anchored line is byte-identical in the merged tree.
 - **Tests ran on Yggdrasil, against synthetic merges** (section 0). CultLib `45c2f40` and CultMath `6d5e209` are
   the pins in `Directory.Build.props`. The LFS files the tests read were staged beside the job, because the verify mirror carries no LFS. The Mining
-  cut tests needed `GameData/Aetheria.cc` and `Assets/Resources/Settings.asset`; `SubstanceCleanBreakTests` needs 99
+  cut tests needed `GameData/Aetheria.cc` and `Assets/Resources/Settings.asset`; `SubstanceCleanBreakTests` needs 97 and the whole suite needs more
   (see the LFS staging set under Verification).
 - **Catalog facts** come from a probe that opens the merged tree's `GameData/Aetheria.cc` through
   `AetheriaStores.Open` (section 0).
@@ -303,12 +303,12 @@ Every mining question is ruled.
     so the next Hands does not rediscover it.
   - LFS staging set. `SubstanceCleanBreakTests` fails loudly on any LFS pointer it scans, so the job must restore
     every LFS-tracked file under `Assets/`, `Packages/`, `ProjectSettings/` and `GameData/*.cc` that is not a
-    binary-media extension (the test's `BinaryExtensions` denylist): 99 files at `6905726ba`, 96 `*.asset` and 3
+    binary-media extension (the test's `BinaryExtensions` denylist): 99 files at `83e6957de`, 96 `*.asset` and 3
     `*.cc` (`GameData/Aetheria.cc`, `GameData/Mods/aetheria.nakovalnya/ship.cc`, `GameData/Mods/aetheria.wren/ship.cc`),
     which includes `ProjectSettings/ProjectSettings.asset` and `Assets/Resources/Settings.asset`. Derive the list from
     the merged tree instead of hand-copying it:
     `git ls-files Assets Packages ProjectSettings 'GameData/*.cc' | git check-attr --stdin filter | grep 'lfs$' | sed 's/: filter: lfs//' | grep -viE '\.(png|jpg|jpeg|tga|tif|tiff|psd|bmp|gif|exr|hdr|dds|wav|mp3|ogg|mp4|fbx|glb|blend|ttf|otf|dll|so|pdb|msgpack|zip|bank)$'`,
-    then copy each path from the `/lfs` mount over the checkout. Staging only two files turns the suite red.
+    then copy each path from the `/lfs` mount over the checkout. That set (99: the 97 the sbsar guards read plus the two mod `ship.cc` files the Nakovalnya and Wren tests open) makes `SubstanceCleanBreakTests` green and nothing more: staging only two files turns it red. For a fully green suite also stage `GameData/Mods/*/ship.glb` (the catalog excludes a package with an invalid GLB header, failing about 520 tests) and the LFS `.ttf`/`.otf` fonts `CreditsTests.FontCreditsShowWhatTheFontsThemselvesEmbed` reads.
   - Unity batchmode compile of the merged tree (Self, in a worktree, never with the operator's editor open on
     the main tree). This is the Cut 1 renderer compile the map still owes.
   - Operator: fly through a belt (the Cut 1 check the map still owes). Rocks orbit smoothly, and the minimap
