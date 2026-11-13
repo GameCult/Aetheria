@@ -23,11 +23,11 @@ public sealed class MiningCut5aTests : IDisposable
         _scenes.Dispose();
     }
 
-    private static SimpleCommodityData Commodity(string name, int maxStack = 100) =>
+    internal static SimpleCommodityData Commodity(string name, int maxStack = 100) =>
         new SimpleCommodityData { Name = name, Shape = new Shape(), Price = 5, MaxStack = maxStack };
 
     // Registers the ores and the kind's yields in the scene's catalog (the kind refs need the stored commodities).
-    private static void Stock(MiningCut3Tests.Scene scene, FieldKindData kind, params (SimpleCommodityData Ore, float Abundance)[] yields)
+    internal static void Stock(MiningCut3Tests.Scene scene, FieldKindData kind, params (SimpleCommodityData Ore, float Abundance)[] yields)
     {
         kind.Yields.Clear();
         foreach (var (ore, abundance) in yields)
@@ -38,7 +38,7 @@ public sealed class MiningCut5aTests : IDisposable
         scene.Cache.Upsert(kind);
     }
 
-    private EquippedCargoBay Bay(MiningCut3Tests.Scene scene, Ship ship, int width, int height, string name)
+    internal static EquippedCargoBay Bay(MiningCut3Tests.Scene scene, Ship ship, int width, int height, string name)
     {
         var shape = new Shape(width, height);
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
@@ -49,10 +49,10 @@ public sealed class MiningCut5aTests : IDisposable
         return bay;
     }
 
-    private static int Units(IEnumerable<ItemInstance> items, string ore, MiningCut3Tests.Scene scene) =>
+    internal static int Units(IEnumerable<ItemInstance> items, string ore, MiningCut3Tests.Scene scene) =>
         items.OfType<SimpleCommodity>().Where(c => scene.Items.GetData(c).Name == ore).Sum(c => c.Quantity);
 
-    private static int Units(EquippedCargoBay bay, string ore, MiningCut3Tests.Scene scene) => Units(bay.Cargo.Keys, ore, scene);
+    internal static int Units(EquippedCargoBay bay, string ore, MiningCut3Tests.Scene scene) => Units(bay.Cargo.Keys, ore, scene);
 
     // A rig whose rock (size .5: 4 units, whole) yields `ores`, shooter holding one bay.
     private (MiningCut4bTests.Rig Rig, EquippedCargoBay Bay) Mining(int bayWidth = 4, int bayHeight = 4, float damage = 1000f,
