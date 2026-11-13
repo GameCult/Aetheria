@@ -624,4 +624,52 @@ public sealed partial class MiningCut3Tests
             Assert.Contains(observer.Target.Value, order);
         }
     }
+
+    // The distance key stays the distance far beyond the clamps a fixture reaching 4000 can see: ships stand out to
+    // 8000 units, several within any one quantum or round-number cap (4600 and 4900, 5200 and 5300, 7960, 7975 and 7990),
+    // and are admitted farthest first, so zone order is the exact reverse of distance order and any tie (a clamp, a
+    // coarse bucket, a cap on either key) shows as a swapped pair.
+    [Fact]
+    public void ShipsOutToEightThousandUnitsAreOrderedByDistanceBothWaysWhenAdmittedFarthestFirst()
+    {
+        var at = float2(500, 0);
+        var (s, observer) = TargetScene(7, at);
+        var distances = new[] { 7990f, 7975f, 7960f, 7900f, 7000f, 6100f, 5300f, 5200f, 4900f, 4600f, 4000f, 3600f, 3100f, 2900f, 1500f, 700f };
+        for (var i = 0; i < distances.Length; i++) Sight(s, observer, Polar(at, distances[i], i * 1.9f));
+        var order = ByDistance(s, observer, 120f);
+        Assert.True(order.Count(t => t.Chunk.HasValue) >= 8 && order.Count(t => t.Entity != null) == distances.Length, $"degenerate: {order.Count} candidates");
+        var ships = order.Where(t => t.Entity != null).Select(t => length(t.Entity.Position.xz - at)).ToList();
+        Assert.Equal(ships.OrderBy(d => d).ToList(), ships);
+        Assert.Equal(ships.Distinct().Count(), ships.Count);
+        Assert.True(ships.Last() > 7900f);
+        AssertPressesWalk(observer, order);
+    }
+
+    // The same pins in a crowded zone: far more than 60 entities stand in it, ships the observer has not detected
+    // among them out to 8000 units, so a leak or a bent key gated on the zone's size shows here.
+    [Fact]
+    public void ShipsTheObserverHasNotDetectedAreNeverPickedInACrowdedZone()
+    {
+        var at = float2(500, 0);
+        var (s, observer) = TargetScene(7, at);
+        var seen = new[] { 6200f, 4700f, 2500f, 900f, 120f, 5400f };
+        for (var i = 0; i < seen.Length; i++) Sight(s, observer, Polar(at, seen[i], i * 1.3f + .4f));
+        var hidden = new List<TargetRef>();
+        for (var i = 0; i < 110; i++)
+            hidden.Add(Unseen(s, Polar(at, 3f * MathF.Pow(1.0885f, i), i * 2.4f)));
+        var order = ByDistance(s, observer, 120f);
+        Assert.True(s.Zone.Entities.Count > 100, $"zone holds {s.Zone.Entities.Count}");
+        Assert.True(order.Count > seen.Length && order.Count(t => t.Entity != null) == seen.Length, $"degenerate: {order.Count} candidates");
+        Assert.All(hidden, h => Assert.DoesNotContain(h, order));
+        Assert.True(hidden.Max(h => length(h.Entity.Position.xz - at)) > 7500f, "the hidden ships do not reach the far window");
+        AssertPressesWalk(observer, order);
+        foreach (var h in hidden.Where((_, i) => i % 3 == 0))
+        {
+            var to = h.Entity.Position.xz - at;
+            observer.Aim = float3(to.x, 0, to.y);
+            observer.SetTarget(TargetRef.None);
+            Assert.True(observer.TargetUnderReticle());
+            Assert.DoesNotContain(observer.Target.Value, hidden);
+        }
+    }
 }
