@@ -414,6 +414,54 @@ public sealed partial class RunStartTests
             Assert.False(RunGoal.ExitOpen(ZoneOf(galaxy, zone)));
     }
 
+    // The gate belongs to the exit zone alone. A boss zone that is not the exit spawns its boss and loses it, and that zone's gate
+    // stays sealed: the exit check, not the boss mark, decides where a gate can open (a MainGalaxy choke-point boss zone is such a zone).
+    [Fact]
+    public void Exit_stays_sealed_in_a_non_exit_zone_whose_boss_died()
+    {
+        var galaxy = DemoGalaxy(1);
+        GiveAntagonistABoss(galaxy);
+        var other = galaxy.Zones.First(zone => zone != galaxy.Exit);
+        galaxy.BossZones[Zhestokost(galaxy)] = other;
+
+        var zone = ZoneOf(galaxy, other);
+        Assert.True(zone.Pack.BossSpawned, "the fixture must spawn a boss outside the exit");
+        var boss = Assert.Single(zone.Entities, entity => entity.IsBoss);
+        Assert.False(RunGoal.ExitOpen(zone));
+        boss.HeatstrokeDeath.OnNext(Unit.Default);
+        Assert.False(RunGoal.BossAlive(zone));
+        Assert.False(RunGoal.ExitOpen(zone), "a dead boss outside the exit zone opens no gate");
+    }
+
+    // The null-boss path through the real spawn loop: the boss zone is the exit, the faction's Loadout resolves, and
+    // Materialize cannot build it, so no boss is produced and the gate must not read as open.
+    // Both refusals (no Loadout, unbuildable Loadout) leave BossSpawned false.
+    [Fact]
+    public void A_refused_boss_leaves_the_exit_sealed_through_the_spawn_loop()
+    {
+        var galaxy = DemoGalaxy(1);
+        var loadout = GiveAntagonistABoss(galaxy);
+        var antagonist = Zhestokost(galaxy);
+        var exitZone = galaxy.Exit;
+        Assert.Equal(exitZone, galaxy.BossZones[antagonist]);
+
+        // Unbuildable: the Loadout resolves and the entity is null.
+        loadout.Slots[0].Position = new int2(999, 999);
+        loadout.Slots[1].Position = new int2(998, 998);
+        StoreLoadout(loadout);
+        var unbuildable = ZoneOf(galaxy, exitZone);
+        Assert.False(unbuildable.Pack.BossSpawned);
+        Assert.DoesNotContain(unbuildable.Entities, entity => entity.IsBoss);
+        Assert.False(RunGoal.ExitOpen(unbuildable));
+
+        // Unresolved: the faction's Loadout is gone, so BossOf returns null.
+        antagonist.BossLoadout = new CultRecordRef<Loadout>(Loadouts.KeyOf("No Such Loadout"));
+        var unresolved = ZoneOf(galaxy, exitZone);
+        Assert.False(unresolved.Pack.BossSpawned);
+        Assert.DoesNotContain(unresolved.Entities, entity => entity.IsBoss);
+        Assert.False(RunGoal.ExitOpen(unresolved));
+    }
+
     // Continue: the mark is saved with the zone and restored, so a boss alive when the run was saved is alive after.
     [Fact]
     public void Boss_mark_survives_continue()
