@@ -95,7 +95,7 @@ recorded, none blocking:
   `WeaponData.AmmoType` refs.
 - One cache holds all three stores for the process.
 - `RunSave` commits a save atomically with stable zone keys and clears the run
-  on New Game or death.
+  on death or victory (`RunSave.Replace` drops the old run once a new one has staged).
 - `SavedRun`, the msgpack settings and layout I/O, `.loadout`, `SaveState`,
   `SaveZone` and the importer are deleted.
 - **Loadouts are authored ship presets in the catalog.** This was reworked
@@ -137,9 +137,6 @@ Verification at `ab4ced0f`:
 The first Soul pass found untested all-or-nothing, availability and price
 rules, weapon-group corruption, dictionary-ordered product choice, and a
 premature "done". All are fixed.
-
-Recorded, not fixed: New Game clears the previous run before generation, as the
-spec says, so a generation fault loses that run.
 
 `GameData/PlayerSettings.msgpack` entered history through `5c5c3d5e`. It holds
 defaults and the username, and about 65 earlier versions are already in LFS
@@ -651,7 +648,9 @@ After Cut 10, every runtime write is a single-store `Commit` on one cache that
 holds catalog, run and player stores from first access:
 - `RunSave.Commit` saves the run at wormhole arrival and quit, with stable
   `SavedZone` keys.
-- `RunSave.Clear` deletes every run record at New Game and at death.
+- `RunSave.Clear` deletes every run record at death and victory (`ActionGameManager.EndRun`).
+- `RunSave.Replace` swaps the saved run for a new one only after the new run has
+  staged; a start that fails leaves the saved run in place.
 - The settings getter creates `PlayerSettings` on first launch, and
   `SavePlayerSettings` commits it.
 - `Loadouts.Save` writes loadouts to the player store, and
@@ -849,7 +848,7 @@ reads a global back (Q4).
 | Global | Store | Read by | Existence owned by | Missing at main menu | Missing at resume | Missing at new game |
 |---|---|---|---|---|---|---|
 | `PlayerSettings` | Player | `MainMenu` (name, tutorial flag), `ActionGameManager` (credits) | boot: `ActionGameManager.Awake` after `AetheriaStores.Open`, when `GetGlobal<PlayerSettings>()` is null, upserts one and flushes (Cut 10) | cannot happen after boot | same | same |
-| `SavedGame` | Run | `MainMenu` (resume), `Galaxy(CultCache, SavedGame, ...)` | new game: `ActionGameManager.BeginRun()` creates the run store and writes it; `Die()` deletes the run store (Cut 10) | no run file: Resume hidden; run file without `SavedGame`: refuse to resume, log the key, New Game only | as main menu | new game deletes any run store first |
+| `SavedGame` | Run | `MainMenu` (resume), `Galaxy(CultCache, SavedGame, ...)` | new run: `RunSave.Replace` writes the new run's records and removes the old run's once the scenario has staged; `EndRun` calls `RunSave.Clear` at death and victory | no run file: Continue disabled; run file without `SavedGame`: Continue disabled, log the key | as main menu | a new run keeps the saved run until it has staged |
 | catalog globals | Catalog | none exist | authored data; catalog is read-only | `AetheriaStores.Open` throws naming every `[CultGlobal]` type routed to the catalog with no record | same | same |
 
 **CultLib's role.** `[CultGlobal]` means exactly: at most one record of the
@@ -1772,8 +1771,8 @@ Probes behind 8a (scratch copies; nothing committed):
 
 Math audit:
 - **Not used:** `float4x4`, `transpose`, `determinant`, `_11` names. The
-  `determinant` hits (`AetheriaMath.cs:98-112`, `NIH\MIConvexHull`) are locals
-  and comments; the `half` hits are locals. `float2x2`/`float3x3`, `int3`/`int4`,
+  `determinant` hits were locals and comments (in `AetheriaMath.cs` and the
+  vendored `NIH\MIConvexHull`, both since deleted); the `half` hits are locals. `float2x2`/`float3x3`, `int3`/`int4`,
   `double2`/`double3`, `quaternion.LookRotation`, `Random` and `snoise` all
   compile against CultMath.
 - **Accepted by Cut 6b:** `hash`, `normalize`, `Random`, `snoise` and NaN
@@ -2596,28 +2595,31 @@ AetherDb and test edits made by Cut 9 (landed `70fbaca1`, recorded `e3af23fa`).
     - `SavedGame` global and `savedzone-{i}` records in `run.cc`.
     - `PlayerSettings` global in `player.cc`.
     - Orbit and body records in `run.cc`, written by zone generation and landed by the next save.
-  - **Run begins:** New Game calls `RunSave.Clear(CultCache)` as its first
-    statement (the `MainMenu.cs:110` handler), before the `Task.Run` at `:127`
-    or `:154`.
-    - Galaxy generation writes nothing.
-    - Zone generation (`PopulateLevel` `:615`, then `ZoneGenerator.cs:99, 108,
-      200-201, 239, 253`) upserts orbits and bodies into the attached run store.
-      They stay staged until the next `RunSave.Commit`.
+  - **Run begins:** a scenario launch (`MainMenu.Launch`) generates the galaxy on a
+    background task and writes nothing to the run store. `StartGame` then calls
+    `StartScenario`, which runs arena generation, `PopulateLevel` and staging
+    inside `RunSave.Replace(CultCache, ...)`. The saved run's records are removed
+    only when staging succeeds; on failure the records the start wrote are removed
+    and the saved run stays.
+    - Zone generation (`PopulateLevel`, then `ZoneGenerator`) upserts orbits and
+      bodies into the attached run store. They stay staged until the next
+      `RunSave.Commit`, or are removed by `Replace` on a failed start.
   - **Run saves:** `ActionGameManager.SaveRun()`:
-    - It is `if (CurrentGalaxy != null) { var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity, IsTutorial, _actionBarSlots.Select(s => s.Save()).ToArray()); RunSave.Commit(CultCache, game, zones); }`.
+    - It captures the live run (`RunSave.Capture`, which writes `SavedGame.IsTutorial` from `galaxy.IsPrelude`) and commits it with `RunSave.Commit` (`ActionGameManager.SaveRun`, `:284`).
     - Callers: wormhole arrival (`:605`) and `OnApplicationQuit() { SaveRun(); SavePlayerSettings(); }`.
-  - **Run ends:** `Die` replaces `SavePlayerSettings()` at `:1059` with
-    `RunSave.Clear(CultCache); SavePlayerSettings();`.
-    - `CurrentGalaxy` is already null (`:1058`), so a quit afterwards does not save a run.
+  - **Run ends:** `EndRun` (death and victory) nulls `CurrentGalaxy`, then calls
+    `RunSave.Clear(CultCache); SavePlayerSettings();` (`ActionGameManager.cs:1224-1232`).
+    - `CurrentGalaxy` is already null, so a quit afterwards does not save a run.
   - **Run exists:** derived only as `CultCache.GetGlobal<SavedGame>() != null`.
     - `MainMenu.ShowMain` enables Continue from it. Continue sets
-      `IsTutorial = saved.IsTutorial` and
-      `CurrentGalaxy = new Galaxy(CultCache, saved, Debug.Log)`.
-    - `StartGame` (`:695-741`) reads it once at the top: `null` takes the
-      new-run branch; otherwise it resumes from `CurrentZone`,
-      `CurrentZoneEntity` and `ActionBarBindings` (`:722, 723, 737`).
+      `CurrentGalaxy = new Galaxy(CultCache, saved, Debug.Log)`, whose `IsPrelude`
+      comes from `saved.IsTutorial`.
+    - `StartGame` (`ActionGameManager.cs:820`) branches on `PendingScenario`: set
+      means a new run (`StartScenario`); otherwise it resumes from `CurrentZone`,
+      `CurrentZoneEntity` and `ActionBarBindings` of the saved run.
     - A run store that holds records but no `SavedGame` logs
-      `run store has no SavedGame; Continue disabled`. New Game clears it.
+      `run store has no SavedGame; Continue disabled`. The next scenario launch
+      replaces those records once it has staged.
   - **Player settings:**
     - The `ActionGameManager.PlayerSettings` getter returns `CultCache.GetGlobal<PlayerSettings>()`.
     - When that is absent (first launch), the getter commits
@@ -2651,7 +2653,7 @@ AetherDb and test edits made by Cut 9 (landed `70fbaca1`, recorded `e3af23fa`).
     - The cache never creates either. `AetheriaStores.Open` keeps its missing-global check catalog-only (`AetheriaStores.cs:24-29`).
   - **Derived state:**
     - "Run exists" is derived from the `SavedGame` global.
-    - `IsTutorial` is set from it on Continue and written back by `Capture`.
+    - `Galaxy.IsPrelude` is set from `SavedGame.IsTutorial` on Continue; `Capture` writes it back from `galaxy.IsPrelude`. No static copy exists.
     - `PlayerSettings.SavedRun` is deleted, not demoted.
   - **Forbidden writers:**
     - `File.*` I/O for game state anywhere in `Assets\Scripts`.
@@ -2660,10 +2662,10 @@ AetherDb and test edits made by Cut 9 (landed `70fbaca1`, recorded `e3af23fa`).
     - A second `AetheriaStores.Open` in `Assets\Scripts`.
     - Any upsert of `SavedGame` or `SavedZone` outside `RunSave.Commit`.
   - **Shared paths:**
-    - Normal and tutorial New Game both call `Clear`.
+    - Every scenario launch goes through `RunSave.Replace`.
     - Continue and a new run's `StartGame` read the same global.
     - Wormhole and quit call `SaveRun`.
-    - Death calls `Clear`.
+    - Death and victory call `Clear` through `EndRun`.
   - **Deletion line:** `SavedRun`, `SaveState`, the msgpack settings and layout
     I/O, `SaveLoadout`, `SaveZone` and the `SavedGame` constructor go before
     `RunSave` lands.

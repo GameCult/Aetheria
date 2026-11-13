@@ -166,9 +166,9 @@ Contradictions and corrections found in the Body:
    `LoadoutTests` fixture is not: `FirstAvailableProductInKeyOrderBuildsTheSlot`
    (`LoadoutTests.cs:289-312`) adds two same-maker Lamp products and reads `.Product`.
 6. **`ItemManager` lives one scene load, and every run starts with a scene load.** It is
-   constructed in `ActionGameManager.Start` (`:264`). There is one scene, `ARPG`. New Game
-   and Continue both end in `SceneManager.LoadScene("ARPG")` (`MainMenu.cs:106,139,167`), and
-   no `DontDestroyOnLoad` exists. So a ledger held by `ItemManager` spans exactly one run.
+   constructed in `ActionGameManager.Start` (`:309`). There is one scene, `ARPG`. A scenario
+   launch and Continue both end in `SceneManager.LoadScene("ARPG")` (`MainMenu.EnterGame`,
+   `:287`), and no `DontDestroyOnLoad` guards the `ItemManager`. So a ledger held by `ItemManager` spans exactly one run.
 7. **Aside, not this cut:** `CreateInstance(CraftedItemData, float)` mints a
    `CompoundCommodity` for a `ConsumableItemData` design (`ItemManager.cs:136-141`), while
    `TryActivateConsumable` casts to `ConsumableItem` (`Entity.cs:336`). This map keeps
@@ -252,9 +252,11 @@ Not probed: CultCache Studio's rendering of the ledger (operator check); Unity c
   `ZoneGenerator`'s staged-upsert pattern (`ZoneGenerator.cs:99-108`) is not used for
   lots: the ledger is live simulation state, captured at commit like entities.
 - Lifecycle: the run begins with a scene load (§1.6), whose `Start` reads
-  `RunSave.Lots(CultCache)`. New Game has already cleared the run store (`MainMenu.cs:112`),
-  so it gets an empty ledger. Continue gets the stored one. Death clears the run store
-  (`ActionGameManager.cs:1090`); the next run reloads the scene.
+  `RunSave.Lots(CultCache)`. A scenario launch has `PendingScenario` set, so `Start` builds an
+  empty `ProvenanceLedger` instead (`ActionGameManager.cs:312`); the saved run's records stay
+  in the store until `RunSave.Replace` drops them once the new run has staged
+  (`SavedGame.cs:247`). Continue reads the stored ledger. Death and victory end in `EndRun`,
+  which calls `RunSave.Clear` (`ActionGameManager.cs:1224-1231`); the next run reloads the scene.
 
 **Branding.**
 - Owner: `ItemManager.Brand(CraftedItemInstance)` -> `(Faction Maker, FactionProductData Product)`.
@@ -526,7 +528,7 @@ Subtraction, plus a data rewrite.
   worktrees.
 
 Operator-only checks after Cut C:
-- New Game and fly through one zone. The starting ship's items show tier colour, and the
+- New Game, pick a scenario, and fly through one zone. The starting ship's items show tier colour, and the
   properties panel shows Manufacturer, product name and flavour text for branded gear.
 - Dock and buy an item: its brand still shows in your cargo.
 - Kill an NPC and pick up loot: brand shown.

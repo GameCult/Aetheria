@@ -10,6 +10,13 @@ probe was built with `--artifacts-path` in scratch, so this tree got no `bin`/`o
 writes. CultLib was a temporary detached worktree at `a0813c6`, since removed. The probe
 source is not kept; §2.8 records what it did.
 
+Since this map, the new-run path moved: `MainMenu.Launch` starts a `Scenario` and
+`ActionGameManager.StartScenario` replaces the saved run through `RunSave.Replace`
+after `RunStart` stages it (`docs/scenarios-cut.md` R.9); the `IsTutorial` static is
+gone (`Galaxy.IsPrelude` is the one owner) and `ItemManager` takes its seed in its
+constructor. Passages below that name the old `MainMenu` new-game anchors or those
+statics are rewritten to that path; the `Run` owner itself is still unbuilt.
+
 ## 0. Target
 
 Operator, 2026-09-17: player inputs "map directly to the same entity inputs the AI
@@ -107,11 +114,11 @@ All of this is Unity code:
 | Concern | Anchor | Unity dependencies |
 |---|---|---|
 | Store composition | `ActionGameManager.cs:43-63` (static, `Application.dataPath`) | path only |
-| Handoff across scene load | statics `CurrentGalaxy`, `IsTutorial` (`:96-97`), written by `MainMenu.cs:104-105,126,138,152,166`, read by `SectorMap.cs:114-310` | `SceneManager.LoadScene` (`MainMenu.cs:106,139,167`) |
-| New game: clear | `MainMenu.cs:112` | none |
-| New game: galaxy | `MainMenu.cs:125,148` (`UnityEngine.Random.value` background noise), `:127-141,153-169` (`Task.Run`, then `Observable.NextFrame`) | Random, UniRx main-thread scheduler |
-| ItemManager | `ActionGameManager.cs:264`; RNG clock-seeded at `ItemManager.cs:20` | `Debug.Log` |
-| Start / Continue | `StartGame` `:725-770`: spawn player ship `:733-744`; Continue resolves the docked child `:751-762`; action bar restore `:764-767` | renderer binding, `SectorMap` reveal |
+| Handoff across scene load | statics `CurrentGalaxy` and `PendingScenario` (`ActionGameManager.cs:108,113`), written by `MainMenu.Launch` and Continue, read by `SectorMap` | `SceneManager.LoadScene` (`MainMenu.EnterGame`, `MainMenu.cs:287`) |
+| New game: replace | `ActionGameManager.StartScenario` (`:855-876`): `RunSave.Replace` drops the saved run only after the scenario stages; `MainMenu` clears nothing | none |
+| New game: galaxy | `MainMenu.Launch` builds a `GalaxyStage` and runs `Task.Run(() => RunStart.Generate(scenario, stage))`, then `Observable.NextFrame`; background noise and galaxy draw from `GalaxyStage.Seed`, not `UnityEngine.Random` | UniRx main-thread scheduler |
+| ItemManager | `ActionGameManager.cs:309`; seed is a constructor argument, `RunStart.ItemSeed(galaxy, step)` (`RunStart.cs:99`), reseeded by `RunStart.SeedItems` | `Debug.Log` |
+| Start / Continue | `StartGame` (`:820`): `PendingScenario` set runs `StartScenario` (new run, player staged by `RunStart.Stage`); otherwise Continue resolves the saved zone and docked child and restores the action bar | renderer binding, `SectorMap` reveal |
 | Zone entry | `PopulateLevel` `:639-675`: generate/unpack `:643-654`; move pilot `:659-666` | `ZoneRenderer.LoadZone`, `Debug.Log` |
 | Wormhole placement (a game rule) | `ZoneRenderer.cs:222-231` (`dir * Pack.Radius * GameSettings.WormholeDistanceRatio`) | lives in a MonoBehaviour |
 | Warp | detect `ActionGameManager.cs:312-316`; `EnterWormhole` `:615-637`, which saves on arrival (`:635`) | `ZoneRenderer.WormholeInstances` as the wormhole list |
@@ -146,7 +153,7 @@ All of this is Unity code:
     (`GameSettings.cs:17`, authored `LonginusX`) and `WormholeDistanceRatio` (`:23`,
     authored 0.75).
 - Randomness:
-  - `ItemManager.Random` is clock-seeded (`ItemManager.cs:20`).
+  - `ItemManager.Random` is seeded by the constructor argument (`ItemManager.cs:35`); a new run's seed is `RunStart.ItemSeed(galaxy, step)`, from `Galaxy.Seed`.
   - `Galaxy` is clock-seeded only when `seed == 0` (`Galaxy.cs:108,158`).
   - `Zone` seeds from the zone name (`Zone.cs:54`).
   - `Zone.Update` runs belt updates on `Task.Run` (`Zone.cs:144`). It is still
@@ -243,7 +250,7 @@ Continue and death. There is one instance per run. It holds no Unity type.
   - `GameplaySettings`, `ZoneGenerationSettings`, `PlanetSettings`;
   - a `uint seed` for `ItemManager`;
   - `Action<string> log`;
-  - for a new run, a caller-built `Galaxy` and `isTutorial`;
+  - for a new run, a caller-built `Galaxy` (`Galaxy.IsPrelude` says whether it is the prelude) and the staged start (`RunStart.Stage`);
   - `dt` per step;
   - commands from either lowering;
   - `SavedActionBarBinding[]` at save, owned by the Unity action bar (the playground
@@ -305,10 +312,8 @@ Continue and death. There is one instance per run. It holds no Unity type.
   - `ActionGameManager`: bodies of `SaveRun`, `EnterWormhole`, `PopulateLevel`'s
     simulation half, `StartGame`, `Dock`, `DoDock`'s state half, `Undock`'s checks,
     `TowShip`, `Die`'s clear, and `IntroCutscene` (entirely);
-  - statics `CurrentGalaxy` and `IsTutorial`;
-  - `MainMenu.cs:104-105,112`;
-  - `ZoneRenderer.cs:222-231`'s wormhole construction;
-  - `ItemManager.cs:20`'s clock seed.
+  - statics `CurrentGalaxy` and `PendingScenario`;
+  - `ZoneRenderer.cs:222-231`'s wormhole construction.
 
   All of these go in the same cut that adds `Run`. None survives as a fallback.
 
@@ -318,12 +323,12 @@ Unity dependencies, each injected or cut:
 |---|---|---|
 | `Time.deltaTime` | `:1218` | injected: `Run.Step(float dt)` |
 | `Time.time` | `IntroCutscene`, `Die` post-fx | cutscene deleted; post-fx stays in Unity, on `Died` |
-| `UnityEngine.Random` | `MainMenu.cs:125,148` (background noise), `EntityInstance.cs:413-428` (loot) | noise stays in the menu as a galaxy-generation input; loot roll moves to `Zone` on `ItemManager.Random` (Cut 2); effect spread jitter (`ProjectileManager.cs:20-26`) stays visual |
-| Clock RNG | `ItemManager.cs:20` | cut; the seed is a constructor argument, and Unity passes a clock-derived one |
+| `UnityEngine.Random` | `EntityInstance.cs:413-428` (loot) | galaxy noise already draws from `GalaxyStage.Seed`; loot roll moves to `Zone` on `ItemManager.Random` (Cut 2); effect spread jitter (`ProjectileManager.cs:20-26`) stays visual |
+| Clock RNG | `Scenario.Seed` of 0 (`GalaxyStage.SeedFrom`) | the clock seeds only the galaxy seed; every item stream derives from it through `RunStart.ItemSeed` |
 | Coroutines | `IntroCutscene` | deleted (dead) |
 | UniRx | `Observable.NextFrame` in the menu, `EveryUpdate` in `Die` | stay in Unity; `Run` uses C# events, and `Entity.Death` (UniRx, headless-compiled) is what `Run` subscribes to |
 | `Debug.Log` | `:264`, `:657`, `MainMenu` | injected `Action<string>` |
-| Scene load | `MainMenu` | stays; the handoff static becomes `ActionGameManager.NewRun : (Galaxy, bool)?`, command-only, consumed once in `Start`; null means Continue |
+| Scene load | `MainMenu` | stays; the handoff static is `ActionGameManager.PendingScenario`, command-only, consumed once by `StartGame`; null means Continue |
 | MonoBehaviour state | `_currentEntity`, `DockedEntity`, `DockingBay`, `TowingStation`, `Zone`, `ItemManager` | projections of `Run` |
 | Barrel transforms | `EntityInstance.cs:516` -> `HardpointTransforms` | `HardpointTransforms` deleted (Cut 2); the arc is item rotation plus `FiringArc` (fork A); barrels and `ArticulationPoint` are presentation only, `GetBarrel` |
 | `Physics.*` hit queries | `Projectile`, `GuidedProjectile`, `Laser`, `Lightning`, `HullCollider` subjects | deleted from damage paths; `FireControl` rolls (Cut 2) |
@@ -374,7 +379,7 @@ This is subtraction first, then one new file.
 - Deletes and moves:
   - `ActionGameManager.cs`:
     - `IntroCutscene` `:772-799` (dead).
-    - Statics `CurrentGalaxy` and `IsTutorial` (`:96-97`).
+    - Statics `CurrentGalaxy` and `PendingScenario` (`:108,113`).
     - `SaveRun` body `:243-248` becomes `Run?.Save(actionBar)`. Quit (`:236`) calls it.
     - `EnterWormhole` `:615-637` and the detect loop `:312-316` become
       `Run.TryEnterWormhole()`. `WarpArrived` drives `SectorMap.QueueZoneReveal`.
@@ -393,14 +398,13 @@ This is subtraction first, then one new file.
       `Run.Died`.
     - `:264` constructs no `ItemManager`.
     - `Update` `:1218` becomes `Run.Step(Time.deltaTime)`.
-  - `MainMenu.cs`:
-    - Continue (`:102-107`) sets `ActionGameManager.NewRun = null` and loads the scene.
-    - New Game drops `:112` and sets `NewRun = (sector, tutorial)` at `:138,166`.
+  - `MainMenu`: already built. Continue (`ShowMain`) loads the scene with no
+    `PendingScenario`; `MainMenu.Launch` sets `PendingScenario` and clears nothing.
   - `SectorMap.cs:114-310` reads `ActionGameManager.Instance.Run.Galaxy`.
   - `InventoryPanel.cs:117-118` becomes `GameManager.Run.Board(ship)`.
   - `ZoneRenderer.cs:222-231` iterates `zone.Wormholes`.
-  - `ItemManager.cs:20`: the seed becomes a constructor argument. Call sites: 11 in
-    tests, 1 in `AetherDb`, and `Run`.
+  - `ItemManager`: the seed is already a constructor argument (`ItemManager.cs:35`);
+    `Run` supplies `RunStart.ItemSeed(galaxy, step)`.
 - Settings (fork S (a)):
   - `StartingHullName` and `WormholeDistanceRatio` move from `GameSettings.cs:17,23` to
     `GameplaySettings` (`Settings.cs:155`).
@@ -412,8 +416,8 @@ This is subtraction first, then one new file.
   `GalaxyZone.AdjacentZones` with the rule from `ZoneRenderer.cs:226-230`. Null galaxy
   zone gives an empty array.
 - New `Run.cs`: types and rules, no bodies here.
-  - `static Run New(CultCache, GameplaySettings, ZoneGenerationSettings, PlanetSettings, Galaxy, bool isTutorial, uint seed, Action<string> log)`
-    1. `RunSave.Clear`.
+  - `static Run New(CultCache, GameplaySettings, ZoneGenerationSettings, PlanetSettings, Galaxy, Scenario, Action<string> log)`
+    1. `RunSave.Replace` around steps 2-5 (the saved run goes only once the scenario has staged).
     2. `ItemManager` over `RunSave.Lots`, seeded.
     3. `EnterZone(Entrance)`.
     4. Spawn the player ship per `:734-743`.
@@ -446,7 +450,7 @@ This is subtraction first, then one new file.
     child; updates `Bay.DockedShip`.
   - `void Tow()`: the rule from `:891-911`.
   - `void Save(SavedActionBarBinding[] actionBar)`
-    - `RunSave.Capture(cache, Galaxy, Zone, Station ?? Pilot, isTutorial, actionBar)`,
+    - `RunSave.Capture(cache, Galaxy, Zone, Station ?? Pilot, actionBar, credits)`,
       then `Commit(…, ItemManager.Lots)`.
     - No-op when `Ended`.
     - Remembers `actionBar` for warp saves.
@@ -461,7 +465,7 @@ This is subtraction first, then one new file.
 
 | Test | Asserts | Mutation that must kill it |
 |---|---|---|
-| `NewRunSpawnsPilotInEntrance` | pilot is a `Ship` with `IsPlayerShip`, in `Zone.Entities`, `Zone.GalaxyZone == Galaxy.Entrance`; the run store is cleared of a prior `SavedGame` | `New` skips `RunSave.Clear`; spawn omits `Zones.Entities.Add` |
+| `NewRunSpawnsPilotInEntrance` | pilot is a `Ship` with `IsPlayerShip`, in `Zone.Entities`, `Zone.GalaxyZone == Galaxy.Entrance`; the run store holds no prior `SavedGame` once the run has staged | `New` skips `RunSave.Replace`; spawn omits `Zones.Entities.Add` |
 | `WarpMovesPilotAndSaves` | stepping after `TryEnterWormhole` lands the pilot in the target zone, out of the old zone's entities, with `SavedGame.CurrentZone` equal to the target index after reopen | arrival skips `Save`; `EnterZone` leaves the pilot in the old zone |
 | `ContinueLandsDocked` | save while docked, reopen, `Continue`: `Station` is the saved orbital, `Pilot` is its player child | `Land` binds to the orbital itself |
 | `DeathEndsAndClears` | hull death clears every run record; `Step` throws; `Save` writes nothing | `Died` handler omits `Clear`; `Ended` not set |
@@ -473,7 +477,7 @@ This is subtraction first, then one new file.
   - Unity batchmode has no `error CS`.
   - Negative greps:
     - `rg -n "RunSave\.(Clear|Commit|Capture)" Assets/Scripts --glob '!ServerShared/**'` is empty.
-    - `rg -n "CurrentGalaxy|IsTutorial\s*=" Assets/Scripts` is empty.
+    - `rg -n "CurrentGalaxy|PendingScenario" Assets/Scripts` matches only the `Run` lowering in `ActionGameManager` and `MainMenu`.
     - `rg -n "new Wormhole" Assets/Scripts` matches only `Zone.cs`.
     - `rg -n "new ItemManager\(" Assets/Scripts` matches only `Run.cs`.
     - `rg -n "ZoneGenerator\.GenerateZone|new Zone\(" Assets/Scripts --glob '!ServerShared/**'` is empty.
@@ -1161,7 +1165,7 @@ Options as mapped before the ruling:
 - **Recommend (a).**
 
 **N. Is the scene handoff static acceptable?** Low-blocking.
-- (a) `ActionGameManager.NewRun : (Galaxy, bool)?`, consumed once by `Start`.
+- (a) `ActionGameManager.PendingScenario : Scenario`, consumed once by `StartGame` (built this way).
 - (b) `MainMenu` builds the whole `Run` on its generation thread. That moves zone
   generation's run-store upserts off the main thread, and the `CultCache` threading
   contract is not checked here.
