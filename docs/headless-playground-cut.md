@@ -127,10 +127,11 @@ All of this is Unity code:
 | Save | `SaveRun` `:241-249`, called at quit `:236` and warp `:635` | action-bar slots (`:246`) |
 | Death | `BindToEntity` subscribes `Death` -> `Die` (`:1053`); `Die` `:1080-1115` clears the run (`:1088`) | `Time.time`, `Observable.EveryUpdate` post-fx |
 | Tick | `Update` `:1151-1220`: input `:1189-1216`, then `Zone.Update(Time.deltaTime)` `:1218` | `Time.deltaTime`, pause flag |
-| Dead code | `IntroCutscene` `:772-799`; its only call is commented out (`:760`) | coroutine, `Time.time` |
 
 ### 2.2 Already headless
 
+- Past probe: the measurements below were taken at an earlier commit and their line anchors
+  are not maintained; re-run the probe before relying on a number or an anchor.
 - `Aetheria.Shared/Aetheria.Shared.csproj` compiles `Assets/Scripts/ServerShared/**`
   plus UniRx (`UniRxLibrary`) and Ink with no Unity defines. It is the
   Unity-independence check.
@@ -141,23 +142,23 @@ All of this is Unity code:
   - a player `LonginusX` spawned through `LoadoutGenerator`;
   - thrust by hand-set `MovementDirection` reached 142 m/s in 5 s;
   - a `Minion` patrol moved the player ship 642 units in 10 s;
-  - `TryDock` and `TryUndock` succeeded (`Entity.cs:721-755`);
-  - `Ship.EnterWormhole` followed by stepping fired `OnEnteredWormhole` (`Ship.cs:82-90,372`);
-  - `Death` fired on hull damage (`Entity.cs:277-280`);
+  - `TryDock` and `TryUndock` succeeded;
+  - `Ship.EnterWormhole` followed by stepping fired `OnEnteredWormhole`;
+  - `Death` fired on hull damage;
   - `RunSave.Capture` and `RunSave.Commit` wrote a 489 KB `run.cc`.
 - Settings: `GameSettings` is a ScriptableObject (`GameSettings.cs:11`) holding
   ServerShared classes.
   - `tools/AetherDb/AuthoredSettings.cs` reads them from the asset YAML. The probe
     placed every field (0 unplaced).
   - Two lifecycle inputs are Unity-only `GameSettings` fields: `StartingHullName`
-    (`GameSettings.cs:17`, authored `LonginusX`) and `WormholeDistanceRatio` (`:23`,
+    (`GameSettings.cs:13`, authored `Longinus`) and `WormholeDistanceRatio` (`:16`,
     authored 0.75).
 - Randomness:
   - `ItemManager.Random` is seeded by the constructor argument (`ItemManager.cs:35`); a new run's seed is `RunStart.ItemSeed(galaxy, step)`, from `Galaxy.Seed`.
-  - `Galaxy` is clock-seeded only when `seed == 0` (`Galaxy.cs:108,158`).
-  - `Zone` seeds from the zone name (`Zone.cs:54`).
-  - `Zone.Update` runs belt updates on `Task.Run` (`Zone.cs:144`). It is still
-    deterministic (probe: identical traces).
+  - `Galaxy` takes its seed from the run (`Galaxy.cs:119`); a zero seed throws.
+  - `Zone` seeds from the zone name: `CombatSeed` (`Zone.cs:162`), with `DropSeed` mixing in the run's seed (`:163`).
+  - Probe: `Zone.Update` was deterministic (identical traces) when belt updates ran on `Task.Run`;
+    no `Task.Run` remains in `Zone.cs`.
 
 ### 2.3 Agents
 

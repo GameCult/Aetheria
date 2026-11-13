@@ -301,7 +301,7 @@ resources **(probe: 8 belts, 0 authored)**.
 - A: Composition is derived: `Comp_c(o) = Abundance_o × exp(Variance × g(hash(belt key, index, o)))`, normalized,
   with `g ∈ [-1, 1]`. Nothing is stored. Existing saves work, and key 4 is retired.
 - B: `ZoneGenerator` writes `BodyData.Resources` per belt at generation, and the chunk jitter is derived. Belts in
-  runs started before Cut 5 have empty compositions until New Game.
+  runs started before Cut 5 have empty compositions until a new run.
 - C: Per-belt only, with no per-chunk variation.
 - **Recommended: A.** It has one owner (the catalog) and nothing to migrate. It follows the same "derived, never
   stored" spirit as branding. The operator's wording ("the chunk's composition") argues against C. If B is chosen,
