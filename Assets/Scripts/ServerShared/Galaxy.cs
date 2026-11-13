@@ -449,6 +449,21 @@ public class Galaxy
         }
     }
 
+    // A zone no link reaches would throw far from here, placing homes or the entrance; refuse it where it is made.
+    public static void RequireEveryZoneLinked(GalaxyZone[] zones, IEnumerable<(GalaxyZone, GalaxyZone)> links)
+    {
+        if (zones.Length < 2) return;
+        var linked = new HashSet<GalaxyZone>();
+        foreach (var link in links)
+        {
+            linked.Add(link.Item1);
+            linked.Add(link.Item2);
+        }
+        var stranded = zones.Where(zone => !linked.Contains(zone)).ToList();
+        if (stranded.Count > 0)
+            throw new InvalidOperationException($"Triangulation left {stranded.Count} of {zones.Length} zones unlinked, first at {stranded[0].Position}");
+    }
+
     private void GenerateLinks(float linkDensity, Action<string> progressCallback = null)
     {
         progressCallback?.Invoke("Triangulating Zone Positions");
@@ -458,6 +473,7 @@ public class Galaxy
         var links = Delaunay.Edges(Zones.Select(z => z.Position).ToArray())
             .Select(edge => (Zones[edge.a], Zones[edge.b]))
             .ToList();
+        RequireEveryZoneLinked(Zones, links);
 
         progressCallback?.Invoke("Eliminating Zone Links");
         if (progressCallback != null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
