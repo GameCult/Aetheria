@@ -196,9 +196,9 @@ public sealed class MiningCut5bTests : IDisposable
 
     private CultCache Open() => AetheriaStores.Open(Path.Combine(_root, "Aetheria.cc"), Path.Combine(_root, "run.cc"), Path.Combine(_root, "player.cc"));
 
-    private static ShipPack PackHolding(params ItemInstance[] stacks) => new ShipPack
+    private static ShipPack PackHolding(int hullLot, params ItemInstance[] stacks) => new ShipPack
     {
-        Name = "ship", Hull = new EquippableItem(),
+        Name = "ship", Hull = new EquippableItem { Lot = hullLot },
         Equipment = Array.Empty<(int2, EquippableItem)>(), CargoBays = Array.Empty<(int2, EquippableItem)>(),
         DockingBays = Array.Empty<(int2, EquippableItem)>(),
         CargoContents = new[] { stacks.Select((s, i) => (new int2(i, 0), s)).ToArray() },
@@ -207,9 +207,13 @@ public sealed class MiningCut5bTests : IDisposable
         DockingBayAssignments = Array.Empty<int>(), Settings = new EntitySettings(), WeaponGroups = Array.Empty<int[]>()
     };
 
+    // The ship's hull is a crafted item and roots like any other, so the fixture gives it a lot of its own.
+    private int _hullLot;
+
     // The ledger as the run file holds it after a save of ships holding `held`.
     private ProvenanceLedger SaveAndReload(ProvenanceLedger live, params ItemInstance[] held)
     {
+        _hullLot = live.Add(new Lot { Design = default, Origin = new Attributed(), Quality = 1f, Roles = new List<RoleFill>() });
         using (var cache = AetheriaStores.Open(Path.Combine(_root, "Aetheria.cc"), catalogWritable: true))
         {
             cache.Commit(batch => batch.Upsert(new VerseGrammar { Revision = 1 }));
@@ -225,11 +229,44 @@ public sealed class MiningCut5bTests : IDisposable
             var zone = new SavedZone
             {
                 Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
-                Contents = new ZonePack { Entities = new List<EntityPack> { PackHolding(held) } }
+                Contents = new ZonePack { Entities = new List<EntityPack> { PackHolding(_hullLot, held) } }
             };
             RunSave.Commit(cache, game, new[] { zone }, live);
         }
         using (var cache = Open()) return RunSave.Lots(cache);
+    }
+
+    // An ore the draw never picks mints no lot: the ledger gains nothing for it, only for the ore that was drawn.
+    [Fact]
+    public void AnOreThatDrawsZeroUnitsMintsNoLot()
+    {
+        var f = Build();
+        var dud = MiningCut5aTests.Commodity("Dud");
+        MiningCut5aTests.Stock(f.Scene, f.Scene.Kinds[0], (f.Ore, 1f), (dud, 1e-12f));
+        var zone = ZoneOf(f, 0);
+        var ship = Shooter(f, zone);
+        var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
+        var before = f.Scene.Items.Lots.Lots.Count;
+        Mine(f, zone, ship, 0, 0);
+
+        Assert.Equal(4, MiningCut5aTests.Units(bay, "Rock", f.Scene));
+        Assert.Equal(0, MiningCut5aTests.Units(bay, "Dud", f.Scene));
+        Assert.Equal(before + 1, f.Scene.Items.Lots.Lots.Count);
+        Assert.Equal(1, f.Scene.Items.Lots.Lots.Values.Count(l => l.Origin is Extracted));
+    }
+
+    // A crafted item with no lot is corruption and the save says so; a SimpleCommodity at Lot 0 is ordinary stock.
+    [Fact]
+    public void ACraftedItemAtLotZeroFailsTheSaveLoudly()
+    {
+        var f = Build();
+        var crafted = new EquippableItem { Data = f.Scene.Cache.RefOf<ItemData>(f.Scene.Hull), Lot = 0 };
+        var thrown = Assert.Throws<InvalidOperationException>(() => SaveAndReload(new ProvenanceLedger(), crafted));
+        Assert.Contains("Lot 0 is not in the provenance ledger", thrown.Message);
+
+        var stock = new SimpleCommodity { Data = new CultRecordRef<ItemData>(f.Scene.Cache.RefOf(f.Ore).Key), Quantity = 3, Lot = 0 };
+        var savedStock = SaveAndReload(new ProvenanceLedger(), stock);
+        Assert.Equal(new[] { _hullLot }, savedStock.Lots.Keys);
     }
 
     [Fact]
@@ -248,7 +285,7 @@ public sealed class MiningCut5bTests : IDisposable
 
         var saved = SaveAndReload(f.Scene.Items.Lots, held);
 
-        Assert.Equal(held.Select(s => s.Lot).OrderBy(i => i), saved.Lots.Keys.OrderBy(i => i));
+        Assert.Equal(held.Select(s => s.Lot).Append(_hullLot).OrderBy(i => i), saved.Lots.Keys.OrderBy(i => i));
         Assert.DoesNotContain(orphan, saved.Lots.Keys);
         var origin = Assert.IsType<Extracted>(saved[held[0].Lot].Origin);
         Assert.Equal(1, origin.Zone);
@@ -269,10 +306,10 @@ public sealed class MiningCut5bTests : IDisposable
         var continued = new ItemManager(1u, f.Scene.Cache, saved, RunSaveTests.TestSettings(), _ => { });
 
         Assert.Equal(held.Lot, continued.ExtractedLot(1, f.Scene.Belts[0], f.Ore));
-        Assert.Single(saved.Lots);
+        Assert.Equal(2, saved.Lots.Count); // the mined lot and the hull
         var next = continued.ExtractedLot(1, f.Scene.Belts[1], f.Ore);
         Assert.NotEqual(held.Lot, next);
-        Assert.Equal(2, saved.Lots.Count);
+        Assert.Equal(3, saved.Lots.Count);
         // Zone and ore tell lots apart as the belt does.
         Assert.NotEqual(next, continued.ExtractedLot(2, f.Scene.Belts[1], f.Ore));
     }
@@ -303,6 +340,7 @@ public sealed class MiningCut5bTests : IDisposable
         var back = MessagePackSerializer.Deserialize<ItemInstance>(MessagePackSerializer.Serialize<ItemInstance>(
             new SimpleCommodity { Data = key, Quantity = 2, Lot = 9 }, options), options);
         Assert.Equal(9, back.Lot);
-        Assert.Empty(SaveAndReload(new ProvenanceLedger(), old).Lots);
+        var savedOld = SaveAndReload(new ProvenanceLedger(), old);
+        Assert.Equal(new[] { _hullLot }, savedOld.Lots.Keys); // the hull only
     }
 }
