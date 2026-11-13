@@ -175,6 +175,23 @@ public sealed class StationServicesTests : IDisposable
         Assert.Contains(ore, open.Cargo.Keys);
     }
 
+    // The market absorbs a sold commodity (aetheria-release:ruling:station-market-absorbs-sold-commodity): a full hold
+    // stores what fits, the rest is taken, and the full price is paid; a hold with no room at all still pays.
+    [Fact]
+    public void TrySell_commodity_is_paid_in_full_when_the_station_hold_is_full()
+    {
+        var from = Ship().CargoBays.Single();
+        var ore = Ore(10);
+        Assert.True(from.TryStore(ore));
+        var station = Station();
+        while (station.CargoBays[0].TryStore(Mint("Gun"))) { }
+        var credits = 0;
+        Assert.True(StationServices.TrySell(from, station, ore, ref credits));
+        Assert.Equal(35, credits);
+        Assert.Empty(from.Cargo.Keys.OfType<SimpleCommodity>());
+        Assert.Empty(station.CargoBays[0].Cargo.Keys.OfType<SimpleCommodity>());
+    }
+
     [Fact]
     public void Repair_restores_and_charges()
     {
