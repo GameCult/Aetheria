@@ -502,7 +502,6 @@ record.
 | follow-up | `hull-damage-wear` | demo | Damage visible on the hull (line 6). |
 | follow-up | `mod-ship-single-existence-gate` | demo | A skipped package throws on spawn; demo hulls are packages. |
 | follow-up | `ambiguous-hardpoint-origin` | demo | Save correctness for package hulls. |
-| follow-up | `remove-sbsar-files` | demo | Clean break from Substance before a public build. |
 | follow-up | `delaunay-exact-predicates` | demo | Galaxy links; a silently unlinked zone could strand a demo run. |
 | follow-up | `failed-start-scene-halts` | demo | The New Game failure path the demo's missing-cast refusal uses. |
 | follow-up | `stale-docs-after-scenarios-menu` | demo | Docs that describe the old New Game path. |
@@ -2188,7 +2187,7 @@ wear comes from baked maps. Grunge is baked into `ship.maps.png` A.
   - r2's region tint (`_PaintStrength`, `RegionLuminance`, a tiling `_WearNoise`)
     and its `Livery` of three colours are never built.
   - Revision 1's vertex mask is gone.
-  - The 41 `.sbsar` files go with follow-up `remove-sbsar-files`.
+  - The 41 `.sbsar` files are removed (follow-up `remove-sbsar-files`).
 
 #### Parity
 

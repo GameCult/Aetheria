@@ -63,8 +63,9 @@ rows are kept for the combined test count.
   The three file sets are disjoint. I checked with `git diff --name-only` over each branch's own range, and none
   of the three pairs shares a file. So each anchored line is byte-identical in the merged tree.
 - **Tests ran on Yggdrasil, against synthetic merges** (section 0). CultLib `45c2f40` and CultMath `6d5e209` are
-  the pins in `Directory.Build.props`. The two LFS files the tests read (`GameData/Aetheria.cc`,
-  `Assets/Resources/Settings.asset`) were staged beside the job, because the verify mirror carries no LFS.
+  the pins in `Directory.Build.props`. The LFS files the tests read were staged beside the job, because the verify mirror carries no LFS. The Mining
+  cut tests needed `GameData/Aetheria.cc` and `Assets/Resources/Settings.asset`; `SubstanceCleanBreakTests` needs 97 and the whole suite needs more
+  (see the LFS staging set under Verification).
 - **Catalog facts** come from a probe that opens the merged tree's `GameData/Aetheria.cc` through
   `AetheriaStores.Open` (section 0).
 
@@ -289,7 +290,7 @@ Every mining question is ruled.
   - Mark the `:396-412` table as history, anchored at `8bd25f6f`.
 - **Verification:**
   - Yggdrasil, the same job that section 0 ran:
-    `ygg-verify.sh <aetheria clone> <merge sha> dotnet '<clone CultLib 45c2f40 to /CultLib and 6d5e209 to /CultMath; restore the two LFS files; dotnet test tests/Aetheria.Shared.Tests -p:CultLibRoot=/CultLib -p:CultMathRoot=/CultMath>'`.
+    `ygg-verify.sh <aetheria clone> <merge sha> dotnet '<clone CultLib 45c2f40 to /CultLib and 6d5e209 to /CultMath; restore the LFS staging set below; dotnet test tests/Aetheria.Shared.Tests -p:CultLibRoot=/CultLib -p:CultMathRoot=/CultMath>'`.
     Both roots are mandatory (shared precondition).
     - The job mounts the Yggdrasil mirrors read-only with
       `DOCKER_ARGS="-v /home/gamecultadmin/eureka-verify/repos:/repos:ro -v /home/gamecultadmin/eureka-verify/lfs-aetheria:/lfs:ro"`.
@@ -298,8 +299,16 @@ Every mining question is ruled.
     Rule pinned: fire control and mining compose without a behaviour change on either side. Every pre-existing
     test passes unchanged.
   - The verify mirror has no LFS (the push from `F:\Projects\Aetheria` fails in the LFS pre-push hook on an
-    `ssh:` remote). Push from a `--shared --no-checkout` clone, and mount the two LFS blobs. This is recorded
+    `ssh:` remote). Push from a `--shared --no-checkout` clone, and mount the LFS blobs. This is recorded
     so the next Hands does not rediscover it.
+  - LFS staging set. `SubstanceCleanBreakTests` fails loudly on any LFS pointer it scans, so the job must restore
+    every LFS-tracked file under `Assets/`, `Packages/`, `ProjectSettings/` and `GameData/*.cc` that is not a
+    binary-media extension (the test's `BinaryExtensions` denylist): 99 files at `83e6957de`, 96 `*.asset` and 3
+    `*.cc` (`GameData/Aetheria.cc`, `GameData/Mods/aetheria.nakovalnya/ship.cc`, `GameData/Mods/aetheria.wren/ship.cc`),
+    which includes `ProjectSettings/ProjectSettings.asset` and `Assets/Resources/Settings.asset`. Derive the list from
+    the merged tree instead of hand-copying it:
+    `git ls-files Assets Packages ProjectSettings 'GameData/*.cc' | git check-attr --stdin filter | grep 'lfs$' | sed 's/: filter: lfs//' | grep -viE '\.(png|jpg|jpeg|tga|tif|tiff|psd|bmp|gif|exr|hdr|dds|wav|mp3|ogg|mp4|fbx|glb|blend|ttf|otf|dll|so|pdb|msgpack|zip|bank)$'`,
+    then copy each path from the `/lfs` mount over the checkout. That set (99: the 97 the sbsar guards read plus the two mod `ship.cc` files the Nakovalnya and Wren tests open) makes `SubstanceCleanBreakTests` green and nothing more: staging only two files turns it red. For a fully green suite also stage `GameData/Mods/*/ship.glb` (the catalog excludes a package with an invalid GLB header, failing about 520 tests) and the LFS `.ttf`/`.otf` fonts `CreditsTests.FontCreditsShowWhatTheFontsThemselvesEmbed` reads.
   - Unity batchmode compile of the merged tree (Self, in a worktree, never with the operator's editor open on
     the main tree). This is the Cut 1 renderer compile the map still owes.
   - Operator: fly through a belt (the Cut 1 check the map still owes). Rocks orbit smoothly, and the minimap

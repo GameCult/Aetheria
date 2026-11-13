@@ -51,7 +51,6 @@
 *.dylib filter=lfs diff=lfs merge=lfs -text
 *.bundle filter=lfs diff=lfs merge=lfs -text
 *.engine filter=lfs diff=lfs merge=lfs -text
-*.sbsar filter=lfs diff=lfs merge=lfs -text
 *.msgpack filter=lfs diff=lfs merge=lfs -text
 GameData/*.cc filter=lfs diff=lfs merge=lfs -text
 GameData/Mods/**/*.cc filter=lfs diff=lfs merge=lfs -text
