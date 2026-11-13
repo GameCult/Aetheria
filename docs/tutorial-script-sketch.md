@@ -16,7 +16,7 @@ Status: sketch for the operator to react to. Nothing here is built or canon.
 
 ## Shape
 
-One contained tutorial run in a small prelude galaxy (`IsTutorial`,
+One contained tutorial run in a small prelude galaxy (`Galaxy.IsPrelude`,
 `TutorialGenerationSettings`). The player is a newly incorporated subsidiary of the
 protagonist faction. Threefra, a debt-born assessor with opinions, walks them through a
 "qualification module" whose checklist is theatre. The real test is how the player

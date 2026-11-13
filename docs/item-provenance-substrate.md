@@ -68,8 +68,7 @@ catalog, built a 196-zone sector galaxy from the authored `Settings.asset`, and 
   `47189c8a`). The commented `HaulingControllerData` union (`Behaviors.cs:179`) is
   the same kind of residue.
 - **No recipe, blueprint or ingredient model exists.** "Factory", "fabricat",
-  "assembler", "blueprint", "recipe" and "refiner" appear in no live C# outside
-  `NIH/MIConvexHull`.
+  "assembler", "blueprint", "recipe" and "refiner" appear in no live C#.
 
 `ItemData.Manufacturer` readers: `PropertiesPanel.cs:371-372` (shows "Manufacturer",
 falling back to "GameCult"), `tools/AetherDb/Program.cs:54` (census), and the
@@ -83,7 +82,7 @@ All crafted instances come from three `ItemManager` overloads:
 - `CreateInstance(CraftedItemData, float quality)` (`ItemManager.cs:126-142`) sets
   Quality and Durability, with no product and no ingredients.
 - `CreateInstance(CraftedItemData)` (`:144-160`) rolls a rarity tier with the
-  **time-seeded** `ItemManager.Random` (`:20`) and stores the tier's *discrete*
+  `ItemManager.Random` (`:22`; seeded per run from the galaxy seed by `RunStart.ItemSeed`) and stores the tier's *discrete*
   Quality.
 - `CreateInstance(FactionProductData)` (`:164-187`) calls the previous overload, sets
   `Product`, and draws a gaussian `RoleFill` per design role. Since no role is
@@ -130,9 +129,12 @@ unexecuted stubs.
   `TradeMenu.Inventory = entity.CargoBays.First()` (`ActionGameManager.cs:827-829`).
 - **Zones generate lazily on first entry** (`ActionGameManager.cs:643-652`,
   `PackedContents ??=`) from a deterministic zone seed
-  (`ZoneGenerator.cs:47`: name hash xor position hash). Item *selection* follows that
-  seed, but item *quality* comes from the time-seeded `ItemManager.Random`. A zone is
-  never regenerated within a run. New Game clears the run store (`MainMenu.cs:111`).
+  (`ZoneGenerator.cs:52`: name hash xor position hash). Item *selection* follows that
+  seed, but item *quality* comes from `ItemManager.Random`, a stream seeded per run from
+  the galaxy seed (`RunStart.SeedItems`, steps `ArenaStep`, `StageStep`, `ContinueStep`)
+  and drawn in the order zones are entered. A zone is never regenerated within a run. A
+  new run does not clear the run store up front: `RunSave.Replace` drops the old run's
+  records once the new run has staged (`SavedGame.cs:247`).
 - Each station carries hull, hardpoint gear, one docking bay, cargo bay, capacitor and
   stock, all embedded by value. No station equips a factory; none can, because factory
   designs have no product (§1).
@@ -150,8 +152,9 @@ unexecuted stubs.
   `FactionProductData`, `PersonalityAttribute`, `NameFile`, `InputLayout`, `Loadout`.
 - Run (`:10`): `OrbitData`, `BodyData`, `SavedZone`, `SavedGame`. Written only by
   `RunSave.Commit`, which does one commit, keys zones `savedzone-{i}` and removes stale
-  zones (`SavedGame.cs:96-111`). `RunSave.Clear` removes every run-typed record
-  (`:114-124`). The single-file store writes its whole view on commit.
+  zones (`SavedGame.cs:216`). `RunSave.Clear` removes every run-typed
+  record (`:242`); `RunSave.Replace` (`:247`) does the same for a new run, but only once
+  the new run has staged. The single-file store writes its whole view on commit.
 - Player (`:11`): `PlayerSettings`.
 - **Every item instance is a value** embedded in `EntityPack` (hull, equipment, bays,
   cargo contents; `EntitySerializer.cs:179-196`), inside `SavedZone.Contents`. No
@@ -237,7 +240,7 @@ Every stat and wear reader goes through the instance:
 
 "F" marks a fork (§9). "D" marks a recorded default.
 
-| Kind | Named by | Mint | Transfer / loot / sell | Consume | Zone unload / save | New Game / death | Decides |
+| Kind | Named by | Mint | Transfer / loot / sell | Consume | Zone unload / save | New run / death | Decides |
 |---|---|---|---|---|---|---|---|
 | **Lot** (provenance node) | run-scoped `LotId` (F1) | synthesis, at the mint site's call (F3) | never moves; instances point at it (D) | synthesized inputs are consumed at synthesis and have no instance (D) | kept while reachable from any instance, route or station; GC on `RunSave.Commit` (D, from the orphan-SavedZone scar) | cleared with the run store (D) | the synthesizer, one function in `ServerShared` |
 | **Lot properties** (mocked quality per role) | on the lot (F4) | rolled once at synthesis from factory quality and input qualities, seeded by lot id (F4) | immutable | n/a | with the lot | with the lot | synthesizer; stat readers only read |
@@ -301,7 +304,7 @@ synthesized?** Blocks station identity, routes, stock and loot provenance.
   pirated freighter's cargo should come from a station the player can fly to. The
   skeleton is about 200 stations, small next to 16k instances. It demotes
   `ZoneGenerator`'s station count and faction choice to reading the roster. It also
-  moves item quality from the time-seeded `ItemManager.Random` to seeded synthesis,
+  moves item quality from the per-run `ItemManager.Random` stream, which depends on the order zones are entered, to lot-seeded synthesis,
   which makes the chain regenerable.
 - Sub-default: stations keep no identity outside a run. Zones never regenerate within
   one.

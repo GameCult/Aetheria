@@ -33,7 +33,7 @@ Compiled 2026-09-29 by Eyes from the maps on the branch. Pointers are `doc:line`
 ### 2b. Fresh launch (no `run.cc`, no `player.cc`)
 
 3. **Launch to main menu.** Expect no Addressables errors, and the Groups window shows `Assets/Content` under `Default Local Group` (`addressables-cut.md:301`). `player.cc` appears and Continue is disabled (`cultcache-migration-cut.md:2746`). Proves: Addressables Cut 1, CultCache cutover. The 09-17 smoke covered the last two on the old tree; this is a cheap recheck on the new schema.
-4. **New Game (tutorial).** Expect the galaxy generates and the start ship is the Longinus (`settings-globals-cut.md:498`, an expectation, not a recorded check for this stack). Expect a Zenith station with a docking bay in the entrance zone every time (`locomotion-cut.md:375`). Proves: locomotion Cut 1 station rule.
+4. **New Game, then a scenario.** New Game opens the scenario picker (`MainMenu.ShowScenarios`); a development build lists modes (Terminus (Demo)), development (Tutorial Galaxy, Main Galaxy) and test arenas, a release build lists only the modes. Pick Tutorial Galaxy or Terminus (Demo). Expect the galaxy generates and the start ship is the Longinus (`settings-globals-cut.md:498`, an expectation, not a recorded check for this stack). Expect a Zenith station with a docking bay in the entrance zone every time (`locomotion-cut.md:375`). Proves: locomotion Cut 1 station rule.
 5. **Addressables, "Use Asset Database".** Ships, turret and Zenith spawn; thruster and aether-drive particles show; fire an instant weapon (Autocannon) and a charged one (ChargeBlast SG); action bar icons show (`addressables-cut.md:362-366`). Proves: Addressables Cut 2.
 
 ### 2c. Flight, power and economy
