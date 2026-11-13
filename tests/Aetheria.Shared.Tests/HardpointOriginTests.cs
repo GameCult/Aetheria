@@ -102,6 +102,27 @@ public sealed partial class RunStartTests
         Assert.Equal(first, second);
         Assert.Equal(b.Rotation, first);
     }
+
+    // A deployed entity takes no gear, so no probe reports a fit or a seat on one (the out overload's own guard).
+    // Kills: a probe that ignores the deployed state and offers a placement TryEquip would then refuse.
+    [Fact]
+    public void ADeployedEntityTakesNoProbe()
+    {
+        var (hull, _, _) = TwinMountHull("Origin Twin Mounts Deployed");
+        var edge = ScratchGear("Origin Edge Gun Deployed", HardpointType.Ballistic, EdgeShape());
+        var entity = BareHull(hull);
+        var item = Instance(edge);
+        item.Rotation = ItemRotation.Clockwise;
+        Assert.True(entity.ItemFits(item, int2(5, 5), out _));
+
+        var zone = Arena(false);
+        entity.Zone = zone;
+        zone.Admit(entity, piloted: false);
+        Assert.False(entity.ItemFits(item, int2(5, 5), out var seated));
+        Assert.Equal(ItemRotation.Clockwise, seated);
+        Assert.False(entity.ItemFits(item, int2(5, 5)));
+        Assert.False(entity.TryEquip(item, int2(5, 5)));
+    }
 }
 
 // The shipped catalog authors no origin that two differently turned hardpoints of one type both take. The fit rule alone
