@@ -115,6 +115,7 @@ public sealed class ShippedHardpointOriginTests
         var designs = cache.GetAll<EquippableItemData>().Where(d => !(d is HullData) && d.HardpointType != HardpointType.Tool).ToArray();
         var ambiguous = new List<string>();
         var pairs = 0;
+        var probes = 0;
         foreach (var hull in cache.GetAll<HullData>())
             for (var i = 0; i < hull.Hardpoints.Count; i++)
                 for (var j = i + 1; j < hull.Hardpoints.Count; j++)
@@ -128,11 +129,14 @@ public sealed class ShippedHardpointOriginTests
                             for (var y = -20; y < hull.Shape.Height; y++)
                             {
                                 var origin = int2(x, y);
+                                probes++;
                                 if (a.TakesAt(design, origin - a.Position) && b.TakesAt(design, origin - b.Position))
                                     ambiguous.Add($"{hull.Name} {design.Name} at ({x},{y}): hardpoints {i} and {j}");
                             }
                 }
         System.Console.WriteLine($"ShippedHardpointOriginTests visited {pairs} same-type different-rotation pairs");
+        // A scan that visits nothing would pass; the catalog has such pairs today, so losing them must fail loudly.
+        Assert.True(pairs > 0 && probes > 0, $"the scan visited {pairs} pairs and {probes} origins");
         Assert.True(ambiguous.Count == 0, $"{ambiguous.Count} ambiguous origins: " + string.Join("; ", ambiguous.Take(10)));
     }
 }
