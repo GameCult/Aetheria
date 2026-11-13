@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using CultMath;
 using Xunit;
@@ -63,5 +64,75 @@ public sealed partial class RunStartTests
         var held = entity.Equipment.Single(i => i.Data == edge);
         Assert.Same(a, held.Hardpoint);
         Assert.Equal(ItemRotation.None, held.EquippableItem.Rotation);
+    }
+
+    // A probe reports; only TryEquip seats. The probe used to turn the item to the hardpoint it found, so the same item
+    // probed twice could resolve differently, and a failed or merely previewed placement left it turned.
+    [Fact]
+    public void AProbeLeavesTheItemsRotationAlone()
+    {
+        var (hull, a, b) = TwinMountHull("Origin Twin Mounts Probe");
+        var edge = ScratchGear("Origin Edge Gun Probe", HardpointType.Ballistic, EdgeShape());
+        var entity = BareHull(hull);
+        var item = Instance(edge);
+        item.Rotation = ItemRotation.Clockwise;
+
+        Assert.True(entity.ItemFits(item, int2(5, 5)));
+        Assert.Equal(ItemRotation.Clockwise, item.Rotation);
+        Assert.True(entity.ItemFits(item, int2(5, 5), out var seated));
+        Assert.Equal(ItemRotation.None, seated);
+        Assert.Equal(ItemRotation.Clockwise, item.Rotation);
+        Assert.True(entity.TryFindSpace(item, out _));
+        Assert.Equal(ItemRotation.Clockwise, item.Rotation);
+        Assert.False(entity.ItemFits(item, int2(0, 0), out var unseated));
+        Assert.Equal(ItemRotation.Clockwise, unseated);
+        Assert.Equal(ItemRotation.Clockwise, item.Rotation);
+
+        Assert.True(entity.TryEquip(item, int2(5, 5)));
+        var held = entity.Equipment.Single(i => i.Data == edge);
+        Assert.Same(a, held.Hardpoint);
+        Assert.Equal(ItemRotation.None, held.EquippableItem.Rotation);
+
+        var reversed = Instance(edge);
+        reversed.Rotation = ItemRotation.Reversed;
+        var fresh = BareHull(hull);
+        Assert.True(fresh.ItemFits(reversed, int2(5, 5), out var first));
+        Assert.True(fresh.ItemFits(reversed, int2(5, 5), out var second));
+        Assert.Equal(ItemRotation.Reversed, first);
+        Assert.Equal(first, second);
+        Assert.Equal(b.Rotation, first);
+    }
+}
+
+// The shipped catalog authors no origin that two differently turned hardpoints of one type both take. The fit rule alone
+// over-approximates what Entity.HardpointAt sees (occupancy only removes candidates), so zero here is stricter than needed.
+public sealed class ShippedHardpointOriginTests
+{
+    [Fact]
+    public void TheShippedCatalogHasNoAmbiguousOrigin()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var designs = cache.GetAll<EquippableItemData>().Where(d => !(d is HullData) && d.HardpointType != HardpointType.Tool).ToArray();
+        var ambiguous = new List<string>();
+        var pairs = 0;
+        foreach (var hull in cache.GetAll<HullData>())
+            for (var i = 0; i < hull.Hardpoints.Count; i++)
+                for (var j = i + 1; j < hull.Hardpoints.Count; j++)
+                {
+                    var a = hull.Hardpoints[i];
+                    var b = hull.Hardpoints[j];
+                    if (a.Type != b.Type || a.Rotation == b.Rotation) continue;
+                    pairs++;
+                    foreach (var design in designs.Where(d => d.HardpointType == a.Type))
+                        for (var x = -20; x < hull.Shape.Width; x++)
+                            for (var y = -20; y < hull.Shape.Height; y++)
+                            {
+                                var origin = int2(x, y);
+                                if (a.TakesAt(design, origin - a.Position) && b.TakesAt(design, origin - b.Position))
+                                    ambiguous.Add($"{hull.Name} {design.Name} at ({x},{y}): hardpoints {i} and {j}");
+                            }
+                }
+        System.Console.WriteLine($"ShippedHardpointOriginTests visited {pairs} same-type different-rotation pairs");
+        Assert.True(ambiguous.Count == 0, $"{ambiguous.Count} ambiguous origins: " + string.Join("; ", ambiguous.Take(10)));
     }
 }
