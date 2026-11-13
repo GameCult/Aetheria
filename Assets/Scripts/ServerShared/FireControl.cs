@@ -1864,14 +1864,17 @@ public static class FireControl
 
         var at = zone.ChunkPose(chunk.Field, chunk.Index).xy;
         var velocity = zone.ChunkVelocity(chunk);
+        var zoneIndex = zone.Galaxy?.Zones == null ? -1 : Array.IndexOf(zone.Galaxy.Zones, zone.GalaxyZone);
         var present = zone.Entities.Contains(shooter);
         for (var i = 0; i < ores.Length; i++)
         {
             var key = ores[i].Commodity.Key;
-            var maxStack = Math.Max(1, ((SimpleCommodityData) catalog.Get(ores[i].Commodity)).MaxStack);
+            var commodity = (SimpleCommodityData) catalog.Get(ores[i].Commodity);
+            var maxStack = Math.Max(1, commodity.MaxStack);
+            var lot = counts[i] > 0 ? shooter.ItemManager.ExtractedLot(zoneIndex, chunk.Field, commodity) : 0;
             for (var left = counts[i]; left > 0; left -= maxStack)
             {
-                var stack = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Quantity = Math.Min(left, maxStack) };
+                var stack = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Lot = lot, Quantity = Math.Min(left, maxStack) };
                 // A partial store leaves the remainder in Quantity and returns false, so the next bay is offered the rest.
                 var stored = false;
                 if (present) foreach (var bay in shooter.CargoBays) if (stored = bay.TryStore(stack)) break;

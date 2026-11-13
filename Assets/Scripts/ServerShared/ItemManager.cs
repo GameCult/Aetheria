@@ -25,6 +25,11 @@ public class ItemManager
 
     public CultCache ItemData { get; }
     public ProvenanceLedger Lots { get; }
+
+    // (zone index, belt, commodity) -> the Extracted lot minted for it. Derived from Lots at construction and on mint,
+    // never persisted: a reload rebuilds it from the ledger, so the same source finds the same lot.
+    private readonly Dictionary<(int, CultRecordKey, CultRecordKey), int> _extracted =
+        new Dictionary<(int, CultRecordKey, CultRecordKey), int>();
     public GameplaySettings GameplaySettings { get; }
 
     public ItemManager(uint seed, CultCache itemData, ProvenanceLedger lots, GameplaySettings settings, Action<string> logger)
@@ -33,6 +38,9 @@ public class ItemManager
         Random = new Random(seed);
         ItemData = itemData;
         Lots = lots;
+        foreach (var (id, lot) in lots.Lots)
+            if (lot.Origin is Extracted extracted)
+                _extracted[(extracted.Zone, extracted.Body.Key, extracted.Commodity.Key)] = id;
         GameplaySettings = settings;
         _logger = logger;
     }
@@ -72,8 +80,9 @@ public class ItemManager
         };
     }
 
-    // The one resolution path from a crafted instance to the lot it was minted from.
-    public Lot GetLot(CraftedItemInstance item) => Lots[item.Lot];
+    // The one resolution path from an instance to the lot it was minted or mined from. Lot 0 throws: a bought or
+    // staged commodity has no lot, and the caller asks Lot != 0 first.
+    public Lot GetLot(ItemInstance item) => Lots[item.Lot];
 
     // Returns stat when not equipped: a null-entity context with no heat, no power and no modifiers. It says so
     // in its own name (UnequippedStatContext) rather than being a third quiet dialect of the arithmetic.
@@ -178,6 +187,24 @@ public class ItemManager
             Quality = quality
         };
         return Lots.Add(lot);
+    }
+
+    // Mining Cut 5b: the lot of every unit mined from one commodity in one belt of one zone, found or minted. Unbranded
+    // (Product unset) and unworked (Quality 1, no roles). FireControl.Extract is the only caller.
+    public int ExtractedLot(int zone, CultRecordKey belt, SimpleCommodityData commodity)
+    {
+        var key = (zone, belt, ItemData.RefOf<ItemData>(commodity).Key);
+        if (_extracted.TryGetValue(key, out var found)) return found;
+        var id = Lots.Add(new Lot
+        {
+            Design = ItemData.RefOf<ItemData>(commodity),
+            Origin = new Extracted
+            {
+                Zone = zone, Body = new CultRecordRef<BodyData>(belt), Commodity = ItemData.RefOf(commodity)
+            },
+            Quality = 1
+        });
+        return _extracted[key] = id;
     }
 
     // The one writer of a crafted instance's Data: copied from the lot's design, never independently set.
