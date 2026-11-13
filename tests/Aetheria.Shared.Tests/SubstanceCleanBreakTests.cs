@@ -159,7 +159,7 @@ public sealed class SubstanceCleanBreakTests
             if (!File.Exists(path)) { problems.Add($"{rel} does not exist"); continue; }
             var text = File.ReadAllText(path);
             var start = text.IndexOf("m_TexEnvs:", StringComparison.Ordinal);
-            var end = text.IndexOf("m_Ints:", StringComparison.Ordinal);
+            var end = text.IndexOf("m_Floats:", StringComparison.Ordinal);
             Assert.True(start >= 0 && end > start, $"{rel} has no m_TexEnvs section");
             foreach (Match m in texture.Matches(text.Substring(start, end - start)))
             {
