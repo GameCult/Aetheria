@@ -106,6 +106,9 @@ public class ActionGameManager : MonoBehaviour
     }
 
     public static Galaxy CurrentGalaxy;
+    // Whether a run is live: a failed start and a finished run both clear the galaxy, and the scene's update paths (this
+    // manager's, the renderer's) step and draw nothing without one.
+    public static bool RunLive => CurrentGalaxy != null;
     // The scenario a new run starts from: MainMenu.Launch sets it, and StartGame's new-run branch consumes it once.
     public static Scenario PendingScenario;
 
@@ -854,21 +857,12 @@ public class ActionGameManager : MonoBehaviour
         var scenario = PendingScenario;
         PendingScenario = null;
         var failures = new List<string>();
-        RunStart.Staged staged = null;
-        try
+        var staged = RunStart.Launch(() => RunSave.Replace(CultCache, () =>
         {
-            staged = RunSave.Replace(CultCache, () =>
-            {
-                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
-                PopulateLevel(CurrentGalaxy.Entrance);
-                return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures);
-            });
-        }
-        catch (Exception exception)
-        {
-            Debug.LogException(exception);
-            failures.Add(exception.Message);
-        }
+            RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
+            PopulateLevel(CurrentGalaxy.Entrance);
+            return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures);
+        }), failures, Debug.LogException);
 
         if (staged == null)
         {
@@ -1348,6 +1342,7 @@ public class ActionGameManager : MonoBehaviour
 
     void Update()
     {
+        if (!RunLive) return;
         if(!_paused)
         {
             _time += Time.deltaTime;

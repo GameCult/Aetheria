@@ -30,6 +30,21 @@ public static class RunStart
             itemManager, zoneSettings, planetSettings, galaxy, galaxy.Entrance, galaxy.IsPrelude, scenario.Ambient);
     }
 
+    // Runs a start and answers whether it produced a run: null, with the reason in `failures`, when `start` throws or
+    // returns nothing. The caller shows the failure and clears its run; nothing past a null may run the game.
+    public static Staged Launch(Func<Staged> start, List<string> failures, Action<Exception> log = null)
+    {
+        Staged staged = null;
+        try { staged = start(); }
+        catch (Exception exception)
+        {
+            log?.Invoke(exception);
+            failures.Add(exception.Message);
+        }
+        if (staged == null && failures.Count == 0) failures.Add("the start produced no run");
+        return staged;
+    }
+
     // Runs the scenario's Stage, then admits its player and everything it placed: each entity's stance set both ways
     // with the player, a pilot for each piloted one. Returns null, with every failure listed and the arena unchanged,
     // unless the whole scenario staged.
