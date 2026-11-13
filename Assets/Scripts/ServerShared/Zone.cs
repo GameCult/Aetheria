@@ -90,6 +90,8 @@ public class Zone
     public Subject<ShotOutcome> ShotResolved = new Subject<ShotOutcome>();
     // Contacts.Step publishes each hull-on-hull contact it resolves; presentations are the only readers.
     public Subject<ContactEvent> Contacted = new Subject<ContactEvent>();
+    // Published by FireControl.Extract and TryPickUp once ore or an item enters (or is offered to) a hold; read by presentations only.
+    public Subject<CargoGain> CargoGained = new Subject<CargoGain>();
     private int _nextShotId;
     public int NextShotId() => ++_nextShotId;
 
@@ -443,6 +445,11 @@ public class Zone
         if (floating == null || (floating.Holder != null && !ReferenceEquals(floating.Holder, taker))) return false;
         if (!taker.CargoBays.Any(bay => bay.TryStore(floating.Item))) return false;
         FloatingItems.Remove(floating);
+        CargoGained.OnNext(new CargoGain
+        {
+            Taker = taker, Design = floating.Item.Data, Lot = floating.Item.Lot, Kind = GainKind.Collected,
+            Stored = floating.Item is SimpleCommodity stack ? stack.Quantity : 1
+        });
         return true;
     }
 
