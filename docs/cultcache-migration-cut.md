@@ -151,7 +151,7 @@ death clearing the run across relaunch, stance toggle, `FieldShieldTest`. It fou
 migration defect: CultMath types are not Unity-serializable, so Unity-serialized CultMath
 fields load as zero. Mouse sensitivity (lost look control) moved to `PlayerSettings` in
 `00ebe46a`; the rest, including the black rarity colours, is `docs/settings-globals-cut.md`.
-Scene materials are broken by the dead Substance plugin, not by this migration.
+The Substance maps are removed and the materials repointed to Assets/Materials/PBR.
 
 History, before the smoke:
 - nothing else from agents. The preset rework's Soul findings were fixed in
