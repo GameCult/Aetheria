@@ -1545,7 +1545,7 @@ public abstract class Entity
         }
         else
         {
-            hardpoint = HardpointAt(itemData, hullData, hullCoord, moving);
+            hardpoint = HardpointAt(itemData, hullData, hullCoord, item.Rotation, moving);
             if (hardpoint == null) return false;
             item.Rotation = hardpoint.Rotation;
         }
@@ -1560,10 +1560,12 @@ public abstract class Entity
     // The one placement rule for hardpoint gear. At this origin the item lies within a hardpoint of its type, turned to
     // that hardpoint's rotation (HardpointData.TakesAt, the fit rule); its own cells are free, since a hardpoint's
     // leftover cells may hold general gear (operator, 2026-09-30: "saving slots in a hardpoint can be a valid tradeoff
-    // for crowded ships"); and that hardpoint holds no other hardpoint item, since it holds one at most.
-    private HardpointData HardpointAt(EquippableItemData itemData, HullData hullData, int2 hullCoord, EquippedItem moving)
+    // for crowded ships"); and that hardpoint holds no other hardpoint item, since it holds one at most. Where several hardpoints accept the origin, the
+    // one whose rotation equals the item's own (saved) rotation is preferred, so reload seats gear where it was; an item whose
+    // rotation names none of them takes the first (stable order).
+    private HardpointData HardpointAt(EquippableItemData itemData, HullData hullData, int2 hullCoord, ItemRotation seated, EquippedItem moving)
     {
-        foreach (var hardpoint in hullData.Hardpoints)
+        foreach (var hardpoint in hullData.Hardpoints.OrderBy(h => h.Rotation == seated ? 0 : 1))
         {
             if (!hardpoint.TakesAt(itemData, hullCoord - hardpoint.Position)) continue;
             var ownCellsFree = itemData.Shape.Coordinates
