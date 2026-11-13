@@ -329,7 +329,7 @@ public sealed class ShipModCatalogTests : IDisposable
     }
 
     // Bind is the one verdict on whether a mod hull exists: a package whose GLB names a node mesh the importer cannot build
-    // (dangling index, no POSITION, skinned node, no primitives) never reaches the boot catalog, so Preload has nothing left to refuse on file facts.
+    // (dangling or negative index, no meshes array, non-integer index, no POSITION on any one primitive, non-triangle mode, skinned node, no primitives) never reaches the boot catalog, so Preload has nothing left to refuse on file facts.
     [Fact]
     public void ABootCatalogHoldsNoHullTheImporterCannotBuild()
     {
@@ -339,7 +339,12 @@ public sealed class ShipModCatalogTests : IDisposable
             ["mod.dangling"] = (@"{""name"":""collider"",""mesh"":0", @"{""name"":""collider"",""mesh"":7"),
             ["mod.nopos"] = (@"""attributes"":{""POSITION"":0}", @"""attributes"":{}"),
             ["mod.skinned"] = (@"{""name"":""map"",""mesh"":0", @"{""name"":""map"",""mesh"":0,""skin"":0"),
-            ["mod.noprims"] = (@"""primitives"":[{""attributes"":{""POSITION"":0}}]", @"""primitives"":[]")
+            ["mod.noprims"] = (@"""primitives"":[{""attributes"":{""POSITION"":0}}]", @"""primitives"":[]"),
+            ["mod.onebad"] = (@"""primitives"":[{""attributes"":{""POSITION"":0}}]", @"""primitives"":[{""attributes"":{""POSITION"":0}},{""attributes"":{}}]"),
+            ["mod.points"] = (@"""attributes"":{""POSITION"":0}}", @"""attributes"":{""POSITION"":0},""mode"":0}"),
+            ["mod.negative"] = (@"""mesh"":0", @"""mesh"":-1"),
+            ["mod.nomeshes"] = (@"""meshes"":", @"""other"":"),
+            ["mod.fractional"] = (@"""mesh"":0", @"""mesh"":0.0")
         };
         foreach (var (package, (from, to)) in broken)
         {
