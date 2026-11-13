@@ -13,7 +13,8 @@ public class EventLog : MonoBehaviour
     private SizedQueue<string> LogMessages;
     private StringBuilder LogText;
 
-    private void Start()
+    // Awake, not Start: a message can arrive in the frame the parent activates, before Start would run.
+    private void Awake()
     {
         LogMessages = new SizedQueue<string>(LineCount);
         LogText = new StringBuilder();

@@ -1872,14 +1872,24 @@ public static class FireControl
             var commodity = (SimpleCommodityData) catalog.Get(ores[i].Commodity);
             var maxStack = Math.Max(1, commodity.MaxStack);
             var lot = counts[i] > 0 ? shooter.ItemManager.ExtractedLot(zoneIndex, chunk.Field, commodity) : 0;
+            var adrift = 0;
             for (var left = counts[i]; left > 0; left -= maxStack)
             {
                 var stack = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Lot = lot, Quantity = Math.Min(left, maxStack) };
                 // A partial store leaves the remainder in Quantity and returns false, so the next bay is offered the rest.
                 var stored = false;
                 if (present) foreach (var bay in shooter.CargoBays) if (stored = bay.TryStore(stack)) break;
-                if (!stored) zone.Release(stack, at, velocity);
+                if (!stored)
+                {
+                    adrift += stack.Quantity;
+                    zone.Release(stack, at, velocity);
+                }
             }
+            if (counts[i] > 0)
+                zone.CargoGained.OnNext(new CargoGain
+                {
+                    Taker = shooter, Design = new CultRecordRef<ItemData>(key), Lot = lot, Stored = counts[i] - adrift, Adrift = adrift, Kind = GainKind.Mined
+                });
         }
     }
 

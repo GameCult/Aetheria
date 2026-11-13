@@ -21236,7 +21236,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1396909587
 RectTransform:
   m_ObjectHideFlags: 0
@@ -24703,26 +24703,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "What the fuck did you just fucking type about me, you little bitch? I\u2019ll
-    have you know I graduated top of my class at MIT, and I\u2019ve been involved
-    in numerous secret raids with Anonymous, and I have over 300 confirmed DDoSes.\n\nI
-    am trained in online trolling and I\u2019m the top hacker in the entire world.
-    You are nothing to me but just another virus host. I will wipe you the fuck out
-    with precision the likes of which has never been seen before on the Internet,
-    mark my fucking words. You think you can get away with typing that shit to me
-    over the Internet? Think again, fucker.\n\nAs we chat over IRC I am tracing your
-    IP with my damn bare hands so you better prepare for the storm, maggot. The storm
-    that wipes out the pathetic little thing you call your computer. You\u2019re
-    fucking dead, kid. I can be anywhere, anytime, and I can hack into your files
-    in over seven hundred ways, and that\u2019s just with my bare hands.\n\nNot only
-    am I extensively trained in hacking, but I have access to the entire arsenal
-    of every piece of malware ever created and I will use it to its full extent to
-    wipe your miserable ass off the face of the world wide web, you little shit.
-    If only you could have known what unholy retribution your little \u201Cclever\u201D
-    comment was about to bring down upon you, maybe you would have held your fucking
-    fingers. But you couldn\u2019t, you didn\u2019t, and now you\u2019re paying the
-    price, you goddamn idiot. I will shit code all over you and you will drown in
-    it.\n\nYou\u2019re fucking dead, kiddo."
+  m_text: ""
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 53555f7a2d5e745428813f1b1118734f, type: 2}
   m_sharedMaterial: {fileID: -2804126062856497447, guid: 53555f7a2d5e745428813f1b1118734f,

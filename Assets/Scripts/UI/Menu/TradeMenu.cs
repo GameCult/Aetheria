@@ -312,6 +312,17 @@ public class TradeMenu : MonoBehaviour
         Dialog.MoveToCursor();
     }
 
+    // Sells every mined stack of the player's ships' bays in one step; the station pays through TrySell, so nothing refuses.
+    private void SellOre()
+    {
+        StationServices.TrySellOre(PlayerBays(), GameManager.DockedEntity, ref GameManager.Credits);
+        UpdateCreditsLabel();
+        Populate();
+    }
+
+    private IEnumerable<EquippedCargoBay> PlayerBays() =>
+        GameManager.CurrentEntity.Parent.Children.Where(e => e is Ship {IsPlayerShip: true}).SelectMany(s => s.CargoBays);
+
     private void Repair()
     {
         if (StationServices.TryRepair(GameManager.CurrentEntity, ref GameManager.Credits))
@@ -398,6 +409,8 @@ public class TradeMenu : MonoBehaviour
             });
             var repairCost = StationServices.RepairCost(GameManager.ItemManager, GameManager.CurrentEntity);
             if (repairCost > 0) ContextMenu.AddOption($"Repair ({repairCost:N0})", Repair);
+            var oreValue = StationServices.OreValue(GameManager.ItemManager, PlayerBays());
+            if (oreValue > 0) ContextMenu.AddOption($"Sell Ore ({oreValue:N0})", SellOre);
             ContextMenu.Show();
         });
     }

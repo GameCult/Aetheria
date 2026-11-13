@@ -1092,6 +1092,12 @@ public class ActionGameManager : MonoBehaviour
         _shipSubscriptions.Add(CurrentEntity.Zone.ShotResolved
             .Where(outcome => outcome.Source == CurrentEntity)
             .Subscribe(outcome => _debugLastShots[outcome.Weapon] = outcome));
+        _shipSubscriptions.Add(CurrentEntity.Zone.CargoGained
+            .Where(gain => gain.Taker == CurrentEntity)
+            .Subscribe(gain =>
+            {
+                if (EventLog != null) EventLog.LogMessage(HaulFeed.Line(gain, ItemManager), gain.Adrift > 0 ? Color.yellow : Color.white);
+            }));
         
         FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
         FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;

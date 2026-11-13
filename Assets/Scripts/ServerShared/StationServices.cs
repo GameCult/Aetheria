@@ -114,6 +114,30 @@ public static class StationServices
         return true;
     }
 
+    // The mined stacks of the bays: simple commodities with a lot whose origin is Extracted. Ammunition and consumables are
+    // simple commodities too, and a bought or staged commodity has Lot 0, which GetLot cannot resolve.
+    private static ItemInstance[] OreStacks(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>
+        bays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>().Where(stack => stack.Lot != 0 && items.GetLot(stack).Origin is Extracted).Select(stack => (ItemInstance) stack)).ToArray();
+
+    // What the station pays for every mined stack of the bays: the sum of SellPrice over the stacks TrySellOre sells.
+    public static int OreValue(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>
+        (int) Math.Min(OreStacks(items, bays).Sum(stack => (long) SellPrice(items, stack)), int.MaxValue);
+
+    // Sells every mined stack of the bays, each through TrySell, so the market's absorb rule and the price are the
+    // single-stack path's. Returns the units sold.
+    public static int TrySellOre(IEnumerable<EquippedCargoBay> bays, Entity station, ref int credits)
+    {
+        var bayList = bays.ToArray();
+        var units = 0;
+        foreach (var stack in OreStacks(station.ItemManager, bayList))
+        {
+            var quantity = ((SimpleCommodity) stack).Quantity;
+            var from = bayList.First(bay => bay.Cargo.ContainsKey(stack));
+            if (TrySell(from, station, stack, ref credits)) units += quantity;
+        }
+        return units;
+    }
+
     // The repair: armour and every durability go back to design and the station charges RepairCost. False, with
     // nothing restored, when the credits fall short.
     public static bool TryRepair(Entity entity, ref int credits)

@@ -505,4 +505,86 @@ public sealed class StationServicesTests : IDisposable
         Assert.Equal(BuyResult.Bought, StationServices.TryBuy(_items, ore, 10, ref credits, () => true));
         Assert.Equal(0, credits);
     }
+
+    private SimpleCommodity Mined(int quantity)
+    {
+        var data = _cache.GetByName<SimpleCommodityData>("Ore");
+        return new SimpleCommodity { Data = _cache.RefOf<ItemData>(data), Quantity = quantity, Lot = _items.ExtractedLot(0, default, data) };
+    }
+
+    [Fact]
+    public void SellOreSellsOnlyMinedStacks()
+    {
+        var ship = Ship();
+        var bay = ship.CargoBays.Single();
+        var mined = Mined(10);
+        var staged = Ore(5);
+        var gun = Mint("Gun");
+        Assert.True(bay.TryStore(mined));
+        Assert.True(bay.TryStore(staged));
+        Assert.True(bay.TryStore(gun));
+        var station = Station();
+        var value = StationServices.OreValue(_items, ship.CargoBays);
+        Assert.Equal(StationServices.SellPrice(_items, mined), value);
+        Assert.True(value > 0);
+
+        var credits = 100;
+        Assert.Equal(10, StationServices.TrySellOre(ship.CargoBays, station, ref credits));
+        Assert.Equal(100 + value, credits);
+        Assert.DoesNotContain(mined, bay.Cargo.Keys);
+        Assert.Contains(staged, bay.Cargo.Keys);
+        Assert.Contains(gun, bay.Cargo.Keys);
+    }
+
+    [Fact]
+    public void SellOreLeavesALottedCommodityThatWasNotExtracted()
+    {
+        var ship = Ship();
+        var bay = ship.CargoBays.Single();
+        var data = _cache.GetByName<SimpleCommodityData>("Ore");
+        var lot = _items.Lots.Add(new Lot { Design = _cache.RefOf<ItemData>(data), Origin = new Attributed(), Quality = 1 });
+        Assert.NotEqual(0, lot);
+        var traded = new SimpleCommodity { Data = _cache.RefOf<ItemData>(data), Quantity = 6, Lot = lot };
+        Assert.True(bay.TryStore(traded));
+        var credits = 100;
+        Assert.Equal(0, StationServices.OreValue(_items, ship.CargoBays));
+        Assert.Equal(0, StationServices.TrySellOre(ship.CargoBays, Station(), ref credits));
+        Assert.Equal(100, credits);
+        Assert.Contains(traded, bay.Cargo.Keys);
+    }
+
+    [Fact]
+    public void SellOreAcrossBaysAndShips()
+    {
+        var one = Ship();
+        var two = Ship();
+        var bays = one.CargoBays.Concat(two.CargoBays).ToArray();
+        Assert.True(one.CargoBays.Single().TryStore(Mined(30)));
+        Assert.True(two.CargoBays.Single().TryStore(Mined(40)));
+        var station = Station();
+        // Fill the station's bay so nothing more fits: the market absorbs the sale at full price all the same.
+        for (var i = 0; i < 20; i++) station.CargoBays.Single().TryStore(Ore(100));
+        var value = StationServices.OreValue(_items, bays);
+        Assert.Equal(StationServices.SellPrice(_items, Ore(70)), value);
+
+        var credits = 0;
+        Assert.Equal(70, StationServices.TrySellOre(bays, station, ref credits));
+        Assert.Equal(value, credits);
+        Assert.All(bays, bay => Assert.Empty(bay.Cargo.Keys.OfType<SimpleCommodity>()));
+    }
+
+    [Fact]
+    public void SellOreWithNoOreChangesNothing()
+    {
+        var ship = Ship();
+        var bay = ship.CargoBays.Single();
+        Assert.True(bay.TryStore(Ore(5)));
+        Assert.True(bay.TryStore(Mint("Gun")));
+        var held = bay.Cargo.Count;
+        var credits = 100;
+        Assert.Equal(0, StationServices.OreValue(_items, ship.CargoBays));
+        Assert.Equal(0, StationServices.TrySellOre(ship.CargoBays, Station(), ref credits));
+        Assert.Equal(100, credits);
+        Assert.Equal(held, bay.Cargo.Count);
+    }
 }
