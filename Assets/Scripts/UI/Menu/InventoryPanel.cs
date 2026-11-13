@@ -386,11 +386,11 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                                 var itemData = GameManager.ItemManager.GetData(item);
                                 if (!(item is EquippableItem equippableItem)) return;
                                 var placementPosition = v + itemDragObject.OriginCellOffset;
-                                if (entity.ItemFits(equippableItem, placementPosition))
+                                if (entity.ItemFits(equippableItem, placementPosition, out var seated))
                                 {
                                     //foreach (var cell in _dragCells) cell.gameObject.SetActive(false);
                                     FakeItem = item;
-                                    FakeOccupancy = hullData.Shape.Inset(itemData.Shape, placementPosition, item.Rotation);
+                                    FakeOccupancy = hullData.Shape.Inset(itemData.Shape, placementPosition, seated);
                                     RefreshCells();
                                     GameManager.RegisterDragTarget(drag =>
                                     {

@@ -1547,7 +1547,6 @@ public abstract class Entity
         {
             hardpoint = HardpointAt(itemData, hullData, hullCoord, item.Rotation, moving);
             if (hardpoint == null) return false;
-            item.Rotation = hardpoint.Rotation;
         }
 
         return true;
@@ -1582,14 +1581,22 @@ public abstract class Entity
     // Check whether the given item will fit when its origin is placed at the given coordinate on the hull. An item that
     // is already equipped here is judged without its own cells, so a gun can be moved within its own hardpoint;
     // TryEquip stays strict (it never sees an item as its own occupant), so equipping an equipped item twice is refused.
-    public bool ItemFits(EquippableItem item, int2 hullCoord)
+    public bool ItemFits(EquippableItem item, int2 hullCoord) => ItemFits(item, hullCoord, out _);
+
+    // As above, and reports the rotation TryEquip would seat the item at: its hardpoint's for hardpoint gear, otherwise
+    // its own. A probe never writes item.Rotation; TryEquip is the only seat.
+    public bool ItemFits(EquippableItem item, int2 hullCoord, out ItemRotation seated)
     {
+        seated = item.Rotation;
         // Don't allow equipping while deployed
         if (_active) return false;
 
         var itemData = ItemManager.GetData(item);
         var hullData = ItemManager.GetData(Hull) as HullData;
-        return ItemFits(itemData, hullData, item, hullCoord, out _, Equipment.FirstOrDefault(e => e.EquippableItem == item));
+        if (!ItemFits(itemData, hullData, item, hullCoord, out var hardpoint, Equipment.FirstOrDefault(e => e.EquippableItem == item)))
+            return false;
+        seated = hardpoint?.Rotation ?? item.Rotation;
+        return true;
     }
 
     public bool TryFindSpace(EquippableItem item, out int2 hullCoord)
@@ -1662,7 +1669,9 @@ public abstract class Entity
         var hullData = ItemManager.GetData(Hull) as HullData;
 
         if (!ItemFits(itemData, hullData, item, hullCoord, out var hardpoint)) return false;
-        
+        // The one seat of hardpoint gear's rotation, before EquippedItem's ctor reads it.
+        if (hardpoint != null) item.Rotation = hardpoint.Rotation;
+
         EquippedItem equippedItem;
         if (itemData.HardpointType == HardpointType.Tool)
         {
