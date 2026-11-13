@@ -546,4 +546,82 @@ public sealed partial class MiningCut3Tests
             Assert.Equal(order[i % order.Count], observer.Target.Value);
         }
     }
+
+    private static float2 Polar(float2 at, float distance, float angle) => at + distance * float2(cos(angle), sin(angle));
+
+    // Both presses, from nothing and from every target, visit `order` and wrap.
+    private static void AssertPressesWalk(Ship observer, List<TargetRef> order)
+    {
+        observer.SetTarget(TargetRef.None);
+        for (var i = 0; i <= order.Count; i++)
+        {
+            Assert.True(observer.TargetNext());
+            Assert.Equal(order[i % order.Count], observer.Target.Value);
+        }
+        observer.SetTarget(TargetRef.None);
+        for (var i = 0; i <= order.Count; i++)
+        {
+            Assert.True(observer.TargetPrevious());
+            Assert.Equal(order[order.Count - 1 - i % order.Count], observer.Target.Value);
+        }
+        for (var i = 0; i < order.Count; i++)
+        {
+            observer.SetTarget(order[i]);
+            Assert.True(observer.TargetNext());
+            Assert.Equal(order[(i + 1) % order.Count], observer.Target.Value);
+            observer.SetTarget(order[i]);
+            Assert.True(observer.TargetPrevious());
+            Assert.Equal(order[(i + order.Count - 1) % order.Count], observer.Target.Value);
+        }
+    }
+
+    // Ships keep their distance order for both presses at every range: the key is the distance itself past 1000 too,
+    // not a function that clamps or bends there. Ships stand on both sides of 1000, many thousand units out, each a
+    // distinct distance and admitted in an order unlike the distance order, so a key that ties or inverts any two
+    // falls back on zone order and shows.
+    [Fact]
+    public void ShipsPastAThousandUnitsAreOrderedByDistanceBothWays()
+    {
+        var at = float2(500, 0);
+        var (s, observer) = TargetScene(7, at);
+        var distances = new[] { 1800f, 700f, 2400f, 1200f, 400f, 4000f, 999f, 1500f, 1001f, 150f, 3100f, 1100f };
+        for (var i = 0; i < distances.Length; i++) Sight(s, observer, Polar(at, distances[i], i * 1.9f));
+        var order = ByDistance(s, observer, 120f);
+        Assert.True(order.Count(t => t.Chunk.HasValue) >= 8 && order.Count(t => t.Entity != null) == distances.Length, $"degenerate: {order.Count} candidates");
+        var ships = order.Where(t => t.Entity != null).Select(t => length(t.Entity.Position.xz - at)).ToList();
+        Assert.Equal(ships.OrderBy(d => d).ToList(), ships);
+        Assert.Equal(ships.Distinct().Count(), ships.Count);
+        AssertPressesWalk(observer, order);
+    }
+
+    // The pilot's instruments bound the pick at every range: undetected ships stand from a few units out to well
+    // past the farthest seen one, on every bearing, among the seen ships, so a press that offers undetected ships
+    // within any window of distance (or only once the zone is crowded) offers one here. Every press walks the
+    // detected order, and the reticle aimed straight at each hidden ship still takes a detected target.
+    [Fact]
+    public void ShipsTheObserverHasNotDetectedAreNeverPickedAtAnyDistance()
+    {
+        var at = float2(500, 0);
+        var (s, observer) = TargetScene(7, at);
+        foreach (var (distance, i) in new[] { 60f, 300f, 800f, 1300f, 2000f }.Select((d, i) => (d, i))) Sight(s, observer, Polar(at, distance, i * 1.3f + .4f));
+        var hidden = new List<TargetRef>();
+        for (var i = 0; i < 48; i++)
+            hidden.Add(Unseen(s, Polar(at, 2f * MathF.Pow(1.18f, i), i * 2.4f)));
+        var order = ByDistance(s, observer, 120f);
+        Assert.True(order.Count > 5 && order.Count(t => t.Entity != null) == 5, $"degenerate: {order.Count} candidates");
+        Assert.All(hidden, h => Assert.DoesNotContain(h, order));
+        var farthest = hidden.Max(h => length(h.Entity.Position.xz - at));
+        Assert.True(farthest > 4000f && hidden.Count(h => length(h.Entity.Position.xz - at) is > 100f and < 2500f) > 10, "the hidden ships do not sweep the window");
+
+        AssertPressesWalk(observer, order);
+        foreach (var h in hidden)
+        {
+            var to = h.Entity.Position.xz - at;
+            observer.Aim = float3(to.x, 0, to.y);
+            observer.SetTarget(TargetRef.None);
+            Assert.True(observer.TargetUnderReticle());
+            Assert.DoesNotContain(observer.Target.Value, hidden);
+            Assert.Contains(observer.Target.Value, order);
+        }
+    }
 }
