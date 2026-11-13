@@ -58,8 +58,9 @@ public sealed class MiningCut4bTests : IDisposable
     // `precision` 1 gives sigma 1 cell; accuracy 1 and a resolution that asks little of the info make PSensor 1.
     internal Rig Build(bool sensor = true, bool launcher = false, float damage = 10f, float velocity = 0f, float spread = 0f,
         float precision = 1f, float effective = float.PositiveInfinity, WeaponFuse? fuse = null, float blastRadius = 0f,
-        float rockSize = 0f, float crossSection = 20f, bool target = true, float tracking = 1000000f, FieldKindData kind = null)
+        float rockSize = 0f, float crossSection = 20f, bool target = true, float tracking = 1000000f, FieldKindData kind = null, uint galaxySeed = 0)
     {
+        _fixtures.GalaxySeed = galaxySeed;
         kind ??= MiningCut3Tests.Kind("Asteroid", crossSection);
         var scene = _fixtures.BuildScene(new[] { kind }, MiningCut3Tests.Belt(kind, MiningCut3Tests.Rock(Distance, .25f, rockSize)));
         var gear = MiningCut3Tests.Gear("Targeting", new TargetingSystemData

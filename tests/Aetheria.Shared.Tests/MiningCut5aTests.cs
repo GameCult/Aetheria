@@ -56,10 +56,10 @@ public sealed class MiningCut5aTests : IDisposable
 
     // A rig whose rock (size .5: 4 units, whole) yields `ores`, shooter holding one bay.
     private (MiningCut4bTests.Rig Rig, EquippedCargoBay Bay) Mining(int bayWidth = 4, int bayHeight = 4, float damage = 1000f,
-        WeaponFuse? fuse = null, float velocity = 0f, params (SimpleCommodityData, float)[] ores)
+        WeaponFuse? fuse = null, float velocity = 0f, uint galaxySeed = 0, float rockSize = .5f, params (SimpleCommodityData, float)[] ores)
     {
         var kind = MiningCut3Tests.Kind("Asteroid", 20f);
-        var rig = _rigs.Build(damage: damage, fuse: fuse, blastRadius: fuse == null ? 0f : 6f, precision: 1000f, rockSize: .5f, velocity: velocity, kind: kind);
+        var rig = _rigs.Build(damage: damage, fuse: fuse, blastRadius: fuse == null ? 0f : 6f, precision: 1000f, rockSize: rockSize, velocity: velocity, kind: kind, galaxySeed: galaxySeed);
         Stock(rig.Scene, kind, ores.Length > 0 ? ores : new[] { (Commodity("Rock"), 1f) });
         return (rig, Bay(rig.Scene, rig.Shooter, bayWidth, bayHeight, "Hold"));
     }
@@ -241,5 +241,71 @@ public sealed class MiningCut5aTests : IDisposable
         var mixes = Break(scene2, varied(), ship2, 12, 5).Select(m => m.Rock).ToArray();
         Assert.True(mixes.Max() - mixes.Min() > 100, "rocks differ in mix when variance is above zero");
         Assert.Equal(mixes, Break(scene2, varied(), ship2, 12, 5).Select(m => m.Rock));
+    }
+
+    // ==== the shot's own dice: ShotId and the zone's DropSeed key the ore ====
+
+    // A rig whose rock outlives many shots and pays hundreds of units a hit, three ores, so a changed key shows in the mix. The rock is
+    // wider than the blast, so every blast wears it by the same share and only the dice can tell two shots apart.
+    private (MiningCut4bTests.Rig Rig, EquippedCargoBay Bay) Rich(WeaponFuse? fuse, float damage, uint galaxySeed = 0)
+    {
+        var (rig, bay) = Mining(bayWidth: 8, bayHeight: 8, damage: damage, fuse: fuse, galaxySeed: galaxySeed, rockSize: 1f,
+            ores: new[] { (Commodity("Rock"), 1f), (Commodity("Gold"), 1f), (Commodity("Ice"), 1f) });
+        rig.Zone.Settings.AsteroidYield = new ExponentialLerp { Minimum = 6000f, Maximum = 6000f, Exponent = 1f };
+        // Composition hashes the belt's record key, which differs per scene; variance 0 leaves the dice alone to vary the ore.
+        rig.Zone.Settings.ChunkCompositionVariance = 0f;
+        return (rig, bay);
+    }
+
+    // Fires until `hits` shots have landed, returning each landed shot's payout (bay and floats together) as (Rock, Gold, Ice).
+    private static (int, int, int)[] Payouts(MiningCut4bTests.Rig rig, EquippedCargoBay bay, int hits)
+    {
+        IEnumerable<ItemInstance> Held() => bay.Cargo.Keys.Concat(rig.Zone.FloatingItems.Select(f => f.Item));
+        var paid = new List<(int, int, int)>();
+        var before = (0, 0, 0);
+        for (var shot = 0; shot < 100 && paid.Count < hits; shot++)
+        {
+            var landed = rig.Resolved.Count(o => o.Hit);
+            FireControl.Fire(rig.Gun, rig.GunItem, rig.Shooter);
+            MiningCut4bTests.Run(rig, .05f);
+            if (rig.Resolved.Count(o => o.Hit) == landed) continue;
+            Assert.True(rig.Zone.ChunkExists(rig.Rock), "the rock must outlive the shots under test");
+            var held = Held().ToArray();
+            var now = (Units(held, "Rock", rig.Scene), Units(held, "Gold", rig.Scene), Units(held, "Ice", rig.Scene));
+            paid.Add((now.Item1 - before.Item1, now.Item2 - before.Item2, now.Item3 - before.Item3));
+            before = now;
+        }
+        Assert.Equal(hits, paid.Count);
+        return paid.ToArray();
+    }
+
+    // Which ore lands in which slot follows each scene's catalog keys, so scenes compare by the multiset of counts.
+    private static int[][] Mix(IEnumerable<(int, int, int)> paid) => paid.Select(p => new[] { p.Item1, p.Item2, p.Item3 }.OrderBy(n => n).ToArray()).ToArray();
+
+    [Theory]
+    [InlineData(null, 8f)]
+    [InlineData(WeaponFuse.Contact, 40f)]
+    public void TwoShotsInOneZonePayDifferentOre(WeaponFuse? fuse, float damage)
+    {
+        var (rig, bay) = Rich(fuse, damage);
+        var paid = Payouts(rig, bay, 2);
+        Assert.All(paid, p => Assert.True(p.Item1 + p.Item2 + p.Item3 > 100, "a shot pays hundreds of units"));
+        Assert.NotEqual(paid[0], paid[1]);
+    }
+
+    [Theory]
+    [InlineData(null, 8f)]
+    [InlineData(WeaponFuse.Contact, 40f)]
+    public void ADifferentRunSeedPaysDifferentOreForTheSameShot(WeaponFuse? fuse, float damage)
+    {
+        var (a, bayA) = Rich(fuse, damage, galaxySeed: 7);
+        var (b, bayB) = Rich(fuse, damage, galaxySeed: 8);
+        Assert.NotEqual(a.Zone.DropSeed, b.Zone.DropSeed);
+        Assert.Equal(a.Zone.CombatSeed, b.Zone.CombatSeed);
+        Assert.NotEqual(Mix(Payouts(a, bayA, 1)), Mix(Payouts(b, bayB, 1)));
+        // The same seed repeats it.
+        var (c, bayC) = Rich(fuse, damage, galaxySeed: 7);
+        var (d, bayD) = Rich(fuse, damage, galaxySeed: 7);
+        Assert.Equal(Mix(Payouts(c, bayC, 1)), Mix(Payouts(d, bayD, 1)));
     }
 }

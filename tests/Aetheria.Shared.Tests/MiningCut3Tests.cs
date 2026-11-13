@@ -24,6 +24,9 @@ public sealed partial class MiningCut3Tests : IDisposable
     private readonly List<CultCache> _caches = new List<CultCache>();
     private int _fixtureCount;
 
+    // A run seed for the scenes built next: nonzero gives the zone a galaxy carrying it (so Zone.DropSeed differs by it).
+    internal uint GalaxySeed;
+
     public MiningCut3Tests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
@@ -163,7 +166,8 @@ public sealed partial class MiningCut3Tests : IDisposable
             pack.Planets.Add(new CultRecordRef<BodyData>(key));
             scene.Belts.Add(key);
         }
-        scene.Zone = new Zone(items, PlanetSettings(lightRadius), pack, new GalaxyZone { Name = "MiningCut3", Owner = null }, null);
+        scene.Zone = new Zone(items, PlanetSettings(lightRadius), pack, new GalaxyZone { Name = "MiningCut3", Owner = null },
+            GalaxySeed == 0 ? null : RunSeedFixture.Continue(cache, "MiningCut3", GalaxySeed));
         return scene;
     }
 

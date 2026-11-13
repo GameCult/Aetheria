@@ -192,6 +192,29 @@ public sealed class StationServicesTests : IDisposable
         Assert.Empty(station.CargoBays[0].Cargo.Keys.OfType<SimpleCommodity>());
     }
 
+    // A commodity the seller does not hold sells for nothing: not one never stored, and not a stale copy of a stack the sale
+    // already took. The held stack is untouched, and no credit is paid.
+    [Fact]
+    public void TrySell_commodity_not_in_the_hold_pays_nothing()
+    {
+        var from = Ship().CargoBays.Single();
+        var held = Ore(10);
+        Assert.True(from.TryStore(held));
+        var station = Station();
+        var credits = 500;
+
+        Assert.False(StationServices.TrySell(from, station, Ore(10), ref credits));
+        Assert.Equal(500, credits);
+        Assert.Empty(station.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>());
+        Assert.Equal(10, Assert.Single(from.Cargo.Keys.OfType<SimpleCommodity>()).Quantity);
+
+        Assert.True(StationServices.TrySell(from, station, held, ref credits));
+        var paid = credits;
+        Assert.False(StationServices.TrySell(from, station, held, ref credits));
+        Assert.Equal(paid, credits);
+        Assert.Equal(10, station.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>().Sum(c => c.Quantity));
+    }
+
     [Fact]
     public void Repair_restores_and_charges()
     {
