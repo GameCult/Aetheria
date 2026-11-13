@@ -2465,7 +2465,7 @@ public class EquippedCargoBay : EquippedItem
         // For simple commodities, search for existing item stacks to add to
         foreach (var cargoItem in Cargo.Keys)
         {
-            if (!item.Data.Key.Equals(cargoItem.Data.Key)) continue;
+            if (!item.Data.Key.Equals(cargoItem.Data.Key) || item.Lot != cargoItem.Lot) continue;
             
             var cargoCommodity = (SimpleCommodity) cargoItem;
             if (cargoCommodity.Quantity >= itemData.MaxStack) continue;
@@ -2563,7 +2563,7 @@ public class EquippedCargoBay : EquippedItem
                 ItemsOfType[item.Data.Key] = new List<ItemInstance>();
             ItemsOfType[item.Data.Key].Add(item);
         }
-        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data.Key.Equals(item.Data.Key))
+        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data.Key.Equals(item.Data.Key) && cargoCommodity.Lot == item.Lot)
         {
             if (cargoCommodity.Quantity + item.Quantity <= itemData.MaxStack)
             {
@@ -2643,7 +2643,7 @@ public class EquippedCargoBay : EquippedItem
         item.Quantity -= quantity;
         Mass -= itemData.Mass * quantity;
         ThermalMass -= itemData.Mass * itemData.SpecificHeat * quantity;
-        return new SimpleCommodity{Data = item.Data, Quantity = quantity, Rotation = item.Rotation};
+        return new SimpleCommodity{Data = item.Data, Lot = item.Lot, Quantity = quantity, Rotation = item.Rotation};
     }
 
     public void Remove(CraftedItemInstance item)

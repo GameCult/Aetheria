@@ -72,8 +72,9 @@ public class ItemManager
         };
     }
 
-    // The one resolution path from a crafted instance to the lot it was minted from.
-    public Lot GetLot(CraftedItemInstance item) => Lots[item.Lot];
+    // The one resolution path from an instance to the lot it was minted or mined from. Lot 0 throws: a bought or
+    // staged commodity has no lot, and the caller asks Lot != 0 first.
+    public Lot GetLot(ItemInstance item) => Lots[item.Lot];
 
     // Returns stat when not equipped: a null-entity context with no heat, no power and no modifiers. It says so
     // in its own name (UnequippedStatContext) rather than being a third quiet dialect of the arithmetic.

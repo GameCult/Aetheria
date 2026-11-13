@@ -60,8 +60,8 @@ public static class EntitySerializer
             && itemManager.GetData(commodity).MaxStack >= 1)
         {
             var maxStack = itemManager.GetData(commodity).MaxStack;
-            var first = new SimpleCommodity { Data = commodity.Data, Rotation = commodity.Rotation, Quantity = maxStack };
-            var rest = new SimpleCommodity { Data = commodity.Data, Rotation = commodity.Rotation, Quantity = commodity.Quantity - maxStack };
+            var first = new SimpleCommodity { Data = commodity.Data, Lot = commodity.Lot, Rotation = commodity.Rotation, Quantity = maxStack };
+            var rest = new SimpleCommodity { Data = commodity.Data, Lot = commodity.Lot, Rotation = commodity.Rotation, Quantity = commodity.Quantity - maxStack };
             if (!bay.TryStore(first, position)) rest.Quantity += first.Quantity;
             spill.Add((bay, rest));
             return;
@@ -82,7 +82,7 @@ public static class EntitySerializer
             var remaining = rest.Quantity;
             while (remaining > 0)
             {
-                var chunk = new SimpleCommodity { Data = rest.Data, Rotation = rest.Rotation, Quantity = Math.Min(remaining, maxStack) };
+                var chunk = new SimpleCommodity { Data = rest.Data, Lot = rest.Lot, Rotation = rest.Rotation, Quantity = Math.Min(remaining, maxStack) };
                 var placed = home.TryStore(chunk) || bays.Where(b => b != home).Any(b => b.TryStore(chunk));
                 // A refused store may still have topped up a stack; what is left in the chunk found no room.
                 remaining -= Math.Min(remaining, maxStack) - (placed ? 0 : chunk.Quantity);
