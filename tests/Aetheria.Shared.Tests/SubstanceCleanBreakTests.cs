@@ -66,11 +66,17 @@ public sealed class SubstanceCleanBreakTests
         "ef9a54b8dacea9f44be70da43472f701",
     };
 
-    private static readonly string[] ScannedExtensions =
+    private static readonly string[] PrefabsAndMetasEditedByTheCut =
     {
-        ".mat", ".prefab", ".unity", ".asset", ".meta", ".controller", ".anim", ".overrideController", ".mixer",
-        ".lighting", ".flare", ".shader", ".json",
+        "Assets/Content/Prefabs/Turrets/Turret.prefab", "Assets/Prefabs/RPG/Pickups/Dodecahedron.prefab",
+        "Assets/Prefabs/RPG/Pickups/Hexahedron.prefab", "Assets/Prefabs/RPG/Pickups/Icosahedron.prefab",
+        "Assets/Prefabs/RPG/Pickups/Octahedron.prefab", "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab",
+        "Assets/Models/Zenith_Blender.fbx.meta",
     };
+
+    // A material reference (main object fileID 2100000). Script guids in the same files resolve to Unity packages,
+    // which have no .meta under Assets/, so only material slots are checked.
+    private static readonly Regex MaterialRef = new(@"fileID:\s*2100000,\s*guid:\s*([0-9a-f]{32})", RegexOptions.Compiled);
 
     private static readonly string[] ExcludedDirs = { ".git", "node_modules", ".voidbot" };
 
@@ -90,6 +96,51 @@ public sealed class SubstanceCleanBreakTests
         foreach (var sub in Directory.EnumerateDirectories(dir))
             if (!ExcludedDirs.Contains(Path.GetFileName(sub)))
                 foreach (var file in Walk(sub)) yield return file;
+    }
+
+    // A checkout that holds Git LFS pointers instead of content cannot be scanned. The guards that read LFS-tracked
+    // files fail loudly here: skipping would pass vacuously, and a failure says "smudge the LFS objects first".
+    private static bool IsLfsPointer(string path)
+    {
+        using var stream = File.OpenRead(path);
+        var head = new byte[48];
+        var n = stream.Read(head, 0, head.Length);
+        return Encoding.ASCII.GetString(head, 0, n).StartsWith("version https://git-lfs", StringComparison.Ordinal);
+    }
+
+    private static string ReadTextOrFailOnPointer(string path)
+    {
+        Assert.False(IsLfsPointer(path), $"{path} is an LFS pointer, not content: this guard cannot see inside it. Run `git lfs pull`.");
+        return File.ReadAllText(path, Encoding.Latin1);
+    }
+
+    // Everything is scanned except known binary media (a denylist, so an unlisted serialized type is still read) and,
+    // for unlisted extensions, files with a NUL byte in the first 8 KiB. The extension check comes first because an
+    // LFS pointer for a texture is itself text and says nothing about what the object holds.
+    private static readonly string[] BinaryExtensions =
+    {
+        ".png", ".jpg", ".jpeg", ".tga", ".tif", ".tiff", ".psd", ".bmp", ".gif", ".exr", ".hdr", ".dds", ".wav", ".mp3",
+        ".ogg", ".mp4", ".fbx", ".glb", ".blend", ".ttf", ".otf", ".dll", ".so", ".pdb", ".msgpack", ".zip", ".bank",
+    };
+
+    private static bool LooksBinary(string path)
+    {
+        if (BinaryExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase)) return true;
+        using var stream = File.OpenRead(path);
+        var buf = new byte[8192];
+        var n = stream.Read(buf, 0, buf.Length);
+        return Array.IndexOf(buf, (byte)0, 0, n) >= 0;
+    }
+
+    private static Dictionary<string, string> GuidToMeta(string root)
+    {
+        var map = new Dictionary<string, string>();
+        foreach (var meta in Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*.meta", SearchOption.AllDirectories))
+        {
+            var guid = File.ReadLines(meta).FirstOrDefault(l => l.StartsWith("guid: "))?.Substring("guid: ".Length).Trim();
+            if (guid != null) map[guid] = Path.GetRelativePath(root, meta).Replace('\\', '/');
+        }
+        return map;
     }
 
     [Fact]
@@ -112,7 +163,11 @@ public sealed class SubstanceCleanBreakTests
             .SelectMany(Walk)
             .Concat(Directory.Exists(Path.Combine(root, "GameData"))
                 ? Directory.EnumerateFiles(Path.Combine(root, "GameData"), "*.cc") : Enumerable.Empty<string>())
-            .Where(f => f.EndsWith(".cc") || ScannedExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase));
+            .Where(f => f.EndsWith(".cc") || !LooksBinary(f))
+            .ToList();
+        var pointers = files.Where(IsLfsPointer).Select(f => Path.GetRelativePath(root, f)).ToList();
+        Assert.True(pointers.Count == 0,
+            $"{pointers.Count} scanned files are LFS pointers, not content (first: {pointers.FirstOrDefault()}); run `git lfs pull`.");
         var hits = new List<string>();
         foreach (var file in files)
         {
@@ -129,7 +184,7 @@ public sealed class SubstanceCleanBreakTests
     public void NoSubstanceBuildSurface()
     {
         var root = RestoredHullsTests.FindRepoRoot();
-        Assert.DoesNotContain("SUBSTANCE", File.ReadAllText(Path.Combine(root, "ProjectSettings", "ProjectSettings.asset")), StringComparison.Ordinal);
+        Assert.DoesNotContain("SUBSTANCE", ReadTextOrFailOnPointer(Path.Combine(root, "ProjectSettings", "ProjectSettings.asset")), StringComparison.Ordinal);
         foreach (var name in new[] { "manifest.json", "packages-lock.json" })
         {
             var text = File.ReadAllText(Path.Combine(root, "Packages", name));
@@ -144,14 +199,9 @@ public sealed class SubstanceCleanBreakTests
     public void EveryReplacementTextureResolves()
     {
         var root = RestoredHullsTests.FindRepoRoot();
-        var guidToMeta = new Dictionary<string, string>();
-        foreach (var meta in Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*.meta", SearchOption.AllDirectories))
-        {
-            var guid = File.ReadLines(meta).FirstOrDefault(l => l.StartsWith("guid: "))?.Substring("guid: ".Length).Trim();
-            if (guid != null) guidToMeta[guid] = Path.GetRelativePath(root, meta).Replace('\\', '/');
-        }
+        var guidToMeta = GuidToMeta(root);
 
-        var texture = new Regex(@"m_Texture:\s*\{fileID:\s*(-?\d+),\s*guid:\s*([0-9a-f]{32})", RegexOptions.Compiled);
+        var texture = new Regex(@"m_Texture:\s*\{fileID:\s*(-?\d+)(?:,\s*guid:\s*([0-9a-f]{32}))?", RegexOptions.Compiled);
         var problems = new List<string>();
         foreach (var rel in RepointedMaterials)
         {
@@ -164,11 +214,36 @@ public sealed class SubstanceCleanBreakTests
             foreach (Match m in texture.Matches(text.Substring(start, end - start)))
             {
                 if (m.Groups[1].Value == "0") continue;
+                if (!m.Groups[2].Success) { problems.Add($"{rel} has a nonzero texture fileID with no guid: {m.Value}"); continue; }
                 var guid = m.Groups[2].Value;
                 if (!guidToMeta.TryGetValue(guid, out var meta)) problems.Add($"{rel} names {guid}, which has no .meta under Assets/");
                 else if (meta.StartsWith("Assets/Materials/Substance", StringComparison.Ordinal)) problems.Add($"{rel} names {guid} inside the removed Substance tree");
+                else if (!File.ReadLines(Path.Combine(root, meta)).Any(l => l.StartsWith("TextureImporter:", StringComparison.Ordinal)))
+                    problems.Add($"{rel} texture slot names {guid} ({meta}), which is not a TextureImporter asset");
             }
         }
         Assert.True(problems.Count == 0, string.Join("\n", problems));
+    }
+
+    [Fact]
+    public void EveryRepointedPrefabAndFbxSlotResolves()
+    {
+        var root = RestoredHullsTests.FindRepoRoot();
+        var guidToMeta = GuidToMeta(root);
+        var problems = new List<string>();
+        foreach (var rel in PrefabsAndMetasEditedByTheCut)
+        {
+            var path = Path.Combine(root, rel);
+            if (!File.Exists(path)) { problems.Add($"{rel} does not exist"); continue; }
+            var lines = ReadTextOrFailOnPointer(path).Split('\n');
+            for (var i = 0; i < lines.Length; i++)
+                foreach (Match m in MaterialRef.Matches(lines[i]))
+                {
+                    var guid = m.Groups[1].Value;
+                    if (!guidToMeta.TryGetValue(guid, out var meta)) problems.Add($"{rel}:{i + 1} names {guid}, which has no .meta under Assets/");
+                    else if (!meta.EndsWith(".mat.meta", StringComparison.Ordinal)) problems.Add($"{rel}:{i + 1} material slot names {guid} ({meta}), which is not a .mat");
+                }
+        }
+        Assert.True(problems.Count == 0, string.Join("\n", problems.Take(40)));
     }
 }
