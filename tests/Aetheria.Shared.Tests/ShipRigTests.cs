@@ -209,7 +209,7 @@ public sealed class ShipRigTests : IDisposable
 
     private static string GlbJson(Node[] nodes)
     {
-        var text = new StringBuilder(@"{""asset"":{""version"":""2.0""},""meshes"":[{""primitives"":[]}],""nodes"":[");
+        var text = new StringBuilder(@"{""asset"":{""version"":""2.0""},""meshes"":[{""primitives"":[{""attributes"":{""POSITION"":0}}]}],""nodes"":[");
         for (var index = 0; index < nodes.Length; index++)
         {
             var node = nodes[index];

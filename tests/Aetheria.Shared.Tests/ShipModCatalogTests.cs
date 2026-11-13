@@ -328,6 +328,54 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Contains("GLB", excluded.Reason);
     }
 
+    // Bind is the one verdict on whether a mod hull exists: a package whose GLB names a node mesh the importer cannot build
+    // (dangling or negative index, no meshes array, non-integer index, no POSITION on any one primitive, non-triangle mode, skinned node, no primitives) never reaches the boot catalog, so Preload has nothing left to refuse on file facts.
+    [Fact]
+    public void ABootCatalogHoldsNoHullTheImporterCannotBuild()
+    {
+        WritePackage("mod.good", hullName: "Good");
+        var broken = new Dictionary<string, (string From, string To)>
+        {
+            ["mod.dangling"] = (@"{""name"":""collider"",""mesh"":0", @"{""name"":""collider"",""mesh"":7"),
+            ["mod.nopos"] = (@"""attributes"":{""POSITION"":0}", @"""attributes"":{}"),
+            ["mod.skinned"] = (@"{""name"":""map"",""mesh"":0", @"{""name"":""map"",""mesh"":0,""skin"":0"),
+            ["mod.noprims"] = (@"""primitives"":[{""attributes"":{""POSITION"":0}}]", @"""primitives"":[]"),
+            ["mod.onebad"] = (@"""primitives"":[{""attributes"":{""POSITION"":0}}]", @"""primitives"":[{""attributes"":{""POSITION"":0}},{""attributes"":{}}]"),
+            ["mod.points"] = (@"""attributes"":{""POSITION"":0}}", @"""attributes"":{""POSITION"":0},""mode"":0}"),
+            ["mod.negative"] = (@"""mesh"":0", @"""mesh"":-1"),
+            ["mod.nomeshes"] = (@"""meshes"":", @"""other"":"),
+            ["mod.fractional"] = (@"""mesh"":0", @"""mesh"":0.0")
+        };
+        foreach (var (package, (from, to)) in broken)
+        {
+            WritePackage(package, hullName: package.Substring(4));
+            var json = ShipFixture.GlbJson(FixtureNodes);
+            Assert.Contains(from, json);
+            File.WriteAllBytes(Path.Combine(Mods, package, "skiff.glb"), ShipFixture.Glb(json.Replace(from, to), ShipFixture.MeshBytes()));
+        }
+
+        var (catalog, excluded) = ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods);
+
+        Assert.Equal(Derived, catalog);
+        Assert.Equal(broken.Keys.OrderBy(name => name, StringComparer.Ordinal), excluded.Select(e => e.Package).OrderBy(name => name, StringComparer.Ordinal));
+        Assert.All(excluded, e => Assert.Contains("needs a mesh", e.Reason));
+        using var cache = AetheriaStores.Open(catalog);
+        var hulls = cache.GetAll<HullData>().Where(hull => hull.Visual.IsSet()).ToArray();
+        Assert.Equal(new[] { "Good" }, hulls.Select(hull => hull.Name));
+        var keys = cache.AllStoredDocuments.Select(record => record.Key.Value).ToHashSet();
+        foreach (var package in broken.Keys)
+        {
+            Assert.DoesNotContain(ShipModCatalog.HullKey(package).Value, keys);
+            Assert.DoesNotContain(ShipModCatalog.AuthoringKey(package).Value, keys);
+        }
+        // Preload's own two steps over file facts, run headlessly: neither may refuse a hull the catalog holds.
+        foreach (var hull in hulls)
+        {
+            var package = ShipModCatalog.PackageOf(cache, hull, Mods);
+            ShipModPlan.Build(package.Hull, package.Visual);
+        }
+    }
+
     // The game's boot: a bad package is named and the rest boot; with none left, the shipped catalog boots.
     [Fact]
     public void TheBootCatalogSurvivesBadPackages()
@@ -554,8 +602,9 @@ public sealed class ShipModCatalogTests : IDisposable
     public void NodeIdsMapToTheirGlbNodeIndexSkippingNodesWithoutOne()
     {
         var path = Write("nodes.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
-            {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""mesh"":0,""extras"":{""aetheria.id"":""b""}}]}"));
-        Assert.Equal(new Dictionary<string, (uint, bool, int, bool)> { ["a"] = (1, false, -1, true), ["b"] = (4, true, -1, true) }, ShipModCatalog.ReadNodeIds(path));
+            {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""mesh"":0,""extras"":{""aetheria.id"":""b""}},{""mesh"":7,""extras"":{""aetheria.id"":""c""}}],
+            ""meshes"":[{""primitives"":[{""attributes"":{""POSITION"":0}}]}]}"));
+        Assert.Equal(new Dictionary<string, (uint, bool, int, bool)> { ["a"] = (1, false, -1, true), ["b"] = (4, true, -1, true), ["c"] = (5, false, -1, true) }, ShipModCatalog.ReadNodeIds(path));
     }
 
     [Fact]

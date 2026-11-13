@@ -112,6 +112,7 @@ public static class ShipPrefabAuthoring
                     case "Thruster":
                         var emitter = DirectChild(node, "Emitter")?.GetComponent<MeshRenderer>();
                         if (emitter == null) throw new InvalidOperationException($"{name} needs an Emitter mesh child");
+                        ShipModShips.Hide(emitter, invisible);
                         AddOrGet<ThrusterHardpoint>(node.gameObject).Emitter = emitter;
                         thrusters.Add(node.GetComponent<ThrusterHardpoint>());
                         break;
