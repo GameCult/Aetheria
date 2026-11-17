@@ -5,7 +5,7 @@ using Xunit;
 using static CultMath.math;
 using Random = CultMath.Random;
 
-// GameData/Mods/aetheria.wren: a first-party package written by `ship-authoring starter --like Djinni`, then priced and given
+// tests/fixtures/mods/aetheria.wren: a test fixture package, not shipped with the game, written by `ship-authoring starter --like Djinni`, then priced and given
 // an unoffered Aeronautics Unlimited product by `ship-authoring price` and `product`; its model is the starter's boxed
 // stand-in. It is the pipeline's proof from a hull package on disk to a ship that flies in the headless simulation: the
 // package composes into the catalog, its mounts take catalog gear, and the fitted ship moves under thrust. `fly` cannot
@@ -19,7 +19,7 @@ public sealed class WrenPackageTests
     [Fact]
     public void TheStarterPackageIsInTheComposedCatalogWithTheStatsOfItsLike()
     {
-        using var cache = RestoredHullsTests.OpenCatalog();
+        using var cache = RestoredHullsTests.OpenCatalogWithFixtures();
         var hull = Wren(cache);
         var like = cache.GetByName<HullData>("Djinni");
         Assert.NotNull(hull);
@@ -34,7 +34,7 @@ public sealed class WrenPackageTests
     [Fact]
     public void TheStarterIsMadeButNeverOffered()
     {
-        using var cache = RestoredHullsTests.OpenCatalog();
+        using var cache = RestoredHullsTests.OpenCatalogWithFixtures();
         var hull = Wren(cache);
         var product = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Design.Key.Equals(ShipModCatalog.HullKey(Id)));
         Assert.Equal("Aeronautics Unlimited", cache.Get(product.Manufacturer).Name);
@@ -47,7 +47,7 @@ public sealed class WrenPackageTests
     [Fact]
     public void EveryMountTakesACatalogDesign()
     {
-        using var cache = RestoredHullsTests.OpenCatalog();
+        using var cache = RestoredHullsTests.OpenCatalogWithFixtures();
         var designs = cache.GetAll<EquippableItemData>().ToArray();
         var bare = Wren(cache).Hardpoints.Where(hardpoint => !designs.Any(hardpoint.Takes)).Select(hardpoint => $"{hardpoint.Transform} ({hardpoint.Type})").ToArray();
         // No shield design fits a 1x1 yet (hardpoint-fit lists Djinni's 4-cell shield with none either); every other mount does.
@@ -57,7 +57,7 @@ public sealed class WrenPackageTests
     [Fact]
     public void TheStarterFliesUnderThrust()
     {
-        using var cache = RestoredHullsTests.OpenCatalog();
+        using var cache = RestoredHullsTests.OpenCatalogWithFixtures();
         var ship = RestoredHullsTests.BuildThrustedShip(cache, "Wren");
         var start = ship.Velocity;
         ship.MovementDirection = float2(0, 1);

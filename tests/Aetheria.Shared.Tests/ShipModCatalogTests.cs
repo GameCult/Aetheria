@@ -49,6 +49,53 @@ public sealed class ShipModCatalogTests : IDisposable
         AssertOnlyTheDerivedFile();
     }
 
+    // A package selling one product through the one product writer, with or without schematic lines and offered or not.
+    private void PricedPackage(string id, bool lines, bool offered)
+    {
+        var factionKey = AddFaction();
+        WritePackage(id, id, tweak: ship =>
+        {
+            ship.Hull.Price = 100;
+            if (!lines) ship.Visual.SchematicLines = new List<ShipPolyline>();
+        });
+        using var cache = ShipAuthoringStore.Open(Path.Combine(Mods, id, "ship.cc"), writable: true);
+        ShipAuthoringStore.WriteProduct(cache, id, new FactionProductData
+        {
+            Name = id + " product",
+            Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey(id)),
+            Manufacturer = new CultRecordRef<Faction>(factionKey),
+            NotOffered = !offered
+        });
+        cache.FlushAsync().Wait();
+    }
+
+    private CultRecordKey AddFaction()
+    {
+        using var cache = AetheriaStores.Open(Shipped, catalogWritable: true);
+        var existing = cache.GetAll<Faction>().FirstOrDefault();
+        var key = existing != null ? cache.RefOf(existing).Key : cache.Upsert(new Faction { Name = "Acme", ShortName = "ACM" }).Key;
+        cache.FlushAsync().Wait();
+        return key;
+    }
+
+    // An offered hull is drawn by its schematic lines (ShipModVisual.BuildLineMesh builds nothing from none), so one without any
+    // is left out of the catalog with its reason; an offered hull with lines and an unoffered stand-in without them both compose.
+    [Fact]
+    public void ComposeExcludesAnOfferedHullWithoutSchematicLinesAndKeepsTheRest()
+    {
+        PricedPackage("mod.offeredbare", lines: false, offered: true);
+        PricedPackage("mod.offeredlined", lines: true, offered: true);
+        PricedPackage("mod.standin", lines: false, offered: false);
+
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Equal(new[] { "mod.offeredlined", "mod.standin" }, composition.Included.OrderBy(id => id, StringComparer.Ordinal));
+        var excluded = Assert.Single(composition.Excluded);
+        Assert.Equal("mod.offeredbare", excluded.Package);
+        Assert.Contains("mod.offeredbare", excluded.Reason);
+        Assert.Contains("no schematic", excluded.Reason);
+    }
+
     // A package's station kind is checked per package: a bad one is left out, named with its reason, and the derived catalog
     // still opens. The shipped catalog's own check is unchanged.
     [Fact]

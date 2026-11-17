@@ -107,7 +107,7 @@ public class ElementIdUpgradeTests
     {
         using var directory = new TempDirectory();
         var copy = Path.Combine(directory.Path, "ship.cc");
-        File.Copy(Path.Combine(RunStartTests.FindRepoRoot(), "GameData", "Mods", "aetheria.wren", "ship.cc"), copy);
+        File.Copy(Path.Combine(RunStartTests.FindRepoRoot(), "tests", "fixtures", "mods", "aetheria.wren", "ship.cc"), copy);
         var bytes = File.ReadAllBytes(copy);
         var (hull, visual, products) = ShipAuthoringStore.Load(copy);
 

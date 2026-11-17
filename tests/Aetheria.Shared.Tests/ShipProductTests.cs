@@ -99,6 +99,30 @@ public sealed class ShipProductTests : IDisposable
         }
     }
 
+    // validate gives the verdict compose gives: an offered hull with no schematic lines is refused, an unoffered one is not.
+    [Fact]
+    public void ValidateRefusesAnOfferedHullWithoutSchematicLinesAsComposeDoes()
+    {
+        Environment.CurrentDirectory = _root.Path;
+        string Bare(string id, bool offered)
+        {
+            var directory = ShipFixture.WritePackage(Mods, id, id, tweak: ship => { ship.Hull.Price = 100; ship.Visual.SchematicLines = new List<ShipPolyline>(); });
+            var path = Path.Combine(directory, "ship.cc");
+            using var cache = ShipAuthoringStore.Open(path, writable: true);
+            var product = Product(id + " product", _acme, id);
+            product.NotOffered = !offered;
+            ShipAuthoringStore.WriteProduct(cache, id, product);
+            cache.FlushAsync().Wait();
+            return path;
+        }
+
+        var (code, _, error) = Run("validate", Bare("mod.offered", offered: true));
+        Assert.Equal(1, code);
+        Assert.Contains("no schematic", error);
+        Assert.Equal(0, Run("validate", Bare("mod.standin", offered: false)).Item1);
+        Assert.Equal(new[] { "mod.standin" }, ShipModCatalog.Compose(Shipped, Derived, Mods).Included);
+    }
+
     [Fact]
     public void APackageWithAnUnknownMakerIsExcluded()
     {

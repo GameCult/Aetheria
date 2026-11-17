@@ -26,7 +26,7 @@ that some intermediate pins read a single-file v3 store silently and drop the id
 writers, keep a pre-upgrade copy of any real store (`GameData/Aetheria.cc` and the mod packages are tracked in git; player saves and
 run stores are not), and do not roll the pin back after a store has been written under the new one.
 
-The shipped mod packages (`GameData/Mods/aetheria.wren/ship.cc`, `aetheria.nakovalnya/ship.cc`) held only default
+The shipped mod package (`GameData/Mods/aetheria.nakovalnya/ship.cc`) and the test fixture package (`tests/fixtures/mods/aetheria.wren/ship.cc`) held only default
 placeholders (`0` and `[]`) in the retired `HullData` slots 21 and 22, which the new CultLib refuses to write over
 (`CultSchemaConflictException`). They were regenerated with `AetherDb ship-authoring regenerate <ship.cc> apply`, which loads the
 records, writes them into a fresh file under the current schema, requires them to read back identical and replaces the file. Both

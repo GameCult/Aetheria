@@ -18,6 +18,12 @@ internal static class TestCatalog
     // The repo's catalog with its first-party packages composed in, resolved once per test process.
     public static string Repo => Shared.Value;
 
+    private static readonly Lazy<string> SharedWithFixtures = new Lazy<string>(() => ForRepoWithFixtures(RunStartTests.FindRepoRoot()));
+
+    // The repo's catalog with its first-party packages and the test fixture packages (tests/fixtures/mods) composed in. For a
+    // test whose subject is a fixture package; Repo is the catalog the game ships.
+    public static string RepoWithFixtures => SharedWithFixtures.Value;
+
     // The shipped assembly's own [CultDocument] types and nothing the test assembly registers (CultDocumentRegistry.ForTypes
     // does not re-scan the AppDomain), so this assembly's fixture documents never become catalog globals the real catalog
     // must hold. The one registry every test that opens a real catalog, and the composition behind Repo, uses.
@@ -32,6 +38,21 @@ internal static class TestCatalog
         var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetheria-testcatalog-" + Guid.NewGuid().ToString("N"))).FullName;
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { try { Directory.Delete(work, true); } catch (IOException) { } };
         return Resolve(Path.Combine(repoRoot, "GameData", "Aetheria.cc"), Path.Combine(repoRoot, "GameData", "Mods"), work);
+    }
+
+    // ForRepo over a mods root assembled from GameData/Mods and tests/fixtures/mods, copied into the per-call temp directory.
+    public static string ForRepoWithFixtures(string repoRoot)
+    {
+        var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetheria-testcatalog-" + Guid.NewGuid().ToString("N"))).FullName;
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => { try { Directory.Delete(work, true); } catch (IOException) { } };
+        var mods = Path.Combine(work, "Mods");
+        foreach (var root in new[] { Path.Combine(repoRoot, "GameData", "Mods"), Path.Combine(repoRoot, "tests", "fixtures", "mods") })
+            foreach (var package in Directory.GetDirectories(root))
+            {
+                var target = Directory.CreateDirectory(Path.Combine(mods, Path.GetFileName(package))).FullName;
+                foreach (var file in Directory.GetFiles(package)) File.Copy(file, Path.Combine(target, Path.GetFileName(file)));
+            }
+        return Resolve(Path.Combine(repoRoot, "GameData", "Aetheria.cc"), mods, work);
     }
 
     public static string Resolve(string shippedCatalog, string modsRoot, string workDir)

@@ -53,6 +53,10 @@ public static class ShipAuthoringCommands
                 var judged = model != null && File.Exists(model) ? "records and model" : "records only, no model yet";
                 if (judged == "records and model") ShipModCatalog.ReadPackage(args[1]);
                 else ShipAuthoringStore.ValidateLoaded(hull, ship, products);
+                // Compose refuses an offered hull with no schematic; the author sees that verdict here, before compose.
+                // A package with no products is never offered, so the shipped catalog (which only resolves a product's bin) is opened for none.
+                using var catalog = products.Length > 0 ? AetherDb.Open().Cache : null;
+                if (ShipModCatalog.SchematicFault(catalog, ship, products) is { } fault) throw new InvalidOperationException(fault);
                 Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints.Count} hardpoints, {ship.Anchors.Count} anchors, {ship.SchematicLines.Count} lines ({judged})");
                 return 0;
             }

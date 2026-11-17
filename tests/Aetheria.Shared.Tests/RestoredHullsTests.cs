@@ -61,6 +61,7 @@ public sealed class RestoredHullsTests
     }
 
     internal static CultCache OpenCatalog() => OpenReadOnlyRealCatalog(TestCatalog.Repo);
+    internal static CultCache OpenCatalogWithFixtures() => OpenReadOnlyRealCatalog(TestCatalog.RepoWithFixtures);
 
     // Shared tutorial-galaxy construction settings (Assets/Resources/Settings.asset's own values), factored out
     // so every test that needs a real tutorial Galaxy -- not just EntranceZoneAlwaysGetsADockedStationAcrossSeeds
