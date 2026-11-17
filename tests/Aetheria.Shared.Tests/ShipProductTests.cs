@@ -104,13 +104,14 @@ public sealed class ShipProductTests : IDisposable
     public void ValidateRefusesAnOfferedHullWithoutSchematicLinesAsComposeDoes()
     {
         Environment.CurrentDirectory = _root.Path;
-        string Bare(string id, bool offered)
+        string Bare(string id, bool offered, bool nullLines = false, CultRecordKey? bin = null)
         {
-            var directory = ShipFixture.WritePackage(Mods, id, id, tweak: ship => { ship.Hull.Price = 100; ship.Visual.SchematicLines = new List<ShipPolyline>(); });
+            var directory = ShipFixture.WritePackage(Mods, id, id, tweak: ship => { ship.Hull.Price = 100; ship.Visual.SchematicLines = nullLines ? null : new List<ShipPolyline>(); });
             var path = Path.Combine(directory, "ship.cc");
             using var cache = ShipAuthoringStore.Open(path, writable: true);
             var product = Product(id + " product", _acme, id);
             product.NotOffered = !offered;
+            if (bin is { } line) product.Bin = new ProductBin { Line = new CultRecordRef<FactionProductData>(line), Floor = 1f };
             ShipAuthoringStore.WriteProduct(cache, id, product);
             cache.FlushAsync().Wait();
             return path;
@@ -120,6 +121,14 @@ public sealed class ShipProductTests : IDisposable
         Assert.Equal(1, code);
         Assert.Contains("no schematic", error);
         Assert.Equal(0, Run("validate", Bare("mod.standin", offered: false)).Item1);
+        // A null SchematicLines is no schematic, as for compose.
+        var (nullCode, _, nullError) = Run("validate", Bare("mod.nulled", offered: true, nullLines: true));
+        Assert.Equal(1, nullCode);
+        Assert.Contains("no schematic", nullError);
+        // A bin naming no shipped product and no product of the package is refused, as compose excludes it.
+        var (binCode, _, binError) = Run("validate", Bare("mod.badbin", offered: true, bin: new CultRecordKey("product:nowhere")));
+        Assert.Equal(1, binCode);
+        Assert.Contains("bins a line", binError);
         Assert.Equal(new[] { "mod.standin" }, ShipModCatalog.Compose(Shipped, Derived, Mods).Included);
     }
 

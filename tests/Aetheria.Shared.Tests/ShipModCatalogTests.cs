@@ -49,43 +49,71 @@ public sealed class ShipModCatalogTests : IDisposable
         AssertOnlyTheDerivedFile();
     }
 
-    // A package selling one product through the one product writer, with or without schematic lines and offered or not.
-    private void PricedPackage(string id, bool lines, bool offered)
-    {
-        var factionKey = AddFaction();
-        WritePackage(id, id, tweak: ship =>
-        {
-            ship.Hull.Price = 100;
-            if (!lines) ship.Visual.SchematicLines = new List<ShipPolyline>();
-        });
-        using var cache = ShipAuthoringStore.Open(Path.Combine(Mods, id, "ship.cc"), writable: true);
-        ShipAuthoringStore.WriteProduct(cache, id, new FactionProductData
-        {
-            Name = id + " product",
-            Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey(id)),
-            Manufacturer = new CultRecordRef<Faction>(factionKey),
-            NotOffered = !offered
-        });
-        cache.FlushAsync().Wait();
-    }
-
-    private CultRecordKey AddFaction()
+    // A maker (by name) the shipped catalog holds, made on first use.
+    private CultRecordKey Maker(string name)
     {
         using var cache = AetheriaStores.Open(Shipped, catalogWritable: true);
-        var existing = cache.GetAll<Faction>().FirstOrDefault();
-        var key = existing != null ? cache.RefOf(existing).Key : cache.Upsert(new Faction { Name = "Acme", ShortName = "ACM" }).Key;
+        var existing = cache.GetAll<Faction>().FirstOrDefault(faction => faction.Name == name);
+        var key = existing != null ? cache.RefOf(existing).Key : cache.Upsert(new Faction { Name = name, ShortName = name.Substring(0, 3).ToUpperInvariant() }).Key;
         cache.FlushAsync().Wait();
         return key;
     }
+
+    // A shipped product line a package's product can bin.
+    private CultRecordKey ShippedLine(string name, bool notOffered)
+    {
+        var maker = Maker("Acme");
+        using var cache = AetheriaStores.Open(Shipped, catalogWritable: true);
+        var hull = cache.Upsert(new HullData { Name = name + " hull", Shape = ShipAuthoringTests.Fixture().Hull.Shape, Price = 10 });
+        var line = cache.Upsert(new FactionProductData
+        {
+            Name = name,
+            Design = new CultRecordRef<CraftedItemData>(hull.Key),
+            Manufacturer = new CultRecordRef<Faction>(maker),
+            NotOffered = notOffered
+        });
+        cache.FlushAsync().Wait();
+        return line.Key;
+    }
+
+    // One product of a package: its maker, whether it is itself off the market, and the line it bins, if any.
+    private sealed record Sale(string Maker, bool NotOffered = false, CultRecordKey? Bin = null);
+
+    // A priced package selling the given products through the one product writer, with or without schematic lines
+    // (`lines` null leaves the record's SchematicLines null).
+    private void PricedPackage(string id, bool? lines, params Sale[] sales)
+    {
+        var makers = sales.Select(sale => Maker(sale.Maker)).ToArray();
+        WritePackage(id, id, tweak: ship =>
+        {
+            ship.Hull.Price = 100;
+            if (lines == false) ship.Visual.SchematicLines = new List<ShipPolyline>();
+            if (lines == null) ship.Visual.SchematicLines = null;
+        });
+        using var cache = ShipAuthoringStore.Open(Path.Combine(Mods, id, "ship.cc"), writable: true);
+        for (var n = 0; n < sales.Length; n++)
+            ShipAuthoringStore.WriteProduct(cache, id, new FactionProductData
+            {
+                Name = $"{id} product {n}",
+                Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey(id)),
+                Manufacturer = new CultRecordRef<Faction>(makers[n]),
+                NotOffered = sales[n].NotOffered,
+                Bin = sales[n].Bin is { } line ? new ProductBin { Line = new CultRecordRef<FactionProductData>(line), Floor = 1f } : null
+            });
+        cache.FlushAsync().Wait();
+    }
+
+    private static string Excluded(ShipModCatalog.Composition composition, string package) =>
+        composition.Excluded.SingleOrDefault(entry => entry.Package == package)?.Reason;
 
     // An offered hull is drawn by its schematic lines (ShipModVisual.BuildLineMesh builds nothing from none), so one without any
     // is left out of the catalog with its reason; an offered hull with lines and an unoffered stand-in without them both compose.
     [Fact]
     public void ComposeExcludesAnOfferedHullWithoutSchematicLinesAndKeepsTheRest()
     {
-        PricedPackage("mod.offeredbare", lines: false, offered: true);
-        PricedPackage("mod.offeredlined", lines: true, offered: true);
-        PricedPackage("mod.standin", lines: false, offered: false);
+        PricedPackage("mod.offeredbare", lines: false, new Sale("Acme"));
+        PricedPackage("mod.offeredlined", lines: true, new Sale("Acme"));
+        PricedPackage("mod.standin", lines: false, new Sale("Acme", NotOffered: true));
 
         var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
 
@@ -94,6 +122,62 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal("mod.offeredbare", excluded.Package);
         Assert.Contains("mod.offeredbare", excluded.Reason);
         Assert.Contains("no schematic", excluded.Reason);
+    }
+
+    // A hull is offered when any product of it is, and a binned product is offered only if its line is (ruling bin-inherits-line-offered):
+    // the verdict is IsOffered's, not a read of the product's own NotOffered.
+    [Fact]
+    public void OfferedNessComesFromAnyProductAndFromTheBinsLine()
+    {
+        var offeredLine = ShippedLine("Offered Line", notOffered: false);
+        var closedLine = ShippedLine("Closed Line", notOffered: true);
+        PricedPackage("mod.binoffered", lines: false, new Sale("Acme", Bin: offeredLine));
+        PricedPackage("mod.binclosed", lines: false, new Sale("Acme", Bin: closedLine));
+        PricedPackage("mod.oneoftwo", lines: false, new Sale("Acme", NotOffered: true), new Sale("Rival"));
+
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Contains("no schematic", Excluded(composition, "mod.binoffered"));
+        Assert.Null(Excluded(composition, "mod.binclosed"));
+        Assert.Contains("no schematic", Excluded(composition, "mod.oneoftwo"));
+        Assert.Equal(new[] { "mod.binclosed" }, composition.Included);
+    }
+
+    [Fact]
+    public void ANullSchematicIsNoSchematicWhenOffered()
+    {
+        PricedPackage("mod.nulled", lines: null, new Sale("Acme"));
+        PricedPackage("mod.nulledstandin", lines: null, new Sale("Acme", NotOffered: true));
+
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Contains("no schematic", Excluded(composition, "mod.nulled"));
+        Assert.Equal(new[] { "mod.nulledstandin" }, composition.Included);
+    }
+
+    // A bin's line is a shipped product or one of the package's own, never another package's and never nothing: the catalog read
+    // refuses such a bin at boot, so compose leaves the package out and the derived catalog opens.
+    [Fact]
+    public void ComposeExcludesAPackageWhoseBinNamesNoShippedOrOwnLine()
+    {
+        var shipped = ShippedLine("Shipped Line", notOffered: false);
+        var maker = Maker("Acme");
+        PricedPackage("mod.lined", lines: true, new Sale("Acme"));
+        PricedPackage("mod.cross", lines: false, new Sale("Rival", Bin: ShipModCatalog.ProductKey("mod.lined", maker)));
+        PricedPackage("mod.nothing", lines: true, new Sale("Acme", Bin: new CultRecordKey("product:nowhere")));
+        PricedPackage("mod.shippedbin", lines: true, new Sale("Acme", Bin: shipped));
+        PricedPackage("mod.ownbin", lines: true, new Sale("Acme"), new Sale("Rival", Bin: ShipModCatalog.ProductKey("mod.ownbin", maker)));
+
+        PricedPackage("mod.binofbin", lines: true, new Sale("Acme", Bin: shipped), new Sale("Rival", Bin: ShipModCatalog.ProductKey("mod.binofbin", maker)));
+
+        var (catalog, excluded) = ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods);
+
+        Assert.Equal(new[] { "mod.binofbin", "mod.cross", "mod.nothing" }, excluded.Select(entry => entry.Package).OrderBy(id => id, StringComparer.Ordinal));
+        Assert.All(excluded, entry => Assert.Contains("bins a line", entry.Reason));
+        Assert.Equal(Derived, catalog);
+        using var cache = AetheriaStores.Open(Derived);
+        Assert.Contains("mod.ownbin product 1", cache.GetAll<FactionProductData>().Select(product => product.Name));
+        Assert.DoesNotContain("mod.cross product 0", cache.GetAll<FactionProductData>().Select(product => product.Name));
     }
 
     // A package's station kind is checked per package: a bad one is left out, named with its reason, and the derived catalog

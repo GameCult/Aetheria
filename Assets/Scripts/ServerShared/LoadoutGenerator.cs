@@ -257,8 +257,11 @@ public class LoadoutGenerator
 
     // Whether a product is on the market at all (ruling off-market-is-unoffered-product). The one reader of NotOffered. A bin is
     // offered only if both it and its line are (ruling bin-inherits-line-offered); the catalog read guarantees a bin's line exists.
-    public static bool IsOffered(CultCache items, FactionProductData product) =>
-        !product.NotOffered && (product.Bin == null || !items.Get(product.Bin.Line).NotOffered);
+    public static bool IsOffered(CultCache items, FactionProductData product) => IsOffered(product, line => items.Get(line));
+
+    // The same reader for a caller whose bin lines are not all in one catalog yet (ShipModCatalog.MarketFault, over a package's own products).
+    public static bool IsOffered(FactionProductData product, Func<CultRecordRef<FactionProductData>, FactionProductData> lineOf) =>
+        !product.NotOffered && (product.Bin == null || !lineOf(product.Bin.Line).NotOffered);
 
     // How much this outfitter favors a product: its maker's preference times the product's share of it. The one weight of
     // generation and of ChooseProduct. A bin takes the share of its maker's stock that would pass its floor and its line takes

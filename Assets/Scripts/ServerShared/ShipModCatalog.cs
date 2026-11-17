@@ -110,7 +110,7 @@ public static class ShipModCatalog
                     if (shipIds.Contains(ship.Id))
                         Exclude(directory, $"ship ID collides with an existing catalog ship authoring record.");
                     if (StationKinds.HullKindFault(cache, hull) is { } kindFault) Exclude(directory, kindFault);
-                    if (SchematicFault(cache, ship, package.Products) is { } schematicFault) Exclude(directory, schematicFault);
+                    if (MarketFault(cache, ship, package.Products) is { } marketFault) Exclude(directory, marketFault);
                     foreach (var product in package.Products)
                     {
                         if (!factionKeys.Contains(product.Manufacturer.Key))
@@ -158,16 +158,24 @@ public static class ShipModCatalog
         }
     }
 
-    // Why a package's hull cannot go on the market, or null: a hull offered through any of its products is drawn on the map and
-    // the schematic by its lines (ShipModVisual.BuildLineMesh builds nothing from none), so an offered hull without any is
-    // excluded. An unoffered stand-in is left alone. Offered is LoadoutGenerator.IsOffered, the one reader of NotOffered
-    // (ruling off-market-is-unoffered-product); `items` is the catalog the products' bins resolve in. A product whose bin
-    // line the catalog does not hold is not judged here: the catalog read refuses it.
-    public static string SchematicFault(CultCache items, ShipAuthoring ship, FactionProductData[] products)
+    // Why a package's products cannot join the catalog, or null; the one judgement Compose and `ship-authoring validate` share.
+    // `items` is the shipped catalog. A product's bin may name only a product line the shipped catalog holds or one of the
+    // package's own products (and that line must not be a bin itself): the catalog read refuses any other bin, and a line in
+    // another package is no promise, since packages compose independently. With every bin resolved, a hull offered through any of its
+    // products is drawn on the map and the schematic by its lines (ShipModVisual.BuildLineMesh builds nothing from none), so an
+    // offered hull without any is refused; an unoffered stand-in is left alone. Offered is LoadoutGenerator.IsOffered, the one
+    // reader of NotOffered (ruling off-market-is-unoffered-product), resolving a line among the package's own products too.
+    public static string MarketFault(CultCache items, ShipAuthoring ship, FactionProductData[] products)
     {
+        var own = new Dictionary<CultRecordKey, FactionProductData>();
+        foreach (var product in products) own[ProductKey(ship.Id, product.Manufacturer.Key)] = product;
+        FactionProductData LineOf(CultRecordRef<FactionProductData> line) => items.Get(line) ?? (own.TryGetValue(line.Key, out var found) ? found : null);
+        foreach (var product in products.Where(product => product.Bin != null))
+            if (LineOf(product.Bin.Line) is not { } line || line.Bin != null)
+                return $"{ship.Id}: product '{product.Name}' bins a line that is neither an unbinned shipped product nor an unbinned product of this package.";
         if (ship.SchematicLines != null && ship.SchematicLines.Any(line => line?.Points != null && line.Points.Length > 0)) return null;
-        var offered = products.Any(product => (product.Bin == null || items.Get(product.Bin.Line) != null) && LoadoutGenerator.IsOffered(items, product));
-        return offered ? $"{ship.Id}: the hull is offered on the market but has no schematic lines." : null;
+        return products.Any(product => LoadoutGenerator.IsOffered(product, LineOf))
+            ? $"{ship.Id}: the hull is offered on the market but has no schematic lines." : null;
     }
 
     public static Package ReadPackage(string shipPath)
