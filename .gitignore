@@ -113,3 +113,4 @@ tests/_scratch_*
 
 # Stryker.NET mutation reports (regenerated per run)
 StrykerOutput/
+native/aetherlight/target/
