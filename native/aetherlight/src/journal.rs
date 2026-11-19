@@ -2343,6 +2343,12 @@ mod custody_tests {
             speak(first_grant(&active, actor), "The chain holds."),
         )
         .unwrap();
+        act(
+            &mut kernel,
+            actor,
+            speak(first_grant(&active, actor), "And again."),
+        )
+        .unwrap();
         let accepted = kernel.snapshot().unwrap();
         let world_id = accepted.world_id;
         drop(kernel);
@@ -2355,6 +2361,13 @@ mod custody_tests {
         assert!(
             matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
             "an event naming no subject passed the shape check"
+        );
+
+        let mut reordered = reopened.state.clone();
+        reordered.events.swap(0, 1);
+        assert!(
+            matches!(verify_state_shape(&reordered), Err(JournalError::Corrupt(_))),
+            "events out of revision order passed the shape check"
         );
     }
 

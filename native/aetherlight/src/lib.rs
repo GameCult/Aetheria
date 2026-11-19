@@ -12380,6 +12380,51 @@ mod clock_tests {
         assert_eq!(kernel.state.events.last().unwrap().actor, clockwork.reeve);
     }
 
+    /// The commit-time re-decision of an `Acted` effect is Play's, in Active:
+    /// the same honest effect is refused for the owner and in Draft.
+    #[test]
+    fn an_acted_effect_applies_only_for_play_in_active() {
+        let directory = tempfile::tempdir().unwrap();
+        let (kernel, clockwork, _) = clock_kernel(directory.path(), "ActedGate");
+        let invocation = DecisionInvocation {
+            affordance: clockwork.threaten,
+            bindings: vec![binding("target", Target::Subject(clockwork.farmer))],
+            proposed: vec![ProposedEffect {
+                slot: 0,
+                magnitude: Magnitude::None,
+            }],
+            speech: None,
+            display: None,
+        };
+        let command_id = CommandId::new();
+        let granted =
+            require_granted(&kernel.state, clockwork.reeve, invocation.affordance).unwrap();
+        let event =
+            action::exercise(&kernel.state, command_id, clockwork.reeve, &granted, &invocation)
+                .unwrap();
+        let effect = WorldEffect::Acted { invocation, event };
+
+        let mut candidate = kernel.state.clone();
+        let error = apply_effect(
+            &mut candidate,
+            command_id,
+            &CallerId::Principal(owner()),
+            &effect,
+        )
+        .unwrap_err();
+        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
+        assert_eq!(candidate, kernel.state);
+
+        let mut draft = kernel.state.clone();
+        draft.phase = WorldPhase::Draft;
+        let error = apply_effect(&mut draft, command_id, &play_caller(), &effect).unwrap_err();
+        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
+
+        let mut honest = kernel.state.clone();
+        apply_effect(&mut honest, command_id, &play_caller(), &effect).unwrap();
+        assert_eq!(honest.events.len(), kernel.state.events.len() + 1);
+    }
+
     /// There is no acting before activation.
     #[test]
     fn act_in_draft_is_wrong_phase() {
