@@ -201,8 +201,8 @@ fn advanced_keyed_world() -> (tempfile::TempDir, WorldKernel, EntityId) {
 }
 
 /// Each door names the held key, typed, and the refusal leaves the revision
-/// where it was. The owner and the consumer declare in Draft, and in Active
-/// too; Play acts in Active.
+/// where it was. The owner and the consumer declare in Draft only; Play
+/// declares in Active.
 fn refuse_held_key_at_each_door(
     kernel: &mut WorldKernel,
     place: EntityId,
@@ -246,7 +246,6 @@ fn a_held_import_key_is_refused_at_every_door_after_the_revision_has_moved() {
         &mut kernel,
         dead_end,
         vec![
-            ("owner in Active", CallerId::Principal(owner())),
             ("play", CallerId::System(SystemCapability::Play)),
         ],
     );
@@ -255,7 +254,7 @@ fn a_held_import_key_is_refused_at_every_door_after_the_revision_has_moved() {
     let fresh = key("aetheria.ship", "Gamma");
     let receipt = submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
+        CallerId::System(SystemCapability::Play),
         patch_of(vec![mirror("fresh", Some(fresh.clone()), dead_end)]),
     )
     .unwrap();

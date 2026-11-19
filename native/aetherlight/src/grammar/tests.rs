@@ -541,7 +541,7 @@ type Door = (&'static str, CallerId);
 
 /// Each door refuses an outside kind and a wrong role signature, typed, and the
 /// refusal leaves the revision where it was. The owner and the consumer declare
-/// in Draft and in Active; Play acts in Active.
+/// in Draft only; Play declares in Active.
 fn refuse_at_each_door(kernel: &mut WorldKernel, doors: Vec<Door>) {
     for (door, caller) in doors {
         let revision = kernel.state.revision;
@@ -584,7 +584,6 @@ fn every_admission_door_refuses_outside_the_grammar_after_the_revision_has_moved
         "the world has moved past genesis"
     );
     let active_doors = vec![
-        ("owner in Active", CallerId::Principal(owner())),
         ("play", CallerId::System(crate::SystemCapability::Play)),
     ];
     refuse_at_each_door(&mut kernel, active_doors);

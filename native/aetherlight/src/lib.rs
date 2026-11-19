@@ -145,8 +145,8 @@ impl VerifiedPrincipalEvidence {
     }
 }
 
-pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v6";
-pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v6";
+pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v7";
+pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v7";
 
 /// Compatibility tag derived from [`STATE_SCHEMA`]: the trailing
 /// `<family>-<version>` pair (e.g. `foundation-v1`). Callers that publish a
@@ -1654,7 +1654,11 @@ fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, 
             })
         }
         CommandBody::AdmitPatch { patch } => {
-            require_play_active(state, &command.caller)?;
+            require_play_active(
+                state,
+                &command.caller,
+                !(patch.declarations.is_empty() && patch.evidence.is_empty()),
+            )?;
             // Resolution before confinement, because confinement reads
             // draft-resolved referents and a structurally broken patch should
             // return its complete mismatch set rather than a jurisdiction
@@ -1707,13 +1711,25 @@ fn require_clock_caller(state: &WorldState, caller: &CallerId) -> Result<(), Ker
     }
 }
 
-/// The play table authors nothing in Draft: it is the Active world's hand.
-fn require_play_active(state: &WorldState, caller: &CallerId) -> Result<(), KernelError> {
-    if caller == &CallerId::System(SystemCapability::Play) && state.phase == WorldPhase::Draft {
+/// The play table authors nothing in Draft, and in Active declaring (new
+/// structure, or evidence) is the play table's act alone: the host reports
+/// events as typed commands and scripts propose, so no second door opens
+/// beside that path. A patch that only changes components of existing
+/// structure is any admitted author's.
+fn require_play_active(
+    state: &WorldState,
+    caller: &CallerId,
+    declares: bool,
+) -> Result<(), KernelError> {
+    let play = caller == &CallerId::System(SystemCapability::Play);
+    if play && state.phase == WorldPhase::Draft {
         return Err(KernelError::WrongPhase {
             expected: WorldPhase::Active,
             actual: state.phase,
         });
+    }
+    if declares && !play && state.phase == WorldPhase::Active {
+        return Err(KernelError::Unauthorized);
     }
     Ok(())
 }
@@ -4509,7 +4525,7 @@ fn apply_effect(
             ));
         }
         WorldEffect::PatchAdmitted { resolved } => {
-            require_play_active(state, caller)?;
+            require_play_active(state, caller, !resolved.declares_nothing())?;
             require_ruler(caller, resolved).map_err(|_| {
                 KernelError::Invariant(
                     "admitted patch rules or mints without the play authority".into(),
@@ -10530,7 +10546,7 @@ mod soul_knowledge_tests {
     /// claim is asserted by the acting subject and named by no other event. The
     /// reverse, that every claim is named by some event, is deliberately absent,
     /// because a world may declare a claim with no event behind it, in Draft
-    /// or, since the owner declares in Active unanswered, in Active too. Such a
+    /// or, by the play table, in Active. Such a
     /// claim is a valid shape and its store reopens.
     #[test]
     fn an_orphan_claim_is_a_valid_shape_and_reopens() {
@@ -10555,7 +10571,7 @@ mod soul_knowledge_tests {
                 command(
                     &active,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::System(SystemCapability::Play),
                     CommandBody::AdmitPatch {
                         patch: WorldPatch {
                             declarations: vec![Declaration::Fact(FactDeclaration {
@@ -10571,9 +10587,9 @@ mod soul_knowledge_tests {
                         },
                     },
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::fixture(CallerId::System(SystemCapability::Play)),
             )
-            .expect("the owner declares a claim in Active");
+            .expect("the play table declares a claim in Active");
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
         assert_eq!(kernel.state.facts.len(), before.facts.len() + 1);
         let facts = kernel.state.facts.clone();
@@ -11805,7 +11821,7 @@ mod witness_tests {
         let arrival =
             |kernel: &mut WorldKernel, handle: &str, label: &str, position: Option<EntityId>| {
                 let snapshot = kernel.snapshot().unwrap();
-                let caller = CallerId::Principal(owner());
+                let caller = CallerId::System(SystemCapability::Play);
                 kernel.submit(
                     command(
                         &snapshot,
@@ -13815,12 +13831,12 @@ mod clock_tests {
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Separation");
         submit_as(
             &mut kernel,
-            CallerId::Principal(owner()),
+            play_caller(),
             CommandBody::AdmitPatch {
                 patch: shed_under(clockwork.dead_end, "shed"),
             },
         )
-        .expect("the owner's patch commits");
+        .expect("the play table's patch commits");
 
         let bytes = rmp_serde::to_vec_named(&kernel.state).expect("state encodes");
         let text = String::from_utf8_lossy(&bytes);
@@ -13882,27 +13898,37 @@ mod clock_tests {
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
     }
 
-    /// With no answer gate, the owner declares in Active as it does in Draft.
+    /// Declaring in Active is the play table's act alone: the owner is refused
+    /// for new structure and for evidence, and an operations-only owner patch
+    /// is still admitted (the other tests here do it).
     #[test]
-    fn the_owner_declares_in_active_without_an_answer() {
+    fn the_owner_cannot_declare_in_active() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OwnerUnanswered");
-        let snapshot = kernel.snapshot().unwrap();
-        let receipt = kernel
-            .submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    CallerId::Principal(owner()),
-                    CommandBody::AdmitPatch {
-                        patch: shed_under(clockwork.dead_end, "shed"),
-                    },
-                ),
-                &auth_principal(owner()),
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OwnerDeclares");
+        let revision = kernel.state.revision;
+        let evidence_only = WorldPatch {
+            declarations: Vec::new(),
+            operations: Vec::new(),
+            evidence: vec![EvidenceRef::new("vault:loose")],
+        };
+        for patch in [shed_under(clockwork.dead_end, "shed"), evidence_only] {
+            let error = submit_as(
+                &mut kernel,
+                CallerId::Principal(owner()),
+                CommandBody::AdmitPatch { patch },
             )
-            .expect("the owner declares in Active");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
-        assert!(kernel.state.entities.values().any(|entity| entity.label == "The shed"));
+            .unwrap_err();
+            assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
+        }
+        assert_eq!(kernel.state.revision, revision);
+        submit_as(
+            &mut kernel,
+            play_caller(),
+            CommandBody::AdmitPatch {
+                patch: shed_under(clockwork.dead_end, "shed"),
+            },
+        )
+        .expect("the play table declares the same patch");
     }
 
     /// Invariant 5: the play authority reaches the whole world, unconfined to
@@ -14242,66 +14268,6 @@ mod clock_tests {
                 )
                 .expect("a cited canonical fact is admitted for the owner in Draft");
         }
-
-        // PA.f29a: the owner in Active. Its own `clock_kernel`. The cited
-        // patch also seats a fresh occupant at the dead end.
-        {
-            let directory = tempfile::tempdir().unwrap();
-            let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OwnerActiveEvidence");
-            let speak = super::tests::speak_entry(&kernel);
-            let fact = |evidence: &str| {
-                Declaration::Fact(FactDeclaration {
-                    handle: DraftHandle::new("active-fact"),
-                    label: "The Active Count".into(),
-                    statement: Statement::new("The active count stands.").unwrap(),
-                    standing: FactStandingRef::Canonical {
-                        evidence: EvidenceRef::new(evidence),
-                    },
-                })
-            };
-            let error = submit_as(
-                &mut kernel,
-                CallerId::Principal(owner()),
-                CommandBody::AdmitPatch {
-                    patch: WorldPatch {
-                        declarations: vec![fact("vault:active-uncited")],
-                        operations: Vec::new(),
-                        evidence: Vec::new(),
-                    },
-                },
-            )
-            .unwrap_err();
-            assert!(
-                matches!(&error, KernelError::PatchRejected(set)
-                    if set.contains(&Mismatch::FactWithoutEvidence {
-                        handle: DraftHandle::new("active-fact"),
-                    })),
-                "{error:?}"
-            );
-            submit_as(
-                &mut kernel,
-                CallerId::Principal(owner()),
-                CommandBody::AdmitPatch {
-                    patch: WorldPatch {
-                        declarations: vec![
-                            fact("vault:active-cited"),
-                            Declaration::Subject(SubjectDeclaration {
-                                handle: DraftHandle::new("wanderer"),
-                                label: "The Owner's Wanderer".into(),
-                                kind: SubjectKind::Person,
-                                controller: NewController::NarrativePersona,
-                                affordances: BTreeSet::from([speak]),
-                                position: Some(Ref::Existing(clockwork.dead_end)),
-                                import_key: None,
-                            }),
-                        ],
-                        operations: Vec::new(),
-                        evidence: vec![EvidenceRef::new("vault:active-cited")],
-                    },
-                },
-            )
-            .expect("a cited canonical fact is admitted for the owner in Active");
-        }
     }
 
     /// `reduce` decides and `apply_effect` re-decides: a forged
@@ -14313,29 +14279,13 @@ mod clock_tests {
     fn apply_effect_re_decides_the_ruler() {
         let directory = tempfile::tempdir().unwrap();
         let (kernel, clockwork, _) = clock_kernel(directory.path(), "RedecideRulerMint");
-        let speak = super::tests::speak_entry(&kernel);
+        let grain = resource_named(&kernel, "Winter Grain");
         let command_id = CommandId::issue();
         let patch = WorldPatch {
-            declarations: vec![
-                Declaration::Entity(EntityDeclaration {
-                    handle: DraftHandle::new("loot"),
-                    label: "Roadside Loot".into(),
-                    kind: EntityKind::Resource,
-                    container: None,
-                }),
-                Declaration::Subject(SubjectDeclaration {
-                    handle: DraftHandle::new("finder"),
-                    label: "The Roadside Finder".into(),
-                    kind: SubjectKind::Person,
-                    controller: NewController::NarrativePersona,
-                    affordances: BTreeSet::from([speak]),
-                    position: Some(Ref::Existing(clockwork.dead_end)),
-                    import_key: None,
-                }),
-            ],
+            declarations: Vec::new(),
             operations: vec![ComponentOp::Mint {
-                holder: Ref::Draft(DraftHandle::new("finder")),
-                resource: Ref::Draft(DraftHandle::new("loot")),
+                holder: Ref::Existing(clockwork.reeve),
+                resource: Ref::Existing(grain),
                 qty: Quantity(4),
             }],
             evidence: Vec::new(),
@@ -14361,6 +14311,71 @@ mod clock_tests {
         assert_ne!(candidate, kernel.state);
     }
 
+    /// `apply_effect` re-decides confinement: a forged `PatchAdmitted` under a
+    /// consumer, carrying an operations-only route cost change the resolver
+    /// accepts and no consumer ground covers, is refused at apply.
+    #[test]
+    fn apply_effect_re_decides_confinement() {
+        let directory = tempfile::tempdir().unwrap();
+        let (kernel, clockwork, _) = clock_kernel(directory.path(), "RedecideGround");
+        let command_id = CommandId::issue();
+        let patch = WorldPatch {
+            declarations: Vec::new(),
+            operations: vec![ComponentOp::AlterCost {
+                route: Ref::Existing(clockwork.gate),
+                cost: Cost(2),
+            }],
+            evidence: Vec::new(),
+        };
+        let resolved = patch::resolve_patch(&kernel.state, command_id, &patch)
+            .expect("the patch resolves; the resolver is actor-blind");
+        let effect = WorldEffect::PatchAdmitted { resolved };
+        let consumer = CallerId::System(SystemCapability::Consumer {
+            consumer: ConsumerId::of_name("redecide-ground"),
+        });
+        let mut candidate = kernel.state.clone();
+        let error = apply_effect(&mut candidate, command_id, &consumer, &effect).unwrap_err();
+        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
+        assert_eq!(candidate, kernel.state);
+
+        let mut candidate = kernel.state.clone();
+        apply_effect(&mut candidate, command_id, &CallerId::Principal(owner()), &effect)
+            .expect("the unconfined owner applies the same effect");
+        assert_ne!(candidate, kernel.state);
+    }
+
+    /// `apply_effect` re-decides that declaring in Active is the play table's
+    /// act: a forged `PatchAdmitted` that declares, under the owner, is refused
+    /// at apply, and the play table applies it through the same arm.
+    #[test]
+    fn apply_effect_re_decides_that_declaring_in_active_is_plays() {
+        let directory = tempfile::tempdir().unwrap();
+        let (kernel, clockwork, _) = clock_kernel(directory.path(), "RedecideDeclares");
+        let command_id = CommandId::issue();
+        let resolved = patch::resolve_patch(
+            &kernel.state,
+            command_id,
+            &shed_under(clockwork.dead_end, "shed"),
+        )
+        .expect("the patch resolves; the resolver is actor-blind");
+        let effect = WorldEffect::PatchAdmitted { resolved };
+        let mut candidate = kernel.state.clone();
+        let error = apply_effect(
+            &mut candidate,
+            command_id,
+            &CallerId::Principal(owner()),
+            &effect,
+        )
+        .unwrap_err();
+        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
+        assert_eq!(candidate, kernel.state);
+
+        let mut candidate = kernel.state.clone();
+        apply_effect(&mut candidate, command_id, &play_caller(), &effect)
+            .expect("the play table applies it");
+        assert_ne!(candidate, kernel.state);
+    }
+
     /// PA.f27a: the owner is a `CallerId::Principal` like any other, and
     /// `apply_effect`'s re-decision of `require_ruler` carries no exemption
     /// for that variant. A forged `PatchAdmitted` under the owner, carrying
@@ -14370,7 +14385,12 @@ mod clock_tests {
     #[test]
     fn apply_effect_re_decides_the_ruler_for_the_owner_too() {
         let directory = tempfile::tempdir().unwrap();
-        let (kernel, _, _) = clock_kernel(directory.path(), "RedecideRulerOwner");
+        let (kernel, _) = WorldKernel::create(
+            directory.path().join("world.cc"),
+            creation(CommandId::new(), "RedecideRulerOwner"),
+            &auth_principal(owner()),
+        )
+        .unwrap();
         let command_id = CommandId::issue();
         let patch = ruled_fact_patch("rule");
         let resolved = patch::resolve_patch(&kernel.state, command_id, &patch)
@@ -14541,12 +14561,12 @@ mod clock_tests {
     }
 
     /// Declares a mirror bound to a consumer this test invents, at the yard,
-    /// via the owner in Active. Shared by the retirement and grant tests that
+    /// via the play table in Active. Shared by the retirement and grant tests that
     /// need a subject `mode()` already excludes.
     fn declare_mirror(kernel: &mut WorldKernel, clockwork: &Clockwork, name: &str) -> SubjectId {
         submit_as(
             kernel,
-            CallerId::Principal(owner()),
+            play_caller(),
             CommandBody::AdmitPatch {
                 patch: WorldPatch {
                     declarations: vec![Declaration::Subject(SubjectDeclaration {
@@ -14565,7 +14585,7 @@ mod clock_tests {
                 },
             },
         )
-        .expect("the owner declares a mirror in Active");
+        .expect("the play table declares a mirror in Active");
         kernel
             .snapshot()
             .unwrap()
@@ -14700,6 +14720,48 @@ mod clock_tests {
         );
     }
 
+    /// `confine_to_ground` refuses `Retire`, `GrantAffordance` and
+    /// `RevokeAffordance` for a confined author unconditionally, even over a
+    /// subject bound to that author's own ground. The resolver refuses these
+    /// on a mirror before confinement runs, so the arm is probed directly on
+    /// a hand-built resolved patch: only the unconditional arm can refuse it.
+    #[test]
+    fn a_confined_author_cannot_retire_grant_or_revoke_its_own_mirror() {
+        let directory = tempfile::tempdir().unwrap();
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "ConfinedOwn");
+        let mirror = declare_mirror(&mut kernel, &clockwork, "confined-own");
+        let ground = PatchGround::Consumer(ConsumerId::of_name("confined-own"));
+        for operation in [
+            ResolvedOp::Retire { subject: mirror },
+            ResolvedOp::GrantAffordance {
+                subject: mirror,
+                affordance: clockwork.threaten,
+            },
+            ResolvedOp::RevokeAffordance {
+                subject: mirror,
+                affordance: clockwork.threaten,
+            },
+        ] {
+            let resolved = ResolvedPatch {
+                subjects: Vec::new(),
+                entities: Vec::new(),
+                routes: Vec::new(),
+                affordances: Vec::new(),
+                facts: Vec::new(),
+                channels: Vec::new(),
+                operations: vec![operation.clone()],
+                evidence: Vec::new(),
+            };
+            assert_eq!(
+                confine_to_ground(&kernel.state, &resolved, ground),
+                Err(vec![Mismatch::OutsideJurisdiction {
+                    site: Site::Operation(0)
+                }]),
+                "{operation:?}"
+            );
+        }
+    }
+
     /// P4.3: a mirror is owned by another world; this one cannot retire it.
     #[test]
     fn a_mirror_cannot_be_retired() {
@@ -14710,46 +14772,6 @@ mod clock_tests {
         assert!(
             matches!(&error, KernelError::PatchRejected(set)
                 if set.contains(&Mismatch::RetiresAMirror { operation: 0 })),
-            "{error:?}"
-        );
-    }
-
-    /// P4.3: `confine_to_ground` refuses a `Retire` for a confined author
-    /// unconditionally, even for a subject this same patch declares.
-    #[test]
-    fn a_confined_author_cannot_retire() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireConfined");
-        let speak = super::tests::speak_entry(&kernel);
-        let error = submit_as(
-            &mut kernel,
-            CallerId::System(SystemCapability::Consumer {
-                consumer: ConsumerId::of_name("confined"),
-            }),
-            CommandBody::AdmitPatch {
-                patch: WorldPatch {
-                    declarations: vec![Declaration::Subject(SubjectDeclaration {
-                        handle: DraftHandle::new("stray"),
-                        label: "The Roadside Stray".into(),
-                        kind: SubjectKind::Person,
-                        controller: NewController::NarrativePersona,
-                        affordances: BTreeSet::from([speak]),
-                        position: Some(Ref::Existing(clockwork.dead_end)),
-                        import_key: None,
-                    })],
-                    operations: vec![ComponentOp::Retire {
-                        subject: Ref::Draft(DraftHandle::new("stray")),
-                    }],
-                    evidence: Vec::new(),
-                },
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::OutsideJurisdiction {
-                    site: Site::Operation(0)
-                })),
             "{error:?}"
         );
     }
@@ -15029,47 +15051,6 @@ mod clock_tests {
     #[test]
     fn retired_expects_no_caller() {
         assert_eq!(ControllerAssignment::Retired.expected_caller(), None);
-    }
-
-    /// P5.1: `confine_to_ground` refuses `GrantAffordance` for a confined
-    /// author unconditionally, even for a subject this same patch declares.
-    #[test]
-    fn a_confined_author_cannot_grant() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "GrantConfined");
-        let speak = super::tests::speak_entry(&kernel);
-        let error = submit_as(
-            &mut kernel,
-            CallerId::System(SystemCapability::Consumer {
-                consumer: ConsumerId::of_name("confined"),
-            }),
-            CommandBody::AdmitPatch {
-                patch: WorldPatch {
-                    declarations: vec![Declaration::Subject(SubjectDeclaration {
-                        handle: DraftHandle::new("stray"),
-                        label: "The Roadside Stray".into(),
-                        kind: SubjectKind::Person,
-                        controller: NewController::NarrativePersona,
-                        affordances: BTreeSet::from([speak]),
-                        position: Some(Ref::Existing(clockwork.dead_end)),
-                        import_key: None,
-                    })],
-                    operations: vec![ComponentOp::GrantAffordance {
-                        subject: Ref::Draft(DraftHandle::new("stray")),
-                        affordance: Ref::Existing(clockwork.threaten),
-                    }],
-                    evidence: Vec::new(),
-                },
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::OutsideJurisdiction {
-                    site: Site::Operation(0)
-                })),
-            "{error:?}"
-        );
     }
 
     // ---- Retirement fix batch (PA.f31-PA.f35) ------------------------------
@@ -15444,49 +15425,6 @@ mod clock_tests {
             ]),
         );
         assert_eq!(error, vec![Mismatch::UnplacedSubject { operation: 1 }]);
-    }
-
-    /// PA.f35, MuB: `RevokeAffordance` is confined exactly as every other
-    /// structural operation, so a confined author cannot use it to touch a
-    /// subject's grants.
-    #[test]
-    fn a_confined_author_cannot_revoke() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf35ElabRevoke");
-        let speak = super::tests::speak_entry(&kernel);
-        let error = submit_as(
-            &mut kernel,
-            CallerId::System(SystemCapability::Consumer {
-                consumer: ConsumerId::of_name("confined"),
-            }),
-            CommandBody::AdmitPatch {
-                patch: WorldPatch {
-                    declarations: vec![Declaration::Subject(SubjectDeclaration {
-                        handle: DraftHandle::new("stray"),
-                        label: "The Roadside Stray".into(),
-                        kind: SubjectKind::Person,
-                        controller: NewController::NarrativePersona,
-                        affordances: BTreeSet::from([
-                            speak.clone(),
-                            Ref::Existing(clockwork.threaten),
-                        ]),
-                        position: Some(Ref::Existing(clockwork.dead_end)),
-                        import_key: None,
-                    })],
-                    operations: vec![ComponentOp::RevokeAffordance {
-                        subject: Ref::Draft(DraftHandle::new("stray")),
-                        affordance: Ref::Existing(clockwork.threaten),
-                    }],
-                    evidence: Vec::new(),
-                },
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::OutsideJurisdiction { site: Site::Operation(0) })),
-            "{error:?}"
-        );
     }
 
     /// PA.f35, MuC: `retired` on a subject snapshot row is read from

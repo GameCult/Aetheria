@@ -1284,12 +1284,15 @@ mod tests {
     }
 
     /// A store written under an older schema is refused at open: both
-    /// `consumer.v4` strings. No migration, no dual read.
+    /// `consumer.v4` strings and the pre-cut `consumer.v6` ones. No migration,
+    /// no dual read.
     #[test]
     fn a_store_written_under_an_older_schema_is_refused() {
         for (row_type, schema) in [
             (STATE_ROW, "ghostlight.world_state.consumer.v4"),
             (COMMIT_ROW, "ghostlight.world_commit.consumer.v4"),
+            (STATE_ROW, "ghostlight.world_state.consumer.v6"),
+            (COMMIT_ROW, "ghostlight.world_commit.consumer.v6"),
         ] {
             let row = CultCacheEnvelope {
                 key: "state".into(),

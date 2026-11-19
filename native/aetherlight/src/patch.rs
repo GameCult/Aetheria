@@ -1274,9 +1274,8 @@ pub struct WorldPatch {
 /// The one byte bound on a `WorldPatch` frame from any external source, and
 /// the three item bounds on a `WorldPatch` as a value. One owner, two
 /// consumers: the consumer ingress decodes against them through
-/// `decode_patch`, and the elaboration lane checks its own assembled draft
-/// against the same three item caps through `check_patch_caps`, before
-/// submission.
+/// `decode_patch`, and `check_patch_caps` applies the same three item caps to
+/// an assembled value before submission.
 pub(crate) const MAX_PATCH_BYTES: usize = 256 * 1024;
 pub(crate) const MAX_PATCH_DECLARATIONS: usize = 64;
 pub(crate) const MAX_PATCH_OPERATIONS: usize = 128;
@@ -1338,8 +1337,8 @@ pub(crate) fn check_patch_caps(patch: &WorldPatch) -> Result<(), PatchDecodeErro
 /// One named structural check that a patch failed. A rejection carries the
 /// complete set, never the first failure. It never enters `WorldState`,
 /// `WorldEffect`, `CommandEnvelope`, or `WorldCommit`; the serde derives exist
-/// for exactly one reader, the elaboration checkpoint, which is
-/// controller-owned telemetry under its own row type and its own schema.
+/// for telemetry readers outside the kernel, under their own row type and
+/// schema.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(tag = "mismatch", rename_all = "snake_case")]
 pub enum Mismatch {
