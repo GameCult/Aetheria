@@ -311,7 +311,7 @@ fn unbound_world_keeps_the_open_catalog() {
     let keys: std::collections::BTreeMap<String, serde::de::IgnoredAny> =
         rmp_serde::from_slice(&encoded).unwrap();
     assert!(!keys.contains_key("grammar"));
-    assert!(keys.contains_key("brief"));
+    assert!(keys.contains_key("title"));
 }
 
 #[test]

@@ -496,12 +496,6 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             "world title is empty or noncanonical".into(),
         ));
     }
-    if state.brief.trim() != state.brief {
-        return Err(JournalError::Corrupt("world brief is noncanonical".into()));
-    }
-    if state.brief.trim() != state.brief {
-        return Err(JournalError::Corrupt("world brief is noncanonical".into()));
-    }
     super::validate_principal(&state.owner).map_err(kernel_error)?;
     if state.subjects.is_empty()
         || state.controller_assignments.len() != state.subjects.len()
@@ -1107,7 +1101,6 @@ mod tests {
             id: CommandId::new(),
             owner: owner.clone(),
             title: "Before".into(),
-            brief: String::new(),
             patch: owner_patch(SubjectDeclaration {
                 handle: DraftHandle::new("owner"),
                 label: "Owner".into(),
@@ -1191,7 +1184,6 @@ mod tests {
             id: CommandId::new(),
             owner: owner.clone(),
             title: "Kharad".into(),
-            brief: String::new(),
             patch: owner_patch(SubjectDeclaration {
                 handle: DraftHandle::new("owner"),
                 label: "Owner".into(),
@@ -1671,7 +1663,6 @@ mod tests {
             id: creation_id,
             owner: owner.clone(),
             title: "Admitted".into(),
-            brief: String::new(),
             patch: owner_patch(SubjectDeclaration {
                 handle: DraftHandle::new("owner"),
                 label: "Owner".into(),
