@@ -167,4 +167,22 @@ public sealed class ShipEmitterExhaustTests : IDisposable
     public void ASidewaysEmitterWhoseNormalIsPerpendicularToThePushIsRefused() =>
         // Normal exactly +X, dot with the push exactly 0: the rule is non-negative, so it fires along the axis it is not meant to.
         Assert.False(Accepts(WriteCustom(new[] { 0f, 0f, 0f, 0f, 1f, 0f, 0f, 1f, 1f, 0f, 0f, 1f }, Quad)));
+
+    [Theory]
+    [InlineData("KHR_draco_mesh_compression"), InlineData("EXT_meshopt_compression")]
+    public void AnAccessorWhoseBufferViewIsCompressedIsRefused(string extension)
+    {
+        // The compression sits on the bufferView, not the primitive: the accessor's bytes are not positions.
+        var path = WriteCustom(Plane(0), Quad);
+        var glb = Path.Combine(_directory.Path, "mod.skiff", "skiff.glb");
+        var bytes = File.ReadAllBytes(glb);
+        var length = (int)BitConverter.ToUInt32(bytes, 12);
+        var json = JObject.Parse(System.Text.Encoding.UTF8.GetString(bytes, 20, length));
+        var views = (JArray)json["bufferViews"];
+        var positions = (int)json["accessors"][(int)json["meshes"].Last["primitives"][0]["attributes"]["POSITION"]]["bufferView"];
+        views[positions]["extensions"] = JObject.Parse("{\"" + extension + "\":{}}");
+        var bin = bytes.Skip(28 + length).ToArray();
+        File.WriteAllBytes(glb, ShipFixture.Glb(json.ToString(Newtonsoft.Json.Formatting.None), bin));
+        Assert.Contains("compressed by " + extension, Assert.Throws<InvalidOperationException>(() => ShipModCatalog.ReadPackage(path)).Message);
+    }
 }
