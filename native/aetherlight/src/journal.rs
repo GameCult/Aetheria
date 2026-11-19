@@ -2324,6 +2324,45 @@ mod custody_tests {
         );
     }
 
+    /// A chain holding `Acted` commits recovers and verifies on reopen, and an
+    /// event whose actor is no subject is corrupt at the shape check.
+    #[test]
+    fn an_acted_chain_reopens_and_a_foreign_actor_is_corrupt() {
+        use crate::tests::{
+            act, activate, auth_principal, creation, first_grant, owner, speak,
+        };
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("world.cc");
+        let (mut kernel, _) = WorldKernel::create(
+            &path,
+            creation(CommandId::new(), "ActedChain"),
+            &auth_principal(owner()),
+        )
+        .unwrap();
+        let active = activate(&mut kernel);
+        let actor = *active.subjects.first().map(|subject| &subject.id).unwrap();
+        act(
+            &mut kernel,
+            actor,
+            speak(first_grant(&active, actor), "The chain holds."),
+        )
+        .unwrap();
+        let accepted = kernel.snapshot().unwrap();
+        let world_id = accepted.world_id;
+        drop(kernel);
+        let reopened = WorldKernel::open(&path, world_id).expect("the acted chain recovers");
+        assert_eq!(reopened.snapshot().unwrap(), accepted);
+        verify_state_shape(&reopened.state).expect("an honest event passes the shape check");
+
+        let mut forged = reopened.state.clone();
+        forged.events[0].actor = crate::SubjectId::issue();
+        assert!(
+            matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
+            "an event naming no subject passed the shape check"
+        );
+    }
+
     /// Absence is zero and one slot holds one pair, so a stored zero, an empty
     /// holder, and a holding on something that is not a resource are each
     /// corrupt at replay.

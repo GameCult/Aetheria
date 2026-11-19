@@ -10637,9 +10637,9 @@ mod witness_tests {
 mod clock_tests {
     use super::patch::{PreconditionRef, PressureSourceRef};
     use super::tests::{
-        act, play_caller, activate, affordance_named, authority_kind, auth_principal, command, creation, office,
-        operations, owner, human_principal, reject_owner, speech_world,
-        submit_owner,
+        act, act_as, activate, affordance_named, auth_principal, authority_kind, command, creation,
+        human_principal, office, operations, owner, play_caller, reject_owner, speak,
+        speech_world, submit_owner,
     };
     use super::*;
     use std::path::Path;
@@ -12353,6 +12353,72 @@ mod clock_tests {
         .expect("the play authority advances time");
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
         assert!(kernel.state.now > active.now);
+    }
+
+    /// Act is Play's alone: the owner, the clock, a controller and a
+    /// non-owner principal are refused and commit nothing; Play applies.
+    #[test]
+    fn only_play_may_act() {
+        let directory = tempfile::tempdir().unwrap();
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OnlyPlayActs");
+        let invocation = DecisionInvocation {
+            affordance: clockwork.threaten,
+            bindings: vec![binding("target", Target::Subject(clockwork.farmer))],
+            proposed: vec![ProposedEffect {
+                slot: 0,
+                magnitude: Magnitude::None,
+            }],
+            speech: None,
+            display: None,
+        };
+        let before = kernel.state.clone();
+        for caller in [
+            CallerId::Principal(owner()),
+            CallerId::Principal(human_principal()),
+            clock_caller(),
+            CallerId::Controller(ControllerId::issue()),
+        ] {
+            let error =
+                act_as(&mut kernel, caller.clone(), clockwork.reeve, invocation.clone())
+                    .unwrap_err();
+            assert!(
+                matches!(error, KernelError::Unauthorized),
+                "{caller:?}: {error:?}"
+            );
+        }
+        assert_eq!(kernel.state, before, "a refused act commits nothing");
+        let receipt = act(&mut kernel, clockwork.reeve, invocation).expect("Play acts");
+        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert_eq!(kernel.state.events.len(), before.events.len() + 1);
+        assert_eq!(kernel.state.events.last().unwrap().actor, clockwork.reeve);
+    }
+
+    /// There is no acting before activation.
+    #[test]
+    fn act_in_draft_is_wrong_phase() {
+        let directory = tempfile::tempdir().unwrap();
+        let (mut kernel, _) = WorldKernel::create(
+            directory.path().join("world.cc"),
+            creation(CommandId::new(), "ActInDraft"),
+            &auth_principal(owner()),
+        )
+        .unwrap();
+        let error = act(
+            &mut kernel,
+            SubjectId::issue(),
+            speak(AffordanceId::issue(), "Too soon."),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                error,
+                KernelError::WrongPhase {
+                    expected: WorldPhase::Active,
+                    actual: WorldPhase::Draft,
+                }
+            ),
+            "{error:?}"
+        );
     }
 
     /// P3.6: the play authority may not approve or activate.
