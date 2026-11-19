@@ -353,29 +353,6 @@ pub(crate) struct ChannelRecord {
     pub(crate) controller: Option<SubjectId>,
 }
 
-/// Lived meaning a subject carries: values, a voice, memories, and reads of
-/// other subjects. It constrains no precondition, so it is outside every scope
-/// digest and cannot interrupt a bound turn; it enriches projection and never
-/// substitutes for authority, custody, topology, or knowledge. Set whole, so a
-/// subject holds one value at one revision.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct PersonaMaterial {
-    pub(crate) values: Vec<Statement>,
-    pub(crate) voice: Statement,
-    pub(crate) memories: Vec<Statement>,
-    /// One read per subject, in canonical order.
-    pub(crate) reads: BTreeMap<SubjectId, Statement>,
-}
-
-/// The proposal-time twin of a read: the subject by reference.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct PersonaReadRef {
-    pub(crate) subject: Ref<SubjectId>,
-    pub(crate) statement: Statement,
-}
-
 /// A small closed ordinal. Ordered ascending by declaration order, so derived
 /// `Ord` *is* the semantics and `Knows { at_least }` is one `>=`. Three levels:
 /// two cannot express "I heard it but I doubt it", which is the state deception
@@ -1260,15 +1237,6 @@ pub(crate) enum ComponentOp {
         channel: Ref<EntityId>,
         controller: Option<Ref<SubjectId>>,
     },
-    /// Sets, whole, what a subject carries as lived meaning. Identical material
-    /// is `NoOperationEffect`; any non-canonical text is `NoncanonicalText`.
-    SetPersonaMaterial {
-        subject: Ref<SubjectId>,
-        values: Vec<Statement>,
-        voice: Statement,
-        memories: Vec<Statement>,
-        reads: Vec<PersonaReadRef>,
-    },
     /// Two identical creations are two commitments, not `NoOperationEffect`:
     /// the key is command-derived so they cannot collide, and two promises of
     /// the same thing to the same counterparty are two promises. This is where
@@ -1345,28 +1313,6 @@ pub struct WorldPatch {
     pub(crate) declarations: Vec<Declaration>,
     pub(crate) operations: Vec<ComponentOp>,
     pub(crate) evidence: Vec<EvidenceRef>,
-}
-
-impl WorldPatch {
-    /// Whether any `SetPersonaMaterial` operation in this patch targets a
-    /// subject the patch does not itself declare — an existing, canonical
-    /// subject (`Ref::Existing`) rather than a draft handle this same patch's
-    /// own declarations introduced (`Ref::Draft`). `WorldPatch`'s fields are
-    /// `pub(crate)`, so a consumer that must refuse this shape (PA.f61: the
-    /// play agent may author a brand-new Persona's material, but never
-    /// rewrite an existing one's) reads it through this query rather than
-    /// parsing the patch's own JSON to decide.
-    pub fn sets_persona_of_existing_subject(&self) -> bool {
-        self.operations.iter().any(|operation| {
-            matches!(
-                operation,
-                ComponentOp::SetPersonaMaterial {
-                    subject: Ref::Existing(_),
-                    ..
-                }
-            )
-        })
-    }
 }
 
 /// The one byte bound on a `WorldPatch` frame from any external source, and
@@ -1681,8 +1627,7 @@ pub enum Mismatch {
     EmptyStatement {
         handle: DraftHandle,
     },
-    /// A commitment statement or a piece of persona material that is empty,
-    /// padded, or spans lines.
+    /// A commitment statement that is empty, padded, or spans lines.
     NoncanonicalText {
         operation: usize,
     },
@@ -2035,10 +1980,6 @@ pub(crate) enum ResolvedOp {
     SetController {
         channel: EntityId,
         controller: Option<SubjectId>,
-    },
-    SetPersonaMaterial {
-        subject: SubjectId,
-        material: PersonaMaterial,
     },
     /// Kernel-only: no [`ComponentOp`] twin, because no proposer may author one.
     /// Synthesized by `action::exercise` for a speech-carrying invocation and by
@@ -4955,67 +4896,6 @@ pub(super) fn resolve_patch(
                     }
                 }
             }
-            ComponentOp::SetPersonaMaterial {
-                subject,
-                values,
-                voice,
-                memories,
-                reads,
-            } => {
-                let site = Site::Operation(position);
-                let subject_key =
-                    resolve_subject(site.clone(), subject, &index, &state.subjects, &mut mismatches);
-                let mut read_keys = Vec::with_capacity(reads.len());
-                for read in reads {
-                    read_keys.push(resolve_subject(
-                        site.clone(),
-                        &read.subject,
-                        &index,
-                        &state.subjects,
-                        &mut mismatches,
-                    ));
-                }
-                let texts = values
-                    .iter()
-                    .chain(memories.iter())
-                    .chain(std::iter::once(voice))
-                    .chain(reads.iter().map(|read| &read.statement));
-                let mut read_subjects: BTreeSet<&Ref<SubjectId>> = BTreeSet::new();
-                let duplicate_read = reads.iter().any(|read| !read_subjects.insert(&read.subject));
-                if texts.clone().any(|text| !is_canonical_text(text.as_str())) || duplicate_read {
-                    mismatches.push(Mismatch::NoncanonicalText {
-                        operation: position,
-                    });
-                }
-                let (Some(Key::Existing(subject_id)), true) =
-                    (subject_key, read_keys.iter().all(Option::is_some))
-                else {
-                    continue;
-                };
-                // Identical material on an existing subject changes nothing. A
-                // draft read can never equal a held one, so it is skipped here.
-                let held: Option<BTreeMap<SubjectId, Statement>> = read_keys
-                    .iter()
-                    .zip(reads)
-                    .map(|(key, read)| match key {
-                        Some(Key::Existing(id)) => Some((*id, read.statement.clone())),
-                        _ => None,
-                    })
-                    .collect();
-                if let Some(held) = held
-                    && state.persona_material.get(&subject_id)
-                        == Some(&PersonaMaterial {
-                            values: values.clone(),
-                            voice: voice.clone(),
-                            memories: memories.clone(),
-                            reads: held,
-                        })
-                {
-                    mismatches.push(Mismatch::NoOperationEffect {
-                        operation: position,
-                    });
-                }
-            }
             ComponentOp::SetReach { channel, reach } => {
                 let channel_key = resolve_entity(
                     Site::Operation(position),
@@ -5784,24 +5664,6 @@ pub(super) fn resolve_patch(
                 channel: entity_id_of(&key_of(channel)),
                 reach: reach_of(reach),
             },
-            ComponentOp::SetPersonaMaterial {
-                subject,
-                values,
-                voice,
-                memories,
-                reads,
-            } => ResolvedOp::SetPersonaMaterial {
-                subject: subject_id_of(&key_of(subject)),
-                material: PersonaMaterial {
-                    values: values.clone(),
-                    voice: voice.clone(),
-                    memories: memories.clone(),
-                    reads: reads
-                        .iter()
-                        .map(|read| (subject_id_of(&key_of(&read.subject)), read.statement.clone()))
-                        .collect(),
-                },
-            },
             ComponentOp::SetController {
                 channel,
                 controller,
@@ -6051,81 +5913,6 @@ mod tests {
     use crate::{
         CallerId, CommandBody, CommandId, KernelError, SubmitReceipt, WorldKernel, WorldPhase,
     };
-
-    /// Owner: `WorldPatch::sets_persona_of_existing_subject`. Consumer:
-    /// `ghostlight-dungeon`'s play agent (PA.f61, parked at
-    /// `parked/ghostlight-eve-surface`), which refuses a
-    /// `set_persona_material` run whose patch answers true here, since
-    /// `WorldPatch`'s own fields are `pub(crate)` and Dungeon may not parse
-    /// its JSON to decide the question itself.
-    #[test]
-    fn sets_persona_of_existing_subject_reads_the_subject_refs_own_shape() {
-        let empty = WorldPatch::default();
-        assert!(!empty.sets_persona_of_existing_subject());
-
-        let existing = WorldPatch {
-            declarations: Vec::new(),
-            operations: vec![ComponentOp::SetPersonaMaterial {
-                subject: Ref::Existing(SubjectId::issue()),
-                values: Vec::new(),
-                voice: Statement::new("flat and even").unwrap(),
-                memories: Vec::new(),
-                reads: Vec::new(),
-            }],
-            evidence: Vec::new(),
-        };
-        assert!(existing.sets_persona_of_existing_subject());
-
-        let draft = WorldPatch {
-            declarations: Vec::new(),
-            operations: vec![ComponentOp::SetPersonaMaterial {
-                subject: Ref::Draft(DraftHandle::new("npc")),
-                values: Vec::new(),
-                voice: Statement::new("flat and even").unwrap(),
-                memories: Vec::new(),
-                reads: Vec::new(),
-            }],
-            evidence: Vec::new(),
-        };
-        assert!(!draft.sets_persona_of_existing_subject());
-    }
-
-    /// PA.f92/PA.f110: a fixture whose persona write sits at either end of
-    /// `operations` only ever exercises `.take(1)` (op 0) or `.rev().take(1)`
-    /// (the last op) — the prior version of this test put the write last,
-    /// so `.rev().take(1)` would still find it and pass undetected. Here the
-    /// persona write to an existing subject sits strictly in the *middle*,
-    /// with a harmless `Relocate` both before and after it: only a scan over
-    /// every operation, in either direction, reports `true`.
-    #[test]
-    fn sets_persona_of_existing_subject_scans_every_operation_not_just_an_end() {
-        let patch = WorldPatch {
-            declarations: Vec::new(),
-            operations: vec![
-                ComponentOp::Relocate {
-                    subject: Ref::Draft(DraftHandle::new("wanderer")),
-                    via: Ref::Draft(DraftHandle::new("path")),
-                },
-                ComponentOp::SetPersonaMaterial {
-                    subject: Ref::Existing(SubjectId::issue()),
-                    values: Vec::new(),
-                    voice: Statement::new("flat and even").unwrap(),
-                    memories: Vec::new(),
-                    reads: Vec::new(),
-                },
-                ComponentOp::Relocate {
-                    subject: Ref::Draft(DraftHandle::new("wanderer")),
-                    via: Ref::Draft(DraftHandle::new("second-path")),
-                },
-            ],
-            evidence: Vec::new(),
-        };
-        // Op 0 and the last op (index 2) are both the harmless `Relocate`;
-        // only op 1, strictly in the middle, is the persona write. A
-        // `.take(1)` mutation sees only op 0; a `.rev().take(1)` mutation
-        // sees only op 2. Both would report `false` here.
-        assert!(patch.sets_persona_of_existing_subject());
-    }
 
     fn entity(handle: &str, label: &str, kind: EntityKind) -> Declaration {
         Declaration::Entity(EntityDeclaration {
