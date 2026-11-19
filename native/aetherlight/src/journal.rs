@@ -727,15 +727,6 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             ));
         }
     }
-    if state
-        .last_opportunity_at
-        .iter()
-        .any(|(subject_id, stamp)| !state.subjects.contains_key(subject_id) || *stamp > state.now)
-    {
-        return Err(JournalError::Corrupt(
-            "an attention stamp names an unknown subject or a future minute".into(),
-        ));
-    }
     // The civic subgraph, in the slot the deleted `authority_scope` check
     // occupied: a jurisdiction names live ground under a canonical kind, an
     // office sits on an institution and lends something to a person who holds
@@ -899,10 +890,11 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
     let mut claimed = BTreeSet::new();
     let mut previous_event_revision = 0;
     for event in &state.events {
-        state
-            .controller_assignments
-            .get(&event.scope)
-            .ok_or_else(|| JournalError::Corrupt("event references an unknown scope".into()))?;
+        if !state.subjects.contains_key(&event.actor) {
+            return Err(JournalError::Corrupt(
+                "event references an unknown actor".into(),
+            ));
+        }
         let entry = state
             .affordance_catalog
             .get(&event.affordance)
@@ -915,7 +907,7 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
                     && state.facts.get(&fact).is_some_and(|record| {
                         record.standing
                             == super::FactStanding::Claimed {
-                                by: event.scope.subject_id,
+                                by: event.actor,
                             }
                     })
             })
@@ -926,15 +918,14 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             || event.revision == 0
             || event.revision > state.revision
             || event.revision <= previous_event_revision
-            // Present-tense controller identity and present-tense affordance
-            // grants are not judged here: retiring a subject or revoking a
-            // verb it once used must not corrupt the history of that use.
-            // Authority at commit time is judged once, by `reduce`, and after
-            // that by replay (`verify_history` re-runs `reduce` for every
-            // commit) and by the digest chain. This shape check only holds
-            // time-invariant facts: the event's scope resolves to a live
-            // assignment (checked above) and its affordance is a catalog
-            // entry (checked above).
+            // Present-tense affordance grants are not judged here: retiring a
+            // subject or revoking a verb it once used must not corrupt the
+            // history of that use. Authority at commit time is judged once, by
+            // `reduce`, and after that by replay (`verify_history` re-runs
+            // `reduce` for every commit) and by the digest chain. This shape
+            // check only holds time-invariant facts: the event's actor is a
+            // subject (checked above) and its affordance is a catalog entry
+            // (checked above).
             || event.band >= entry.outcome_bands.len()
             // Speech rides only a speech-carrying entry; such an entry always
             // addresses someone, by words or by a visible act; a display may
@@ -951,7 +942,7 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             || !display_is_canonical
         {
             return Err(JournalError::Corrupt(
-                "decision event is noncanonical or violates controller scope".into(),
+                "decision event is noncanonical".into(),
             ));
         }
         previous_event_revision = event.revision;
@@ -1534,7 +1525,7 @@ mod tests {
     fn soul_a_forged_band_or_effect_in_the_journal_dies_at_replay() {
         use crate::tests::{
             activate, admit_custody, admit_topology, affordance_named, auth_principal, command,
-            opportunity_for, owner,
+            owner, play_caller,
         };
         use crate::{
             AuthenticatedCaller, DecisionInvocation, Magnitude, ProposedEffect, Quantity,
@@ -1555,8 +1546,7 @@ mod tests {
             let custody = admit_custody(&mut kernel, &topology);
             let active = activate(&mut kernel);
             let entry = affordance_named(&active, kind);
-            let opportunity = opportunity_for(&active, custody.holder);
-            let caller = CallerId::Controller(opportunity.controller_id);
+            let caller = play_caller();
             let command_id = CommandId::new();
             let role = |name: &str, target| RoleBinding {
                 role: crate::Role(name.into()),
@@ -1568,8 +1558,8 @@ mod tests {
                         &active,
                         command_id,
                         caller.clone(),
-                        CommandBody::ExerciseDecision {
-                            opportunity,
+                        CommandBody::Act {
+                            actor: custody.holder,
                             invocation: DecisionInvocation {
                                 affordance: entry,
                                 bindings: vec![
@@ -1597,8 +1587,8 @@ mod tests {
             let mut forged_head = kernel.state.clone();
             let mut forged_commits = kernel.journal.commits.clone();
             let forged = forged_commits.get_mut(&command_id).unwrap();
-            let WorldEffect::DecisionExercised { event, .. } = &mut forged.effect else {
-                panic!("expected an exercised decision effect");
+            let WorldEffect::Acted { event, .. } = &mut forged.effect else {
+                panic!("expected an acted effect");
             };
             mutate(event);
             let forged_event = event.clone();
@@ -1824,7 +1814,7 @@ mod tests {
     /// the same envelope is already applied.
     #[test]
     fn restart_replay_after_a_levy_is_exact() {
-        use crate::tests::{affordance_named, civic_world, command, opportunity_for, owner};
+        use crate::tests::{affordance_named, civic_world, command, owner, play_caller};
         use crate::{
             DecisionInvocation, Magnitude, ProposedEffect, Quantity, Role, RoleBinding,
             SubmitReceipt, Target,
@@ -1839,14 +1829,13 @@ mod tests {
         )
         .unwrap();
         let (_, civic, active) = civic_world(&mut kernel);
-        let opportunity = opportunity_for(&active, civic.treasury);
-        let caller = CallerId::Controller(opportunity.controller_id);
+        let caller = play_caller();
         let envelope = command(
             &active,
             CommandId::new(),
             caller.clone(),
-            CommandBody::ExerciseDecision {
-                opportunity,
+            CommandBody::Act {
+                actor: civic.treasury,
                 invocation: DecisionInvocation {
                     affordance: affordance_named(&active, "levy"),
                     bindings: vec![
@@ -2207,7 +2196,7 @@ mod custody_tests {
     /// seed does not reproduce fails effect equality on the way back in.
     #[test]
     fn restart_replay_after_an_action_is_exact() {
-        use crate::tests::affordance_named;
+        use crate::tests::{affordance_named, play_caller};
         use crate::{AuthenticatedCaller, Magnitude, ProposedEffect, RoleBinding, Target};
 
         let directory = tempfile::tempdir().unwrap();
@@ -2223,8 +2212,7 @@ mod custody_tests {
         let custody = admit_custody(&mut kernel, &topology);
         let active = crate::tests::activate(&mut kernel);
         let carry = affordance_named(&active, "carry");
-        let opportunity = crate::tests::opportunity_for(&active, custody.holder);
-        let caller = CallerId::Controller(opportunity.controller_id);
+        let caller = play_caller();
 
         let role = |name: &str, target| RoleBinding {
             role: crate::Role(name.into()),
@@ -2234,8 +2222,8 @@ mod custody_tests {
             &active,
             CommandId::new(),
             caller.clone(),
-            CommandBody::ExerciseDecision {
-                opportunity: opportunity.clone(),
+            CommandBody::Act {
+                actor: custody.holder,
                 invocation: crate::DecisionInvocation {
                     affordance: carry,
                     bindings: vec![

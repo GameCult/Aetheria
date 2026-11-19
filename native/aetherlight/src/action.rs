@@ -1,8 +1,8 @@
 //! The invocation pipeline: catalog lookup, role binding, precondition
 //! evaluation, effect-ceiling checking, band selection, and lowering.
 //!
-//! One entry point, [`exercise`], reached from `reduce`'s `ExerciseDecision` arm
-//! and from `apply_effect`'s `DecisionExercised` arm, so a forged effect is
+//! One entry point, [`exercise`], reached from `reduce`'s `Act` arm
+//! and from `apply_effect`'s `Acted` arm, so a forged effect is
 //! re-derived by the same function that produced the honest one. Nothing else
 //! draws a band, and the draw goes through the one `digest()` owner.
 
@@ -12,7 +12,7 @@ use super::patch::{
 };
 use super::{
     AffordanceId, AuthorityGrant, AuthorityTarget, CommandId, DecisionEvent, DecisionInvocation,
-    DecisionOpportunity, EdgeId, EntityId, EventId, FictionalMinutes, GrantedAffordance,
+    EdgeId, EntityId, EventId, FictionalMinutes, GrantedAffordance,
     KernelError, Magnitude, SubjectId, Target, WorldId, WorldState, digest,
 };
 use serde::Serialize;
@@ -116,7 +116,7 @@ pub enum ActionMismatch {
 /// The band draw's whole preimage. Five fields, none of them from the
 /// invocation's payload: the proposer varies the attempt and cannot vary the
 /// draw. `affordance` is the id carried by the kernel-verified grant, so the
-/// draw cannot be steered by an affordance the scope does not hold.
+/// draw cannot be steered by an affordance the actor does not hold.
 #[derive(Serialize)]
 struct BandPreimage {
     world_id: WorldId,
@@ -136,12 +136,11 @@ struct BandPreimage {
 pub(super) fn exercise(
     state: &WorldState,
     command_id: CommandId,
-    current: &DecisionOpportunity,
+    actor: SubjectId,
     granted: &GrantedAffordance<'_>,
     invocation: &DecisionInvocation,
 ) -> Result<DecisionEvent, KernelError> {
     let entry = granted.entry;
-    let actor = current.scope.subject_id;
     let mut rejections = Vec::new();
 
     let components = super::scope_components(state, actor);
@@ -242,8 +241,7 @@ pub(super) fn exercise(
     Ok(DecisionEvent {
         id: EventId::for_command(command_id),
         revision,
-        scope: current.scope,
-        controller_id: current.controller_id,
+        actor,
         affordance: granted.id,
         speech,
         display,
@@ -631,11 +629,9 @@ fn authority_target_of(target: Target) -> Option<AuthorityTarget> {
 /// `within`. Cost 0 — already standing there — succeeds; `Present` is the strict
 /// form. An unplaced actor reaches nothing.
 ///
-/// This reads routes the scope digest does not cover, which is deliberate: the
-/// alternative binds a proposal to a transitively large slice of world topology
-/// and rejects it whenever anything near the actor commits. Admission runs at
-/// commit against live state instead, so a route that closed while the proposal
-/// was in flight makes this fail rather than letting a stale path commit.
+/// Admission runs at commit against live state, so a route that closed while
+/// the proposal was in flight makes this fail rather than letting a stale path
+/// commit.
 fn reachable(
     state: &WorldState,
     actor: SubjectId,
@@ -1019,12 +1015,12 @@ mod tests {
     };
     use crate::tests::{
         ADMIT_KIND, COMMAND_KIND, Civic, LEVY_KIND, OPENING_BALANCE, SEIZURE_GRIEVANCE, Topology,
-        WARDEN_OFFICE, activate, affordance_named, auth_principal, authority_kind, civic_world,
-        command, custody_world, grant_to, grievance, office, operations, opportunity_for,
-        over_place, over_subject, human_principal, reject_owner, submit_owner,
+        WARDEN_OFFICE, act, act_command, activate, affordance_named, authority_kind, civic_world,
+        command, custody_world, grant_to, grievance, office, operations, over_place,
+        over_subject, play_caller, reject_owner, submit_owner,
     };
     use crate::{
-        AffordanceKindName, AuthenticatedCaller, AuthoredSource, CallerId, CommandBody, Confidence,
+        AffordanceKindName, AuthenticatedCaller, AuthoredSource, CommandBody, Confidence,
         Declaration, EffectSlot, EntityKind, ProposedEffect, RoleBinding, Statement, SubmitReceipt,
         WorldEffect, WorldKernel, WorldPatch, WorldSnapshot, apply_effect,
     };
@@ -1066,11 +1062,11 @@ mod tests {
     fn draw_once(
         state: &WorldState,
         command_id: CommandId,
-        opportunity: &DecisionOpportunity,
+        actor: SubjectId,
         invocation: &DecisionInvocation,
     ) -> Result<DecisionEvent, KernelError> {
-        let granted = crate::require_granted(state, opportunity, invocation.affordance)?;
-        exercise(state, command_id, opportunity, &granted, invocation)
+        let granted = crate::require_granted(state, actor, invocation.affordance)?;
+        exercise(state, command_id, actor, &granted, invocation)
     }
 
     fn binding(role: &str, target: Target) -> RoleBinding {
@@ -1105,19 +1101,14 @@ mod tests {
             self.carry_of(qty, place, self.tithe)
         }
 
-        fn clerk_opportunity(&self) -> DecisionOpportunity {
-            opportunity_for(&self.active, self.clerk)
-        }
-
         fn try_exercise(
             &self,
             invocation: &DecisionInvocation,
         ) -> Result<DecisionEvent, KernelError> {
-            let opportunity = self.clerk_opportunity();
             draw_once(
                 &self.kernel.state,
                 CommandId::issue(),
-                &opportunity,
+                self.clerk,
                 invocation,
             )
         }
@@ -1130,22 +1121,7 @@ mod tests {
         }
 
         fn commit(&mut self, invocation: DecisionInvocation) -> SubmitReceipt {
-            let opportunity = self.clerk_opportunity();
-            let caller = CallerId::Controller(opportunity.controller_id);
-            self.kernel
-                .submit(
-                    command(
-                        &self.active,
-                        CommandId::new(),
-                        caller.clone(),
-                        CommandBody::ExerciseDecision {
-                            opportunity,
-                            invocation,
-                        },
-                    ),
-                    &AuthenticatedCaller::fixture(caller),
-                )
-                .expect("the invocation commits")
+            act(&mut self.kernel, self.clerk, invocation).expect("the invocation commits")
         }
 
         fn held(&self, holder: SubjectId) -> u64 {
@@ -1443,10 +1419,9 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let bench = bench(directory.path(), "Bands");
         // Three equally weighted bands, so the draw alone decides.
-        let opportunity = bench.clerk_opportunity();
         let invocation = bench.variant(&bench.carry(1, bench.yard), "carry_chance");
         let draw = |command_id: CommandId, invocation: &DecisionInvocation| {
-            draw_once(&bench.kernel.state, command_id, &opportunity, invocation)
+            draw_once(&bench.kernel.state, command_id, bench.clerk, invocation)
                 .expect("the invocation is admissible")
                 .band
         };
@@ -1567,11 +1542,10 @@ mod tests {
             // The draw is a pure function of the pre-commit revision and the
             // command id, so the command id that reaches a band is findable
             // before the envelope is built rather than hunted by retrying.
-            let opportunity = bench.clerk_opportunity();
             let command_id = (0..256)
                 .map(|_| CommandId::issue())
                 .find(|candidate| {
-                    draw_once(&bench.kernel.state, *candidate, &opportunity, &split)
+                    draw_once(&bench.kernel.state, *candidate, bench.clerk, &split)
                         .expect("the invocation is admissible")
                         .band
                         == wanted
@@ -1580,22 +1554,14 @@ mod tests {
 
             let before_clerk = bench.held(bench.clerk);
             let before_keeper = bench.held(bench.keeper);
-            let caller = CallerId::Controller(opportunity.controller_id);
-            let receipt = bench
-                .kernel
-                .submit(
-                    command(
-                        &bench.active,
-                        command_id,
-                        caller.clone(),
-                        CommandBody::ExerciseDecision {
-                            opportunity,
-                            invocation: split.clone(),
-                        },
-                    ),
-                    &AuthenticatedCaller::fixture(caller),
-                )
-                .expect("the invocation commits");
+            let receipt = act_command(
+                &mut bench.kernel,
+                command_id,
+                play_caller(),
+                bench.clerk,
+                split.clone(),
+            )
+            .expect("the invocation commits");
             assert!(matches!(receipt, SubmitReceipt::Applied(_)));
             bench.refresh();
             let event = bench
@@ -1681,11 +1647,10 @@ mod tests {
     fn a_forged_band_or_forged_effect_does_not_apply() {
         let directory = tempfile::tempdir().unwrap();
         let bench = bench(directory.path(), "ForgedAction");
-        let opportunity = bench.clerk_opportunity();
         let command_id = CommandId::issue();
         let invocation = bench.carry(2, bench.yard);
-        let honest = draw_once(&bench.kernel.state, command_id, &opportunity, &invocation).unwrap();
-        let caller = CallerId::Controller(opportunity.controller_id);
+        let honest = draw_once(&bench.kernel.state, command_id, bench.clerk, &invocation).unwrap();
+        let caller = play_caller();
 
         for forged in [
             DecisionEvent {
@@ -1707,16 +1672,35 @@ mod tests {
                 &mut candidate,
                 command_id,
                 &caller,
-                &WorldEffect::DecisionExercised {
-                    opportunity: opportunity.clone(),
+                &WorldEffect::Acted {
                     invocation: invocation.clone(),
                     event: forged,
                 },
             )
             .unwrap_err();
-            assert!(matches!(error, KernelError::Invariant(_)));
+            assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
             assert_eq!(candidate, bench.kernel.state);
         }
+
+        // An event naming another actor does not apply either: the actor is
+        // read from the event, so a swapped actor is re-derived for the swap.
+        let mut candidate = bench.kernel.state.clone();
+        assert!(
+            apply_effect(
+                &mut candidate,
+                command_id,
+                &caller,
+                &WorldEffect::Acted {
+                    invocation: invocation.clone(),
+                    event: DecisionEvent {
+                        actor: bench.keeper,
+                        ..honest.clone()
+                    },
+                },
+            )
+            .is_err()
+        );
+        assert_eq!(candidate, bench.kernel.state);
 
         // The honest event still applies through the same arm.
         let mut candidate = bench.kernel.state.clone();
@@ -1724,8 +1708,7 @@ mod tests {
             &mut candidate,
             command_id,
             &caller,
-            &WorldEffect::DecisionExercised {
-                opportunity,
+            &WorldEffect::Acted {
                 invocation: invocation.clone(),
                 event: honest,
             },
@@ -1748,26 +1731,18 @@ mod tests {
             .expect("the human subject")
             .id;
         let holdings = kernel.state.holdings.clone();
-        let receipt = kernel
-            .submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ExerciseDecision {
-                        opportunity: opportunity_for(&active, human),
-                        invocation: DecisionInvocation {
-                            affordance: speak,
-                            bindings: Vec::new(),
-                            proposed: Vec::new(),
-                            speech: Some(Statement::new("I open the door.").unwrap()),
-                            display: None,
-                        },
-                    },
-                ),
-                &auth_principal(human_principal()),
-            )
-            .expect("the Speak entry commits");
+        let receipt = act(
+            &mut kernel,
+            human,
+            DecisionInvocation {
+                affordance: speak,
+                bindings: Vec::new(),
+                proposed: Vec::new(),
+                speech: Some(Statement::new("I open the door.").unwrap()),
+                display: None,
+            },
+        )
+        .expect("the Speak entry commits");
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
         let event = kernel.state.events.last().unwrap();
         assert_eq!(event.band, 0);
@@ -1899,7 +1874,7 @@ mod tests {
             draw_once(
                 &self.kernel.state,
                 CommandId::issue(),
-                &opportunity_for(&self.active, actor),
+                actor,
                 invocation,
             )
         }
@@ -1916,23 +1891,7 @@ mod tests {
         }
 
         fn commit_as(&mut self, actor: SubjectId, invocation: DecisionInvocation) -> SubmitReceipt {
-            let opportunity = opportunity_for(&self.active, actor);
-            let caller = CallerId::Controller(opportunity.controller_id);
-            let receipt = self
-                .kernel
-                .submit(
-                    command(
-                        &self.active,
-                        CommandId::new(),
-                        caller.clone(),
-                        CommandBody::ExerciseDecision {
-                            opportunity,
-                            invocation,
-                        },
-                    ),
-                    &AuthenticatedCaller::fixture(caller),
-                )
-                .expect("the invocation commits");
+            let receipt = act(&mut self.kernel, actor, invocation).expect("the invocation commits");
             self.refresh();
             receipt
         }
@@ -2029,9 +1988,7 @@ mod tests {
         assert!(bench.kernel.state.authority.get(&reeve).is_none());
         assert!(bench.try_as(reeve, &bench.levy(farmer, 1)).is_ok());
 
-        // A proposal bound before the vacate rebinds rather than rejecting.
-        let bound = opportunity_for(&bench.active, reeve);
-        let caller = CallerId::Controller(bound.controller_id);
+        // The vacated office lends nothing: the act is refused at admission.
         let invocation = bench.levy(farmer, 1);
         bench.admit(vec![ComponentOp::VacateOffice {
             institution: PatchRef::Existing(bench.civic.treasury),
@@ -2039,29 +1996,8 @@ mod tests {
         }]);
 
         let holdings = bench.kernel.state.holdings.clone();
-        let error = bench
-            .kernel
-            .submit(
-                command(
-                    &bench.active,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        opportunity: bound.clone(),
-                        invocation,
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-            .unwrap_err();
-        let KernelError::ScopeChanged {
-            scope, expected, ..
-        } = error
-        else {
-            panic!("a vacated office is a rebind, not a rejection");
-        };
-        assert_eq!(scope, bound.scope);
-        assert_eq!(expected, bound.scope_digest);
+        let error = act(&mut bench.kernel, reeve, invocation).unwrap_err();
+        assert!(matches!(error, KernelError::ActionRejected(_)), "{error:?}");
         assert_eq!(bench.kernel.state.holdings, holdings);
         assert_eq!(
             bench.rejected_as(reeve, &bench.levy(farmer, 1)),
@@ -2416,32 +2352,23 @@ mod tests {
 
         // The treasury commands the hall, and the passage has both endpoints
         // under it. The draw decides whether the interdiction lands.
-        let opportunity = opportunity_for(&bench.active, treasury);
         let closing = (0..256)
             .map(|_| CommandId::issue())
             .find(|candidate| {
-                draw_once(&bench.kernel.state, *candidate, &opportunity, &sanction)
+                draw_once(&bench.kernel.state, *candidate, treasury, &sanction)
                     .expect("the invocation is admissible")
                     .band
                     == 0
             })
             .expect("a two-band entry reaches its first band over 256 command ids");
-        let caller = CallerId::Controller(opportunity.controller_id);
-        let receipt = bench
-            .kernel
-            .submit(
-                command(
-                    &bench.active,
-                    closing,
-                    caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        opportunity,
-                        invocation: sanction,
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-            .expect("the sanction commits");
+        let receipt = act_command(
+            &mut bench.kernel,
+            closing,
+            play_caller(),
+            treasury,
+            sanction,
+        )
+        .expect("the sanction commits");
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
         bench.refresh();
         assert!(!bench.kernel.state.edges[&passage].is_open());
@@ -2479,20 +2406,7 @@ mod tests {
         actor: SubjectId,
         invocation: DecisionInvocation,
     ) -> Result<SubmitReceipt, KernelError> {
-        let opportunity = opportunity_for(&bench.active, actor);
-        let caller = CallerId::Controller(opportunity.controller_id);
-        bench.kernel.submit(
-            command(
-                &bench.active,
-                CommandId::new(),
-                caller.clone(),
-                CommandBody::ExerciseDecision {
-                    opportunity,
-                    invocation,
-                },
-            ),
-            &AuthenticatedCaller::fixture(caller),
-        )
+        act(&mut bench.kernel, actor, invocation)
     }
 
     /// `DelegationNotMonotone` is not a fixture-only verdict: the real `submit`
@@ -2562,11 +2476,11 @@ mod tests {
         assert_eq!(admitted.positions[&walker].place, bench.civic.chamber);
     }
 
-    /// The rebind requirement at the layer the operator sees it: a grant change
-    /// on the *granter* invalidates the delegate's bound opportunity, and the
-    /// refusal is `ScopeChanged`, not `ActionRejected`.
+    /// A grant change on the *granter* reaches the delegate: once the
+    /// treasury's levy ground is revoked, the reeve's act is refused at
+    /// admission, and nothing commits.
     #[test]
-    fn soul_a_granter_revocation_rebinds_the_delegate() {
+    fn soul_a_granter_revocation_refuses_the_delegates_act() {
         let directory = tempfile::tempdir().unwrap();
         let mut bench = civics(directory.path(), "SoulRebind");
         let reeve = bench.civic.reeve;
@@ -2574,37 +2488,19 @@ mod tests {
         let treasury = bench.civic.treasury;
         let hall = bench.civic.hall;
 
-        // Bound before the revocation, submitted after it.
-        let bound = bench.active.clone();
-        let opportunity = opportunity_for(&bound, reeve);
-        let caller = CallerId::Controller(opportunity.controller_id);
+        assert!(bench.try_as(reeve, &bench.levy(farmer, 1)).is_ok());
         let invocation = bench.levy(farmer, 1);
         bench.admit(vec![ComponentOp::RevokeAuthority {
             holder: PatchRef::Existing(treasury),
             grant: crate::tests::grant_of(LEVY_KIND, over_place(hall)),
         }]);
-        // The envelope carries the current revision, so only the stale scope
-        // digest can refuse it.
-        assert_ne!(bound.revision, bench.active.revision);
-        let error = bench
-            .kernel
-            .submit(
-                command(
-                    &bench.active,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        opportunity,
-                        invocation,
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-            .unwrap_err();
+        let events = bench.kernel.state.events.len();
+        let error = act(&mut bench.kernel, reeve, invocation).unwrap_err();
         assert!(
-            matches!(error, KernelError::ScopeChanged { .. }),
-            "a revoked lend is a rebind, not a rejection: {error:?}"
+            matches!(error, KernelError::ActionRejected(_)),
+            "a revoked lend is a rejection: {error:?}"
         );
+        assert_eq!(bench.kernel.state.events.len(), events);
     }
 
     /// Structural overlap alone does not see a `Subject` grant sitting inside
@@ -2689,14 +2585,13 @@ mod tests {
             appoint,
         ] {
             let before = bench.kernel.state.clone();
-            let opportunity = opportunity_for(&bench.active, treasury);
-            let caller = CallerId::Controller(opportunity.controller_id);
+            let caller = play_caller();
             let envelope = command(
                 &bench.active,
                 CommandId::new(),
                 caller.clone(),
-                CommandBody::ExerciseDecision {
-                    opportunity,
+                CommandBody::Act {
+                    actor: treasury,
                     invocation,
                 },
             );
@@ -2709,8 +2604,8 @@ mod tests {
                 .expect("the act commits");
             assert!(matches!(receipt, SubmitReceipt::Applied(_)));
             bench.refresh();
-            let WorldEffect::DecisionExercised { event, .. } = first else {
-                panic!("an exercised decision");
+            let WorldEffect::Acted { event, .. } = first else {
+                panic!("an acted effect");
             };
             assert_eq!(
                 bench.kernel.state.events.last().expect("a committed event"),

@@ -145,8 +145,8 @@ impl VerifiedPrincipalEvidence {
     }
 }
 
-pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v7";
-pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v7";
+pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v8";
+pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v8";
 
 /// Compatibility tag derived from [`STATE_SCHEMA`]: the trailing
 /// `<family>-<version>` pair (e.g. `foundation-v1`). Callers that publish a
@@ -456,55 +456,6 @@ pub struct DecisionScope {
     pub subject_id: SubjectId,
 }
 
-/// The digest of exactly the components a proposal's verification reads: the
-/// scope's controller assignment, its affordance grants, its subject's Position,
-/// and the routes incident to that place. Built through the one `digest()`
-/// helper over ordered containers, so it is a pure function of committed state.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(transparent)]
-pub struct ScopeDigest(String);
-
-impl ScopeDigest {
-    fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    #[cfg(test)]
-    pub(crate) fn fixture(value: &str) -> Self {
-        Self(value.into())
-    }
-}
-
-#[derive(Serialize)]
-struct ScopePreimage<'a> {
-    world_id: WorldId,
-    subject_id: SubjectId,
-    controller: &'a ControllerAssignment,
-    /// The granted entries *and their definitions*: preconditions and ceilings
-    /// are what admission reads, so a change to a granted entry must change the
-    /// digest.
-    affordances: BTreeMap<AffordanceId, &'a Affordance>,
-    components: &'a ScopeComponents,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct DecisionOpportunity {
-    pub world_id: WorldId,
-    pub(crate) revision: u64,
-    pub(crate) scope_digest: ScopeDigest,
-    pub scope: DecisionScope,
-    pub(crate) controller_id: ControllerId,
-    pub controller_mode: ControllerMode,
-    pub affordance_ids: Vec<AffordanceId>,
-}
-
-impl DecisionOpportunity {
-    pub(crate) fn digest(&self) -> Result<String, KernelError> {
-        digest(self)
-    }
-}
-
 /// The referent a role is bound to. Canonical IDs only: an invocation happens
 /// in Active, where no declaration exists, so a draft reference is
 /// unrepresentable here and the action lane runs no draft resolution.
@@ -582,12 +533,11 @@ pub struct PrincipalCommandIntent {
 pub enum CommandBody {
     ApproveDraft,
     ActivateWorld,
-    ExerciseDecision {
-        opportunity: DecisionOpportunity,
+    /// One subject's act. Play's alone: the actor's grants decide whether the
+    /// affordance is its to use.
+    Act {
+        actor: SubjectId,
         invocation: DecisionInvocation,
-    },
-    DeclineDecision {
-        opportunity: DecisionOpportunity,
     },
     AdmitPatch {
         patch: WorldPatch,
@@ -696,8 +646,7 @@ impl ControllerAssignment {
 pub(crate) struct DecisionEvent {
     pub(crate) id: EventId,
     pub(crate) revision: u64,
-    pub(crate) scope: DecisionScope,
-    pub(crate) controller_id: ControllerId,
+    pub(crate) actor: SubjectId,
     /// The entry exercised. The invocation itself lives on the effect: the
     /// invocation is what the caller said, the event is what the world recorded.
     pub(crate) affordance: AffordanceId,
@@ -772,10 +721,6 @@ struct WorldState {
     /// Pressure *on* each subject, keyed target-major then source. Never empty
     /// for a present key; no stored zero magnitude.
     pressures: BTreeMap<SubjectId, BTreeMap<PressureSource, PressureMagnitude>>,
-    /// When each subject was last given a decision opportunity it consumed.
-    /// Absence means never. The debt term of the attention order and nothing
-    /// else.
-    last_opportunity_at: BTreeMap<SubjectId, FictionalMinutes>,
     /// Minutes since genesis. The world's only clock, advanced by exactly one
     /// command body and read by no wall clock. It enters `state_digest` and no
     /// `ScopePreimage`: it is world truth, and it is read by no precondition, so
@@ -808,16 +753,12 @@ enum WorldEffect {
         principal: PrincipalId,
     },
     WorldActivated,
-    DecisionExercised {
-        opportunity: DecisionOpportunity,
+    Acted {
         /// The command's own input, kept beside the event rather than inside it:
         /// the invocation is what the caller said, the event is what the world
         /// recorded, and only the first carries text.
         invocation: DecisionInvocation,
         event: DecisionEvent,
-    },
-    DecisionDeclined {
-        opportunity: DecisionOpportunity,
     },
     /// The first effect that mutates state for subjects other than one scope.
     /// Its gate is the clock capability or the owner, and `apply_effect`
@@ -1094,43 +1035,11 @@ pub struct WorldSnapshot {
     /// currently perceives: no subject-facing surface reads this field, which
     /// exists for the play table's own `table_view` alone.
     pub(crate) facts: Vec<FactSnapshot>,
-    /// Already ordered by pressure, then attention debt, then id: one owner, so
-    /// an operator interface, the mesh projection, and any future driver read
-    /// the same order and
-    /// none computes its own.
-    pub opportunities: Vec<DecisionOpportunity>,
     /// Everyone in a world shares the clock, and no controller can read a `due`
     /// without it.
     pub now: FictionalMinutes,
     pub state_digest: String,
     pub last_commit_digest: Option<String>,
-}
-
-/// One committed act as the human operator's story feed reads it. It is the
-/// operator surface, not a perception surface: no subject-facing lane receives
-/// it, and `SelectedDecision` never sees an event log at all.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OperatorEvent {
-    pub revision: u64,
-    pub speaker: SubjectId,
-    pub speaker_label: String,
-    pub speech: Option<Statement>,
-    pub display: Option<Statement>,
-    /// The affordance kind the act exercised.
-    pub verb: String,
-    /// How the world's grammar renders that verb; none in a world with no
-    /// grammar.
-    pub render_path: Option<RenderPath>,
-    /// What the act bound each of the verb's roles to, in the invocation's
-    /// order.
-    pub roles: Vec<BoundRole>,
-}
-
-/// One role an act bound, with the label of what it was bound to.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BoundRole {
-    pub role: String,
-    pub target: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1216,17 +1125,7 @@ pub enum KernelError {
     DraftAlreadyApproved,
     #[error("draft is missing required approvals: {0:?}")]
     MissingApprovals(Vec<PrincipalId>),
-    #[error("this world derives no such decision opportunity")]
-    OpportunityMismatch,
-    #[error("decision scope changed since the proposal was bound")]
-    ScopeChanged {
-        scope: DecisionScope,
-        expected: ScopeDigest,
-        actual: ScopeDigest,
-    },
-    #[error("caller does not control this decision scope")]
-    ControllerMismatch,
-    #[error("decision affordance is not granted by the opportunity")]
+    #[error("decision affordance is not granted to the actor")]
     AffordanceDenied,
     #[error("expected revision {expected}, current revision {actual}")]
     RevisionMismatch { expected: u64, actual: u64 },
@@ -1404,49 +1303,6 @@ impl WorldKernel {
         snapshot(&self.state)
     }
 
-    /// The human operator's story feed. Separate from `snapshot` so that no
-    /// controller lane can reach an unscoped event log: a `WorldSnapshot` field
-    /// no consumer may read in full would be a loaded gun with a comment on it.
-    fn operator_log(&self) -> Result<Vec<OperatorEvent>, KernelError> {
-        self.journal.ensure_healthy()?;
-        // An event records what the world did; the invocation, which names the
-        // bound roles, lives on the commit that produced it.
-        let invocations: BTreeMap<EventId, &DecisionInvocation> = self
-            .journal
-            .commits()
-            .filter_map(|commit| match &commit.effect {
-                WorldEffect::DecisionExercised {
-                    invocation, event, ..
-                } => Some((event.id, invocation)),
-                _ => None,
-            })
-            .collect();
-        operator_log(&self.state, &invocations)
-    }
-
-    /// The tick driver's opportunity list, in the same order a snapshot
-    /// carries it. Separate from `snapshot`: only the tick driver reads it.
-    fn opportunities(&self) -> Result<Vec<DecisionOpportunity>, KernelError> {
-        self.journal.ensure_healthy()?;
-        Ok(order_opportunities(
-            &self.state,
-            derive_opportunities(&self.state)?,
-        ))
-    }
-
-    /// How many clock advances the world has committed: the next tick's
-    /// ordinal, held by the world and read from its journal. Separate from
-    /// `snapshot` for the reason `opportunities` is: only the tick driver
-    /// reads it.
-    fn clock_advances(&self) -> Result<u64, KernelError> {
-        self.journal.ensure_healthy()?;
-        Ok(self
-            .journal
-            .commits()
-            .filter(|commit| matches!(commit.effect, WorldEffect::TimeAdvanced { .. }))
-            .count() as u64)
-    }
-
     fn submit(
         &mut self,
         command: CommandEnvelope,
@@ -1514,57 +1370,6 @@ impl WorldKernel {
         self.journal.commit_for(command_id)
     }
 
-    fn controller_receipt(
-        &self,
-        command_id: CommandId,
-        opportunity: &DecisionOpportunity,
-        invocation: &DecisionInvocation,
-    ) -> Result<Option<CommitReceipt>, KernelError> {
-        self.journal.ensure_healthy()?;
-        let Some(commit) = self.committed_command(command_id) else {
-            return Ok(None);
-        };
-        let CommittedCommand::WorldCommand(CommandEnvelope {
-            body:
-                CommandBody::ExerciseDecision {
-                    opportunity: committed_opportunity,
-                    invocation: committed_invocation,
-                },
-            ..
-        }) = &commit.command
-        else {
-            return Err(KernelError::CommandIdConflict);
-        };
-        if committed_opportunity != opportunity || committed_invocation != invocation {
-            return Err(KernelError::CommandIdConflict);
-        }
-        Ok(Some(CommitReceipt::from(commit)))
-    }
-
-    fn controller_decline_receipt(
-        &self,
-        command_id: CommandId,
-        opportunity: &DecisionOpportunity,
-    ) -> Result<Option<CommitReceipt>, KernelError> {
-        self.journal.ensure_healthy()?;
-        let Some(commit) = self.committed_command(command_id) else {
-            return Ok(None);
-        };
-        let CommittedCommand::WorldCommand(CommandEnvelope {
-            body:
-                CommandBody::DeclineDecision {
-                    opportunity: committed_opportunity,
-                },
-            ..
-        }) = &commit.command
-        else {
-            return Err(KernelError::CommandIdConflict);
-        };
-        if committed_opportunity != opportunity {
-            return Err(KernelError::CommandIdConflict);
-        }
-        Ok(Some(CommitReceipt::from(commit)))
-    }
 }
 
 fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, KernelError> {
@@ -1600,39 +1405,16 @@ fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, 
             }
             Ok(WorldEffect::WorldActivated)
         }
-        CommandBody::ExerciseDecision {
-            opportunity,
-            invocation,
-        } => {
+        CommandBody::Act { actor, invocation } => {
             require_phase(state, WorldPhase::Active)?;
-            let current = exact_opportunity(state, opportunity)?;
-            let assignment = state
-                .controller_assignments
-                .get(&current.scope)
-                .ok_or(KernelError::OpportunityMismatch)?;
-            if assignment.expected_caller().as_ref() != Some(&command.caller) {
-                return Err(KernelError::ControllerMismatch);
+            if command.caller != CallerId::System(SystemCapability::Play) {
+                return Err(KernelError::Unauthorized);
             }
-            let granted = require_granted(state, &current, invocation.affordance)?;
-            let event = action::exercise(state, command.id, &current, &granted, invocation)?;
-            Ok(WorldEffect::DecisionExercised {
-                opportunity: current,
+            let granted = require_granted(state, *actor, invocation.affordance)?;
+            let event = action::exercise(state, command.id, *actor, &granted, invocation)?;
+            Ok(WorldEffect::Acted {
                 invocation: invocation.clone(),
                 event,
-            })
-        }
-        CommandBody::DeclineDecision { opportunity } => {
-            require_phase(state, WorldPhase::Active)?;
-            let current = exact_opportunity(state, opportunity)?;
-            let assignment = state
-                .controller_assignments
-                .get(&current.scope)
-                .ok_or(KernelError::OpportunityMismatch)?;
-            if assignment.expected_caller().as_ref() != Some(&command.caller) {
-                return Err(KernelError::ControllerMismatch);
-            }
-            Ok(WorldEffect::DecisionDeclined {
-                opportunity: current,
             })
         }
         CommandBody::AdvanceTime { minutes } => {
@@ -1689,6 +1471,7 @@ fn require_system_capability(caller: &CallerId, body: &CommandBody) -> Result<()
                 SystemCapability::Consumer { .. } | SystemCapability::Play,
                 CommandBody::AdmitPatch { .. }
             )
+            | (SystemCapability::Play, CommandBody::Act { .. })
     );
     if admitted {
         Ok(())
@@ -1777,7 +1560,6 @@ impl WorldState {
             redress: BTreeMap::new(),
             commitments: BTreeMap::new(),
             pressures: BTreeMap::new(),
-            last_opportunity_at: BTreeMap::new(),
             now: FictionalMinutes::default(),
             controller_assignments: BTreeMap::new(),
             affordance_catalog: BTreeMap::new(),
@@ -3515,69 +3297,6 @@ fn scope_components(state: &WorldState, subject_id: SubjectId) -> ScopeComponent
     }
 }
 
-/// The human operator's story feed, derived from the causal record. The events
-/// log is not a perception surface: `knowledge` is the sole answer to what a
-/// subject may act on and what its projection may contain.
-fn operator_log(
-    state: &WorldState,
-    invocations: &BTreeMap<EventId, &DecisionInvocation>,
-) -> Result<Vec<OperatorEvent>, KernelError> {
-    state
-        .events
-        .iter()
-        .map(|event| {
-            let speaker = state
-                .subjects
-                .get(&event.scope.subject_id)
-                .ok_or_else(|| KernelError::Invariant("event names no live subject".into()))?;
-            let invocation = invocations.get(&event.id).ok_or_else(|| {
-                KernelError::Invariant("event has no committed invocation".into())
-            })?;
-            let entry = state
-                .affordance_catalog
-                .get(&event.affordance)
-                .ok_or_else(|| KernelError::Invariant("event names no catalog entry".into()))?;
-            let roles = invocation
-                .bindings
-                .iter()
-                .map(|binding| {
-                    let label = match binding.target {
-                        Target::Subject(id) => state.subjects.get(&id).map(|s| s.label.clone()),
-                        Target::Entity(id) => state.entities.get(&id).map(|e| e.label.clone()),
-                        Target::Edge(id) => state.edges.contains_key(&id).then(|| "edge".to_owned()),
-                    };
-                    label
-                        .map(|target| BoundRole {
-                            role: binding.role.0.clone(),
-                            target,
-                        })
-                        .ok_or_else(|| KernelError::Invariant("event binds no live referent".into()))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            Ok(OperatorEvent {
-                revision: event.revision,
-                speaker: event.scope.subject_id,
-                speaker_label: speaker.label.clone(),
-                speech: event
-                    .speech
-                    .and_then(|fact| state.facts.get(&fact))
-                    .map(|record| record.statement.clone()),
-                display: event
-                    .display
-                    .and_then(|fact| state.facts.get(&fact))
-                    .map(|record| record.statement.clone()),
-                verb: entry.kind.0.clone(),
-                render_path: state
-                    .grammar
-                    .as_ref()
-                    .and_then(|grammar| grammar.verb(&entry.kind.0))
-                    .map(|verb| verb.render_path),
-                roles,
-            })
-        })
-        .collect()
-}
-
 fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
     // One pass over the causal record so each subject's own knowledge map can be
     // stamped with the revision that minted each claim it holds.
@@ -3600,7 +3319,7 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
             .events
             .iter()
             .fold(BTreeMap::new(), |mut acc, event| {
-                let entry = acc.entry(event.scope.subject_id).or_insert(event.revision);
+                let entry = acc.entry(event.actor).or_insert(event.revision);
                 if event.revision > *entry {
                     *entry = event.revision;
                 }
@@ -3831,124 +3550,13 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
         routes,
         channels,
         facts,
-        opportunities: order_opportunities(state, derive_opportunities(state)?),
         now: state.now,
         state_digest: state.state_digest.clone(),
         last_commit_digest: state.last_commit_digest.clone(),
     })
 }
 
-/// A pure re-ordering of `derive_opportunities`' output: same values, same
-/// length, same set. Never a filter — filtering by readiness would drag
-/// precondition reads into `ScopePreimage`, and a tick could then withdraw an
-/// opportunity a controller is mid-inference on, which `exact_opportunity`
-/// would report as `OpportunityMismatch` rather than the honest `ScopeChanged`.
-///
-/// A subject never attended sorts ahead of every subject that has, and a
-/// subject with no pressure still climbs one tick at a time, so the order
-/// starves nobody. `SubjectId` is the final tiebreak, so the order is total and
-/// identical on every machine.
-fn order_opportunities(
-    state: &WorldState,
-    mut opportunities: Vec<DecisionOpportunity>,
-) -> Vec<DecisionOpportunity> {
-    opportunities.sort_by_key(|opportunity| {
-        let subject_id = opportunity.scope.subject_id;
-        (
-            std::cmp::Reverse(pressure_total(state, subject_id)),
-            std::cmp::Reverse(attention_debt(state, subject_id)),
-            subject_id,
-        )
-    });
-    opportunities
-}
-
-fn pressure_total(state: &WorldState, subject_id: SubjectId) -> u64 {
-    state
-        .pressures
-        .get(&subject_id)
-        .into_iter()
-        .flat_map(BTreeMap::values)
-        .fold(0u64, |total, magnitude| {
-            total.saturating_add(u64::from(magnitude.0))
-        })
-}
-
-/// Minutes since this subject last consumed an opportunity. Absence is
-/// `u64::MAX`: never attended outranks every subject that has.
-fn attention_debt(state: &WorldState, subject_id: SubjectId) -> u64 {
-    state
-        .last_opportunity_at
-        .get(&subject_id)
-        .map_or(u64::MAX, |stamp| state.now.since(*stamp))
-}
-
-fn derive_opportunities(state: &WorldState) -> Result<Vec<DecisionOpportunity>, KernelError> {
-    if state.phase != WorldPhase::Active {
-        return Ok(Vec::new());
-    }
-    state
-        .controller_assignments
-        .iter()
-        // World truth, not a scheduling preference: a mirror has no turn, so it
-        // never mints an opportunity and never trips the empty-grant invariant.
-        .filter(|(_, controller)| controller.mode().is_some())
-        .map(|(scope, controller)| {
-            let (Some(controller_id), Some(controller_mode)) = (controller.id(), controller.mode())
-            else {
-                return Err(KernelError::Invariant(
-                    "decision scope has no controller turn".into(),
-                ));
-            };
-            let affordance_ids: Vec<_> = state
-                .affordance_grants
-                .get(scope)
-                .into_iter()
-                .flatten()
-                .copied()
-                .collect();
-            if affordance_ids.is_empty() {
-                return Err(KernelError::Invariant(
-                    "active decision scope has no affordances".into(),
-                ));
-            }
-            Ok(DecisionOpportunity {
-                world_id: state.world_id,
-                revision: state.revision,
-                scope_digest: scope_digest(state, *scope)?,
-                scope: *scope,
-                controller_id,
-                controller_mode,
-                affordance_ids,
-            })
-        })
-        .collect()
-}
-
-/// The entries one scope is granted, paired with their definitions. A grant
-/// naming no catalog entry is a corrupt kernel rather than a rejection: one
-/// owner writes both partitions in one commit.
-fn granted_entries(
-    state: &WorldState,
-    scope: DecisionScope,
-) -> Result<BTreeMap<AffordanceId, &Affordance>, KernelError> {
-    state
-        .affordance_grants
-        .get(&scope)
-        .into_iter()
-        .flatten()
-        .map(|affordance_id| {
-            state
-                .affordance_catalog
-                .get(affordance_id)
-                .map(|entry| (*affordance_id, entry))
-                .ok_or_else(|| KernelError::Invariant("granted affordance has no entry".into()))
-        })
-        .collect()
-}
-
-/// One affordance the kernel has already gated: the opportunity offers this
-/// entry, the scope holds it, and `entry` is its catalog definition. It is the
+/// One affordance the kernel has already gated: the actor holds this entry, and `entry` is its catalog definition. It is the
 /// only way to name an affordance to `action::exercise`, so a caller cannot
 /// reach the invocation pipeline without passing the grant check first.
 pub(crate) struct GrantedAffordance<'a> {
@@ -3956,81 +3564,32 @@ pub(crate) struct GrantedAffordance<'a> {
     pub(crate) entry: &'a Affordance,
 }
 
-/// The membership half of the affordance check, shared by `reduce` and
-/// `apply_effect`: the opportunity offers the entry and the scope holds it. It
-/// returns the entry rather than a unit, so the gate and the lookup are one act.
+/// The grant check, shared by `reduce` and `apply_effect`: the actor's own
+/// entry set holds the affordance and the catalog defines it. It returns the
+/// entry rather than a unit, so the gate and the lookup are one act, and it is
+/// the only constructor of `GrantedAffordance`. Retire removes a subject's
+/// grants, so a retired actor holds nothing.
 fn require_granted<'a>(
     state: &'a WorldState,
-    current: &DecisionOpportunity,
+    actor: SubjectId,
     affordance: AffordanceId,
 ) -> Result<GrantedAffordance<'a>, KernelError> {
-    if current.affordance_ids.contains(&affordance)
-        && state
-            .affordance_grants
-            .get(&current.scope)
-            .is_some_and(|granted| granted.contains(&affordance))
-    {
-        let entry = state
-            .affordance_catalog
-            .get(&affordance)
-            .ok_or_else(|| KernelError::Invariant("granted affordance has no entry".into()))?;
-        Ok(GrantedAffordance {
-            id: affordance,
-            entry,
-        })
-    } else {
-        Err(KernelError::AffordanceDenied)
-    }
-}
-
-/// The sole producer of a `ScopeDigest`. The components it reads come from
-/// `scope_components`, which the snapshot reads too.
-fn scope_digest(state: &WorldState, scope: DecisionScope) -> Result<ScopeDigest, KernelError> {
-    let controller = state
-        .controller_assignments
+    let scope = DecisionScope { subject_id: actor };
+    if !state
+        .affordance_grants
         .get(&scope)
-        .ok_or_else(|| KernelError::Invariant("decision scope has no controller".into()))?;
-    let affordances = granted_entries(state, scope)?;
-    let components = scope_components(state, scope.subject_id);
-    digest(&ScopePreimage {
-        world_id: state.world_id,
-        subject_id: scope.subject_id,
-        controller,
-        affordances,
-        components: &components,
+        .is_some_and(|granted| granted.contains(&affordance))
+    {
+        return Err(KernelError::AffordanceDenied);
+    }
+    let entry = state
+        .affordance_catalog
+        .get(&affordance)
+        .ok_or_else(|| KernelError::Invariant("granted affordance has no entry".into()))?;
+    Ok(GrantedAffordance {
+        id: affordance,
+        entry,
     })
-    .map(ScopeDigest)
-}
-
-/// Binding, which is one of the two checks a committed invocation passes.
-/// Binding is scope-digest equality: has what the proposal was made against
-/// moved? Admission — preconditions, effect ceilings, and the band draw, all in
-/// `action::exercise` — is the other, and it runs at commit against the same
-/// revision the digest was verified at. A component that admission reads but
-/// binding does not is therefore fail-closed by re-check at commit rather than
-/// by rejecting the proposal when it changes.
-fn exact_opportunity(
-    state: &WorldState,
-    claimed: &DecisionOpportunity,
-) -> Result<DecisionOpportunity, KernelError> {
-    if claimed.world_id != state.world_id {
-        return Err(KernelError::OpportunityMismatch);
-    }
-    let current = derive_opportunities(state)?
-        .into_iter()
-        .find(|current| current.scope == claimed.scope)
-        .ok_or(KernelError::OpportunityMismatch)?;
-    if claimed.revision > state.revision {
-        return Err(KernelError::OpportunityMismatch);
-    }
-    if current.scope_digest != claimed.scope_digest {
-        return Err(KernelError::ScopeChanged {
-            scope: claimed.scope,
-            expected: claimed.scope_digest.clone(),
-            actual: current.scope_digest,
-        });
-    }
-    Ok(current)
 }
 
 fn required_approvers(state: &WorldState) -> BTreeSet<PrincipalId> {
@@ -4513,6 +4072,7 @@ fn apply_effect(
                     SystemCapability::Consumer { .. } | SystemCapability::Play,
                     WorldEffect::PatchAdmitted { .. }
                 )
+                | (SystemCapability::Play, WorldEffect::Acted { .. })
         );
         if !admitted {
             return Err(KernelError::Unauthorized);
@@ -4569,33 +4129,23 @@ fn apply_effect(
             }
             state.phase = WorldPhase::Active;
         }
-        WorldEffect::DecisionExercised {
-            opportunity,
-            invocation,
-            event,
-        } => {
-            let current = exact_opportunity(state, opportunity)?;
-            let assignment = state
-                .controller_assignments
-                .get(&current.scope)
-                .ok_or_else(|| {
-                    KernelError::Invariant("decision scope lost its controller".into())
-                })?;
+        WorldEffect::Acted { invocation, event } => {
             if state.phase != WorldPhase::Active
-                || assignment.expected_caller().as_ref() != Some(caller)
+                || caller != &CallerId::System(SystemCapability::Play)
             {
                 return Err(KernelError::Invariant(
-                    "decision effect does not match exact opportunity authority".into(),
+                    "acted effect does not match Play's authority".into(),
                 ));
             }
-            let granted = require_granted(state, &current, invocation.affordance)?;
+            let granted = require_granted(state, event.actor, invocation.affordance)?;
             // The whole event is re-derived by the function that produced the
             // honest one, so a forged band, operation, magnitude, minted claim,
             // or utterance is one comparison rather than a clause apiece.
-            let derived = action::exercise(state, command_id, &current, &granted, invocation)?;
+            let derived =
+                action::exercise(state, command_id, event.actor, &granted, invocation)?;
             if derived != *event {
                 return Err(KernelError::Invariant(
-                    "decision effect does not derive from its opportunity".into(),
+                    "acted effect does not derive from the actor's grants".into(),
                 ));
             }
             state.events.push(event.clone());
@@ -4605,30 +4155,6 @@ fn apply_effect(
                 // now; read it back rather than computing it a second time.
                 apply_operations(state, &event.effects, &[], event.revision)?;
             }
-            state
-                .last_opportunity_at
-                .insert(current.scope.subject_id, state.now);
-        }
-        WorldEffect::DecisionDeclined { opportunity } => {
-            let current = exact_opportunity(state, opportunity)?;
-            let assignment = state
-                .controller_assignments
-                .get(&current.scope)
-                .ok_or_else(|| {
-                    KernelError::Invariant("decision scope lost its controller".into())
-                })?;
-            if state.phase != WorldPhase::Active
-                || assignment.expected_caller().as_ref() != Some(caller)
-            {
-                return Err(KernelError::Invariant(
-                    "decline effect does not match exact opportunity authority".into(),
-                ));
-            }
-            // A decline consumed the turn: a controller that keeps declining
-            // must not keep the head of the queue.
-            state
-                .last_opportunity_at
-                .insert(current.scope.subject_id, state.now);
         }
         WorldEffect::TimeAdvanced {
             minutes,
@@ -6059,30 +5585,31 @@ mod tests {
         }
     }
 
-    pub(crate) fn opportunity_for(
-        snapshot: &WorldSnapshot,
-        subject_id: SubjectId,
-    ) -> DecisionOpportunity {
-        snapshot
-            .opportunities
+    /// The first entry the subject holds, in id order.
+    pub(crate) fn first_grant(snapshot: &WorldSnapshot, subject_id: SubjectId) -> AffordanceId {
+        *snapshot
+            .subjects
             .iter()
-            .find(|value| value.scope.subject_id == subject_id)
-            .expect("the subject has an opportunity")
-            .clone()
+            .find(|subject| subject.id == subject_id)
+            .expect("the subject exists")
+            .affordances
+            .first()
+            .expect("the subject holds an affordance")
     }
 
-    fn opportunity(snapshot: &WorldSnapshot, mode: ControllerMode) -> DecisionOpportunity {
-        snapshot
-            .opportunities
+    /// The first subject whose controller has this mode.
+    fn subject_by_mode(state: &WorldState, mode: ControllerMode) -> SubjectId {
+        state
+            .controller_assignments
             .iter()
-            .find(|value| value.controller_mode == mode)
-            .unwrap()
-            .clone()
+            .find(|(_, assignment)| assignment.mode() == Some(mode))
+            .map(|(scope, _)| scope.subject_id)
+            .expect("a subject has this controller mode")
     }
 
-    fn speak(opportunity: &DecisionOpportunity, text: &str) -> DecisionInvocation {
+    pub(crate) fn speak(affordance: AffordanceId, text: &str) -> DecisionInvocation {
         DecisionInvocation {
-            affordance: opportunity.affordance_ids[0],
+            affordance,
             bindings: Vec::new(),
             proposed: Vec::new(),
             speech: Some(Statement::new(text).unwrap()),
@@ -6090,238 +5617,50 @@ mod tests {
         }
     }
 
-    #[test]
-    fn external_opportunities_reject_nested_authority_claims() {
-        let opportunity = DecisionOpportunity {
-            world_id: WorldId::issue(),
-            revision: 4,
-            scope_digest: ScopeDigest::fixture("sha256:fixture"),
-            scope: DecisionScope {
-                subject_id: SubjectId::issue(),
-            },
-            controller_id: ControllerId::issue(),
-            controller_mode: ControllerMode::NarrativePersona,
-            affordance_ids: vec![AffordanceId::issue()],
-        };
-        let mut nested = serde_json::to_value(&opportunity).unwrap();
-        nested["scope"]["caller"] = serde_json::json!("legacy-owner");
-        assert!(serde_json::from_value::<DecisionOpportunity>(nested).is_err());
-
-        let mut outer = serde_json::to_value(&opportunity).unwrap();
-        outer["callerId"] = serde_json::json!("legacy-controller");
-        assert!(serde_json::from_value::<DecisionOpportunity>(outer).is_err());
+    /// The one door for an act in tests: Play submits `Act` for the actor.
+    pub(crate) fn act_as(
+        kernel: &mut WorldKernel,
+        caller: CallerId,
+        actor: SubjectId,
+        invocation: DecisionInvocation,
+    ) -> Result<SubmitReceipt, KernelError> {
+        act_command(kernel, CommandId::new(), caller, actor, invocation)
     }
 
-    /// A commit elsewhere in the world does not discard a bound proposal: the
-    /// binding is the scope digest, and this scope did not change.
-    #[test]
-    fn an_unchanged_scope_commits_at_a_later_revision() {
-        let dir = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            dir.path().join("world.cc"),
-            creation(CommandId::new(), "Unchanged"),
-            &auth_principal(owner()),
+    pub(crate) fn act_command(
+        kernel: &mut WorldKernel,
+        command_id: CommandId,
+        caller: CallerId,
+        actor: SubjectId,
+        invocation: DecisionInvocation,
+    ) -> Result<SubmitReceipt, KernelError> {
+        let snapshot = kernel.snapshot().unwrap();
+        kernel.submit(
+            command(
+                &snapshot,
+                command_id,
+                caller.clone(),
+                CommandBody::Act { actor, invocation },
+            ),
+            &AuthenticatedCaller::fixture(caller),
         )
-        .unwrap();
-        let topology = admit_topology(&mut kernel);
-        let active = activate(&mut kernel);
-        let bound = opportunity_for(&active, topology.walker);
-
-        let persona = opportunity(&active, ControllerMode::NarrativePersona);
-        let persona_caller = CallerId::Controller(persona.controller_id);
-        kernel
-            .submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    persona_caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&persona, "The yard is quiet."),
-                        opportunity: persona,
-                    },
-                ),
-                &AuthenticatedCaller::fixture(persona_caller),
-            )
-            .unwrap();
-        let later = kernel.snapshot().unwrap();
-        assert_eq!(later.revision, active.revision + 1);
-
-        let walker_caller = CallerId::Controller(bound.controller_id);
-        let receipt = kernel
-            .submit(
-                command(
-                    &later,
-                    CommandId::new(),
-                    walker_caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&bound, "I take the ramp."),
-                        opportunity: bound.clone(),
-                    },
-                ),
-                &AuthenticatedCaller::fixture(walker_caller),
-            )
-            .unwrap();
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
-        let after = kernel.state.events.clone();
-        assert_eq!(after.len(), 2);
-        assert_eq!(after[1].revision, bound.revision + 2);
     }
 
-    /// Closing a route incident to the subject's place changes exactly what the
-    /// proposal's verification reads, so the bound proposal dies at the digest.
-    #[test]
-    fn a_changed_scope_is_rejected_with_scope_changed() {
-        let dir = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            dir.path().join("world.cc"),
-            creation(CommandId::new(), "Changed"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let topology = admit_topology(&mut kernel);
-        let active = activate(&mut kernel);
-        let bound = opportunity_for(&active, topology.walker);
-
-        submit_owner(
-            &mut kernel,
-            &active,
-            CommandBody::AdmitPatch {
-                patch: WorldPatch {
-                    declarations: Vec::new(),
-                    operations: vec![ComponentOp::CloseRoute {
-                        route: Ref::Existing(topology.ramp),
-                    }],
-                    evidence: Vec::new(),
-                },
-            },
-        );
-        let closed = kernel.snapshot().unwrap();
-        let walker_caller = CallerId::Controller(bound.controller_id);
-        let error = kernel
-            .submit(
-                command(
-                    &closed,
-                    CommandId::new(),
-                    walker_caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&bound, "I take the ramp."),
-                        opportunity: bound.clone(),
-                    },
-                ),
-                &AuthenticatedCaller::fixture(walker_caller),
-            )
-            .unwrap_err();
-        let KernelError::ScopeChanged {
-            scope,
-            expected,
-            actual,
-        } = error
-        else {
-            panic!("expected a changed scope");
-        };
-        assert_eq!(scope, bound.scope);
-        assert_eq!(expected, bound.scope_digest);
-        assert_ne!(expected, actual);
-        assert_eq!(kernel.snapshot().unwrap(), closed);
+    pub(crate) fn play_caller() -> CallerId {
+        CallerId::System(SystemCapability::Play)
     }
 
-    /// The digest covers the scope's controller, its grants, its Position, and
-    /// its incident routes, and nothing else in the world.
-    #[test]
-    fn scope_digest_reads_exactly_its_components() {
-        let dir = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            dir.path().join("world.cc"),
-            creation(CommandId::new(), "Components"),
-            &auth_principal(owner()),
+    pub(crate) fn act(
+        kernel: &mut WorldKernel,
+        actor: SubjectId,
+        invocation: DecisionInvocation,
+    ) -> Result<SubmitReceipt, KernelError> {
+        act_as(
+            kernel,
+            CallerId::System(SystemCapability::Play),
+            actor,
+            invocation,
         )
-        .unwrap();
-        let topology = admit_topology(&mut kernel);
-        activate(&mut kernel);
-        let scope = DecisionScope {
-            subject_id: topology.walker,
-        };
-        let base = scope_digest(&kernel.state, scope).unwrap();
-
-        let mut changed_controller = kernel.state.clone();
-        let assignment = changed_controller
-            .controller_assignments
-            .get_mut(&scope)
-            .unwrap();
-        *assignment = ControllerAssignment::NarrativePersona {
-            controller_id: assignment.id().expect("the fixture scope has a controller"),
-        };
-        assert_ne!(scope_digest(&changed_controller, scope).unwrap(), base);
-
-        let mut changed_grants = kernel.state.clone();
-        let extra = AffordanceId::issue();
-        changed_grants
-            .affordance_catalog
-            .insert(extra, patch::kernel_speak_entry());
-        changed_grants
-            .affordance_grants
-            .entry(scope)
-            .or_default()
-            .insert(extra);
-        assert_ne!(scope_digest(&changed_grants, scope).unwrap(), base);
-
-        // The digest reads the granted entries' definitions, not only their
-        // ids: admission reads preconditions and ceilings, so altering an entry
-        // must move the digest.
-        let mut changed_entry = kernel.state.clone();
-        let granted = *kernel.state.affordance_grants[&scope].first().unwrap();
-        changed_entry
-            .affordance_catalog
-            .get_mut(&granted)
-            .unwrap()
-            .carries_speech = false;
-        assert_ne!(scope_digest(&changed_entry, scope).unwrap(), base);
-
-        let mut changed_position = kernel.state.clone();
-        changed_position.positions.insert(
-            topology.walker,
-            Position {
-                place: topology.road,
-            },
-        );
-        assert_ne!(scope_digest(&changed_position, scope).unwrap(), base);
-
-        let mut changed_route = kernel.state.clone();
-        changed_route
-            .edges
-            .get_mut(&topology.ramp)
-            .unwrap()
-            .set_cost(Cost(99));
-        assert_ne!(scope_digest(&changed_route, scope).unwrap(), base);
-
-        // The span joins road and gate, so it is incident to neither the walker's
-        // place nor its scope; an unrelated subject's decision is invisible too.
-        let mut unrelated_route = kernel.state.clone();
-        unrelated_route
-            .edges
-            .get_mut(&topology.span)
-            .unwrap()
-            .set_cost(Cost(99));
-        assert_eq!(scope_digest(&unrelated_route, scope).unwrap(), base);
-
-        let active = kernel.snapshot().unwrap();
-        let persona = opportunity(&active, ControllerMode::NarrativePersona);
-        let persona_caller = CallerId::Controller(persona.controller_id);
-        kernel
-            .submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    persona_caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&persona, "Unrelated."),
-                        opportunity: persona,
-                    },
-                ),
-                &AuthenticatedCaller::fixture(persona_caller),
-            )
-            .unwrap();
-        assert_eq!(scope_digest(&kernel.state, scope).unwrap(), base);
     }
 
     #[test]
@@ -6337,27 +5676,16 @@ mod tests {
         let genesis = kernel.snapshot().unwrap();
         assert_eq!(genesis.title, "Delvehold");
         assert_eq!(genesis.phase, WorldPhase::Draft);
-        assert!(genesis.opportunities.is_empty());
-
         let active = activate(&mut kernel);
         assert_eq!(active.phase, WorldPhase::Active);
-        assert_eq!(active.opportunities.len(), 3);
 
-        let human_opportunity = opportunity(&active, ControllerMode::Human);
-        kernel
-            .submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&human_opportunity, "I open the door."),
-                        opportunity: human_opportunity,
-                    },
-                ),
-                &auth_principal(human_principal()),
-            )
-            .unwrap();
+        let human = subject_by_mode(&kernel.state, ControllerMode::Human);
+        act(
+            &mut kernel,
+            human,
+            speak(first_grant(&active, human), "I open the door."),
+        )
+        .unwrap();
         let after_human = kernel.snapshot().unwrap();
         assert_eq!(kernel.state.events.len(), 1);
         assert_eq!(
@@ -6365,30 +5693,15 @@ mod tests {
             Some("I open the door.")
         );
 
-        let persona_opportunity = opportunity(&after_human, ControllerMode::NarrativePersona);
-        let persona_caller = CallerId::Controller(persona_opportunity.controller_id);
-        kernel
-            .submit(
-                command(
-                    &after_human,
-                    CommandId::new(),
-                    persona_caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&persona_opportunity, "Then mind the hinge."),
-                        opportunity: persona_opportunity,
-                    },
-                ),
-                &AuthenticatedCaller::fixture(persona_caller),
-            )
-            .unwrap();
-        let after_persona = kernel.snapshot().unwrap();
+        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        act(
+            &mut kernel,
+            persona,
+            speak(first_grant(&after_human, persona), "Then mind the hinge."),
+        )
+        .unwrap();
         assert_eq!(kernel.state.events.len(), 2);
-        assert!(
-            after_persona
-                .opportunities
-                .iter()
-                .all(|value| value.revision == after_persona.revision)
-        );
+        assert_eq!(kernel.state.events[1].actor, persona);
     }
 
     #[test]
@@ -6458,132 +5771,17 @@ mod tests {
         let approved = kernel.snapshot().unwrap();
         submit_owner(&mut kernel, &approved, CommandBody::ActivateWorld);
         let active = kernel.snapshot().unwrap();
-        let persona = opportunity(&active, ControllerMode::NarrativePersona);
+        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
         let commits_before_forgery = kernel.journal.commit_count();
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&persona, "Puppet"),
-                        opportunity: persona,
-                    },
-                ),
-                &auth_principal(human_principal())
-            ),
-            Err(KernelError::ControllerMismatch)
-        ));
-        assert_eq!(kernel.journal.commit_count(), commits_before_forgery);
-        assert_eq!(kernel.snapshot().unwrap(), active);
-    }
-
-    #[test]
-    fn a_tampered_or_unknown_opportunity_never_commits() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation(CommandId::new(), "Exact"),
-            &auth_principal(owner()),
+        let error = act_as(
+            &mut kernel,
+            CallerId::Principal(human_principal()),
+            persona,
+            speak(first_grant(&active, persona), "Puppet"),
         )
-        .unwrap();
-        let active = activate(&mut kernel);
-        let original = opportunity(&active, ControllerMode::Human);
-        // An entry only the operational subject is granted: the human's scope
-        // does not hold it, which is what denial means now that an affordance id
-        // names a catalog entry rather than one subject's copy of one.
-        let denied_invocation = DecisionInvocation {
-            affordance: affordance_named(&active, "convene"),
-            bindings: Vec::new(),
-            proposed: Vec::new(),
-            speech: Some(Statement::new("No grant").unwrap()),
-            display: None,
-        };
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ExerciseDecision {
-                        invocation: denied_invocation,
-                        opportunity: original.clone(),
-                    },
-                ),
-                &auth_principal(human_principal())
-            ),
-            Err(KernelError::AffordanceDenied)
-        ));
-        // A claimed affordance the world did not grant carries no authority: the
-        // kernel exercises the opportunity it derives, never the one submitted.
-        let forged_affordance = AffordanceId::issue();
-        let mut tampered = original.clone();
-        tampered.affordance_ids.push(forged_affordance);
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ExerciseDecision {
-                        invocation: DecisionInvocation {
-                            affordance: forged_affordance,
-                            bindings: Vec::new(),
-                            proposed: Vec::new(),
-                            speech: Some(Statement::new("Forged").unwrap()),
-                            display: None,
-                        },
-                        opportunity: tampered,
-                    },
-                ),
-                &auth_principal(human_principal())
-            ),
-            Err(KernelError::AffordanceDenied)
-        ));
-        assert_eq!(kernel.snapshot().unwrap(), active);
-
-        let mut forged_scope = original.clone();
-        forged_scope.scope_digest = ScopeDigest::fixture("sha256:not-this-scope");
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&original, "No"),
-                        opportunity: forged_scope,
-                    },
-                ),
-                &auth_principal(human_principal())
-            ),
-            Err(KernelError::ScopeChanged { .. })
-        ));
-        assert_eq!(kernel.snapshot().unwrap(), active);
-
-        let unknown_scope = DecisionOpportunity {
-            scope: DecisionScope {
-                subject_id: SubjectId::issue(),
-            },
-            ..original.clone()
-        };
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ExerciseDecision {
-                        invocation: speak(&original, "No"),
-                        opportunity: unknown_scope,
-                    },
-                ),
-                &auth_principal(human_principal())
-            ),
-            Err(KernelError::OpportunityMismatch)
-        ));
+        .unwrap_err();
+        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
+        assert_eq!(kernel.journal.commit_count(), commits_before_forgery);
         assert_eq!(kernel.snapshot().unwrap(), active);
     }
 
@@ -6595,15 +5793,15 @@ mod tests {
         let (mut kernel, creation_receipt) =
             WorldKernel::create(&path, creation.clone(), &auth_principal(owner())).unwrap();
         let active = activate(&mut kernel);
-        let decision = opportunity(&active, ControllerMode::OperationalAgent);
-        let caller = CallerId::Controller(decision.controller_id);
+        let operator = subject_by_mode(&kernel.state, ControllerMode::OperationalAgent);
+        let caller = play_caller();
         let command = command(
             &active,
             CommandId::new(),
             caller.clone(),
-            CommandBody::ExerciseDecision {
-                invocation: speak(&decision, "The vote carries."),
-                opportunity: decision,
+            CommandBody::Act {
+                actor: operator,
+                invocation: speak(first_grant(&active, operator), "The vote carries."),
             },
         );
         let applied = kernel
@@ -6631,152 +5829,6 @@ mod tests {
         drop(reopened);
         let reopened = WorldKernel::open(&path, accepted.world_id).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
-    }
-
-    #[test]
-    fn controller_receipt_is_bound_to_the_exact_opportunity_and_invocation() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation(CommandId::new(), "Receipt Scope"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let active = activate(&mut kernel);
-        let decision = opportunity(&active, ControllerMode::OperationalAgent);
-        let other = opportunity(&active, ControllerMode::NarrativePersona);
-        let command_id = CommandId::new();
-        let caller = CallerId::Controller(decision.controller_id);
-        let invocation = speak(&decision, "The record is exact.");
-        kernel
-            .submit(
-                command(
-                    &active,
-                    command_id,
-                    caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        invocation: invocation.clone(),
-                        opportunity: decision.clone(),
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-            .unwrap();
-
-        let receipt = kernel
-            .controller_receipt(command_id, &decision, &invocation)
-            .unwrap()
-            .expect("committed controller command has a receipt");
-        assert_eq!(receipt.command_id, command_id);
-        assert!(
-            kernel
-                .controller_receipt(CommandId::new(), &decision, &invocation)
-                .unwrap()
-                .is_none()
-        );
-        assert!(matches!(
-            kernel.controller_receipt(command_id, &other, &invocation),
-            Err(KernelError::CommandIdConflict)
-        ));
-        let altered_invocation = speak(&decision, "A different proposal.");
-        assert!(matches!(
-            kernel.controller_receipt(command_id, &decision, &altered_invocation),
-            Err(KernelError::CommandIdConflict)
-        ));
-    }
-
-    #[test]
-    fn controller_decline_consumes_only_its_exact_opportunity() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation(CommandId::new(), "Decline Scope"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let active = activate(&mut kernel);
-        let decision = opportunity(&active, ControllerMode::OperationalAgent);
-        let other = opportunity(&active, ControllerMode::NarrativePersona);
-        let caller = CallerId::Controller(decision.controller_id);
-
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    CallerId::Controller(other.controller_id),
-                    CommandBody::DeclineDecision {
-                        opportunity: decision.clone(),
-                    },
-                ),
-                &AuthenticatedCaller::fixture(CallerId::Controller(other.controller_id)),
-            ),
-            Err(KernelError::ControllerMismatch)
-        ));
-        assert_eq!(kernel.snapshot().unwrap(), active);
-
-        let command_id = CommandId::new();
-        let decline = command(
-            &active,
-            command_id,
-            caller.clone(),
-            CommandBody::DeclineDecision {
-                opportunity: decision.clone(),
-            },
-        );
-        let SubmitReceipt::Applied(receipt) = kernel
-            .submit(
-                decline.clone(),
-                &AuthenticatedCaller::fixture(caller.clone()),
-            )
-            .unwrap()
-        else {
-            panic!("exact decline was not applied")
-        };
-        let after = kernel.snapshot().unwrap();
-        assert_eq!(after.revision, active.revision + 1);
-        assert!(kernel.state.events.is_empty());
-        let refreshed = opportunity(&after, ControllerMode::OperationalAgent);
-        assert_ne!(refreshed, decision);
-        assert_eq!(
-            kernel
-                .controller_decline_receipt(command_id, &decision)
-                .unwrap(),
-            Some(receipt.clone())
-        );
-        assert!(matches!(
-            kernel.controller_decline_receipt(command_id, &other),
-            Err(KernelError::CommandIdConflict)
-        ));
-        assert!(matches!(
-            kernel.controller_receipt(
-                command_id,
-                &decision,
-                &speak(&decision, "A decline is not speech."),
-            ),
-            Err(KernelError::CommandIdConflict)
-        ));
-        assert_eq!(
-            kernel
-                .submit(decline, &AuthenticatedCaller::fixture(caller.clone()))
-                .unwrap(),
-            SubmitReceipt::AlreadyApplied(receipt.clone())
-        );
-        assert_eq!(kernel.snapshot().unwrap(), after);
-        drop(kernel);
-        let reopened = WorldKernel::open(&path, after.world_id).unwrap();
-        assert_eq!(reopened.snapshot().unwrap(), after);
-        assert_eq!(
-            reopened
-                .controller_decline_receipt(
-                    command_id,
-                    &opportunity(&active, ControllerMode::OperationalAgent),
-                )
-                .unwrap(),
-            Some(receipt)
-        );
     }
 
     #[test]
@@ -7082,7 +6134,7 @@ mod tests {
     /// and every component outside the scope. Each step below is a real commit
     /// that moves the world, not a hand-edited state.
     #[test]
-    fn soul_scope_digest_excludes_revision_phase_and_everything_outside_the_scope() {
+    fn soul_scope_components_exclude_revision_phase_and_everything_outside_the_scope() {
         let dir = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             dir.path().join("world.cc"),
@@ -7094,7 +6146,7 @@ mod tests {
         let scope = DecisionScope {
             subject_id: topology.walker,
         };
-        let base = scope_digest(&kernel.state, scope).unwrap();
+        let base = scope_components(&kernel.state, scope.subject_id);
         let start_revision = kernel.state.revision;
 
         // A new place elsewhere, a route that touches neither the walker's
@@ -7137,12 +6189,12 @@ mod tests {
             },
         );
         assert_ne!(kernel.state.revision, start_revision);
-        assert_eq!(scope_digest(&kernel.state, scope).unwrap(), base);
+        assert_eq!(scope_components(&kernel.state, scope.subject_id), base);
 
         // Activation changes the phase, the approvals, and the revision.
         let active = activate(&mut kernel);
         assert_eq!(active.phase, WorldPhase::Active);
-        assert_eq!(scope_digest(&kernel.state, scope).unwrap(), base);
+        assert_eq!(scope_components(&kernel.state, scope.subject_id), base);
 
         // Another subject's Position moving is not this scope's business.
         let annexway = *kernel
@@ -7186,7 +6238,7 @@ mod tests {
                     .unwrap()
             })
         );
-        assert_eq!(scope_digest(&kernel.state, scope).unwrap(), base);
+        assert_eq!(scope_components(&kernel.state, scope.subject_id), base);
 
         // A route incident to the walker's own place is inside the scope.
         let moved = kernel.snapshot().unwrap();
@@ -7203,55 +6255,7 @@ mod tests {
                 },
             },
         );
-        assert_ne!(scope_digest(&kernel.state, scope).unwrap(), base);
-    }
-
-    /// Soul falsification: a claimed opportunity whose `affordance_ids` name
-    /// grants this scope does not hold cannot widen authority. The kernel reads
-    /// the derived list, so the forged one is ignored and the invocation is
-    /// denied on the real grants.
-    #[test]
-    fn soul_a_forged_affordance_list_cannot_widen_authority() {
-        let dir = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            dir.path().join("world.cc"),
-            creation(CommandId::new(), "Affordances"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let active = activate(&mut kernel);
-        let persona = opportunity(&active, ControllerMode::NarrativePersona);
-        let operator = opportunity(&active, ControllerMode::OperationalAgent);
-
-        // The persona claims the operator's entry and lists it as its own.
-        let convened = affordance_named(&active, "convene");
-        assert!(operator.affordance_ids.contains(&convened));
-        assert!(!persona.affordance_ids.contains(&convened));
-        let mut forged = persona.clone();
-        forged.affordance_ids = vec![convened, persona.affordance_ids[0]];
-        let caller = CallerId::Controller(persona.controller_id);
-        let error = kernel
-            .submit(
-                command(
-                    &active,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        opportunity: forged,
-                        invocation: DecisionInvocation {
-                            affordance: convened,
-                            bindings: Vec::new(),
-                            proposed: Vec::new(),
-                            speech: Some(Statement::new("Not my grant.").unwrap()),
-                            display: None,
-                        },
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-            .unwrap_err();
-        assert!(matches!(error, KernelError::AffordanceDenied));
-        assert_eq!(kernel.snapshot().unwrap(), active);
+        assert_ne!(scope_components(&kernel.state, scope.subject_id), base);
     }
 
     /// Soul: an `AffordanceId` now names a catalog entry, not a subject's copy
@@ -7260,7 +6264,7 @@ mod tests {
     /// same `convene` id commits for the scope that holds it and is denied for
     /// one that does not.
     #[test]
-    fn soul_a_shared_catalog_id_is_gated_by_the_scope_grant() {
+    fn act_needs_the_actors_grant() {
         let dir = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             dir.path().join("world.cc"),
@@ -7280,12 +6284,6 @@ mod tests {
                 .iter()
                 .all(|subject| subject.affordances.contains(&speak))
         );
-        assert!(
-            active
-                .opportunities
-                .iter()
-                .all(|opportunity| opportunity.affordance_ids.contains(&speak))
-        );
         let holders: Vec<SubjectId> = active
             .subjects
             .iter()
@@ -7294,57 +6292,44 @@ mod tests {
             .collect();
         assert_eq!(holders.len(), 1);
 
-        let invoke = |kernel: &mut WorldKernel, snapshot: &WorldSnapshot, subject: SubjectId| {
-            let opportunity = opportunity_for(snapshot, subject);
-            let caller = CallerId::Controller(opportunity.controller_id);
-            kernel.submit(
-                command(
-                    snapshot,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        opportunity,
-                        invocation: DecisionInvocation {
-                            affordance: convened,
-                            bindings: Vec::new(),
-                            proposed: Vec::new(),
-                            speech: Some(Statement::new("The council convenes.").unwrap()),
-                            display: None,
-                        },
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
+        let invoke = |kernel: &mut WorldKernel, subject: SubjectId| {
+            act(
+                kernel,
+                subject,
+                DecisionInvocation {
+                    affordance: convened,
+                    bindings: Vec::new(),
+                    proposed: Vec::new(),
+                    speech: Some(Statement::new("The council convenes.").unwrap()),
+                    display: None,
+                },
             )
         };
 
         // The grantee's scope commits with that id.
         assert!(matches!(
-            invoke(&mut kernel, &active, holders[0]).unwrap(),
+            invoke(&mut kernel, holders[0]).unwrap(),
             SubmitReceipt::Applied(_)
         ));
 
         // A scope that does not hold the entry is denied the very same id, and
         // nothing commits.
         let after = kernel.snapshot().unwrap();
-        // A controller-driven scope, so the denial is the grant check rather
-        // than the human lane's caller check reached first.
         let stranger = after
             .subjects
             .iter()
-            .find(|subject| {
-                !subject.affordances.contains(&convened) && subject.human_controller.is_none()
-            })
-            .expect("a controller-driven subject without the grant")
+            .find(|subject| !subject.affordances.contains(&convened))
+            .expect("a subject without the grant")
             .id;
         assert!(matches!(
-            invoke(&mut kernel, &after, stranger).unwrap_err(),
+            invoke(&mut kernel, stranger).unwrap_err(),
             KernelError::AffordanceDenied
         ));
         assert_eq!(kernel.snapshot().unwrap(), after);
     }
 
     #[test]
-    fn a_stale_grant_rejects_but_a_distant_route_reaches_admission_instead() {
+    fn a_distant_route_closing_leaves_the_actors_scope_alone_and_its_act_commits() {
         let dir = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             dir.path().join("world.cc"),
@@ -7354,28 +6339,12 @@ mod tests {
         .unwrap();
         let topology = admit_topology(&mut kernel);
         let active = activate(&mut kernel);
-        let bound = opportunity_for(&active, topology.walker);
         let speak = affordance_named(&active, "speak");
 
-        // Binding is scope-digest equality, and the digest reads the granted
-        // entries' definitions: altering one moves the digest, so a proposal
-        // bound before that change no longer binds.
-        let mut altered = kernel.state.clone();
-        altered
-            .affordance_catalog
-            .get_mut(&speak)
-            .expect("the Speak entry")
-            .carries_speech = false;
-        assert_ne!(
-            scope_digest(&altered, bound.scope).unwrap(),
-            scope_digest(&kernel.state, bound.scope).unwrap()
-        );
-
-        // A route the actor does not stand beside is outside the digest, so
-        // closing it leaves the binding intact. That is deliberate: admission
-        // re-reads the live graph at commit, so nothing commits on stale
-        // topology and a proposal is not invalidated by distant traffic.
-        let before_digest = scope_digest(&kernel.state, bound.scope).unwrap();
+        // A route the actor does not stand beside is outside its scope.
+        // Admission re-reads the live graph at commit, so nothing commits on
+        // stale topology.
+        let before_components = scope_components(&kernel.state, topology.walker);
         let before = kernel.snapshot().unwrap();
         submit_owner(
             &mut kernel,
@@ -7385,32 +6354,23 @@ mod tests {
             }]),
         );
         assert_eq!(
-            scope_digest(&kernel.state, bound.scope).unwrap(),
-            before_digest,
-            "a route outside the actor's incident set does not rebind the proposal"
+            scope_components(&kernel.state, topology.walker),
+            before_components,
+            "a route outside the actor's incident set is not in its scope"
         );
 
-        let snapshot = kernel.snapshot().unwrap();
-        let receipt = kernel
-            .submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    CallerId::Controller(bound.controller_id),
-                    CommandBody::ExerciseDecision {
-                        opportunity: bound.clone(),
-                        invocation: DecisionInvocation {
-                            affordance: speak,
-                            bindings: Vec::new(),
-                            proposed: Vec::new(),
-                            speech: Some(Statement::new("Still here.").unwrap()),
-                            display: None,
-                        },
-                    },
-                ),
-                &AuthenticatedCaller::fixture(CallerId::Controller(bound.controller_id)),
-            )
-            .expect("a distant route closing does not rebind this proposal");
+        let receipt = act(
+            &mut kernel,
+            topology.walker,
+            DecisionInvocation {
+                affordance: speak,
+                bindings: Vec::new(),
+                proposed: Vec::new(),
+                speech: Some(Statement::new("Still here.").unwrap()),
+                display: None,
+            },
+        )
+        .expect("a distant route closing does not stop this act");
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
     }
 
@@ -7423,25 +6383,15 @@ mod tests {
         let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Two");
         let (_, civic, active) = civic_world(&mut kernel);
 
-        let treasury = opportunity_for(&active, civic.treasury);
-        let reeve = opportunity_for(&active, civic.reeve);
-        assert_ne!(treasury.controller_id, reeve.controller_id);
-        assert_eq!(
+        let controller_of = |subject_id: SubjectId| {
             active
-                .opportunities
+                .subjects
                 .iter()
-                .filter(|value| value.scope.subject_id == civic.treasury)
-                .count(),
-            1
-        );
-        assert_eq!(
-            active
-                .opportunities
-                .iter()
-                .filter(|value| value.scope.subject_id == civic.reeve)
-                .count(),
-            1
-        );
+                .find(|subject| subject.id == subject_id)
+                .unwrap()
+                .controller_id
+        };
+        assert_ne!(controller_of(civic.treasury), controller_of(civic.reeve));
 
         // Both are authorized over the hall — one directly, one by delegation —
         // and neither appears in the other's components.
@@ -7482,16 +6432,15 @@ mod tests {
         let edges = kernel.state.edges.clone();
         let entities = kernel.state.entities.clone();
 
-        let opportunity = opportunity_for(&active, civic.treasury);
-        let caller = CallerId::Controller(opportunity.controller_id);
+        let caller = play_caller();
         let receipt = kernel
             .submit(
                 command(
                     &active,
                     CommandId::new(),
                     caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        opportunity,
+                    CommandBody::Act {
+                        actor: civic.treasury,
                         invocation: DecisionInvocation {
                             affordance: affordance_named(&active, "levy"),
                             bindings: vec![
@@ -7780,13 +6729,12 @@ mod tests {
     /// The digest reads what the actor is authorized over and nothing about the
     /// world the actor reaches.
     #[test]
-    fn scope_digest_reads_authority_and_delegation_but_not_occupancy() {
+    fn scope_components_read_authority_and_delegation_but_not_occupancy() {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Digest");
         let (topology, civic, _) = civic_world(&mut kernel);
-        let scope = |subject_id| DecisionScope { subject_id };
         let digest_of = |kernel: &WorldKernel, subject_id| {
-            scope_digest(&kernel.state, scope(subject_id)).unwrap()
+            scope_components(&kernel.state, subject_id)
         };
         let admit = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
@@ -8022,9 +6970,9 @@ mod tests {
 #[cfg(test)]
 mod custody_tests {
     use super::tests::{
-        OPENING_BALANCE, TITHE_RECEIPT, activate, admit_custody, admit_topology, auth_principal,
-        command, creation, custody_world, operations, opportunity_for, owner, reject_owner,
-        speak_entry, submit_owner,
+        OPENING_BALANCE, TITHE_RECEIPT, act, activate, admit_custody, admit_topology,
+        auth_principal, creation, custody_world, first_grant, operations, owner, reject_owner,
+        speak, speak_entry, submit_owner,
     };
     use super::*;
 
@@ -8485,7 +7433,7 @@ mod custody_tests {
     /// The digest reads the acting subject's own holdings and dependencies, and
     /// only its own: a counterparty's churn does not move it.
     #[test]
-    fn scope_digest_reads_holdings_and_dependencies() {
+    fn scope_components_read_holdings_and_dependencies() {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = custody_kernel(directory.path(), "ScopeCustody");
         let topology = admit_topology(&mut kernel);
@@ -8494,15 +7442,15 @@ mod custody_tests {
         let scope = DecisionScope {
             subject_id: custody.holder,
         };
-        let base = scope_digest(&kernel.state, scope).unwrap();
+        let base = scope_components(&kernel.state, scope.subject_id);
 
         let mut spent = kernel.state.clone();
         set_held(&mut spent, custody.holder, custody.tithe, 1);
-        assert_ne!(scope_digest(&spent, scope).unwrap(), base);
+        assert_ne!(scope_components(&spent, scope.subject_id), base);
 
         let mut gained = kernel.state.clone();
         set_held(&mut gained, custody.holder, custody.ingot, 1);
-        assert_ne!(scope_digest(&gained, scope).unwrap(), base);
+        assert_ne!(scope_components(&gained, scope.subject_id), base);
 
         let mut bound = kernel.state.clone();
         bound
@@ -8510,7 +7458,7 @@ mod custody_tests {
             .entry(custody.holder)
             .or_default()
             .insert(DependencyTarget::Resource(custody.tithe));
-        assert_ne!(scope_digest(&bound, scope).unwrap(), base);
+        assert_ne!(scope_components(&bound, scope.subject_id), base);
 
         let mut elsewhere = kernel.state.clone();
         set_held(&mut elsewhere, custody.counterparty, custody.tithe, 9);
@@ -8519,56 +7467,7 @@ mod custody_tests {
             .entry(custody.counterparty)
             .or_default()
             .insert(DependencyTarget::Resource(custody.ingot));
-        assert_eq!(scope_digest(&elsewhere, scope).unwrap(), base);
-    }
-
-    /// A proposal bound while its subject held seven must not commit after
-    /// someone took six. Custody churn rejects more bound proposals than route
-    /// churn did; that is the binding working.
-    #[test]
-    fn a_spend_bound_to_a_stale_balance_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Stale");
-        let (_, custody, active) = custody_world(&mut kernel);
-        let bound = opportunity_for(&active, custody.holder);
-
-        submit_owner(
-            &mut kernel,
-            &active,
-            operations(vec![ComponentOp::Transfer {
-                from: Ref::Existing(custody.holder),
-                to: Ref::Existing(custody.counterparty),
-                resource: Ref::Existing(custody.tithe),
-                qty: Quantity(6),
-            }]),
-        );
-
-        let moved = kernel.snapshot().unwrap();
-        let commits = kernel.journal.commit_count();
-        let error = kernel
-            .submit(
-                command(
-                    &moved,
-                    CommandId::new(),
-                    CallerId::Controller(bound.controller_id),
-                    CommandBody::ExerciseDecision {
-                        opportunity: bound.clone(),
-                        invocation: DecisionInvocation {
-                            affordance: bound.affordance_ids[0],
-                            bindings: Vec::new(),
-                            proposed: Vec::new(),
-                            speech: Some(Statement::new("The tithe is short.").unwrap()),
-                            display: None,
-                        },
-                    },
-                ),
-                &AuthenticatedCaller::fixture(CallerId::Controller(bound.controller_id)),
-            )
-            .unwrap_err();
-
-        assert!(matches!(error, KernelError::ScopeChanged { .. }));
-        assert_eq!(kernel.journal.commit_count(), commits);
-        assert_eq!(kernel.snapshot().unwrap(), moved);
+        assert_eq!(scope_components(&elsewhere, scope.subject_id), base);
     }
 
     /// Soul, proof 4: the ledger equation stated as arithmetic over the
@@ -8814,16 +7713,15 @@ mod custody_tests {
         assert_eq!(kernel.snapshot().unwrap(), before);
     }
 
-    /// Soul, scope: a transfer changes the *receiver's* components too, so the
-    /// counterparty's in-flight proposal is refused with `ScopeChanged` while an
-    /// unrelated subject's bound proposal still commits at the later revision.
+    /// Soul, scope: a transfer changes the *receiver's* components too, and
+    /// no unrelated subject's, whose act still commits at the later revision.
     #[test]
     fn soul_an_incoming_transfer_changes_only_the_counterpartys_scope() {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = custody_kernel(directory.path(), "IncomingScope");
         let (topology, custody, active) = custody_world(&mut kernel);
-        let receiver = opportunity_for(&active, custody.counterparty);
-        let bystander = opportunity_for(&active, topology.walker);
+        let receiver_before = scope_components(&kernel.state, custody.counterparty);
+        let bystander_before = scope_components(&kernel.state, topology.walker);
 
         submit_owner(
             &mut kernel,
@@ -8837,44 +7735,23 @@ mod custody_tests {
         );
         let moved = kernel.snapshot().unwrap();
 
-        let exercise = |opportunity: &DecisionOpportunity| CommandBody::ExerciseDecision {
-            opportunity: opportunity.clone(),
-            invocation: DecisionInvocation {
-                affordance: opportunity.affordance_ids[0],
-                bindings: Vec::new(),
-                proposed: Vec::new(),
-                speech: Some(Statement::new("Counted before the tithe arrived.").unwrap()),
-                display: None,
-            },
-        };
-
-        let error = kernel
-            .submit(
-                command(
-                    &moved,
-                    CommandId::new(),
-                    CallerId::Controller(receiver.controller_id),
-                    exercise(&receiver),
-                ),
-                &AuthenticatedCaller::fixture(CallerId::Controller(receiver.controller_id)),
-            )
-            .unwrap_err();
-        assert!(
-            matches!(error, KernelError::ScopeChanged { .. }),
-            "the receiver's holdings moved under its bound proposal: {error:?}"
+        assert_ne!(
+            scope_components(&kernel.state, custody.counterparty),
+            receiver_before,
+            "the receiver's holdings moved"
+        );
+        assert_eq!(
+            scope_components(&kernel.state, topology.walker),
+            bystander_before,
+            "an unrelated subject's scope is untouched by the transfer"
         );
 
-        let receipt = kernel
-            .submit(
-                command(
-                    &moved,
-                    CommandId::new(),
-                    CallerId::Controller(bystander.controller_id),
-                    exercise(&bystander),
-                ),
-                &AuthenticatedCaller::fixture(CallerId::Controller(bystander.controller_id)),
-            )
-            .expect("an unrelated subject's bound proposal is untouched by the transfer");
+        let receipt = act(
+            &mut kernel,
+            topology.walker,
+            speak(first_grant(&moved, topology.walker), "Unmoved."),
+        )
+        .expect("an unrelated subject acts at the later revision");
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
     }
 }
@@ -8886,9 +7763,9 @@ mod custody_tests {
 mod knowledge_tests {
     use super::patch::{RefName, Site};
     use super::tests::{
-        affordance_named,
+        act, play_caller, affordance_named,
         FLOOD_EVIDENCE, FLOOD_STATEMENT, Speech, auth_principal, command, creation, operations,
-        opportunity_for, owner, reject_owner, speech_world, spoken, submit_owner,
+        owner, reject_owner, speech_world, spoken, submit_owner,
     };
     use super::*;
     use std::path::Path;
@@ -8907,24 +7784,10 @@ mod knowledge_tests {
 
     fn utter(
         kernel: &mut WorldKernel,
-        snapshot: &WorldSnapshot,
         actor: SubjectId,
         invocation: DecisionInvocation,
     ) -> Result<SubmitReceipt, KernelError> {
-        let opportunity = opportunity_for(snapshot, actor);
-        let caller = CallerId::Controller(opportunity.controller_id);
-        kernel.submit(
-            command(
-                snapshot,
-                CommandId::new(),
-                caller.clone(),
-                CommandBody::ExerciseDecision {
-                    opportunity,
-                    invocation,
-                },
-            ),
-            &AuthenticatedCaller::fixture(caller),
-        )
+        act(kernel, actor, invocation)
     }
 
     fn say(affordance: AffordanceId, bindings: Vec<RoleBinding>, text: &str) -> DecisionInvocation {
@@ -9119,11 +7982,8 @@ mod knowledge_tests {
     #[test]
     fn evidenced_knowledge_of_a_claim_is_rejected() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Evidenced");
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        let (mut kernel, speech, _) = speech_kernel(directory.path(), "Evidenced");
+        utter(&mut kernel, speech.speaker,
             say(
                 speech.proclaim,
                 vec![binding("channel", Target::Entity(speech.horn))],
@@ -9173,10 +8033,7 @@ mod knowledge_tests {
     fn speak_fans_out_to_the_audience_and_not_beyond() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "FanOut");
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        utter(&mut kernel, speech.speaker,
             say(
                 speech.whisper,
                 vec![binding("target", Target::Subject(speech.listener))],
@@ -9218,11 +8075,8 @@ mod knowledge_tests {
     #[test]
     fn co_location_reach_is_the_exact_place_and_a_channel_place_is_the_subtree() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Reach");
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        let (mut kernel, speech, _) = speech_kernel(directory.path(), "Reach");
+        utter(&mut kernel, speech.speaker,
             say(
                 speech.proclaim,
                 vec![binding("channel", Target::Entity(speech.horn))],
@@ -9236,11 +8090,7 @@ mod knowledge_tests {
         assert_eq!(knows(&kernel, speech.stranger, broadcast), None);
 
         // The same speaker's voice reaches only the hall.
-        let active = kernel.snapshot().unwrap();
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        utter(&mut kernel, speech.speaker,
             say(
                 speech.whisper,
                 vec![binding("target", Target::Subject(speech.listener))],
@@ -9262,11 +8112,7 @@ mod knowledge_tests {
                 via: Ref::Existing(speech.stair),
             }]),
         );
-        let active = kernel.snapshot().unwrap();
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        utter(&mut kernel, speech.speaker,
             say(
                 speech.whisper,
                 vec![binding("target", Target::Subject(speech.bystander))],
@@ -9283,12 +8129,9 @@ mod knowledge_tests {
     #[test]
     fn speaking_into_an_empty_room_commits_the_claim_and_lands_nothing() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "EmptyRoom");
+        let (mut kernel, speech, _) = speech_kernel(directory.path(), "EmptyRoom");
         let knowledge_before = kernel.state.knowledge.clone();
-        utter(
-            &mut kernel,
-            &active,
-            speech.bystander,
+        utter(&mut kernel, speech.bystander,
             say(
                 speech.whisper,
                 vec![binding("target", Target::Subject(speech.bystander))],
@@ -9339,10 +8182,7 @@ mod knowledge_tests {
     fn a_display_is_seen_by_the_room_and_by_no_one_else() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "Display");
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        utter(&mut kernel, speech.speaker,
             show(
                 speech.proclaim,
                 vec![binding("channel", Target::Entity(speech.horn))],
@@ -9374,7 +8214,7 @@ mod knowledge_tests {
             assert_eq!(knows(&kernel, blind, seen), None);
         }
         // One act minted both claims, so the listener's snapshot stamps both
-        // rows with the one revision, and the operator's feed carries both.
+        // rows with the one revision.
         let snapshot = kernel.snapshot().unwrap();
         let listener = snapshot
             .subjects
@@ -9388,9 +8228,6 @@ mod knowledge_tests {
             .map(|row| row.minted_at)
             .collect();
         assert_eq!(stamps, BTreeSet::from([Some(event.revision)]));
-        let log = kernel.operator_log().unwrap();
-        assert_eq!(log.last().unwrap().speech.as_ref().unwrap().as_str(), "The horn carries.");
-        assert_eq!(log.last().unwrap().display.as_ref().unwrap().as_str(), "I fold my arms.");
     }
 
     /// A silent turn: the kernel `speak` entry invoked with no utterance and a
@@ -9402,10 +8239,7 @@ mod knowledge_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "Silent");
         let speak = affordance_named(&active, "speak");
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        utter(&mut kernel, speech.speaker,
             show(speak, Vec::new(), None, "I nod toward the stair."),
         )
         .expect("a silent act commits");
@@ -9418,12 +8252,8 @@ mod knowledge_tests {
         );
         assert_eq!(claimed(&kernel), 1);
 
-        let active = kernel.snapshot().unwrap();
         let knowledge_before = kernel.state.knowledge.clone();
-        utter(
-            &mut kernel,
-            &active,
-            speech.bystander,
+        utter(&mut kernel, speech.bystander,
             show(speak, Vec::new(), None, "I sit on the step."),
         )
         .expect("a display into an empty room commits");
@@ -9444,7 +8274,7 @@ mod knowledge_tests {
         let mut padded = show(speak, Vec::new(), None, "placeholder");
         padded.display = Some(serde_json::from_str::<Statement>("\"   \"").unwrap());
         assert_eq!(
-            rejected(utter(&mut kernel, &active, speech.speaker, padded)),
+            rejected(utter(&mut kernel, speech.speaker, padded)),
             vec![ActionMismatch::EmptyDisplay]
         );
         let mute = DecisionInvocation {
@@ -9455,14 +8285,11 @@ mod knowledge_tests {
             display: None,
         };
         assert_eq!(
-            rejected(utter(&mut kernel, &active, speech.speaker, mute)),
+            rejected(utter(&mut kernel, speech.speaker, mute)),
             vec![ActionMismatch::SpeechRequired]
         );
         assert_eq!(
-            rejected(utter(
-                &mut kernel,
-                &active,
-                speech.stranger,
+            rejected(utter(&mut kernel, speech.stranger,
                 show(speak, Vec::new(), None, "I shrug."),
             )),
             vec![ActionMismatch::NoAudience { precondition: 0 }]
@@ -9487,18 +8314,11 @@ mod knowledge_tests {
             .0;
             let (speech, active) = speech_world(&mut kernel);
             let speak = affordance_named(&active, "speak");
-            utter(
-                &mut kernel,
-                &active,
-                speech.speaker,
+            utter(&mut kernel, speech.speaker,
                 show(speak, Vec::new(), Some("One."), "I raise one finger."),
             )
             .expect("the act commits");
-            let active = kernel.snapshot().unwrap();
-            utter(
-                &mut kernel,
-                &active,
-                speech.listener,
+            utter(&mut kernel, speech.listener,
                 show(speak, Vec::new(), None, "I look away."),
             )
             .expect("the silent act commits");
@@ -9545,8 +8365,7 @@ mod knowledge_tests {
                 "The horn still carries.",
             )
         };
-        let active = kernel.snapshot().unwrap();
-        utter(&mut kernel, &active, speech.speaker, proclaim())
+        utter(&mut kernel, speech.speaker, proclaim())
             .expect("the controller may speak on its own channel");
 
         let active = kernel.snapshot().unwrap();
@@ -9558,9 +8377,8 @@ mod knowledge_tests {
                 controller: None,
             }]),
         );
-        let active = kernel.snapshot().unwrap();
         assert_eq!(
-            rejected(utter(&mut kernel, &active, speech.speaker, proclaim())),
+            rejected(utter(&mut kernel, speech.speaker, proclaim())),
             vec![ActionMismatch::NoAudience { precondition: 0 }]
         );
     }
@@ -9580,7 +8398,7 @@ mod knowledge_tests {
             )
         };
         assert_eq!(
-            rejected(utter(&mut kernel, &active, speech.speaker, whisper())),
+            rejected(utter(&mut kernel, speech.speaker, whisper())),
             vec![ActionMismatch::CannotReach { precondition: 0 }]
         );
 
@@ -9592,8 +8410,7 @@ mod knowledge_tests {
                 via: Ref::Existing(speech.stair),
             }]),
         );
-        let active = kernel.snapshot().unwrap();
-        utter(&mut kernel, &active, speech.speaker, whisper())
+        utter(&mut kernel, speech.speaker, whisper())
             .expect("the addressed subject is now in the room");
         let claim = minted_claim(&kernel);
         assert!(knows(&kernel, speech.bystander, claim).is_some());
@@ -9620,7 +8437,7 @@ mod knowledge_tests {
             display: None,
         };
         assert_eq!(
-            rejected(utter(&mut kernel, &active, speech.listener, recant())),
+            rejected(utter(&mut kernel, speech.listener, recant())),
             vec![ActionMismatch::FactUnknown { precondition: 0 }]
         );
 
@@ -9636,7 +8453,7 @@ mod knowledge_tests {
         );
         let active = kernel.snapshot().unwrap();
         assert_eq!(
-            rejected(utter(&mut kernel, &active, speech.listener, recant())),
+            rejected(utter(&mut kernel, speech.listener, recant())),
             vec![ActionMismatch::FactUnknown { precondition: 0 }],
             "Believed falls short of Certain"
         );
@@ -9650,8 +8467,7 @@ mod knowledge_tests {
                 AuthoredSource::Witnessed,
             )]),
         );
-        let active = kernel.snapshot().unwrap();
-        utter(&mut kernel, &active, speech.listener, recant())
+        utter(&mut kernel, speech.listener, recant())
             .expect("certainty admits the recant");
         // Absence is the one shape of knowing nothing: no empty inner map.
         assert!(!kernel.state.knowledge.contains_key(&speech.listener));
@@ -9753,8 +8569,7 @@ mod knowledge_tests {
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "Allocation");
         let world_id = kernel.state.world_id;
         let command_id = CommandId::new();
-        let opportunity = opportunity_for(&active, speech.speaker);
-        let caller = CallerId::Controller(opportunity.controller_id);
+        let caller = play_caller();
         let entities_before = kernel.state.entities.len();
         kernel
             .submit(
@@ -9762,8 +8577,8 @@ mod knowledge_tests {
                     &active,
                     command_id,
                     caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        opportunity,
+                    CommandBody::Act {
+                        actor: speech.speaker,
                         invocation: say(
                             speech.whisper,
                             vec![binding("target", Target::Subject(speech.listener))],
@@ -9810,11 +8625,8 @@ mod knowledge_tests {
             )
             .expect("a created world")
             .0;
-            let (speech, active) = speech_world(&mut kernel);
-            utter(
-                &mut kernel,
-                &active,
-                speech.speaker,
+            let (speech, _) = speech_world(&mut kernel);
+            utter(&mut kernel, speech.speaker,
                 say(
                     speech.proclaim,
                     vec![binding("channel", Target::Entity(speech.horn))],
@@ -9822,11 +8634,7 @@ mod knowledge_tests {
                 ),
             )
             .expect("the first proclamation commits");
-            let active = kernel.snapshot().unwrap();
-            utter(
-                &mut kernel,
-                &active,
-                speech.listener,
+            utter(&mut kernel, speech.listener,
                 say(
                     speech.whisper,
                     vec![binding("target", Target::Subject(speech.speaker))],
@@ -9863,20 +8671,19 @@ mod knowledge_tests {
     #[test]
     fn a_forged_claim_or_forged_recipient_does_not_apply() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Forgery");
+        let (kernel, speech, _) = speech_kernel(directory.path(), "Forgery");
         let command_id = CommandId::new();
-        let opportunity = opportunity_for(&active, speech.speaker);
-        let caller = CallerId::Controller(opportunity.controller_id);
+        let caller = play_caller();
         let invocation = say(
             speech.proclaim,
             vec![binding("channel", Target::Entity(speech.horn))],
             "Honest.",
         );
-        let granted = require_granted(&kernel.state, &opportunity, invocation.affordance).unwrap();
+        let granted = require_granted(&kernel.state, speech.speaker, invocation.affordance).unwrap();
         let honest = action::exercise(
             &kernel.state,
             command_id,
-            &opportunity,
+            speech.speaker,
             &granted,
             &invocation,
         )
@@ -9903,8 +8710,7 @@ mod knowledge_tests {
                 &mut candidate,
                 command_id,
                 &caller,
-                &WorldEffect::DecisionExercised {
-                    opportunity: opportunity.clone(),
+                &WorldEffect::Acted {
                     invocation: invocation.clone(),
                     event: forged,
                 },
@@ -9927,8 +8733,7 @@ mod knowledge_tests {
             &mut candidate,
             command_id,
             &caller,
-            &WorldEffect::DecisionExercised {
-                opportunity,
+            &WorldEffect::Acted {
                 invocation,
                 event: honest,
             },
@@ -9942,23 +8747,14 @@ mod knowledge_tests {
     #[test]
     fn a_telling_moves_only_the_listeners_scope() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "ScopeMove");
+        let (mut kernel, speech, _) = speech_kernel(directory.path(), "ScopeMove");
         let digest = |kernel: &WorldKernel, subject: SubjectId| {
-            scope_digest(
-                &kernel.state,
-                DecisionScope {
-                    subject_id: subject,
-                },
-            )
-            .unwrap()
+            scope_components(&kernel.state, subject)
         };
         let listener_before = digest(&kernel, speech.listener);
         let bystander_before = digest(&kernel, speech.bystander);
 
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        utter(&mut kernel, speech.speaker,
             say(
                 speech.whisper,
                 vec![binding("target", Target::Subject(speech.listener))],
@@ -10053,11 +8849,8 @@ mod knowledge_tests {
         let run = |name: &str, text: &str| {
             let room = directory.path().join(name);
             std::fs::create_dir_all(&room).unwrap();
-            let (mut kernel, speech, active) = speech_kernel(&room, name);
-            let receipt = utter(
-                &mut kernel,
-                &active,
-                speech.speaker,
+            let (mut kernel, speech, _) = speech_kernel(&room, name);
+            let receipt = utter(&mut kernel, speech.speaker,
                 say(
                     speech.whisper,
                     vec![binding("target", Target::Subject(speech.listener))],
@@ -10097,8 +8890,8 @@ mod knowledge_tests {
 #[cfg(test)]
 mod soul_knowledge_tests {
     use super::tests::{
-        FLOOD_STATEMENT, Speech, affordance_named, auth_principal, command, creation, operations,
-        opportunity_for, owner, speech_world, submit_owner,
+        act, play_caller, FLOOD_STATEMENT, Speech, affordance_named, auth_principal, command, creation, operations,
+        owner, speech_world, submit_owner,
     };
     use super::*;
     use std::path::Path;
@@ -10134,24 +8927,10 @@ mod soul_knowledge_tests {
 
     fn utter(
         kernel: &mut WorldKernel,
-        snapshot: &WorldSnapshot,
         actor: SubjectId,
         invocation: DecisionInvocation,
     ) -> Result<SubmitReceipt, KernelError> {
-        let opportunity = opportunity_for(snapshot, actor);
-        let caller = CallerId::Controller(opportunity.controller_id);
-        kernel.submit(
-            command(
-                snapshot,
-                CommandId::new(),
-                caller.clone(),
-                CommandBody::ExerciseDecision {
-                    opportunity,
-                    invocation,
-                },
-            ),
-            &AuthenticatedCaller::fixture(caller),
-        )
+        act(kernel, actor, invocation)
     }
 
     fn knows(kernel: &WorldKernel, subject: SubjectId, fact: EntityId) -> Option<Knowledge> {
@@ -10163,8 +8942,8 @@ mod soul_knowledge_tests {
             .copied()
     }
 
-    fn digest_of(kernel: &WorldKernel, subject_id: SubjectId) -> ScopeDigest {
-        scope_digest(&kernel.state, DecisionScope { subject_id }).unwrap()
+    fn digest_of(kernel: &WorldKernel, subject_id: SubjectId) -> ScopeComponents {
+        scope_components(&kernel.state, subject_id)
     }
 
     fn minted_claim(kernel: &WorldKernel) -> EntityId {
@@ -10205,10 +8984,7 @@ mod soul_knowledge_tests {
         // The controller may still speak from outside its own reach — the horn
         // belongs to the temple — and the listener, who stands inside the
         // reach, hears it.
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        utter(&mut kernel, speech.speaker,
             say(
                 speech.proclaim,
                 vec![binding("channel", Target::Entity(speech.horn))],
@@ -10233,11 +9009,7 @@ mod soul_knowledge_tests {
         assert_eq!(knows(&kernel, speech.speaker, controllers_claim), None);
 
         // Now the listener speaks on the same channel.
-        let active = kernel.snapshot().unwrap();
-        utter(
-            &mut kernel,
-            &active,
-            speech.listener,
+        utter(&mut kernel, speech.listener,
             say(
                 speech.proclaim,
                 vec![binding("channel", Target::Entity(speech.horn))],
@@ -10308,7 +9080,7 @@ mod soul_knowledge_tests {
         ];
 
         for (actor, invocation, expected) in cases {
-            let error = utter(&mut kernel, &active, actor, invocation).unwrap_err();
+            let error = utter(&mut kernel, actor, invocation).unwrap_err();
             let KernelError::ActionRejected(mismatches) = error else {
                 panic!("expected an action rejection, got {error:?}");
             };
@@ -10320,26 +9092,25 @@ mod soul_knowledge_tests {
     }
 
     /// Fan-out is the sole way knowledge enters another subject from speech, and
-    /// it is not carried by the effect. A forged `DecisionExercised` that widens
+    /// it is not carried by the effect. A forged `Acted` that widens
     /// the audience, appends a second telling, or tells a foreign fact is refused
     /// by `apply_effect` itself, so replay is never the first reader to notice.
     #[test]
     fn soul_a_forged_wider_audience_does_not_apply() {
         let directory = tempfile::tempdir().unwrap();
-        let (kernel, speech, active) = speech_kernel(directory.path(), "WiderAudience");
+        let (kernel, speech, _) = speech_kernel(directory.path(), "WiderAudience");
         let command_id = CommandId::new();
-        let opportunity = opportunity_for(&active, speech.speaker);
-        let caller = CallerId::Controller(opportunity.controller_id);
+        let caller = play_caller();
         let invocation = say(
             speech.whisper,
             vec![binding("target", Target::Subject(speech.listener))],
             "Only the hall.",
         );
-        let granted = require_granted(&kernel.state, &opportunity, invocation.affordance).unwrap();
+        let granted = require_granted(&kernel.state, speech.speaker, invocation.affordance).unwrap();
         let honest = action::exercise(
             &kernel.state,
             command_id,
-            &opportunity,
+            speech.speaker,
             &granted,
             &invocation,
         )
@@ -10382,8 +9153,7 @@ mod soul_knowledge_tests {
                 &mut candidate,
                 command_id,
                 &caller,
-                &WorldEffect::DecisionExercised {
-                    opportunity: opportunity.clone(),
+                &WorldEffect::Acted {
                     invocation: invocation.clone(),
                     event: forged,
                 },
@@ -10448,17 +9218,14 @@ mod soul_knowledge_tests {
             speech.bystander,
             speech.stranger,
         ];
-        let before: Vec<ScopeDigest> = everyone
+        let before: Vec<ScopeComponents> = everyone
             .iter()
             .map(|subject| digest_of(&kernel, *subject))
             .collect();
         let facts_before = kernel.state.facts.len();
 
         // The bystander stands alone in the yard.
-        utter(
-            &mut kernel,
-            &active,
-            speech.bystander,
+        utter(&mut kernel, speech.bystander,
             say(speak, Vec::new(), "Nobody is here."),
         )
         .expect("speaking into an empty room commits");
@@ -10607,11 +9374,8 @@ mod soul_knowledge_tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
         let (world_id, expected) = {
-            let (mut kernel, speech, active) = speech_kernel(directory.path(), "ReplayArms");
-            utter(
-                &mut kernel,
-                &active,
-                speech.speaker,
+            let (mut kernel, speech, _) = speech_kernel(directory.path(), "ReplayArms");
+            utter(&mut kernel, speech.speaker,
                 say(
                     speech.proclaim,
                     vec![binding("channel", Target::Entity(speech.horn))],
@@ -10684,10 +9448,7 @@ mod soul_knowledge_tests {
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "OneHome");
         let speak = affordance_named(&active, "speak");
         let text = "A statement that appears nowhere else.";
-        utter(
-            &mut kernel,
-            &active,
-            speech.speaker,
+        utter(&mut kernel, speech.speaker,
             say(speak, Vec::new(), text),
         )
         .expect("the kernel speak commits");
@@ -10729,51 +9490,6 @@ mod soul_knowledge_tests {
             FLOOD_STATEMENT
         );
     }
-
-    /// `operator_log` is unscoped by construction: it renders every committed
-    /// act's utterance regardless of who holds knowledge of it. That is correct
-    /// for the human operator's story feed and is exactly why it must never
-    /// become reachable from a controller lane. `ControllerRunner` no longer
-    /// owns a `WorldMailbox`; it owns a `ControllerPort`, which forwards
-    /// exactly the five requests a controller lane makes and has no
-    /// `operator_log` method at all. The separation is a type boundary now:
-    /// `WorldMailbox::operator_log` stays `pub(crate)` for the operator/story
-    /// feed owner, but nothing inside `controllers.rs` can name it.
-    #[test]
-    fn soul_the_operator_log_is_unscoped_and_must_stay_owner_only() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "OperatorLog");
-        let text = "Nobody in this room but me.";
-        utter(
-            &mut kernel,
-            &active,
-            speech.bystander,
-            say(affordance_named(&active, "speak"), Vec::new(), text),
-        )
-        .expect("speaking alone in the yard commits");
-
-        // Nobody holds it.
-        assert!(kernel.state.knowledge.is_empty());
-        // The operator reads it anyway, with the speaker resolved by label.
-        let log = kernel.operator_log().unwrap();
-        assert_eq!(
-            log,
-            vec![OperatorEvent {
-                revision: kernel.state.revision,
-                speaker: speech.bystander,
-                speaker_label: "The Yard Bystander".into(),
-                speech: Some(Statement::new(text).unwrap()),
-                display: None,
-                verb: "speak".into(),
-                render_path: None,
-                roles: Vec::new(),
-            }]
-        );
-        // And no subject snapshot carries it.
-        for subject in kernel.snapshot().unwrap().subjects {
-            assert!(subject.knowledge.is_empty());
-        }
-    }
 }
 
 /// One witnessed event over a place subtree: who it reaches, who it leaves
@@ -10782,7 +9498,7 @@ mod soul_knowledge_tests {
 mod witness_tests {
     use super::patch::Site;
     use super::tests::{
-        activate, auth_principal, command, creation, operations, opportunity_for, owner,
+        play_caller, activate, auth_principal, command, creation, operations, owner,
         reject_owner, submit_owner,
     };
     use super::*;
@@ -11293,10 +10009,10 @@ mod witness_tests {
         );
     }
 
-    /// The digest reads the keys of a subject's own knowledge, so a witness
-    /// moves exactly the digests of the subjects that learned something.
+    /// The components carry the keys of a subject's own knowledge, so a witness
+    /// moves exactly the components of the subjects that learned something.
     #[test]
-    fn a_witness_moves_every_recipients_scope_digest_and_nobody_elses() {
+    fn a_witness_moves_every_recipients_scope_components_and_nobody_elses() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Digest");
         submit_owner(
@@ -11310,7 +10026,7 @@ mod witness_tests {
             }]),
         );
         let digest = |kernel: &WorldKernel, subject_id: SubjectId| {
-            scope_digest(&kernel.state, DecisionScope { subject_id }).unwrap()
+            scope_components(&kernel.state, subject_id)
         };
         let learner = digest(&kernel, world.villager);
         let holder = digest(&kernel, world.neighbour);
@@ -11331,107 +10047,6 @@ mod witness_tests {
         assert_eq!(digest(&kernel, world.coaster), outsider);
     }
 
-    /// A witness is the loudest producer of a moved scope: every subject that
-    /// learned something loses its in-flight binding, and every subject that
-    /// already knew keeps it. What the learner sees carries no speaker.
-    #[test]
-    fn a_witness_between_a_bound_opportunity_and_its_exercise_is_a_scope_change() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Interruption");
-        submit_owner(
-            &mut kernel,
-            &active,
-            operations(vec![ComponentOp::AcquireKnowledge {
-                subject: Ref::Existing(world.neighbour),
-                fact: Ref::Existing(world.asteroid),
-                source: AuthoredSource::Witnessed,
-                confidence: Confidence::Doubted,
-            }]),
-        );
-        let bound = kernel.snapshot().unwrap();
-        let learner = opportunity_for(&bound, world.villager);
-        let holder = opportunity_for(&bound, world.neighbour);
-        submit_owner(
-            &mut kernel,
-            &bound,
-            operations(vec![witness(
-                world.asteroid,
-                world.region,
-                Confidence::Certain,
-            )]),
-        );
-
-        let exercise = |kernel: &mut WorldKernel, opportunity: &DecisionOpportunity| {
-            let snapshot = kernel.snapshot().unwrap();
-            let speak = *opportunity
-                .affordance_ids
-                .iter()
-                .find(|id| {
-                    snapshot
-                        .affordances
-                        .iter()
-                        .any(|entry| entry.id == **id && entry.entry.carries_speech)
-                })
-                .expect("the scope holds a speech-carrying entry");
-            let caller = CallerId::Controller(opportunity.controller_id);
-            kernel.submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        invocation: DecisionInvocation {
-                            affordance: speak,
-                            bindings: Vec::new(),
-                            proposed: Vec::new(),
-                            speech: Some(Statement::new("The sky moved.").unwrap()),
-                            display: None,
-                        },
-                        opportunity: opportunity.clone(),
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-        };
-        let error = exercise(&mut kernel, &learner).unwrap_err();
-        let KernelError::ScopeChanged {
-            scope,
-            expected,
-            actual,
-        } = error
-        else {
-            panic!("expected a changed scope, got {error:?}");
-        };
-        assert_eq!(scope, learner.scope);
-        assert_eq!(expected, learner.scope_digest);
-        assert_ne!(expected, actual);
-
-        // The subject that already held the fact learned nothing, so its
-        // binding survives the same witness.
-        let kept = exercise(&mut kernel, &holder);
-        assert!(matches!(kept, Ok(SubmitReceipt::Applied(_))), "{kept:?}");
-
-        // What the learner now holds names no speaker: it knows the thing, not
-        // the telling.
-        let entry = knows(&kernel, world.villager, world.asteroid).expect("the learner holds it");
-        assert_eq!(entry.source, KnowledgeSource::Witnessed);
-        let snapshot = kernel.snapshot().unwrap();
-        let held = snapshot
-            .subjects
-            .iter()
-            .find(|subject| subject.id == world.villager)
-            .expect("the learner is snapshotted")
-            .knowledge
-            .iter()
-            .find(|row| row.fact == world.asteroid)
-            .expect("the learner's snapshot carries the fact");
-        assert_eq!(held.source, KnowledgeSource::Witnessed);
-        assert!(
-            held.minted_at.is_none(),
-            "a witnessed row named a speech act"
-        );
-    }
-
     /// The slot names a fact and a place, never a subject, so an exercised
     /// witness lands the subtree with no teller anywhere in it. A slot whose
     /// place position binds a subject is refused before it is ever declared.
@@ -11439,9 +10054,12 @@ mod witness_tests {
     fn a_witness_affordance_lowers_with_no_speaker() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Affordance");
-        let opportunity = opportunity_for(&active, world.villager);
-        let beacon = *opportunity
-            .affordance_ids
+        let beacon = *active
+            .subjects
+            .iter()
+            .find(|subject| subject.id == world.villager)
+            .expect("the villager exists")
+            .affordances
             .iter()
             .find(|id| {
                 active
@@ -11450,14 +10068,15 @@ mod witness_tests {
                     .any(|entry| entry.id == **id && entry.entry.kind.0 == "beacon")
             })
             .expect("the villager holds the beacon entry");
-        let caller = CallerId::Controller(opportunity.controller_id);
+        let caller = play_caller();
         kernel
             .submit(
                 command(
                     &active,
                     CommandId::new(),
                     caller.clone(),
-                    CommandBody::ExerciseDecision {
+                    CommandBody::Act {
+                        actor: world.villager,
                         invocation: DecisionInvocation {
                             affordance: beacon,
                             bindings: vec![
@@ -11477,7 +10096,6 @@ mod witness_tests {
                             speech: None,
                             display: None,
                         },
-                        opportunity: opportunity.clone(),
                     },
                 ),
                 &AuthenticatedCaller::fixture(caller),
@@ -12019,8 +10637,8 @@ mod witness_tests {
 mod clock_tests {
     use super::patch::{PreconditionRef, PressureSourceRef};
     use super::tests::{
-        activate, affordance_named, authority_kind, auth_principal, command, creation, office,
-        operations, opportunity_for, owner, human_principal, reject_owner, speech_world,
+        act, play_caller, activate, affordance_named, authority_kind, auth_principal, command, creation, office,
+        operations, owner, human_principal, reject_owner, speech_world,
         submit_owner,
     };
     use super::*;
@@ -12320,29 +10938,19 @@ mod clock_tests {
         affordance: AffordanceId,
         bindings: Vec<RoleBinding>,
     ) -> Result<SubmitReceipt, KernelError> {
-        let snapshot = kernel.snapshot().unwrap();
-        let opportunity = opportunity_for(&snapshot, actor);
-        let caller = CallerId::Controller(opportunity.controller_id);
-        kernel.submit(
-            command(
-                &snapshot,
-                CommandId::new(),
-                caller.clone(),
-                CommandBody::ExerciseDecision {
-                    opportunity,
-                    invocation: DecisionInvocation {
-                        affordance,
-                        bindings,
-                        proposed: vec![ProposedEffect {
-                            slot: 0,
-                            magnitude: Magnitude::None,
-                        }],
-                        speech: None,
-                        display: None,
-                    },
-                },
-            ),
-            &AuthenticatedCaller::fixture(caller),
+        act(
+            kernel,
+            actor,
+            DecisionInvocation {
+                affordance,
+                bindings,
+                proposed: vec![ProposedEffect {
+                    slot: 0,
+                    magnitude: Magnitude::None,
+                }],
+                speech: None,
+                display: None,
+            },
         )
     }
 
@@ -12372,10 +10980,10 @@ mod clock_tests {
             .due
     }
 
-    /// Verification 12, both halves: a defaulted commitment advances pressure on
-    /// its subject, and that subject still derives exactly one opportunity.
+    /// Verification 12: a defaulted commitment advances pressure on
+    /// its subject, and the pressure grows with the next tick.
     #[test]
-    fn a_defaulted_commitment_advances_pressure_and_the_subject_derives_an_opportunity() {
+    fn a_defaulted_commitment_advances_pressure_one_step_per_tick() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Default");
         let sourced = PressureSource::Commitment {
@@ -12389,15 +10997,6 @@ mod clock_tests {
             kernel.state.pressures[&clockwork.farmer].len(),
             1,
             "only the past-due obligation pressed the farmer"
-        );
-        let snapshot = kernel.snapshot().unwrap();
-        assert_eq!(
-            snapshot
-                .opportunities
-                .iter()
-                .filter(|opportunity| opportunity.scope.subject_id == clockwork.farmer)
-                .count(),
-            1
         );
 
         tick(&mut kernel, 1).expect("the second tick commits");
@@ -12563,22 +11162,6 @@ mod clock_tests {
         assert_eq!(kernel.state.now, now);
 
         let snapshot = kernel.snapshot().unwrap();
-        let opportunity = opportunity_for(&snapshot, clockwork.farmer);
-        let caller = CallerId::Controller(opportunity.controller_id);
-        kernel
-            .submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::DeclineDecision { opportunity },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-            .expect("the decline commits");
-        assert_eq!(kernel.state.now, now);
-
-        let snapshot = kernel.snapshot().unwrap();
         submit_owner(
             &mut kernel,
             &snapshot,
@@ -12596,16 +11179,12 @@ mod clock_tests {
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Capability");
         let before = kernel.state.clone();
         let snapshot = kernel.snapshot().unwrap();
-        let opportunity = opportunity_for(&snapshot, clockwork.reeve);
 
         for body in [
             CommandBody::ApproveDraft,
             CommandBody::ActivateWorld,
-            CommandBody::DeclineDecision {
-                opportunity: opportunity.clone(),
-            },
-            CommandBody::ExerciseDecision {
-                opportunity,
+            CommandBody::Act {
+                actor: clockwork.reeve,
                 invocation: DecisionInvocation {
                     affordance: clockwork.threaten,
                     bindings: vec![binding("target", Target::Subject(clockwork.farmer))],
@@ -12676,7 +11255,7 @@ mod clock_tests {
 
         for caller in [
             CallerId::Principal(human_principal()),
-            CallerId::Controller(active.opportunities[0].controller_id),
+            CallerId::Controller(ControllerId::issue()),
         ] {
             let error = kernel
                 .submit(
@@ -12729,7 +11308,7 @@ mod clock_tests {
     #[test]
     fn a_forged_motion_does_not_apply() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Forged");
+        let (kernel, clockwork, _) = clock_kernel(directory.path(), "Forged");
         let to = FictionalMinutes(120);
         let honest = clock::derive_motion(&kernel.state, to);
         assert!(!honest.fulfilled.is_empty() || !honest.pressed.is_empty());
@@ -12868,126 +11447,6 @@ mod clock_tests {
         ));
     }
 
-    /// The order is total, deterministic, and never a filter.
-    #[test]
-    fn the_attention_order_is_total_and_deterministic() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, active) = clock_kernel(directory.path(), "Order");
-        let derived = derive_opportunities(&kernel.state).unwrap();
-
-        let with = |pressures: BTreeMap<SubjectId, u32>,
-                    stamps: BTreeMap<SubjectId, u64>|
-         -> Vec<SubjectId> {
-            let mut state = kernel.state.clone();
-            state.now = FictionalMinutes(1_000);
-            state.pressures = pressures
-                .into_iter()
-                .map(|(subject, magnitude)| {
-                    (
-                        subject,
-                        BTreeMap::from([(
-                            PressureSource::Subject(subject),
-                            PressureMagnitude(magnitude),
-                        )]),
-                    )
-                })
-                .collect();
-            state.last_opportunity_at = stamps
-                .into_iter()
-                .map(|(subject, stamp)| (subject, FictionalMinutes(stamp)))
-                .collect();
-            order_opportunities(&state, derived.clone())
-                .into_iter()
-                .map(|opportunity| opportunity.scope.subject_id)
-                .collect()
-        };
-
-        // Pressure dominates.
-        let ordered = with(
-            BTreeMap::from([(clockwork.farmer, 5), (clockwork.reeve, 3)]),
-            BTreeMap::new(),
-        );
-        assert_eq!(ordered[0], clockwork.farmer);
-        assert_eq!(ordered[1], clockwork.reeve);
-
-        // Equal pressure orders by debt, and a subject never attended outranks
-        // every subject that has.
-        let stamped: BTreeMap<SubjectId, u64> = active
-            .subjects
-            .iter()
-            .map(|subject| (subject.id, 900))
-            .collect();
-        let mut earlier = stamped.clone();
-        earlier.insert(clockwork.treasury, 100);
-        let ordered = with(BTreeMap::new(), earlier);
-        assert_eq!(ordered[0], clockwork.treasury);
-
-        // Never a filter: the same length and the same set, whatever the terms.
-        for pressures in [
-            BTreeMap::new(),
-            BTreeMap::from([(clockwork.reeve, 1)]),
-            BTreeMap::from([(clockwork.farmer, 9), (clockwork.treasury, 9)]),
-        ] {
-            let ordered = with(pressures, stamped.clone());
-            assert_eq!(ordered.len(), derived.len());
-            assert_eq!(
-                ordered.iter().copied().collect::<BTreeSet<_>>(),
-                derived
-                    .iter()
-                    .map(|opportunity| opportunity.scope.subject_id)
-                    .collect::<BTreeSet<_>>()
-            );
-        }
-    }
-
-    /// The debt term rotates: with no pressure anywhere, every subject reaches
-    /// the head within one pass, and standing pressure holds the head until it
-    /// is resolved.
-    #[test]
-    fn every_subject_reaches_the_head_within_bounded_ticks() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, _) = clock_kernel(directory.path(), "Rotation");
-        let derived = derive_opportunities(&kernel.state).unwrap();
-        let count = derived.len();
-
-        let mut state = kernel.state.clone();
-        let mut seen = BTreeSet::new();
-        for step in 0..count {
-            state.now = FictionalMinutes(u64::try_from(step).unwrap() + 1);
-            let head = order_opportunities(&state, derived.clone())[0]
-                .scope
-                .subject_id;
-            seen.insert(head);
-            state.last_opportunity_at.insert(head, state.now);
-        }
-        assert_eq!(seen.len(), count, "every subject reached the head");
-
-        // Standing pressure holds the head; the others still rotate among
-        // themselves once it is resolved.
-        state.pressures.insert(
-            clockwork.farmer,
-            BTreeMap::from([(
-                PressureSource::Subject(clockwork.reeve),
-                PressureMagnitude(4),
-            )]),
-        );
-        for step in 0..count {
-            state.now = FictionalMinutes(1_000 + u64::try_from(step).unwrap());
-            let head = order_opportunities(&state, derived.clone())[0]
-                .scope
-                .subject_id;
-            assert_eq!(head, clockwork.farmer);
-            state.last_opportunity_at.insert(head, state.now);
-        }
-        state.pressures.remove(&clockwork.farmer);
-        assert_ne!(
-            order_opportunities(&state, derived.clone())[0]
-                .scope
-                .subject_id,
-            clockwork.farmer
-        );
-    }
-
     /// Every commitment shape check, in one complete sorted set.
     #[test]
     fn commitment_declaration_negatives() {
@@ -13117,9 +11576,8 @@ mod clock_tests {
         );
     }
 
-    /// `Committed` reads the actor's own commitments, and a discharge mid-flight
-    /// rejects the promisor's bound proposal while the counterparty's own
-    /// invocation fails at admission.
+    /// `Committed` reads the actor's own commitments: the farmer promised the
+    /// treasury and the reeve did not.
     #[test]
     fn committed_reads_the_actors_own_commitments() {
         let directory = tempfile::tempdir().unwrap();
@@ -13152,51 +11610,6 @@ mod clock_tests {
         assert_eq!(
             kernel.state.commitments[&clockwork.farmer].len(),
             before + 1
-        );
-
-        // A proposal bound before a discharge is rejected as a scope change for
-        // the promisor: `Committed` reads commitments, so the digest binds them.
-        let snapshot = kernel.snapshot().unwrap();
-        let stale = opportunity_for(&snapshot, clockwork.farmer);
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![ComponentOp::DischargeCommitment {
-                subject: Ref::Existing(clockwork.farmer),
-                key: clockwork.obligation,
-            }]),
-        );
-        let caller = CallerId::Controller(stale.controller_id);
-        let after = kernel.snapshot().unwrap();
-        let error = kernel
-            .submit(
-                command(
-                    &after,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::ExerciseDecision {
-                        opportunity: stale,
-                        invocation: DecisionInvocation {
-                            affordance: clockwork.deliver,
-                            bindings: vec![binding(
-                                "creditor",
-                                Target::Subject(clockwork.treasury),
-                            )],
-                            proposed: vec![ProposedEffect {
-                                slot: 0,
-                                magnitude: Magnitude::None,
-                            }],
-                            speech: None,
-                            display: None,
-                        },
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-            .unwrap_err();
-        assert!(
-            matches!(error, KernelError::ScopeChanged { .. }),
-            "{error:?}"
         );
     }
 
@@ -13273,17 +11686,18 @@ mod clock_tests {
         .expect("an obligation to the same counterparty passes");
     }
 
-    /// A tick that only advances pressure moves nobody's scope digest; a tick
+    /// A tick that only advances pressure moves nobody's scope components; a tick
     /// that fulfils a routine moves exactly that subject's.
     #[test]
-    fn a_pressure_tick_moves_no_scope_digest_and_a_routine_tick_moves_one() {
+    fn a_pressure_tick_moves_no_scope_components_and_a_routine_tick_moves_one() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Digests");
-        let digests = |kernel: &WorldKernel| -> BTreeMap<SubjectId, ScopeDigest> {
-            derive_opportunities(&kernel.state)
-                .unwrap()
-                .into_iter()
-                .map(|opportunity| (opportunity.scope.subject_id, opportunity.scope_digest))
+        let digests = |kernel: &WorldKernel| -> BTreeMap<SubjectId, ScopeComponents> {
+            kernel
+                .state
+                .subjects
+                .keys()
+                .map(|subject_id| (*subject_id, scope_components(&kernel.state, *subject_id)))
                 .collect()
         };
 
@@ -13326,60 +11740,6 @@ mod clock_tests {
                 assert_ne!(after[subject], *digest, "the fulfilling subject rebinds");
             } else {
                 assert_eq!(after[subject], *digest, "everyone else still commits");
-            }
-        }
-    }
-
-    /// Soul falsification: the attention order is total on `SubjectId` when
-    /// pressure and debt tie, and it is the same order for every input
-    /// permutation. `sort_by_key` is stable, so an order that leaned on its
-    /// input's order would pass a single-vector test and drift with map
-    /// iteration.
-    #[test]
-    fn soul_the_attention_order_is_id_total_under_every_input_permutation() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, _) = clock_kernel(directory.path(), "Ties");
-        let mut state = kernel.state.clone();
-        state.now = FictionalMinutes(5_000);
-        // Equal pressure and an equal stamp on every subject: only the id can
-        // decide.
-        for subject_id in state.subjects.keys().copied().collect::<Vec<_>>() {
-            state.pressures.insert(
-                subject_id,
-                BTreeMap::from([(
-                    PressureSource::Subject(clockwork.reeve),
-                    PressureMagnitude(7),
-                )]),
-            );
-            state
-                .last_opportunity_at
-                .insert(subject_id, FictionalMinutes(400));
-        }
-        let derived = derive_opportunities(&state).unwrap();
-        assert!(
-            derived.len() >= 3,
-            "the fixture ties at least three subjects"
-        );
-        let expected: Vec<SubjectId> = order_opportunities(&state, derived.clone())
-            .into_iter()
-            .map(|opportunity| opportunity.scope.subject_id)
-            .collect();
-        let mut ascending = expected.clone();
-        ascending.sort_unstable();
-        assert_eq!(expected, ascending, "an equal-key tie is broken by id");
-
-        // Every rotation and the full reversal produce the same order.
-        for shift in 0..derived.len() {
-            let mut permuted = derived.clone();
-            permuted.rotate_left(shift);
-            let mut reversed = permuted.clone();
-            reversed.reverse();
-            for candidate in [permuted, reversed] {
-                let ordered: Vec<SubjectId> = order_opportunities(&state, candidate)
-                    .into_iter()
-                    .map(|opportunity| opportunity.scope.subject_id)
-                    .collect();
-                assert_eq!(ordered, expected, "the order read its input's order");
             }
         }
     }
@@ -13432,14 +11792,6 @@ mod clock_tests {
             "an emptied target keeps no empty inner map"
         );
 
-        // `pressure_total` and `attention_debt` are derived, never stored.
-        assert_eq!(pressure_total(&kernel.state, clockwork.farmer), 0);
-        assert_eq!(
-            attention_debt(&kernel.state, clockwork.treasury),
-            u64::MAX,
-            "a subject never attended carries the whole debt"
-        );
-
         // Resolving an absent row changes nothing and is refused.
         let snapshot = kernel.snapshot().unwrap();
         let mismatches = reject_owner(
@@ -13459,17 +11811,18 @@ mod clock_tests {
         );
     }
 
-    /// Soul falsification: `now` is in no scope preimage. A tick with nothing
-    /// due moves the clock and not one subject's digest.
+    /// Soul falsification: `now` is in no scope. A tick with nothing due moves
+    /// the clock and not one subject's components.
     #[test]
-    fn soul_a_clock_only_tick_moves_no_scope_digest() {
+    fn soul_a_clock_only_tick_moves_no_scope_components() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, _, _) = clock_kernel(directory.path(), "ClockOnly");
-        let digests = |kernel: &WorldKernel| -> BTreeMap<SubjectId, ScopeDigest> {
-            derive_opportunities(&kernel.state)
-                .unwrap()
-                .into_iter()
-                .map(|opportunity| (opportunity.scope.subject_id, opportunity.scope_digest))
+        let digests = |kernel: &WorldKernel| -> BTreeMap<SubjectId, ScopeComponents> {
+            kernel
+                .state
+                .subjects
+                .keys()
+                .map(|subject_id| (*subject_id, scope_components(&kernel.state, *subject_id)))
                 .collect()
         };
         let before = digests(&kernel);
@@ -13479,7 +11832,7 @@ mod clock_tests {
         tick(&mut kernel, 10).expect("the tick commits");
         assert_eq!(kernel.state.now, FictionalMinutes(before_now.0 + 10));
         assert!(kernel.state.pressures.is_empty());
-        assert_eq!(digests(&kernel), before, "the clock entered a scope digest");
+        assert_eq!(digests(&kernel), before, "the clock entered a scope");
     }
 
     // ---- PA.f26: the genesis lane obeys `require_ruler` too ------------
@@ -13794,12 +12147,21 @@ mod clock_tests {
         let held = CallerId::System(SystemCapability::Consumer {
             consumer: ConsumerId::of_name("capability-consumer"),
         });
-        let opportunity = opportunity_for(&active, clockwork.reeve);
         let forbidden = [
             CommandBody::ApproveDraft,
             CommandBody::ActivateWorld,
-            CommandBody::DeclineDecision {
-                opportunity: opportunity.clone(),
+            CommandBody::Act {
+                actor: clockwork.reeve,
+                invocation: DecisionInvocation {
+                    affordance: clockwork.threaten,
+                    bindings: vec![binding("target", Target::Subject(clockwork.farmer))],
+                    proposed: vec![ProposedEffect {
+                        slot: 0,
+                        magnitude: Magnitude::None,
+                    }],
+                    speech: None,
+                    display: None,
+                },
             },
             CommandBody::AdvanceTime {
                 minutes: minutes(60),
@@ -13853,10 +12215,6 @@ mod clock_tests {
     // ---- Soul: the confinement predicate past its declaration lane ------
 
     // ---- Cut 3: the play authority, `Ruled` facts and `Mint` -----------
-
-    fn play_caller() -> CallerId {
-        CallerId::System(SystemCapability::Play)
-    }
 
     fn ruled_fact_patch(handle: &str) -> WorldPatch {
         WorldPatch {
@@ -13997,31 +12355,14 @@ mod clock_tests {
         assert!(kernel.state.now > active.now);
     }
 
-    /// P3.6: the play authority may not approve, activate, exercise, or
-    /// decline. `require_system_capability`, at the top of `reduce`, refuses
-    /// all four before any body-specific arm is read.
+    /// P3.6: the play authority may not approve or activate.
+    /// `require_system_capability`, at the top of `reduce`, refuses both
+    /// before any body-specific arm is read.
     #[test]
-    fn the_play_authority_cannot_approve_activate_exercise_or_decline() {
+    fn the_play_authority_cannot_approve_or_activate() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "PlayForbidden");
-        let opportunity = opportunity_for(&active, clockwork.reeve);
-        let forbidden = [
-            CommandBody::ApproveDraft,
-            CommandBody::ActivateWorld,
-            CommandBody::ExerciseDecision {
-                opportunity: opportunity.clone(),
-                invocation: DecisionInvocation {
-                    affordance: clockwork.deliver,
-                    bindings: Vec::new(),
-                    proposed: Vec::new(),
-                    speech: None,
-                    display: None,
-                },
-            },
-            CommandBody::DeclineDecision {
-                opportunity: opportunity.clone(),
-            },
-        ];
+        let (mut kernel, _, _) = clock_kernel(directory.path(), "PlayForbidden");
+        let forbidden = [CommandBody::ApproveDraft, CommandBody::ActivateWorld];
         for body in &forbidden {
             let error = submit_as(&mut kernel, play_caller(), body.clone()).unwrap_err();
             assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
@@ -14596,55 +12937,53 @@ mod clock_tests {
             .id
     }
 
-    /// P4.1, replay half: reopening the journal reproduces a retirement —
-    /// no opportunity and `retired` both survive the round trip.
+    /// P4.1, replay half: reopening the journal reproduces a retirement — no
+    /// grants and `retired` both survive the round trip.
     #[test]
-    fn a_retired_subject_holds_no_opportunity_across_a_replay() {
+    fn a_retired_subject_holds_no_grants_across_a_replay() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
         let (world_id, reeve) = {
             let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "RetireReplay");
             assert!(
-                active
-                    .opportunities
+                !active
+                    .subjects
                     .iter()
-                    .any(|opportunity| opportunity.scope.subject_id == clockwork.reeve),
-                "the reeve holds an opportunity before retirement"
+                    .find(|subject| subject.id == clockwork.reeve)
+                    .unwrap()
+                    .affordances
+                    .is_empty(),
+                "the reeve holds grants before retirement"
             );
             owner_retires(&mut kernel, clockwork.reeve).expect("the owner retires the reeve");
             (kernel.state.world_id, clockwork.reeve)
         };
         let replayed = WorldKernel::open(&path, world_id).expect("the store replays");
         let snapshot = replayed.snapshot().unwrap();
-        assert!(
-            !snapshot
-                .opportunities
-                .iter()
-                .any(|opportunity| opportunity.scope.subject_id == reeve),
-            "a replayed retired subject holds no opportunity"
-        );
         let subject = snapshot
             .subjects
             .iter()
             .find(|subject| subject.id == reeve)
             .expect("the retired subject's own row");
         assert!(subject.retired);
+        assert!(subject.affordances.is_empty(), "a retired subject holds no grants");
     }
 
-    /// P4.1: a retired subject's last opportunity is stale, not honoured.
+    /// P4.1: Play's `Act` for a retired subject is denied, because `Retire`
+    /// removed its grants.
     #[test]
     fn a_retired_subject_cannot_act() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "RetireCannotAct");
-        let opportunity = opportunity_for(&active, clockwork.reeve);
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireCannotAct");
         owner_retires(&mut kernel, clockwork.reeve).expect("the owner retires the reeve");
-        let error = submit_as(
+        let error = exercise(
             &mut kernel,
-            CallerId::Controller(opportunity.controller_id),
-            CommandBody::DeclineDecision { opportunity },
+            clockwork.reeve,
+            clockwork.threaten,
+            vec![binding("target", Target::Subject(clockwork.farmer))],
         )
         .unwrap_err();
-        assert!(matches!(error, KernelError::OpportunityMismatch), "{error:?}");
+        assert!(matches!(error, KernelError::AffordanceDenied), "{error:?}");
     }
 
     /// P4.1: no position, so a witness at the retired subject's former place
@@ -14885,15 +13224,11 @@ mod clock_tests {
         assert_eq!(player.affordances.len(), 2);
     }
 
-    /// P5.1, and the scope digest half of Q10's design: a grant and a revoke
-    /// in Active both move the scope digest, so a stale opportunity is
-    /// `ScopeChanged` rather than silently honoured.
+    /// P5.1: Play grants and revokes a verb in Active.
     #[test]
     fn the_play_authority_grants_and_revokes_in_active() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, active) =
-            clock_kernel(directory.path(), "PlayGrantRevoke");
-        let stale = opportunity_for(&active, clockwork.reeve);
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayGrantRevoke");
         submit_as(
             &mut kernel,
             play_caller(),
@@ -14920,15 +13255,6 @@ mod clock_tests {
                 .len(),
             4
         );
-        let error = submit_as(
-            &mut kernel,
-            CallerId::Controller(stale.controller_id),
-            CommandBody::DeclineDecision {
-                opportunity: stale.clone(),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::ScopeChanged { .. }), "{error:?}");
 
         submit_as(
             &mut kernel,
@@ -14955,7 +13281,7 @@ mod clock_tests {
         assert!(!reeve.affordances.contains(&clockwork.threaten));
     }
 
-    /// P5.2: `derive_opportunities` requires at least one grant; a revoke
+    /// P5.2: the never-mute rule requires at least one grant; a revoke
     /// that would leave the reeve mute is refused before it ever reaches
     /// that invariant.
     #[test]
@@ -15266,8 +13592,6 @@ mod clock_tests {
         .0;
         let (speech, _) = speech_world(&mut kernel);
         owner_retires(&mut kernel, speech.listener).expect("the owner retires the listener");
-        let snapshot = kernel.snapshot().unwrap();
-        let opportunity = opportunity_for(&snapshot, speech.speaker);
         let invocation = DecisionInvocation {
             affordance: speech.whisper,
             bindings: vec![binding("target", Target::Subject(speech.listener))],
@@ -15277,8 +13601,11 @@ mod clock_tests {
         };
         let error = submit_as(
             &mut kernel,
-            CallerId::Controller(opportunity.controller_id),
-            CommandBody::ExerciseDecision { invocation, opportunity },
+            play_caller(),
+            CommandBody::Act {
+                actor: speech.speaker,
+                invocation,
+            },
         )
         .unwrap_err();
         assert!(
@@ -15913,7 +14240,6 @@ mod clock_tests {
         let wire = *kernel.state.channels.keys().next().expect("the declared channel");
         let snapshot = kernel.snapshot().unwrap();
         let hail = affordance_named(&snapshot, "hail");
-        let opportunity = opportunity_for(&snapshot, clockwork.farmer);
         let invocation = DecisionInvocation {
             affordance: hail,
             bindings: vec![
@@ -15926,21 +14252,22 @@ mod clock_tests {
         };
         submit_as(
             &mut kernel,
-            CallerId::Controller(opportunity.controller_id),
-            CommandBody::ExerciseDecision {
+            play_caller(),
+            CommandBody::Act {
+                actor: clockwork.farmer,
                 invocation: invocation.clone(),
-                opportunity: opportunity.clone(),
             },
         )
         .expect("the live outcast is reachable through the channel");
 
         owner_retires(&mut kernel, outcast).expect("retire the outcast");
-        let snapshot = kernel.snapshot().unwrap();
-        let opportunity = opportunity_for(&snapshot, clockwork.farmer);
         let error = submit_as(
             &mut kernel,
-            CallerId::Controller(opportunity.controller_id),
-            CommandBody::ExerciseDecision { invocation, opportunity },
+            play_caller(),
+            CommandBody::Act {
+                actor: clockwork.farmer,
+                invocation,
+            },
         )
         .unwrap_err();
         assert!(
