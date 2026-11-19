@@ -2,57 +2,52 @@
 //!
 //! The world owner is one deterministic authority: authenticated commands enter,
 //! one reducer decides, and one journal atomically commits the resulting state.
-//! Controllers may use models, but models never own lifecycle, scope, affordances,
-//! opportunities, reduction, or persistence.
+//! The fork keeps only that synchronous kernel: no async runtime, no network, no
+//! model controllers and no ports. A decision arrives as an invocation the caller
+//! built, a player or a brain; nothing in this crate composes one.
 //!
-//! A consumer reaches this crate through create/open, immutable snapshots,
-//! command submission, typed receipts, and the runner and port entry points
-//! below. The kernel itself is sealed: there is no mutable state, no canonical
-//! ID allocator, no reducer entry, no journal writer, and no authenticated-caller
-//! constructor on the public surface, under every configuration. This crate
-//! declares no cargo features, so no build can lift the seal.
+//! The crate has no entry point yet: the ABI that creates, opens and drives a
+//! world arrives in AL4. Until then the kernel itself is sealed: there is no
+//! mutable state, no canonical ID allocator, no reducer entry, no journal writer,
+//! and no authenticated-caller constructor on the public surface, under every
+//! configuration. This crate declares no cargo features, so no build can lift
+//! the seal.
 //!
 //! The negative proofs are doc-tests, which compile as an external crate and so
-//! stand exactly where a consumer stands.
+//! stand exactly where a consumer stands. Stable rustdoc does not check the error
+//! code of a `compile_fail` test, so none is claimed: each test passes only
+//! because its item is not public, and fails once the item is made public.
 //!
-//! ```compile_fail,E0603
+//! ```compile_fail
 //! use aetherlight::WorldKernel;
 //! ```
 //!
-//! ```compile_fail,E0603
+//! ```compile_fail
 //! use aetherlight::reduce;
 //! ```
 //!
-//! ```compile_fail,E0603
+//! ```compile_fail
 //! use aetherlight::WorldState;
 //! ```
 //!
-//! ```compile_fail,E0603
+//! ```compile_fail
 //! use aetherlight::CommandEnvelope;
 //! ```
 //!
-//! ```compile_fail,E0603
+//! ```compile_fail
 //! use aetherlight::AuthenticatedCaller;
 //! ```
 //!
-//! ```compile_fail,E0603
+//! ```compile_fail
 //! use aetherlight::journal::WorldJournal;
 //! ```
 //!
-//! ```compile_fail,E0599
+//! ```compile_fail
 //! let _ = aetherlight::SubjectId::issue();
 //! ```
 //!
-//! ```compile_fail,E0603
+//! ```compile_fail
 //! let _ = aetherlight::ScopeDigest::fixture("x");
-//! ```
-//!
-//! ```compile_fail,E0425
-//! let _ = aetherlight::fixture_controller_opportunities(&[]);
-//! ```
-//!
-//! ```compile_fail,E0425
-//! let _ = aetherlight::fixture_inference_output("prose", "receipt");
 //! ```
 
 // The kernel has no entry point until AL4 adds the ABI, so most of it is unreachable
@@ -117,11 +112,11 @@ use uuid::Uuid;
 /// Proof that the consumer verified a live principal, and the moment that
 /// proof stops being worth anything.
 ///
-/// The consumer verifies; this library only bounds. `valid_until` is the
-/// consumer's own session expiry, not a fresh clock read at construction, and
-/// [`WorldMailbox::submit_principal`] refuses evidence presented after it — so
-/// a long-lived holder such as [`SeedPort`] is bounded by the session that
-/// vouched for it rather than by one request's lifetime.
+/// The consumer verifies; this library carries the proof. `valid_until` is the
+/// consumer's own session expiry, not a fresh clock read at construction.
+/// Nothing in this crate enforces it yet: Ghostlight's mailbox refused evidence
+/// presented after it, and the mailbox is not part of the fork, so the ABI that
+/// AL4 adds must carry that check.
 ///
 /// Keeping this type here, rather than taking the consumer's own session type,
 /// is what keeps the consumer's principal format out of the kernel.
@@ -11248,6 +11243,45 @@ mod soul_knowledge_tests {
         }
     }
 
+    /// The reducer re-derives the audience gate from committed state, so a forged
+    /// `Communicate` for a speaker with no standing in the room is refused even
+    /// when the fact is live and the event carries no mismatch. The same telling
+    /// by a speaker who is in the room applies.
+    #[test]
+    fn a_telling_by_a_speaker_outside_its_audience_does_not_apply() {
+        let directory = tempfile::tempdir().unwrap();
+        let (kernel, speech, _) = speech_kernel(directory.path(), "OutsideAudience");
+        let resolves_to = kernel.state.revision + 1;
+
+        let mut candidate = kernel.state.clone();
+        let error = apply_operation(
+            &mut candidate,
+            &ResolvedOp::Communicate {
+                speaker: speech.stranger,
+                fact: speech.flood,
+                to: Audience::Colocated,
+            },
+            &[],
+            resolves_to,
+        )
+        .unwrap_err();
+        assert!(matches!(error, KernelError::Invariant(_)));
+        assert_eq!(candidate, kernel.state);
+
+        let mut candidate = kernel.state.clone();
+        apply_operation(
+            &mut candidate,
+            &ResolvedOp::Communicate {
+                speaker: speech.speaker,
+                fact: speech.flood,
+                to: Audience::Colocated,
+            },
+            &[],
+            resolves_to,
+        )
+        .expect("a speaker inside its audience tells");
+    }
+
     /// A speech act that lands nothing moves no digest at all, the speaker's own
     /// included. `AssertClaim` writes `entities` and `facts`, and neither is a
     /// scope component, so an in-flight proposal held by anyone in the world
@@ -14799,6 +14833,79 @@ mod clock_tests {
             matches!(error, KernelError::ScopeChanged { .. }),
             "{error:?}"
         );
+    }
+
+    /// `Committed` is a conjunction: the actor holds a commitment to this very
+    /// counterparty and of this very kind. The farmer owes the treasury an
+    /// obligation and nobody else, so naming the reeve fails the counterparty
+    /// half while the kind half holds.
+    #[test]
+    fn committed_requires_the_named_counterparty() {
+        let directory = tempfile::tempdir().unwrap();
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "CommittedCounterparty");
+        let error = exercise(
+            &mut kernel,
+            clockwork.farmer,
+            clockwork.deliver,
+            vec![binding("creditor", Target::Subject(clockwork.reeve))],
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            KernelError::ActionRejected(ref mismatches)
+                if *mismatches == vec![ActionMismatch::NotCommitted { precondition: 0 }]
+        ));
+    }
+
+    /// The other half: the reeve holds a routine toward the treasury, a kind
+    /// `deliver` does not ask for, so the counterparty half holds and the kind
+    /// half fails. The farmer's own obligation to the same treasury still passes.
+    #[test]
+    fn committed_requires_the_named_kind() {
+        let directory = tempfile::tempdir().unwrap();
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "CommittedKind");
+        let snapshot = kernel.snapshot().unwrap();
+        submit_owner(
+            &mut kernel,
+            &snapshot,
+            operations(vec![ComponentOp::CreateCommitment {
+                subject: Ref::Existing(clockwork.reeve),
+                counterparty: Some(Ref::Existing(clockwork.treasury)),
+                kind: CommitmentKind::Routine,
+                due: FictionalMinutes(ROUTINE_DUE),
+                period: Some(minutes(10)),
+                checks: vec![PreconditionRef::Present {
+                    at: Ref::Existing(clockwork.yard),
+                }],
+                statement: Statement::new("A routine held toward the treasury.").unwrap(),
+            }]),
+        );
+        assert!(
+            kernel.state.commitments[&clockwork.reeve]
+                .values()
+                .any(|held| held.kind == CommitmentKind::Routine
+                    && held.counterparty == Some(clockwork.treasury)),
+            "the fixture reeve holds a routine to the treasury"
+        );
+        let error = exercise(
+            &mut kernel,
+            clockwork.reeve,
+            clockwork.deliver,
+            vec![binding("creditor", Target::Subject(clockwork.treasury))],
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            KernelError::ActionRejected(ref mismatches)
+                if *mismatches == vec![ActionMismatch::NotCommitted { precondition: 0 }]
+        ));
+        exercise(
+            &mut kernel,
+            clockwork.farmer,
+            clockwork.deliver,
+            vec![binding("creditor", Target::Subject(clockwork.treasury))],
+        )
+        .expect("an obligation to the same counterparty passes");
     }
 
     /// A tick that only advances pressure moves nobody's scope digest; a tick

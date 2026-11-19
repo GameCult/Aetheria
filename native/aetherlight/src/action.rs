@@ -1210,6 +1210,31 @@ mod tests {
         );
     }
 
+    /// `at_least` is inclusive: holding exactly the threshold passes. The clerk
+    /// spends down to one ingot-equivalent, and `carry_holds` asks for one.
+    #[test]
+    fn holding_exactly_the_threshold_satisfies_holds() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut bench = bench(directory.path(), "HoldsBoundary");
+        for _ in 0..2 {
+            bench.commit(bench.carry(3, bench.yard));
+            bench.refresh();
+        }
+        assert_eq!(bench.held(bench.clerk), OPENING_BALANCE - 6);
+        let exact = bench.variant(&bench.carry(1, bench.yard), "carry_holds");
+        bench
+            .try_exercise(&exact)
+            .expect("one held satisfies at_least one");
+
+        bench.commit(bench.carry(1, bench.yard));
+        bench.refresh();
+        assert_eq!(bench.held(bench.clerk), 0);
+        assert_eq!(
+            bench.rejections(&bench.variant(&bench.carry(1, bench.yard), "carry_holds")),
+            vec![ActionMismatch::InsufficientHolding { precondition: 0 }]
+        );
+    }
+
     #[test]
     fn a_reachable_precondition_reads_only_open_public_routes() {
         let directory = tempfile::tempdir().unwrap();
