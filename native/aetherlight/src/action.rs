@@ -171,7 +171,6 @@ pub(super) fn exercise(
                 operations,
                 evidence: Vec::new(),
             },
-            None,
         )
         .map_err(KernelError::PatchRejected)?
         .operations
@@ -2094,7 +2093,6 @@ mod tests {
             &mut draft,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![Declaration::Affordance(AffordanceDeclaration {
                         handle: handle.clone(),

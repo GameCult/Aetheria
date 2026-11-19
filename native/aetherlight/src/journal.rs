@@ -433,8 +433,8 @@ pub(super) fn verify_history(
         // Authority is re-decided here for free: `apply_committed_command`
         // re-runs `reduce` against the pre-commit state and requires effect
         // equality, then `apply_effect`, and both of those call
-        // `require_patch_author` and `confine_to_jurisdiction`. A forged row
-        // claiming an elaborator caller for a patch outside its jurisdiction
+        // `require_patch_author` and `confine_to_ground`. A forged row
+        // claiming a confined caller for a patch outside its ground
         // fails replay rather than being admitted by a reducer that trusts the
         // recorded caller. A third statement of the same rule here would be a
         // third owner of one decision.
@@ -734,23 +734,6 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
     {
         return Err(JournalError::Corrupt(
             "an attention stamp names an unknown subject or a future minute".into(),
-        ));
-    }
-    if state
-        .scale_intent
-        .jurisdictions
-        .keys()
-        .any(|root| !is_place(root))
-        || state
-            .scale_intent
-            .jurisdictions
-            .values()
-            .map(|weight| u64::from(*weight))
-            .sum::<u64>()
-            > 1000
-    {
-        return Err(JournalError::Corrupt(
-            "the scale intent names a non-place root or distributes more than the whole".into(),
         ));
     }
     // The civic subgraph, in the slot the deleted `authority_scope` check
@@ -1057,7 +1040,6 @@ fn kernel_error(error: KernelError) -> JournalError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::WorldScaleIntentRef;
     use crate::patch::kernel_speak_grant;
     use crate::tests::speak_entry;
     use crate::{
@@ -1112,7 +1094,6 @@ mod tests {
                 position: None,
                 import_key: None,
             }),
-            scale_intent: WorldScaleIntentRef::default(),
             grammar: None,
         };
         let (mut kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
@@ -1195,7 +1176,6 @@ mod tests {
                 position: None,
                 import_key: None,
             }),
-            scale_intent: WorldScaleIntentRef::default(),
             grammar: None,
         };
         let (mut kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
@@ -1209,7 +1189,6 @@ mod tests {
                     expected_revision: snapshot.revision,
                     caller: CallerId::Principal(owner),
                     body: CommandBody::AdmitPatch {
-                        answers: None,
                         patch: WorldPatch {
                             declarations: vec![
                                 Declaration::Entity(EntityDeclaration {
@@ -1508,7 +1487,6 @@ mod tests {
                     command_id,
                     CallerId::Principal(owner()),
                     CommandBody::AdmitPatch {
-                        answers: None,
                         patch: WorldPatch {
                             declarations: Vec::new(),
                             operations: vec![crate::ComponentOp::Relocate {
@@ -1672,7 +1650,6 @@ mod tests {
                 position: None,
                 import_key: None,
             }),
-            scale_intent: WorldScaleIntentRef::default(),
             grammar: None,
         };
         let (kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
@@ -2193,7 +2170,6 @@ mod custody_tests {
             CommandId::new(),
             CallerId::Principal(owner()),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::Transfer {
@@ -2447,7 +2423,6 @@ mod custody_tests {
             CommandId::new(),
             CallerId::Principal(owner()),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![
@@ -2736,149 +2711,4 @@ mod custody_tests {
         assert!(matches!(recover(rows, None), Err(JournalError::Corrupt(_))));
     }
 
-    /// Replay re-decides authority, so a stored row is not believed about who
-    /// authored it. An honest elaborator commit is rewritten to claim a
-    /// jurisdiction that does not cover its answer, and the history it belongs
-    /// to stops recovering.
-    #[test]
-    fn soul_a_forged_elaborator_commit_row_fails_replay() {
-        use crate::tests::{activate, submit_owner};
-        use crate::{
-            AuthenticatedCaller, CausalBoundary, Declaration, DraftHandle, EntityDeclaration,
-            JurisdictionKey, PatchAnswer, RouteDeclaration, SystemCapability,
-        };
-
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation(CommandId::new(), "Forged Authorship"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let seed = kernel.snapshot().unwrap();
-        let commons = seed.places[0].id;
-        submit_owner(
-            &mut kernel,
-            &seed,
-            CommandBody::AdmitPatch {
-                answers: None,
-                patch: WorldPatch {
-                    declarations: vec![
-                        Declaration::Entity(EntityDeclaration {
-                            handle: DraftHandle::new("road"),
-                            label: "The Unwalked Road".into(),
-                            kind: EntityKind::Place,
-                            container: Some(Ref::Existing(commons)),
-                        }),
-                        Declaration::Route(RouteDeclaration {
-                            handle: DraftHandle::new("lane"),
-                            label: "The Long Lane".into(),
-                            from: Ref::Existing(commons),
-                            to: Ref::Draft(DraftHandle::new("road")),
-                            access: crate::AccessKind::Public,
-                            cost: crate::Cost(1),
-                        }),
-                    ],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        );
-        activate(&mut kernel);
-
-        let boundary = crate::derive_boundaries(&kernel.state)
-            .unwrap()
-            .into_iter()
-            .find(|boundary| matches!(boundary, CausalBoundary::UnelaboratedDestination { .. }))
-            .expect("the road is a dead end");
-        let CausalBoundary::UnelaboratedDestination { place: road, .. } = boundary else {
-            unreachable!("the boundary was matched above")
-        };
-        let caller = CallerId::System(SystemCapability::Elaborator {
-            jurisdiction: JurisdictionKey::PlaceSubtree(road),
-        });
-        let snapshot = kernel.snapshot().unwrap();
-        kernel
-            .submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::AdmitPatch {
-                        answers: Some(PatchAnswer::Boundary(boundary)),
-                        patch: WorldPatch {
-                            declarations: vec![Declaration::Entity(EntityDeclaration {
-                                handle: DraftHandle::new("shed"),
-                                label: "The Roadside Shed".into(),
-                                kind: EntityKind::Place,
-                                container: Some(Ref::Existing(road)),
-                            })],
-                            operations: Vec::new(),
-                            evidence: Vec::new(),
-                        },
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-            .expect("the honest elaboration commits");
-
-        let state_row = || {
-            envelope(
-                STATE_ROW,
-                STATE_SCHEMA,
-                kernel.state.world_id.key(),
-                &kernel.state,
-            )
-            .unwrap()
-        };
-        let rows_of = |commits: Vec<crate::WorldCommit>| {
-            let mut rows: Vec<CultCacheEnvelope> = commits
-                .iter()
-                .map(|commit| {
-                    envelope(COMMIT_ROW, COMMIT_SCHEMA, commit.command.id().key(), commit).unwrap()
-                })
-                .collect();
-            rows.push(state_row());
-            rows
-        };
-
-        let honest: Vec<crate::WorldCommit> =
-            kernel.journal.commits.values().cloned().collect();
-        recover(rows_of(honest.clone()), None).expect("the honest history replays");
-
-        // Rewrite only the recorded caller, to a jurisdiction that does not
-        // cover the answer the same row carries.
-        let mut forged_one = false;
-        let forged: Vec<crate::WorldCommit> = honest
-            .into_iter()
-            .map(|mut commit| {
-                if let crate::CommittedCommand::WorldCommand(command) = &mut commit.command
-                    && matches!(
-                        command.caller,
-                        CallerId::System(SystemCapability::Elaborator { .. })
-                    )
-                {
-                    command.caller = CallerId::System(SystemCapability::Elaborator {
-                        jurisdiction: JurisdictionKey::PlaceSubtree(commons),
-                    });
-                    // Re-seal the row, so the chain digest cannot answer for
-                    // the authority check. The elaborator commit is the last
-                    // one, so no successor's `previous_commit_digest` moves.
-                    commit.digest = commit_digest(&commit).unwrap();
-                    forged_one = true;
-                }
-                commit
-            })
-            .collect();
-        assert!(forged_one, "no elaborator row was found to forge");
-        let error = recover(rows_of(forged), None).expect_err("a forged authorship replayed");
-        let JournalError::Corrupt(detail) = &error else {
-            panic!("unexpected refusal: {error:?}");
-        };
-        assert!(
-            !detail.contains("commit chain is not contiguous"),
-            "the chain digest answered for the authority check: {detail}"
-        );
-    }
 }

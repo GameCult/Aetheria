@@ -104,7 +104,6 @@ fn admit(kernel: &mut WorldKernel, patch: WorldPatch) -> Result<SubmitReceipt, K
             CommandId::new(),
             CallerId::Principal(owner()),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch,
             },
         ),
@@ -487,7 +486,6 @@ fn a_grammar_names_each_verb_once_and_has_a_schema() {
 fn submit_as(
     kernel: &mut WorldKernel,
     caller: CallerId,
-    answers: Option<crate::PatchAnswer>,
     patch: WorldPatch,
 ) -> Result<SubmitReceipt, KernelError> {
     let snapshot = kernel.snapshot().unwrap();
@@ -496,14 +494,14 @@ fn submit_as(
             &snapshot,
             CommandId::new(),
             caller.clone(),
-            CommandBody::AdmitPatch { answers, patch },
+            CommandBody::AdmitPatch { patch },
         ),
         &crate::AuthenticatedCaller::fixture(caller),
     )
 }
 
 /// A bound Draft world whose revision has moved past genesis: one owner patch
-/// that adds a dead-end place the elaborator can answer.
+/// that adds a dead-end place.
 fn advanced_grammar_world() -> (tempfile::TempDir, WorldKernel, crate::EntityId) {
     let extra = [("hail", verb(RenderPath::Conversation, &[]))];
     let (dir, kernel) = create(bound(Some(grammar_with(&extra)), "Advanced"));
@@ -539,25 +537,23 @@ fn advanced_grammar_world() -> (tempfile::TempDir, WorldKernel, crate::EntityId)
     (dir, kernel, dead_end)
 }
 
-type Door = (&'static str, CallerId, Option<crate::PatchAnswer>);
+type Door = (&'static str, CallerId);
 
 /// Each door refuses an outside kind and a wrong role signature, typed, and the
 /// refusal leaves the revision where it was. The owner and the consumer declare
-/// unanswered only in Draft; Play and the elaborator act in Active.
+/// in Draft and in Active; Play acts in Active.
 fn refuse_at_each_door(kernel: &mut WorldKernel, doors: Vec<Door>) {
-    for (door, caller, answers) in doors {
+    for (door, caller) in doors {
         let revision = kernel.state.revision;
         let kind = submit_as(
             kernel,
             caller.clone(),
-            answers.clone(),
             patch_of(vec![declare("wave", "wave", &[])]),
         );
         assert_eq!(rejected(kind), not_in_grammar("wave"), "{door}");
         let roles = submit_as(
             kernel,
             caller,
-            answers,
             patch_of(vec![declare("hail", "hail", &[("who", person())])]),
         );
         assert_eq!(rejected(roles), disagrees("hail"), "{door}");
@@ -570,16 +566,15 @@ fn refuse_at_each_door(kernel: &mut WorldKernel, doors: Vec<Door>) {
 
 #[test]
 fn every_admission_door_refuses_outside_the_grammar_after_the_revision_has_moved() {
-    let (_dir, mut kernel, dead_end) = advanced_grammar_world();
+    let (_dir, mut kernel, _) = advanced_grammar_world();
     assert_eq!(kernel.state.revision, 1);
     let draft_doors = vec![
-        ("owner", CallerId::Principal(owner()), None),
+        ("owner", CallerId::Principal(owner())),
         (
             "consumer",
             CallerId::System(crate::SystemCapability::Consumer {
                 consumer: crate::ConsumerId::of_name("grammar-door"),
             }),
-            None,
         ),
     ];
     refuse_at_each_door(&mut kernel, draft_doors);
@@ -588,27 +583,9 @@ fn every_admission_door_refuses_outside_the_grammar_after_the_revision_has_moved
         kernel.state.revision > 1,
         "the world has moved past genesis"
     );
-    let answer = crate::derive_boundaries(&kernel.state)
-        .unwrap()
-        .into_iter()
-        .find(|boundary| {
-            matches!(boundary, crate::CausalBoundary::UnelaboratedDestination { place, .. }
-                if *place == dead_end)
-        })
-        .expect("the dead end is an unelaborated destination");
     let active_doors = vec![
-        (
-            "play",
-            CallerId::System(crate::SystemCapability::Play),
-            None,
-        ),
-        (
-            "elaborator",
-            CallerId::System(crate::SystemCapability::Elaborator {
-                jurisdiction: crate::JurisdictionKey::PlaceSubtree(dead_end),
-            }),
-            Some(crate::PatchAnswer::Boundary(answer)),
-        ),
+        ("owner in Active", CallerId::Principal(owner())),
+        ("play", CallerId::System(crate::SystemCapability::Play)),
     ];
     refuse_at_each_door(&mut kernel, active_doors);
     // The same path admits what the grammar carries, so the refusals above are
@@ -616,7 +593,6 @@ fn every_admission_door_refuses_outside_the_grammar_after_the_revision_has_moved
     let receipt = submit_as(
         &mut kernel,
         CallerId::System(crate::SystemCapability::Play),
-        None,
         patch_of(vec![declare("hail", "hail", &[])]),
     )
     .unwrap();
@@ -682,7 +658,6 @@ fn an_effect_resolved_elsewhere_cannot_install_an_entry_outside_the_grammar() {
             &twin,
             CommandId::new(),
             &patch_of(vec![declare("probe", kind, roles)]),
-            None,
         )
         .expect("the unbound twin admits any canonical kind")
     };
@@ -698,7 +673,6 @@ fn an_effect_resolved_elsewhere_cannot_install_an_entry_outside_the_grammar() {
             CommandId::new(),
             &CallerId::Principal(owner()),
             &crate::WorldEffect::PatchAdmitted {
-                answers: None,
                 resolved,
             },
         );

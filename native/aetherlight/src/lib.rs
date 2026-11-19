@@ -70,8 +70,7 @@ pub use grammar::{
     RenderPath,
 };
 pub use patch::{
-    CommitmentKey, DraftHandle, JurisdictionKey, Mismatch, PatchAnswer, Ref, RefKind, RefName, Role,
-    Site, Statement, WorldPatch,
+    CommitmentKey, DraftHandle, Mismatch, Ref, RefKind, RefName, Role, Site, Statement, WorldPatch,
 };
 pub(crate) use patch::{
     AccessKind, Affordance, Audience, AuthoredSource, AuthorityGrant, AuthorityTarget,
@@ -79,7 +78,6 @@ pub(crate) use patch::{
     DependencyTarget, EntityKind, EvidenceRef, FactRecord,
     FactStanding, Forum, GrievanceKindName, Knowledge, KnowledgeSource, Office, OfficeName,
     Position, PressureMagnitude, PressureSource, Quantity, Reach,
-    WorldScaleIntent, WorldScaleIntentRef,
 };
 pub use patch::ImportKey;
 #[cfg(test)]
@@ -360,9 +358,6 @@ struct CreateWorld {
     owner: PrincipalId,
     title: String,
     patch: WorldPatch,
-    /// Authored once, here, and never mutated: `CommandBody::AdmitPatch` carries
-    /// no intent, so write-once is the command shape rather than a check.
-    scale_intent: WorldScaleIntentRef,
     /// The grammar the world is bound to for its whole life, or none for an
     /// open-catalog world. Authored here and nowhere else: genesis installs it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -378,23 +373,6 @@ pub struct CreateWorldIntent {
     pub human_subject_label: String,
     pub narrative_persona_label: Option<String>,
     pub operational_agent_label: Option<String>,
-    /// World-wide target of goal-bearing subjects per kind. Required, and may
-    /// be empty: a world with no target is a deliberate choice, not a default
-    /// that arrives because nobody said anything.
-    pub targets: BTreeMap<SubjectKind, u32>,
-    /// The jurisdiction roots genesis declares beside the commons, because
-    /// `resolve_patch` only resolves roots the same patch declares.
-    pub jurisdictions: Vec<CreateJurisdictionIntent>,
-}
-
-/// One jurisdiction root as ingress states it. The handle is a string here and
-/// a `DraftHandle` inside the world subtree, which is the one lowering: the
-/// handle constructor is not reachable from runtime ingress.
-#[derive(Clone, Debug)]
-pub struct CreateJurisdictionIntent {
-    pub handle: String,
-    pub label: String,
-    pub permille: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -414,11 +392,6 @@ enum CallerId {
 #[serde(tag = "capability", rename_all = "snake_case")]
 enum SystemCapability {
     Clock,
-    /// Authors structure inside one jurisdiction. Never derived from session
-    /// evidence, never minted by ingress, never held by a subject.
-    Elaborator {
-        jurisdiction: JurisdictionKey,
-    },
     /// One external consumer, authoring only the subjects this world has
     /// admitted as its mirrors. Minted by exactly one mailbox method, after the
     /// ingress has authenticated the document; never derived from session
@@ -441,8 +414,6 @@ enum SystemCapability {
 /// derived from `controller_assignments` at decision time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PatchGround {
-    /// A place subtree. The elaborator's shape, unchanged in meaning.
-    Jurisdiction(JurisdictionKey),
     /// Every subject bound to this consumer.
     Consumer(ConsumerId),
 }
@@ -619,10 +590,6 @@ pub enum CommandBody {
         opportunity: DecisionOpportunity,
     },
     AdmitPatch {
-        /// Draft answers nothing. Active must answer a currently derived
-        /// boundary or a jurisdiction whose deficit is nonzero, and the commit
-        /// must satisfy what it answered.
-        answers: Option<PatchAnswer>,
         patch: WorldPatch,
     },
     /// The world's only clock advance. Owner or the clock capability, and the
@@ -814,8 +781,6 @@ struct WorldState {
     /// `ScopePreimage`: it is world truth, and it is read by no precondition, so
     /// a tick that only advances pressure moves no proposal's binding.
     now: FictionalMinutes,
-    /// The authored scale target, written once by genesis and never mutated.
-    scale_intent: WorldScaleIntent,
     controller_assignments: BTreeMap<DecisionScope, ControllerAssignment>,
     /// What an affordance *is*. World-authored, Draft-only, written by
     /// `admit_resolved` alone.
@@ -837,9 +802,6 @@ enum WorldEffect {
         resolved: ResolvedPatch,
     },
     PatchAdmitted {
-        /// What this commit answered, so `apply_effect` re-decides the same
-        /// rule `reduce` decided and then proves the answer was satisfied.
-        answers: Option<PatchAnswer>,
         resolved: ResolvedPatch,
     },
     DraftApproved {
@@ -964,11 +926,6 @@ pub struct SubjectSnapshot {
     /// itself. View-only, covered by no digest of its own: it is already bound
     /// through `components`.
     pub(crate) dependencies: Vec<DependencyTarget>,
-    /// A projection of `qualifies`, not a stored flag and not a second count:
-    /// whether this subject already reduces its jurisdiction's scale deficit.
-    /// The seed brief needs to say which subjects count; recomputing the
-    /// conjunction outside the kernel would be a second definition of alive.
-    pub qualified: bool,
     /// The greatest `DecisionEvent.revision` whose scope is this subject, or
     /// `None` if the subject never acted. Derived from `state.events` alone:
     /// no new state, no schema change. The recency marker `projector_knowledge`
@@ -1145,10 +1102,6 @@ pub struct WorldSnapshot {
     /// Everyone in a world shares the clock, and no controller can read a `due`
     /// without it.
     pub now: FictionalMinutes,
-    /// The elaborator's surface. There is no global pressure register and no
-    /// commitment gazetteer.
-    pub boundaries: Vec<CausalBoundary>,
-    pub scale_deficit: Vec<ScaleDeficitRow>,
     pub state_digest: String,
     pub last_commit_digest: Option<String>,
 }
@@ -1299,12 +1252,6 @@ pub enum KernelError {
     CorruptJournal(String),
     #[error("private reducer invariant failed: {0}")]
     Invariant(String),
-    #[error("an active patch must answer a derived boundary or a nonzero deficit")]
-    AnswerRequired,
-    #[error("this world derives no such boundary or deficit")]
-    AnswerNotDerived,
-    #[error("the admitted patch does not satisfy the boundary or deficit it answered")]
-    AnswerNotSatisfied,
 }
 
 impl KernelError {
@@ -1371,7 +1318,6 @@ fn prepare_creation(
         ),
         input.id,
         &input.patch,
-        Some(&input.scale_intent),
     )
     .map_err(KernelError::PatchRejected)?;
     require_ruler(&CallerId::Principal(input.owner.clone()), &resolved)
@@ -1707,30 +1653,20 @@ fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, 
                 motion: clock::derive_motion(state, to),
             })
         }
-        CommandBody::AdmitPatch { answers, patch } => {
-            // Answer before authority, because the jurisdiction check reads the
-            // answer and a missing one must read as `AnswerRequired` rather
-            // than `Unauthorized`. Resolution before confinement, because
-            // confinement reads draft-resolved referents and a structurally
-            // broken patch should return its complete mismatch set rather than
-            // a jurisdiction complaint about a reference that does not resolve.
-            require_answer(
-                state,
-                &command.caller,
-                answers.as_ref(),
-                !(patch.declarations.is_empty() && patch.evidence.is_empty()),
-            )?;
-            let confinement = require_patch_author(state, &command.caller, answers.as_ref())?;
-            let resolved = patch::resolve_patch(state, command.id, patch, None)
+        CommandBody::AdmitPatch { patch } => {
+            require_play_active(state, &command.caller)?;
+            // Resolution before confinement, because confinement reads
+            // draft-resolved referents and a structurally broken patch should
+            // return its complete mismatch set rather than a jurisdiction
+            // complaint about a reference that does not resolve.
+            let confinement = require_patch_author(state, &command.caller)?;
+            let resolved = patch::resolve_patch(state, command.id, patch)
                 .map_err(KernelError::PatchRejected)?;
             require_ruler(&command.caller, &resolved).map_err(KernelError::PatchRejected)?;
             if let Some(ground) = confinement {
                 confine_to_ground(state, &resolved, ground).map_err(KernelError::PatchRejected)?;
             }
-            Ok(WorldEffect::PatchAdmitted {
-                answers: answers.clone(),
-                resolved,
-            })
+            Ok(WorldEffect::PatchAdmitted { resolved })
         }
     }
 }
@@ -1746,9 +1682,7 @@ fn require_system_capability(caller: &CallerId, body: &CommandBody) -> Result<()
         (SystemCapability::Clock, CommandBody::AdvanceTime { .. })
             | (SystemCapability::Play, CommandBody::AdvanceTime { .. })
             | (
-                SystemCapability::Elaborator { .. }
-                    | SystemCapability::Consumer { .. }
-                    | SystemCapability::Play,
+                SystemCapability::Consumer { .. } | SystemCapability::Play,
                 CommandBody::AdmitPatch { .. }
             )
     );
@@ -1773,60 +1707,15 @@ fn require_clock_caller(state: &WorldState, caller: &CallerId) -> Result<(), Ker
     }
 }
 
-/// Answering is what lets an Active patch declare. Draft answers nothing:
-/// `SeedRequest` — the ontology's draft-phase answer — is not inhabited, so
-/// genesis and draft elaboration answer nothing. In Active, a patch that only
-/// changes components of existing structure is the operator's hand and answers
-/// nothing; a patch that declares or admits evidence is elaboration, and
-/// elaboration answers a boundary the kernel currently derives or a
-/// jurisdiction whose deficit is nonzero.
-fn require_answer(
-    state: &WorldState,
-    caller: &CallerId,
-    answers: Option<&PatchAnswer>,
-    declares: bool,
-) -> Result<(), KernelError> {
+/// The play table authors nothing in Draft: it is the Active world's hand.
+fn require_play_active(state: &WorldState, caller: &CallerId) -> Result<(), KernelError> {
     if caller == &CallerId::System(SystemCapability::Play) && state.phase == WorldPhase::Draft {
         return Err(KernelError::WrongPhase {
             expected: WorldPhase::Active,
             actual: state.phase,
         });
     }
-    match (state.phase, answers) {
-        (WorldPhase::Draft, None) => Ok(()),
-        (WorldPhase::Draft, Some(_)) => Err(KernelError::AnswerNotDerived),
-        (WorldPhase::Active, None) if declares => {
-            if caller == &CallerId::System(SystemCapability::Play) {
-                Ok(())
-            } else {
-                Err(KernelError::AnswerRequired)
-            }
-        }
-        (WorldPhase::Active, None) => Ok(()),
-        (WorldPhase::Active, Some(PatchAnswer::Boundary(claimed))) => {
-            exact_boundary(state, claimed).map(|_| ())
-        }
-        (WorldPhase::Active, Some(PatchAnswer::Deficit(jurisdiction))) => {
-            if jurisdiction_deficit(state, *jurisdiction)? > 0 {
-                Ok(())
-            } else {
-                Err(KernelError::AnswerNotDerived)
-            }
-        }
-    }
-}
-
-/// The total deficit of one jurisdiction, which is what an answer must strictly
-/// reduce.
-fn jurisdiction_deficit(
-    state: &WorldState,
-    jurisdiction: JurisdictionKey,
-) -> Result<u64, KernelError> {
-    Ok(derive_scale_deficit(state)?
-        .into_iter()
-        .filter(|row| row.jurisdiction == jurisdiction)
-        .map(|row| u64::from(row.deficit))
-        .sum())
+    Ok(())
 }
 
 /// A human principal joins `required_approvers`, so only the lane that builds
@@ -1874,7 +1763,6 @@ impl WorldState {
             pressures: BTreeMap::new(),
             last_opportunity_at: BTreeMap::new(),
             now: FictionalMinutes::default(),
-            scale_intent: WorldScaleIntent::default(),
             controller_assignments: BTreeMap::new(),
             affordance_catalog: BTreeMap::new(),
             affordance_grants: BTreeMap::new(),
@@ -1914,7 +1802,6 @@ impl WorldState {
             &state,
             command.id,
             &command.patch,
-            Some(&command.scale_intent),
         )
         .map_err(KernelError::PatchRejected)?;
         if &expected != resolved {
@@ -2187,9 +2074,6 @@ fn admit_resolved(
                 "admitted channel ID collision".into(),
             ));
         }
-    }
-    if let Some(intent) = &resolved.scale_intent {
-        state.scale_intent = intent.clone();
     }
     apply_operations(state, &resolved.operations, &resolved.evidence, resolves_to)
 }
@@ -3832,7 +3716,6 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
                         magnitude: *magnitude,
                     })
                     .collect(),
-                qualified: qualifies(state, *subject_id),
                 last_acted_at: last_acted_at.get(subject_id).copied(),
             })
         })
@@ -3934,305 +3817,9 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
         facts,
         opportunities: order_opportunities(state, derive_opportunities(state)?),
         now: state.now,
-        boundaries: derive_boundaries(state)?,
-        scale_deficit: derive_scale_deficit(state)?,
         state_digest: state.state_digest.clone(),
         last_commit_digest: state.last_commit_digest.clone(),
     })
-}
-
-/// A place in the world's causal reach that the world has not yet grown into.
-/// Derived, never stored, and cleared by no writer: a boundary stops being
-/// derived when its predicate stops holding.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(tag = "boundary", rename_all = "snake_case")]
-pub enum CausalBoundary {
-    UnelaboratedDestination {
-        route: EdgeId,
-        place: EntityId,
-        scope: BoundaryDigest,
-    },
-    MissingStructure {
-        subject: SubjectId,
-        key: CommitmentKey,
-        scope: BoundaryDigest,
-    },
-    /// Declared, never derived: no relations partition exists. Answering one is
-    /// `AnswerNotDerived`.
-    PolityInCausalRange {
-        subject: SubjectId,
-        scope: BoundaryDigest,
-    },
-    /// Declared, never derived: no population membership and no slice concept
-    /// exists. Answering one is `AnswerNotDerived`.
-    IndividuationRequired {
-        population: SubjectId,
-        scope: BoundaryDigest,
-    },
-}
-
-/// The digest of exactly the components that derive one boundary, produced by
-/// the one `digest()` owner, in the `ScopeDigest` idiom.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(transparent)]
-pub struct BoundaryDigest(String);
-
-impl BoundaryDigest {
-    /// The digest text, for the one command-key derivation that hashes it.
-    pub(crate) fn text(&self) -> &str {
-        &self.0
-    }
-
-    /// The deficit lane's answer has no preimage of its own: its digest is the
-    /// session's, produced by the same `sha256:` spelling.
-    pub(crate) fn from_digest(value: String) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Serialize)]
-struct UnelaboratedDestinationPreimage<'a> {
-    world_id: WorldId,
-    route: &'a EdgeRecord,
-    place: &'a EntityRecord,
-    contained: BTreeSet<EntityId>,
-    occupants: BTreeSet<SubjectId>,
-    incident: BTreeSet<EdgeId>,
-}
-
-#[derive(Serialize)]
-struct MissingStructurePreimage<'a> {
-    world_id: WorldId,
-    subject: SubjectId,
-    key: CommitmentKey,
-    commitment: &'a Commitment,
-    counterparty_authority: BTreeSet<AuthorityGrant>,
-    redress: &'a BTreeMap<GrievanceKindName, Forum>,
-}
-
-/// Beside `derive_opportunities`, and reached from `snapshot` and from
-/// `reduce`'s `AdmitPatch` arm. The same shape as the opportunity derivation,
-/// not the same function: the inputs and the consumers differ, and a shared
-/// derivation returning a sum type would be a generic helper wearing a name.
-fn derive_boundaries(state: &WorldState) -> Result<Vec<CausalBoundary>, KernelError> {
-    let mut boundaries = Vec::new();
-    for (edge_id, record) in &state.edges {
-        let (from, to) = record.endpoints();
-        for place in [from, to] {
-            let contained: BTreeSet<EntityId> = state
-                .entities
-                .iter()
-                .filter(|(_, entity)| entity.container == Some(place))
-                .map(|(entity_id, _)| *entity_id)
-                .collect();
-            let occupants: BTreeSet<SubjectId> = state
-                .positions
-                .iter()
-                .filter(|(_, position)| position.place == place)
-                .map(|(subject_id, _)| *subject_id)
-                .collect();
-            let incident: BTreeSet<EdgeId> = state
-                .edges
-                .iter()
-                .filter(|(_, candidate)| {
-                    let (candidate_from, candidate_to) = candidate.endpoints();
-                    candidate_from == place || candidate_to == place
-                })
-                .map(|(candidate_id, _)| *candidate_id)
-                .collect();
-            if !contained.is_empty()
-                || !occupants.is_empty()
-                || incident.len() != 1
-                || !incident.contains(edge_id)
-            {
-                continue;
-            }
-            let entity = state
-                .entities
-                .get(&place)
-                .ok_or_else(|| KernelError::Invariant("a route names no canonical place".into()))?;
-            boundaries.push(CausalBoundary::UnelaboratedDestination {
-                route: *edge_id,
-                place,
-                scope: BoundaryDigest(digest(&UnelaboratedDestinationPreimage {
-                    world_id: state.world_id,
-                    route: record,
-                    place: entity,
-                    contained,
-                    occupants,
-                    incident,
-                })?),
-            });
-        }
-    }
-    // A commitment the counterparty can neither command nor litigate. Both
-    // clauses read the civic partitions through their own predicates, so
-    // jurisdiction lent by an office counts and no second covering rule exists.
-    // A `Goal` derives nothing: a promise to oneself needs no forum.
-    for (subject, held) in &state.commitments {
-        for (key, commitment) in held {
-            let Some(counterparty) = commitment.counterparty else {
-                continue;
-            };
-            let counterparty_authority = subject_authority(state, counterparty);
-            let commandable = counterparty_authority
-                .iter()
-                .any(|grant| covers(state, grant.over, Target::Subject(*subject)));
-            let litigable = state
-                .redress
-                .values()
-                .any(|forum| covers(state, forum.standing, Target::Subject(counterparty)));
-            if commandable || litigable {
-                continue;
-            }
-            boundaries.push(CausalBoundary::MissingStructure {
-                subject: *subject,
-                key: *key,
-                scope: BoundaryDigest(digest(&MissingStructurePreimage {
-                    world_id: state.world_id,
-                    subject: *subject,
-                    key: *key,
-                    commitment,
-                    counterparty_authority,
-                    redress: &state.redress,
-                })?),
-            });
-        }
-    }
-    Ok(boundaries)
-}
-
-/// The sole validator of a claimed boundary, mirroring `exact_opportunity`.
-fn exact_boundary(
-    state: &WorldState,
-    claimed: &CausalBoundary,
-) -> Result<CausalBoundary, KernelError> {
-    derive_boundaries(state)?
-        .into_iter()
-        .find(|current| current == claimed)
-        .ok_or(KernelError::AnswerNotDerived)
-}
-
-/// One region's count for one subject kind.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ScaleDeficitRow {
-    pub jurisdiction: JurisdictionKey,
-    pub kind: SubjectKind,
-    pub target: u32,
-    pub qualified: u32,
-    pub deficit: u32,
-}
-
-/// Whether a subject counts toward the world's scale target. Aliveness is
-/// structural and phase-free: a controller, a non-empty grant set, and a held
-/// `Goal`. A Draft world's deficit is what the seed lane has left to author; an
-/// Active world's is what the elaborator has left to answer.
-///
-/// There is no phase clause here because `require_answer` already owns the
-/// Draft-answer refusal: it refuses every Draft answer outright, so a phase
-/// clause in this predicate would protect nothing and would only pin a Draft
-/// world's deficit at the authored intent forever, leaving the seed lane no
-/// derived termination.
-///
-/// The conjunction is written once, because retirement and grant revocation
-/// make the first two clauses live later and a scattered count would then be
-/// wrong in three places. "Executable" is structural, never "preconditions
-/// currently hold": evaluating them per subject per snapshot would make the
-/// deficit flicker as routes open and close.
-fn qualifies(state: &WorldState, subject_id: SubjectId) -> bool {
-    let scope = DecisionScope { subject_id };
-    state.controller_assignments.contains_key(&scope)
-        && state
-            .affordance_grants
-            .get(&scope)
-            .is_some_and(|granted| !granted.is_empty())
-        && state.commitments.get(&subject_id).is_some_and(|held| {
-            held.values()
-                .any(|commitment| commitment.kind == CommitmentKind::Goal)
-        })
-}
-
-/// Derived in `snapshot`, never stored. `snapshot` is the recount: it already
-/// re-derives everything, and a second after-every-commit step would be a
-/// second owner. Only admitted subjects reduce it, so a rejected patch leaves
-/// it visible, which is free — a rejection mutates nothing.
-fn derive_scale_deficit(state: &WorldState) -> Result<Vec<ScaleDeficitRow>, KernelError> {
-    let mut counted: BTreeMap<(JurisdictionKey, SubjectKind), u32> = BTreeMap::new();
-    for (subject_id, subject) in &state.subjects {
-        if !qualifies(state, *subject_id) {
-            continue;
-        }
-        match state.positions.get(subject_id) {
-            // A subject under nested roots counts toward both: layered
-            // jurisdiction applied to counting. A subject standing somewhere
-            // no declared root covers still counts, in `Uncovered`, so the
-            // deficit stays total over every qualifying subject.
-            Some(position) => {
-                let mut covered = false;
-                for root in state.scale_intent.jurisdictions.keys() {
-                    if patch::covers_place(&state.entities, *root, position.place) {
-                        covered = true;
-                        *counted
-                            .entry((JurisdictionKey::PlaceSubtree(*root), subject.kind))
-                            .or_default() += 1;
-                    }
-                }
-                if !covered {
-                    *counted
-                        .entry((JurisdictionKey::Uncovered, subject.kind))
-                        .or_default() += 1;
-                }
-            }
-            // Counted, visible, and reducing no target.
-            None => {
-                *counted
-                    .entry((JurisdictionKey::Uncovered, subject.kind))
-                    .or_default() += 1;
-            }
-        }
-    }
-    let mut rows: BTreeMap<(JurisdictionKey, SubjectKind), ScaleDeficitRow> = BTreeMap::new();
-    for (kind, world_target) in &state.scale_intent.targets {
-        for (root, permille) in &state.scale_intent.jurisdictions {
-            let jurisdiction = JurisdictionKey::PlaceSubtree(*root);
-            let target = u32::try_from(
-                u64::from(*world_target)
-                    .checked_mul(u64::from(*permille))
-                    .ok_or_else(|| KernelError::Invariant("scale target overflow".into()))?
-                    / 1000,
-            )
-            .map_err(|_| KernelError::Invariant("scale target overflow".into()))?;
-            let qualified = counted
-                .get(&(jurisdiction, *kind))
-                .copied()
-                .unwrap_or_default();
-            rows.insert(
-                (jurisdiction, *kind),
-                ScaleDeficitRow {
-                    jurisdiction,
-                    kind: *kind,
-                    target,
-                    qualified,
-                    deficit: target.saturating_sub(qualified),
-                },
-            );
-        }
-    }
-    for ((jurisdiction, kind), qualified) in counted {
-        rows.entry((jurisdiction, kind))
-            .or_insert(ScaleDeficitRow {
-                jurisdiction,
-                kind,
-                target: 0,
-                qualified,
-                deficit: 0,
-            })
-            .qualified = qualified;
-    }
-    Ok(rows
-        .into_values()
-        .filter(|row| row.target > 0 || row.qualified > 0)
-        .collect())
 }
 
 /// A pure re-ordering of `derive_opportunities`' output: same values, same
@@ -4449,78 +4036,15 @@ fn required_approvers(state: &WorldState) -> BTreeSet<PrincipalId> {
 fn require_patch_author(
     state: &WorldState,
     caller: &CallerId,
-    answers: Option<&PatchAnswer>,
 ) -> Result<Option<PatchGround>, KernelError> {
     match caller {
         CallerId::Principal(principal) if principal == &state.owner => Ok(None),
         CallerId::System(SystemCapability::Play) => Ok(None),
-        CallerId::System(SystemCapability::Elaborator { jurisdiction }) => {
-            let answer = answers.ok_or(KernelError::Unauthorized)?;
-            let ground = PatchGround::Jurisdiction(*jurisdiction);
-            if !ground_covers(state, ground, answer) {
-                return Err(KernelError::Unauthorized);
-            }
-            Ok(Some(ground))
-        }
         CallerId::System(SystemCapability::Consumer { consumer }) => {
-            // Authority over its own mirrors is not jurisdictional and does not
-            // depend on an answer. An answer, when present, must name a subject
-            // this consumer is bound to, so a consumer cannot claim credit for
-            // structure it is confined out of writing.
-            let ground = PatchGround::Consumer(*consumer);
-            if let Some(answer) = answers
-                && !ground_covers(state, ground, answer)
-            {
-                return Err(KernelError::Unauthorized);
-            }
-            Ok(Some(ground))
+            // Authority over its own mirrors is not jurisdictional.
+            Ok(Some(PatchGround::Consumer(*consumer)))
         }
         _ => Err(KernelError::Unauthorized),
-    }
-}
-
-/// Does the caller's jurisdiction cover the thing the answer names?
-///
-/// Two coverings, deliberately asymmetric. A boundary is covered
-/// **transitively** through `covers_place`, so a parent jurisdiction's
-/// elaborator may answer a boundary in a nested child. A deficit is covered by
-/// **exact key equality**: a subject under nested roots counts toward both
-/// roots' targets, so a parent answering a child's row would reduce two targets
-/// with one subject and drain a child's queue while its own row stays red.
-/// Boundaries name a thing; deficits name a row.
-/// A consumer's arm is narrower on purpose: it may answer only a
-/// `MissingStructure` boundary on one of its own mirrors. A deficit is
-/// jurisdictional and a consumer holds no jurisdiction; a boundary about a
-/// foreign subject is not its business.
-fn ground_covers(state: &WorldState, held: PatchGround, answer: &PatchAnswer) -> bool {
-    let held = match held {
-        PatchGround::Jurisdiction(jurisdiction) => jurisdiction,
-        PatchGround::Consumer(consumer) => {
-            let PatchAnswer::Boundary(CausalBoundary::MissingStructure { subject, .. }) = answer
-            else {
-                return false;
-            };
-            return bound_to_consumer(state, *subject, consumer);
-        }
-    };
-    match answer {
-        PatchAnswer::Boundary(CausalBoundary::UnelaboratedDestination { place, .. }) => {
-            place_in(state, held, *place)
-        }
-        // The two never-derived variants join this clause only so the match is
-        // total; `exact_boundary` refuses them before authority is read.
-        PatchAnswer::Boundary(
-            CausalBoundary::MissingStructure { subject, .. }
-            | CausalBoundary::PolityInCausalRange { subject, .. }
-            | CausalBoundary::IndividuationRequired {
-                population: subject,
-                ..
-            },
-        ) => match state.positions.get(subject) {
-            Some(position) => place_in(state, held, position.place),
-            None => held == JurisdictionKey::Uncovered,
-        },
-        PatchAnswer::Deficit(key) => *key == held,
     }
 }
 
@@ -4538,12 +4062,6 @@ fn bound_to_consumer(state: &WorldState, subject: SubjectId, consumer: ConsumerI
         == Some(consumer)
 }
 
-fn place_in(state: &WorldState, held: JurisdictionKey, place: EntityId) -> bool {
-    match held {
-        JurisdictionKey::PlaceSubtree(root) => patch::covers_place(&state.entities, root, place),
-        JurisdictionKey::Uncovered => false,
-    }
-}
 
 /// The ground a patch writes on, as one map over `state ∪ patch`, so a place
 /// declared and built on in the same patch confines through the chain it
@@ -4565,31 +4083,23 @@ fn candidate_places(
     entities
 }
 
-/// Every place-or-subject referent a jurisdictional author writes must sit under
-/// its jurisdiction. Returns the complete set, like every other check.
+/// Every referent a confined author writes must sit on its ground. Returns the
+/// complete set, like every other check.
 ///
 /// Placeless referents — resource kinds, catalog entries, canonical facts —
 /// name no ground and are not confined. A place declared with no container is a
-/// new jurisdiction root and is the owner's act. There is no relevance test: a
-/// patch that satisfies its answer may also declare unrelated structure inside
-/// its jurisdiction, because "the minimum the boundary needs" is a semantic
-/// verdict the kernel must not hold.
+/// new jurisdiction root and is the owner's act.
 fn confine_to_ground(
     state: &WorldState,
     resolved: &ResolvedPatch,
     held: PatchGround,
 ) -> Result<(), Vec<Mismatch>> {
     let entities = candidate_places(state, resolved);
-    // A consumer names no ground, so every place, every route, and every
+    // A consumer names no place ground, so every place, every route, and every
     // place-shaped reach is refused with no extra rule: relocation, route
     // opening and closing, cost changes, and place-subtree grants are
     // unrepresentable for it because they carry a place or a route.
-    let inside = |place: EntityId| match held {
-        PatchGround::Jurisdiction(JurisdictionKey::PlaceSubtree(root)) => {
-            patch::covers_place(&entities, root, place)
-        }
-        PatchGround::Jurisdiction(JurisdictionKey::Uncovered) | PatchGround::Consumer(_) => false,
-    };
+    //
     // Every subject's consumer binding over `state ∪ patch`, so a consumer's
     // first document can declare its own mirror and write it in one patch.
     let mut bindings: BTreeMap<SubjectId, Option<ConsumerId>> = state
@@ -4599,17 +4109,6 @@ fn confine_to_ground(
         .collect();
     for declared in &resolved.subjects {
         bindings.insert(declared.subject_id, declared.controller.consumer());
-    }
-    let mut positions: BTreeMap<SubjectId, Option<EntityId>> = state
-        .positions
-        .iter()
-        .map(|(subject, position)| (*subject, Some(position.place)))
-        .collect();
-    for declared in &resolved.subjects {
-        positions.insert(
-            declared.subject_id,
-            declared.position.map(|position| position.place),
-        );
     }
     let mut edges: BTreeMap<EdgeId, (EntityId, EntityId)> = state
         .edges
@@ -4622,27 +4121,16 @@ fn confine_to_ground(
 
     let mut mismatches = Vec::new();
     let confine_subject = |site: &Site, subject: SubjectId, mismatches: &mut Vec<Mismatch>| {
-        let admitted = match held {
-            PatchGround::Jurisdiction(jurisdiction) => {
-                match positions.get(&subject).copied().flatten() {
-                    Some(place) => inside(place),
-                    None => jurisdiction == JurisdictionKey::Uncovered,
-                }
-            }
-            // Position is unconfined for a consumer: what binds a mirror is who
-            // controls it, not where it stands.
-            PatchGround::Consumer(consumer) => {
-                bindings.get(&subject).copied().flatten() == Some(consumer)
-            }
-        };
+        // Position is unconfined for a consumer: what binds a mirror is who
+        // controls it, not where it stands.
+        let PatchGround::Consumer(consumer) = held;
+        let admitted = bindings.get(&subject).copied().flatten() == Some(consumer);
         if !admitted {
             mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() });
         }
     };
-    let confine_place = |site: &Site, place: EntityId, mismatches: &mut Vec<Mismatch>| {
-        if !inside(place) {
-            mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() });
-        }
+    let confine_place = |site: &Site, _place: EntityId, mismatches: &mut Vec<Mismatch>| {
+        mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() });
     };
 
     for declared in &resolved.subjects {
@@ -4656,7 +4144,7 @@ fn confine_to_ground(
         let site = Site::Declaration(declared.handle.clone());
         match declared.entity.container {
             Some(container) => confine_place(&site, container, &mut mismatches),
-            // A root is the owner's act. An elaborator elaborates inside one.
+            // A root is the owner's act.
             None => mismatches.push(Mismatch::OutsideJurisdiction { site }),
         }
     }
@@ -5006,9 +4494,7 @@ fn apply_effect(
             (SystemCapability::Clock, WorldEffect::TimeAdvanced { .. })
                 | (SystemCapability::Play, WorldEffect::TimeAdvanced { .. })
                 | (
-                    SystemCapability::Elaborator { .. }
-                        | SystemCapability::Consumer { .. }
-                        | SystemCapability::Play,
+                    SystemCapability::Consumer { .. } | SystemCapability::Play,
                     WorldEffect::PatchAdmitted { .. }
                 )
         );
@@ -5022,15 +4508,15 @@ fn apply_effect(
                 "world genesis cannot be applied as a mutable effect".into(),
             ));
         }
-        WorldEffect::PatchAdmitted { answers, resolved } => {
-            require_answer(state, caller, answers.as_ref(), !resolved.declares_nothing())?;
+        WorldEffect::PatchAdmitted { resolved } => {
+            require_play_active(state, caller)?;
             require_ruler(caller, resolved).map_err(|_| {
                 KernelError::Invariant(
                     "admitted patch rules or mints without the play authority".into(),
                 )
             })?;
             let confinement =
-                require_patch_author(state, caller, answers.as_ref()).map_err(|_| {
+                require_patch_author(state, caller).map_err(|_| {
                     KernelError::Invariant(
                         "admitted patch does not satisfy admission authority".into(),
                     )
@@ -5042,33 +4528,8 @@ fn apply_effect(
                     )
                 })?;
             }
-            // The deficit before the write, so "strictly decreased" is a
-            // comparison rather than a claim the effect makes.
-            let before = match answers {
-                Some(PatchAnswer::Deficit(jurisdiction)) => {
-                    jurisdiction_deficit(state, *jurisdiction)?
-                }
-                _ => 0,
-            };
             let resolves_to = resolution_revision(state)?;
             admit_resolved(state, resolved, resolves_to)?;
-            // What makes "a commit clears exactly the boundary it answers"
-            // structural rather than hoped for. "Nothing else clears one" is
-            // true by construction: boundaries are derived and no writer
-            // clears one.
-            match answers {
-                Some(PatchAnswer::Boundary(answered)) => {
-                    if exact_boundary(state, answered).is_ok() {
-                        return Err(KernelError::AnswerNotSatisfied);
-                    }
-                }
-                Some(PatchAnswer::Deficit(jurisdiction)) => {
-                    if jurisdiction_deficit(state, *jurisdiction)? >= before {
-                        return Err(KernelError::AnswerNotSatisfied);
-                    }
-                }
-                None => {}
-            }
         }
         WorldEffect::DraftApproved { principal } => {
             if state.phase != WorldPhase::Draft
@@ -5360,7 +4821,6 @@ mod tests {
                     }),
                 ],
             },
-            scale_intent: WorldScaleIntentRef::default(),
             grammar: None,
         }
     }
@@ -5524,7 +4984,6 @@ mod tests {
             kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: topology_patch(speak_entry(kernel)),
             },
         );
@@ -5844,7 +5303,6 @@ mod tests {
             kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: custody_patch(topology, speak_entry(kernel)),
             },
         );
@@ -6296,7 +5754,6 @@ mod tests {
             kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: civic_patch(topology, speak_entry(kernel)),
             },
         );
@@ -6397,7 +5854,6 @@ mod tests {
             kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     evidence: vec![EvidenceRef::new(FLOOD_EVIDENCE)],
                     operations: Vec::new(),
@@ -6579,7 +6035,6 @@ mod tests {
 
     pub(crate) fn operations(operations: Vec<ComponentOp>) -> CommandBody {
         CommandBody::AdmitPatch {
-            answers: None,
             patch: WorldPatch {
                 declarations: Vec::new(),
                 operations,
@@ -6715,7 +6170,6 @@ mod tests {
             &mut kernel,
             &active,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::CloseRoute {
@@ -7635,7 +7089,6 @@ mod tests {
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![
                         Declaration::Entity(EntityDeclaration {
@@ -7695,7 +7148,6 @@ mod tests {
             &mut kernel,
             &active,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::Relocate {
@@ -7726,7 +7178,6 @@ mod tests {
             &mut kernel,
             &moved,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::CloseRoute {
@@ -8500,7 +7951,6 @@ mod tests {
                 &mut kernel,
                 &before,
                 CommandBody::AdmitPatch {
-                    answers: None,
                     patch
                 }
             ),
@@ -8608,9 +8058,7 @@ mod custody_tests {
                     qty: Quantity(OPENING_BALANCE + 1),
                 }],
                 evidence: Vec::new(),
-                scale_intent: None,
             },
-            answers: None,
         };
         let error = apply_effect(
             &mut candidate,
@@ -8661,7 +8109,6 @@ mod custody_tests {
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![
                         Declaration::Entity(EntityDeclaration {
@@ -8876,7 +8323,6 @@ mod custody_tests {
             &mut kernel,
             &draft,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::Admit {
@@ -9198,9 +8644,7 @@ mod custody_tests {
                 channels: Vec::new(),
                 operations,
                 evidence: Vec::new(),
-                scale_intent: None,
             },
-            answers: None,
         };
         let transfer = |qty: u64| ResolvedOp::Transfer {
             from: custody.holder,
@@ -9320,7 +8764,6 @@ mod custody_tests {
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![
                         Declaration::Entity(EntityDeclaration {
@@ -9593,7 +9036,6 @@ mod knowledge_tests {
         let start = draft.snapshot().unwrap();
         let declare =
             |standing: FactStandingRef, evidence: Vec<EvidenceRef>| CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![Declaration::Fact(FactDeclaration {
                         handle: DraftHandle::new("rumour"),
@@ -10543,7 +9985,6 @@ mod knowledge_tests {
         let before = kernel.snapshot().unwrap();
         let catalog_before = kernel.state.affordance_catalog.len();
         let declare = |preconditions: Vec<Precondition>| CommandBody::AdmitPatch {
-            answers: None,
             patch: WorldPatch {
                 declarations: vec![Declaration::Affordance(AffordanceDeclaration {
                     handle: DraftHandle::new("herald"),
@@ -11088,12 +10529,11 @@ mod soul_knowledge_tests {
     /// `verify_state_shape` checks the forward speech direction only: an event's
     /// claim is asserted by the acting subject and named by no other event. The
     /// reverse, that every claim is named by some event, is deliberately absent,
-    /// because a world may declare a claim in Draft with no event behind it.
-    /// That gap is not a hole: active admission refuses every declaration, so
-    /// `AssertClaim` is the only way a claim enters an active world and it is
-    /// synthesized with its event.
+    /// because a world may declare a claim with no event behind it, in Draft
+    /// or, since the owner declares in Active unanswered, in Active too. Such a
+    /// claim is a valid shape and its store reopens.
     #[test]
-    fn soul_an_orphan_claim_is_a_draft_shape_and_unreachable_in_active() {
+    fn an_orphan_claim_is_a_valid_shape_and_reopens() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "OrphanClaim");
@@ -11110,14 +10550,13 @@ mod soul_knowledge_tests {
         let world_id = kernel.state.world_id;
 
         let before = kernel.state.clone();
-        let error = kernel
+        let receipt = kernel
             .submit(
                 command(
                     &active,
                     CommandId::new(),
                     CallerId::Principal(owner()),
                     CommandBody::AdmitPatch {
-                        answers: None,
                         patch: WorldPatch {
                             declarations: vec![Declaration::Fact(FactDeclaration {
                                 handle: DraftHandle::new("rumour"),
@@ -11134,15 +10573,13 @@ mod soul_knowledge_tests {
                 ),
                 &auth_principal(owner()),
             )
-            .unwrap_err();
-        assert!(
-            matches!(error, KernelError::AnswerRequired),
-            "an active world admitted an unanswered declaration: {error:?}"
-        );
-        assert_eq!(kernel.state, before);
+            .expect("the owner declares a claim in Active");
+        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert_eq!(kernel.state.facts.len(), before.facts.len() + 1);
+        let facts = kernel.state.facts.clone();
         drop(kernel);
         let replayed = WorldKernel::open(&path, world_id).expect("the orphan store is healthy");
-        assert_eq!(replayed.state.facts, before.facts);
+        assert_eq!(replayed.state.facts, facts);
     }
 
     /// Replay equality across every new arm, twice, with no RNG and no clock in
@@ -11337,8 +10774,8 @@ mod witness_tests {
     /// Nesting, because "under a place" is the whole question. A hemisphere
     /// holds a region and a far coast; the region holds a village and one
     /// unwalked hollow; subjects stand in the village, on the coast, and in the
-    /// hemisphere under neither. The hollow is empty so an elaborator has a
-    /// boundary to answer and a witness has a place that reaches nobody.
+    /// hemisphere under neither. The hollow is empty so a witness has a place
+    /// that reaches nobody.
     struct Nesting {
         hemisphere: EntityId,
         region: EntityId,
@@ -11408,7 +10845,6 @@ mod witness_tests {
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![
                         place("hemisphere", "The Lit Hemisphere", None),
@@ -11814,80 +11250,6 @@ mod witness_tests {
         ));
     }
 
-    /// The place is the whole ground, and it is not a weaker confinement than
-    /// the recipients: everyone the fan-out selects stands under it. An
-    /// elaborator witnesses inside its root, and nowhere outside or above it.
-    #[test]
-    fn an_elaborator_may_witness_inside_its_root_and_not_outside_or_above() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, _) = nesting_kernel(directory.path(), "Jurisdiction");
-        let answer = derive_boundaries(&kernel.state)
-            .unwrap()
-            .into_iter()
-            .find(|boundary| {
-                matches!(boundary, CausalBoundary::UnelaboratedDestination { place, .. }
-                    if *place == world.hollow)
-            })
-            .expect("the hollow is an unelaborated destination");
-        let submit = |kernel: &mut WorldKernel, place: EntityId| {
-            let snapshot = kernel.snapshot().unwrap();
-            let caller = CallerId::System(SystemCapability::Elaborator {
-                jurisdiction: JurisdictionKey::PlaceSubtree(world.region),
-            });
-            kernel.submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    caller.clone(),
-                    CommandBody::AdmitPatch {
-                        answers: Some(PatchAnswer::Boundary(answer.clone())),
-                        patch: WorldPatch {
-                            // The boundary the elaborator answers: the hollow
-                            // grows a room. The witness rides beside it, and
-                            // only the witness is confined by its place.
-                            declarations: vec![Declaration::Entity(EntityDeclaration {
-                                handle: DraftHandle::new("shed"),
-                                label: "The Hollow Shed".into(),
-                                kind: EntityKind::Place,
-                                container: Some(Ref::Existing(world.hollow)),
-                            })],
-                            operations: vec![witness(world.asteroid, place, Confidence::Believed)],
-                            evidence: Vec::new(),
-                        },
-                    },
-                ),
-                &AuthenticatedCaller::fixture(caller),
-            )
-        };
-        let outside = |result: Result<SubmitReceipt, KernelError>| match result {
-            Err(KernelError::PatchRejected(set)) => set,
-            other => panic!("expected a confined refusal, got {other:?}"),
-        };
-
-        assert_eq!(
-            outside(submit(&mut kernel, world.coast)),
-            vec![Mismatch::OutsideJurisdiction {
-                site: Site::Operation(0)
-            }]
-        );
-        assert_eq!(
-            outside(submit(&mut kernel, world.hemisphere)),
-            vec![Mismatch::OutsideJurisdiction {
-                site: Site::Operation(0)
-            }]
-        );
-        let before_admit = kernel.state.revision;
-        let admitted = submit(&mut kernel, world.village);
-        assert!(
-            matches!(admitted, Ok(SubmitReceipt::Applied(_))),
-            "{admitted:?}"
-        );
-        assert_eq!(
-            knows(&kernel, world.villager, world.asteroid),
-            seen(Confidence::Believed, before_admit + 1)
-        );
-    }
-
     /// A consumer names no ground, and a jurisdiction over placeless subjects
     /// names no place. Both refuse every witness through the same closure, with
     /// no rule in `confine_to_ground` naming the operation.
@@ -11903,21 +11265,16 @@ mod witness_tests {
                 operations: vec![witness(world.asteroid, world.village, Confidence::Certain)],
                 evidence: Vec::new(),
             },
-            None,
         )
         .expect("the witness resolves over committed state");
-        for ground in [
-            PatchGround::Consumer(ConsumerId::of_name("witness.consumer")),
-            PatchGround::Jurisdiction(JurisdictionKey::Uncovered),
-        ] {
-            assert_eq!(
-                confine_to_ground(&kernel.state, &resolved, ground),
-                Err(vec![Mismatch::OutsideJurisdiction {
-                    site: Site::Operation(0)
-                }]),
-                "{ground:?} admitted a witness"
-            );
-        }
+        let ground = PatchGround::Consumer(ConsumerId::of_name("witness.consumer"));
+        assert_eq!(
+            confine_to_ground(&kernel.state, &resolved, ground),
+            Err(vec![Mismatch::OutsideJurisdiction {
+                site: Site::Operation(0)
+            }]),
+            "{ground:?} admitted a witness"
+        );
     }
 
     /// The digest reads the keys of a subject's own knowledge, so a witness
@@ -12438,16 +11795,6 @@ mod witness_tests {
                 Confidence::Believed,
             )]),
         );
-        // An active world admits declarations only through the elaborator lane,
-        // which is also the lane whose confinement the witness must satisfy.
-        let answer = derive_boundaries(&kernel.state)
-            .unwrap()
-            .into_iter()
-            .find(|boundary| {
-                matches!(boundary, CausalBoundary::UnelaboratedDestination { place, .. }
-                    if *place == world.hollow)
-            })
-            .expect("the hollow is an unelaborated destination");
         let beacon = *kernel
             .state
             .affordance_catalog
@@ -12458,16 +11805,13 @@ mod witness_tests {
         let arrival =
             |kernel: &mut WorldKernel, handle: &str, label: &str, position: Option<EntityId>| {
                 let snapshot = kernel.snapshot().unwrap();
-                let caller = CallerId::System(SystemCapability::Elaborator {
-                    jurisdiction: JurisdictionKey::PlaceSubtree(world.region),
-                });
+                let caller = CallerId::Principal(owner());
                 kernel.submit(
                     command(
                         &snapshot,
                         CommandId::new(),
                         caller.clone(),
                         CommandBody::AdmitPatch {
-                            answers: Some(PatchAnswer::Boundary(answer.clone())),
                             patch: WorldPatch {
                                 declarations: vec![
                                     Declaration::Entity(EntityDeclaration {
@@ -12657,7 +12001,7 @@ mod witness_tests {
 /// The clock, commitments, pressure, ordered attention, boundaries, and scale.
 #[cfg(test)]
 mod clock_tests {
-    use super::patch::{PreconditionRef, PressureSourceRef, WorldScaleIntentRef};
+    use super::patch::{PreconditionRef, PressureSourceRef};
     use super::tests::{
         activate, affordance_named, authority_kind, auth_principal, command, creation, office,
         operations, opportunity_for, owner, human_principal, reject_owner, speech_world,
@@ -12725,7 +12069,6 @@ mod clock_tests {
             kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     evidence: vec![EvidenceRef::new("vault:harvest")],
                     declarations: vec![
@@ -13629,561 +12972,6 @@ mod clock_tests {
         );
     }
 
-    /// Verification 14, first half: a dead end is derived, answered once, and
-    /// then no longer derived. Nothing clears one but the predicate failing.
-    #[test]
-    fn an_unelaborated_destination_is_derived_and_answered_exactly_once() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "DeadEnd");
-        let boundaries = derive_boundaries(&kernel.state).unwrap();
-        let destinations: Vec<_> = boundaries
-            .iter()
-            .filter(|boundary| matches!(boundary, CausalBoundary::UnelaboratedDestination { .. }))
-            .collect();
-        assert_eq!(destinations.len(), 1);
-        let answered = destinations[0].clone();
-        assert!(matches!(
-            answered,
-            CausalBoundary::UnelaboratedDestination { route, place, .. }
-                if route == clockwork.gate && place == clockwork.dead_end
-        ));
-
-        let snapshot = kernel.snapshot().unwrap();
-        assert!(snapshot.boundaries.contains(&answered));
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered.clone())),
-                patch: WorldPatch {
-                    declarations: vec![Declaration::Entity(EntityDeclaration {
-                        handle: DraftHandle::new("shed"),
-                        label: "The Roadside Shed".into(),
-                        kind: EntityKind::Place,
-                        container: Some(Ref::Existing(clockwork.dead_end)),
-                    })],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        );
-        assert!(
-            !derive_boundaries(&kernel.state)
-                .unwrap()
-                .contains(&answered)
-        );
-
-        // Answering it again names a boundary the kernel no longer derives.
-        let snapshot = kernel.snapshot().unwrap();
-        let error = kernel
-            .submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    CallerId::Principal(owner()),
-                    CommandBody::AdmitPatch {
-                        answers: Some(PatchAnswer::Boundary(answered)),
-                        patch: WorldPatch {
-                            declarations: vec![Declaration::Entity(EntityDeclaration {
-                                handle: DraftHandle::new("byre"),
-                                label: "The Roadside Byre".into(),
-                                kind: EntityKind::Place,
-                                container: Some(Ref::Existing(clockwork.dead_end)),
-                            })],
-                            operations: Vec::new(),
-                            evidence: Vec::new(),
-                        },
-                    },
-                ),
-                &auth_principal(owner()),
-            )
-            .unwrap_err();
-        assert!(matches!(error, KernelError::AnswerNotDerived), "{error:?}");
-    }
-
-    /// A promise the counterparty can neither command nor litigate is a missing
-    /// structure, and either repair clears it. A goal never derives one.
-    #[test]
-    fn a_commitment_with_no_authority_or_redress_derives_missing_structure() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Structure");
-        let missing = CausalBoundary::MissingStructure {
-            subject: clockwork.farmer,
-            key: clockwork.obligation,
-            scope: BoundaryDigest(String::new()),
-        };
-        let derives = |kernel: &WorldKernel| {
-            derive_boundaries(&kernel.state)
-                .unwrap()
-                .into_iter()
-                .any(|boundary| match (&boundary, &missing) {
-                    (
-                        CausalBoundary::MissingStructure { subject, key, .. },
-                        CausalBoundary::MissingStructure {
-                            subject: expected_subject,
-                            key: expected_key,
-                            ..
-                        },
-                    ) => subject == expected_subject && key == expected_key,
-                    _ => false,
-                })
-        };
-        assert!(derives(&kernel));
-        // A goal is a promise to oneself and needs no forum.
-        assert!(!derive_boundaries(&kernel.state).unwrap().iter().any(
-            |boundary| matches!(boundary, CausalBoundary::MissingStructure { key, .. } if *key == clockwork.goal)
-        ));
-
-        // Jurisdiction over the promisor's ground clears it.
-        let snapshot = kernel.snapshot().unwrap();
-        let grant = ComponentOp::GrantAuthority {
-            holder: Ref::Existing(clockwork.treasury),
-            grant: AuthorityGrantRef {
-                kind: AuthorityKindName("command".into()),
-                over: AuthorityTargetRef::PlaceSubtree(Ref::Existing(clockwork.yard)),
-            },
-        };
-        submit_owner(&mut kernel, &snapshot, operations(vec![grant.clone()]));
-        assert!(!derives(&kernel));
-
-        // Revoke it, and a forum whose standing covers the counterparty clears
-        // it the other way.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![ComponentOp::RevokeAuthority {
-                holder: Ref::Existing(clockwork.treasury),
-                grant: AuthorityGrantRef {
-                    kind: AuthorityKindName("command".into()),
-                    over: AuthorityTargetRef::PlaceSubtree(Ref::Existing(clockwork.yard)),
-                },
-            }]),
-        );
-        assert!(derives(&kernel));
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![ComponentOp::OpenForum {
-                grievance: GrievanceKindName("debt".into()),
-                forum: Ref::Existing(clockwork.reeve),
-                standing: AuthorityTargetRef::Subject(Ref::Existing(clockwork.treasury)),
-            }]),
-        );
-        assert!(!derives(&kernel));
-    }
-
-    /// Verification 14, second half: an answer must be derived, and the commit
-    /// must satisfy what it answered.
-    #[test]
-    fn an_answer_must_be_derived_and_must_be_satisfied() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Answers");
-        let before = kernel.state.clone();
-        let declaring = |answers: Option<PatchAnswer>, handle: &str| CommandBody::AdmitPatch {
-            answers,
-            patch: WorldPatch {
-                declarations: vec![Declaration::Entity(EntityDeclaration {
-                    handle: DraftHandle::new(handle),
-                    label: "A Later Room".into(),
-                    kind: EntityKind::Place,
-                    container: None,
-                })],
-                operations: Vec::new(),
-                evidence: Vec::new(),
-            },
-        };
-        let refuse = |kernel: &mut WorldKernel, body: CommandBody| {
-            let snapshot = kernel.snapshot().unwrap();
-            kernel
-                .submit(
-                    command(
-                        &snapshot,
-                        CommandId::new(),
-                        CallerId::Principal(owner()),
-                        body,
-                    ),
-                    &auth_principal(owner()),
-                )
-                .unwrap_err()
-        };
-
-        // Declaring in Active without answering.
-        assert!(matches!(
-            refuse(&mut kernel, declaring(None, "unanswered")),
-            KernelError::AnswerRequired
-        ));
-        // The two declared-but-never-derived variants.
-        for boundary in [
-            CausalBoundary::PolityInCausalRange {
-                subject: clockwork.reeve,
-                scope: BoundaryDigest(String::new()),
-            },
-            CausalBoundary::IndividuationRequired {
-                population: clockwork.reeve,
-                scope: BoundaryDigest(String::new()),
-            },
-        ] {
-            assert!(matches!(
-                refuse(
-                    &mut kernel,
-                    declaring(Some(PatchAnswer::Boundary(boundary)), "underived")
-                ),
-                KernelError::AnswerNotDerived
-            ));
-        }
-        // A jurisdiction with no deficit.
-        assert!(matches!(
-            refuse(
-                &mut kernel,
-                declaring(
-                    Some(PatchAnswer::Deficit(JurisdictionKey::Uncovered)),
-                    "no-deficit"
-                )
-            ),
-            KernelError::AnswerNotDerived
-        ));
-        // A derived boundary answered by a patch that leaves the predicate
-        // holding.
-        let destination = derive_boundaries(&kernel.state)
-            .unwrap()
-            .into_iter()
-            .find(|boundary| matches!(boundary, CausalBoundary::UnelaboratedDestination { .. }))
-            .expect("the dead end");
-        assert!(matches!(
-            refuse(
-                &mut kernel,
-                declaring(Some(PatchAnswer::Boundary(destination)), "elsewhere")
-            ),
-            KernelError::AnswerNotSatisfied
-        ));
-        assert_eq!(kernel.state, before);
-
-        // Draft answers nothing.
-        let directory = tempfile::tempdir().unwrap();
-        let mut draft_kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation(CommandId::new(), "Draft"),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        assert!(matches!(
-            refuse(
-                &mut draft_kernel,
-                declaring(
-                    Some(PatchAnswer::Deficit(JurisdictionKey::Uncovered)),
-                    "in-draft"
-                )
-            ),
-            KernelError::AnswerNotDerived
-        ));
-    }
-
-    fn creation_with_intent(
-        id: CommandId,
-        title: &str,
-        intent: WorldScaleIntentRef,
-    ) -> CreateWorld {
-        let mut creation = creation(id, title);
-        creation.scale_intent = intent;
-        creation
-    }
-
-    fn intent(root: &str, persons: u32, permille: u32) -> WorldScaleIntentRef {
-        WorldScaleIntentRef {
-            targets: BTreeMap::from([(SubjectKind::Person, persons)]),
-            jurisdictions: BTreeMap::from([(DraftHandle::new(root), permille)]),
-        }
-    }
-
-    /// Verification 22, first half: only a qualified subject reduces the
-    /// deficit, and `Goal` carries the whole discrimination.
-    #[test]
-    fn a_subject_counts_toward_the_deficit_only_when_qualified() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation_with_intent(
-                CommandId::new(),
-                "Scale",
-                intent(super::tests::COMMONS, 3, 1000),
-            ),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let commons = kernel
-            .state
-            .scale_intent
-            .jurisdictions
-            .keys()
-            .copied()
-            .next()
-            .expect("the declared root");
-        let active = activate(&mut kernel);
-        let counted = active
-            .subjects
-            .iter()
-            .find(|subject| subject.kind == SubjectKind::Person)
-            .expect("the fixture world has a person")
-            .id;
-
-        let deficit = |kernel: &WorldKernel, jurisdiction: JurisdictionKey| {
-            derive_scale_deficit(&kernel.state)
-                .unwrap()
-                .into_iter()
-                .find(|row| row.jurisdiction == jurisdiction && row.kind == SubjectKind::Person)
-        };
-        let row = deficit(&kernel, JurisdictionKey::PlaceSubtree(commons))
-            .expect("a target of three persons");
-        assert_eq!((row.target, row.qualified, row.deficit), (3, 0, 3));
-
-        // A controller and a grant are not enough; a `Goal` is what counts.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![ComponentOp::CreateCommitment {
-                subject: Ref::Existing(counted),
-                counterparty: None,
-                kind: CommitmentKind::Goal,
-                due: FictionalMinutes(500),
-                period: None,
-                checks: Vec::new(),
-                statement: Statement::new("What was promised, as the promisor would say it.").unwrap(),
-            }]),
-        );
-        let goal = *kernel.state.commitments[&counted]
-            .keys()
-            .next()
-            .expect("the goal");
-        let row = deficit(&kernel, JurisdictionKey::PlaceSubtree(commons)).unwrap();
-        assert_eq!((row.target, row.qualified, row.deficit), (3, 1, 2));
-
-        // Discharging it raises the deficit again.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![ComponentOp::DischargeCommitment {
-                subject: Ref::Existing(counted),
-                key: goal,
-            }]),
-        );
-        let row = deficit(&kernel, JurisdictionKey::PlaceSubtree(commons)).unwrap();
-        assert_eq!((row.target, row.qualified, row.deficit), (3, 0, 3));
-    }
-
-    /// A qualifying subject standing somewhere no declared root covers still
-    /// counts, in the `Uncovered` row, rather than vanishing from the deficit
-    /// entirely: the count is total over every qualifying subject.
-    #[test]
-    fn a_subject_placed_outside_every_root_counts_as_uncovered() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut creation = creation_with_intent(
-            CommandId::new(),
-            "Uncovered",
-            intent(super::tests::COMMONS, 3, 1000),
-        );
-        creation
-            .patch
-            .declarations
-            .push(Declaration::Entity(EntityDeclaration {
-                handle: DraftHandle::new("elsewhere"),
-                label: "The Elsewhere".into(),
-                kind: EntityKind::Place,
-                container: None,
-            }));
-        creation
-            .patch
-            .declarations
-            .push(Declaration::Route(RouteDeclaration {
-                handle: DraftHandle::new("bridge"),
-                label: "The Elsewhere Bridge".into(),
-                from: Ref::Draft(DraftHandle::new(super::tests::COMMONS)),
-                to: Ref::Draft(DraftHandle::new("elsewhere")),
-                access: AccessKind::Public,
-                cost: Cost(1),
-            }));
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation,
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let active = activate(&mut kernel);
-        let subject_count = kernel.state.subjects.len() as u32;
-        assert_eq!(subject_count, 3, "the base fixture declares three subjects");
-
-        // Every subject qualifies, so the deficit's row counts must sum to
-        // the whole subject count.
-        let goal = |subject: SubjectId| ComponentOp::CreateCommitment {
-            subject: Ref::Existing(subject),
-            counterparty: None,
-            kind: CommitmentKind::Goal,
-            due: FictionalMinutes(500),
-            period: None,
-            checks: Vec::new(),
-            statement: Statement::new("What was promised, as the promisor would say it.").unwrap(),
-        };
-        let subject_ids: Vec<SubjectId> =
-            active.subjects.iter().map(|subject| subject.id).collect();
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(subject_ids.iter().copied().map(goal).collect()),
-        );
-
-        let moved = active
-            .subjects
-            .iter()
-            .find(|subject| subject.kind == SubjectKind::Person)
-            .expect("the fixture world has a person")
-            .id;
-        let bridge = active
-            .routes
-            .iter()
-            .find(|route| route.label == "The Elsewhere Bridge")
-            .expect("the declared route")
-            .id;
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![ComponentOp::Relocate {
-                subject: Ref::Existing(moved),
-                via: Ref::Existing(bridge),
-            }]),
-        );
-
-        let rows = derive_scale_deficit(&kernel.state).unwrap();
-        let uncovered = rows
-            .iter()
-            .find(|row| {
-                row.jurisdiction == JurisdictionKey::Uncovered && row.kind == SubjectKind::Person
-            })
-            .expect("the relocated subject counts as uncovered");
-        assert_eq!(uncovered.qualified, 1);
-
-        let counted_total: u32 = rows.iter().map(|row| row.qualified).sum();
-        assert_eq!(
-            counted_total, subject_count,
-            "the deficit is total over every qualifying subject"
-        );
-    }
-
-    /// Weights distribute the target and never raise it, and a root must be a
-    /// declared place.
-    #[test]
-    fn scale_weights_distribute_and_never_raise() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let over_whole = WorldScaleIntentRef {
-            targets: BTreeMap::from([(SubjectKind::Person, 10)]),
-            jurisdictions: BTreeMap::from([
-                (DraftHandle::new(super::tests::COMMONS), 700),
-                (DraftHandle::new("human"), 400),
-            ]),
-        };
-        let Err(error) = WorldKernel::create(
-            &path,
-            creation_with_intent(CommandId::new(), "TooMuch", over_whole),
-            &auth_principal(owner()),
-        ) else {
-            panic!("a genesis intent over the whole was admitted");
-        };
-        let KernelError::PatchRejected(mismatches) = error else {
-            panic!("expected a rejected genesis patch");
-        };
-        assert!(mismatches.contains(&Mismatch::ScaleWeightsExceedWhole));
-        // `human` is a subject handle, not a place.
-        assert!(mismatches.contains(&Mismatch::UnknownJurisdictionRoot {
-            handle: DraftHandle::new("human"),
-        }));
-
-        // Half the whole distributes half the target, rounded down.
-        let mut kernel = WorldKernel::create(
-            &path,
-            creation_with_intent(
-                CommandId::new(),
-                "Half",
-                intent(super::tests::COMMONS, 5, 500),
-            ),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        activate(&mut kernel);
-        let rows = derive_scale_deficit(&kernel.state).unwrap();
-        let commons_target: u32 = rows
-            .iter()
-            .filter(|row| matches!(row.jurisdiction, JurisdictionKey::PlaceSubtree(_)))
-            .map(|row| row.target)
-            .sum();
-        assert_eq!(commons_target, 2);
-        assert!(commons_target <= 5);
-    }
-
-    /// A rejected patch mutates nothing, so the deficit it would have reduced
-    /// stays visible.
-    #[test]
-    fn a_rejected_patch_leaves_the_deficit_unchanged_and_visible() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation_with_intent(
-                CommandId::new(),
-                "Rejected",
-                intent(super::tests::COMMONS, 3, 1000),
-            ),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let active = activate(&mut kernel);
-        let before = derive_scale_deficit(&kernel.state).unwrap();
-        let subjects: Vec<SubjectId> = active
-            .subjects
-            .iter()
-            .filter(|subject| subject.kind == SubjectKind::Person)
-            .map(|subject| subject.id)
-            .collect();
-        let goal = |subject: SubjectId, due: u64| ComponentOp::CreateCommitment {
-            subject: Ref::Existing(subject),
-            counterparty: None,
-            kind: CommitmentKind::Goal,
-            due: FictionalMinutes(due),
-            period: None,
-            checks: Vec::new(),
-            statement: Statement::new("What was promised, as the promisor would say it.").unwrap(),
-        };
-
-        // One of the two goals is born past due.
-        assert_eq!(
-            reject_owner(
-                &mut kernel,
-                &active,
-                operations(vec![goal(subjects[0], 500), goal(subjects[1], 0)]),
-            ),
-            vec![Mismatch::CommitmentDueInThePast { operation: 1 }]
-        );
-        assert_eq!(derive_scale_deficit(&kernel.state).unwrap(), before);
-
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![goal(subjects[0], 500), goal(subjects[1], 600)]),
-        );
-        let after = derive_scale_deficit(&kernel.state).unwrap();
-        let total = |rows: &[ScaleDeficitRow]| -> u32 { rows.iter().map(|row| row.deficit).sum() };
-        assert_eq!(total(&after) + 2, total(&before));
-    }
-
     /// Every commitment shape check, in one complete sorted set.
     #[test]
     fn commitment_declaration_negatives() {
@@ -14580,118 +13368,6 @@ mod clock_tests {
         }
     }
 
-    /// Soul falsification of the admission ruling: in Active a patch that only
-    /// changes components answers nothing, a patch that declares or admits
-    /// evidence must answer, and the answer gate closes before the resolver
-    /// ever runs.
-    #[test]
-    fn soul_an_active_patch_answers_only_when_it_elaborates() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Elaborate");
-
-        // Component-only, no answer: admitted.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![ComponentOp::AdvancePressure {
-                source: PressureSourceRef::Subject(Ref::Existing(clockwork.reeve)),
-                target: Ref::Existing(clockwork.farmer),
-                by: PressureMagnitude(2),
-            }]),
-        );
-        assert_eq!(
-            pressure(
-                &kernel,
-                clockwork.farmer,
-                PressureSource::Subject(clockwork.reeve)
-            ),
-            2
-        );
-
-        let refuse = |kernel: &mut WorldKernel, body: CommandBody| {
-            let snapshot = kernel.snapshot().unwrap();
-            kernel
-                .submit(
-                    command(
-                        &snapshot,
-                        CommandId::new(),
-                        CallerId::Principal(owner()),
-                        body,
-                    ),
-                    &auth_principal(owner()),
-                )
-                .unwrap_err()
-        };
-
-        // Evidence alone is elaboration too, so it answers.
-        let evidence_only = CommandBody::AdmitPatch {
-            answers: None,
-            patch: WorldPatch {
-                declarations: Vec::new(),
-                operations: Vec::new(),
-                evidence: vec![EvidenceRef::new("soul://evidence-only")],
-            },
-        };
-        assert!(matches!(
-            refuse(&mut kernel, evidence_only),
-            KernelError::AnswerRequired
-        ));
-
-        // The gate is ahead of the resolver: a declaring patch that is also
-        // structurally broken is refused for the missing answer, not for the
-        // mismatch it would otherwise return.
-        let broken = CommandBody::AdmitPatch {
-            answers: None,
-            patch: WorldPatch {
-                declarations: vec![Declaration::Entity(EntityDeclaration {
-                    handle: DraftHandle::new("orphan"),
-                    label: "An Orphan Room".into(),
-                    kind: EntityKind::Place,
-                    container: Some(Ref::Draft(DraftHandle::new("nowhere"))),
-                })],
-                operations: Vec::new(),
-                evidence: Vec::new(),
-            },
-        };
-        assert!(
-            matches!(refuse(&mut kernel, broken), KernelError::AnswerRequired),
-            "the resolver ran before the answer gate"
-        );
-
-        // A derived answer that the patch satisfies commits, and the boundary
-        // is gone afterwards.
-        let answered = derive_boundaries(&kernel.state)
-            .unwrap()
-            .into_iter()
-            .find(|boundary| matches!(boundary, CausalBoundary::UnelaboratedDestination { .. }))
-            .expect("the dead end");
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered.clone())),
-                patch: WorldPatch {
-                    declarations: vec![Declaration::Entity(EntityDeclaration {
-                        handle: DraftHandle::new("cairn"),
-                        label: "A Roadside Cairn".into(),
-                        kind: EntityKind::Place,
-                        container: Some(Ref::Existing(clockwork.dead_end)),
-                    })],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        );
-        assert!(
-            !derive_boundaries(&kernel.state)
-                .unwrap()
-                .contains(&answered),
-            "the answered boundary is still derived"
-        );
-    }
-
     /// Soul falsification: pressure magnitude cannot overflow or go negative,
     /// and zero is spelled by absence at both ends.
     #[test]
@@ -14790,58 +13466,6 @@ mod clock_tests {
         assert_eq!(digests(&kernel), before, "the clock entered a scope digest");
     }
 
-    /// Soul falsification: the authored scale target is written once by genesis
-    /// and by no Active lane. `AdmitPatch` resolves with no intent at all, so
-    /// there is no shape for an Active rewrite to take.
-    #[test]
-    fn soul_the_scale_intent_is_written_once_by_genesis() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation_with_intent(
-                CommandId::new(),
-                "WriteOnce",
-                intent(super::tests::COMMONS, 3, 1000),
-            ),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let active = activate(&mut kernel);
-        let authored = kernel.state.scale_intent.clone();
-        assert!(!authored.jurisdictions.is_empty());
-
-        let subject = active
-            .subjects
-            .iter()
-            .find(|subject| subject.kind == SubjectKind::Person)
-            .expect("a person")
-            .id;
-        let body = operations(vec![ComponentOp::CreateCommitment {
-            subject: Ref::Existing(subject),
-            counterparty: None,
-            kind: CommitmentKind::Goal,
-            due: FictionalMinutes(500),
-            period: None,
-            checks: Vec::new(),
-            statement: Statement::new("What was promised, as the promisor would say it.").unwrap(),
-        }]);
-        // The Active resolver is handed no intent, so the resolved patch cannot
-        // carry one.
-        let CommandBody::AdmitPatch { patch, .. } = &body else {
-            panic!("the operations helper builds an admitted patch");
-        };
-        let resolved =
-            patch::resolve_patch(&kernel.state, CommandId::new(), patch, None).expect("resolves");
-        assert!(
-            resolved.scale_intent.is_none(),
-            "an Active patch resolved a scale intent"
-        );
-
-        submit_owner(&mut kernel, &active, body);
-        assert_eq!(kernel.state.scale_intent, authored);
-    }
-
     // ---- PA.f26: the genesis lane obeys `require_ruler` too ------------
 
     /// PA.f26: `prepare_creation` and `WorldState::genesis` both call
@@ -14927,7 +13551,6 @@ mod clock_tests {
             &WorldState::empty(world_id, input.owner.clone(), title.clone(), None),
             input.id,
             &input.patch,
-            Some(&input.scale_intent),
         )
         .expect("the resolver is actor-blind and accepts a Ruled fact");
         let effect = WorldEffect::WorldCreated {
@@ -14954,7 +13577,6 @@ mod clock_tests {
             &WorldState::empty(world_id, input.owner.clone(), title.clone(), None),
             input.id,
             &input.patch,
-            Some(&input.scale_intent),
         )
         .expect("the resolver is actor-blind and accepts a Mint");
         let effect = WorldEffect::WorldCreated {
@@ -14964,30 +13586,6 @@ mod clock_tests {
         };
         let error = WorldState::genesis(world_id, &input, &effect).unwrap_err();
         assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
-    }
-
-    /// An owner commit that adds a commitment to the first person: a real
-    /// Active patch with no answer, and nothing to do with lenses.
-    fn operations_patch(kernel: &WorldKernel) -> WorldPatch {
-        let subject = kernel
-            .state
-            .subjects
-            .iter()
-            .find(|(_, state)| state.kind == SubjectKind::Person)
-            .map(|(id, _)| *id)
-            .expect("a person");
-        let CommandBody::AdmitPatch { patch, .. } = operations(vec![ComponentOp::CreateCommitment {
-            subject: Ref::Existing(subject),
-            counterparty: None,
-            kind: CommitmentKind::Goal,
-            due: FictionalMinutes(kernel.state.now.0 + 500),
-            period: None,
-            checks: Vec::new(),
-            statement: Statement::new("A promise kept with no flavor at all.").unwrap(),
-        }]) else {
-            panic!("the operations helper builds an admitted patch");
-        };
-        patch
     }
 
     /// Soul falsification: a discharge names one subject's own live key.
@@ -15144,55 +13742,7 @@ mod clock_tests {
         assert_eq!(replayed.pressures, kernel.state.pressures);
     }
 
-    /// Soul falsification: a `BoundaryDigest` binds the structure that derives
-    /// it, and nothing else. The clock is not in the preimage, so a tick leaves
-    /// it where it is; closing the one route out of the dead end leaves the
-    /// predicate holding and must still move the digest.
-    #[test]
-    fn soul_a_boundary_digest_binds_its_structure_and_not_the_clock() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Digest");
-        let destination = |kernel: &WorldKernel| {
-            derive_boundaries(&kernel.state)
-                .unwrap()
-                .into_iter()
-                .find_map(|boundary| match boundary {
-                    CausalBoundary::UnelaboratedDestination { place, scope, .. }
-                        if place == clockwork.dead_end =>
-                    {
-                        Some(scope)
-                    }
-                    _ => None,
-                })
-                .expect("the dead end")
-        };
-        let before = destination(&kernel);
-
-        // The clock moves; the digest does not.
-        tick(&mut kernel, 10).expect("the tick commits");
-        assert_eq!(destination(&kernel), before, "the clock entered a preimage");
-
-        // The route's own record moves; the digest must follow.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            operations(vec![ComponentOp::CloseRoute {
-                route: Ref::Existing(clockwork.gate),
-            }]),
-        );
-        assert_ne!(
-            destination(&kernel),
-            before,
-            "the digest ignored the route it names"
-        );
-    }
-
-    // ---- the elaborator capability -------------------------------------
-
-    fn elaborator(jurisdiction: JurisdictionKey) -> CallerId {
-        CallerId::System(SystemCapability::Elaborator { jurisdiction })
-    }
+    // ---- system capabilities ------------------------------------------
 
     fn submit_as(
         kernel: &mut WorldKernel,
@@ -15204,14 +13754,6 @@ mod clock_tests {
             command(&snapshot, CommandId::new(), caller.clone(), body),
             &AuthenticatedCaller::fixture(caller),
         )
-    }
-
-    fn dead_end_boundary(kernel: &WorldKernel) -> CausalBoundary {
-        derive_boundaries(&kernel.state)
-            .unwrap()
-            .into_iter()
-            .find(|boundary| matches!(boundary, CausalBoundary::UnelaboratedDestination { .. }))
-            .expect("the fixture derives one dead end")
     }
 
     fn shed_under(container: EntityId, handle: &str) -> WorldPatch {
@@ -15227,61 +13769,16 @@ mod clock_tests {
         }
     }
 
-    /// Verification 14: the mailbox port cannot express an unanswered
-    /// elaborator patch, so this is reachable only through the journal lane —
-    /// and it is refused there.
-    #[test]
-    fn elaborator_patch_without_answer_is_answer_required() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Unanswered");
-        let revision = kernel.state.revision;
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::AdmitPatch {
-                answers: None,
-                patch: shed_under(clockwork.dead_end, "shed"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::AnswerRequired), "{error:?}");
-        assert_eq!(kernel.state.revision, revision);
-    }
-
-    /// Verification 14: a jurisdiction whose every row is zero has nothing to
-    /// answer, so the answer is not derived.
-    #[test]
-    fn patch_answering_a_zero_deficit_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "ZeroDeficit");
-        let jurisdiction = JurisdictionKey::PlaceSubtree(clockwork.dead_end);
-        assert!(
-            derive_scale_deficit(&kernel.state)
-                .unwrap()
-                .iter()
-                .all(|row| row.deficit == 0)
-        );
-        let error = submit_as(
-            &mut kernel,
-            elaborator(jurisdiction),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Deficit(jurisdiction)),
-                patch: shed_under(clockwork.dead_end, "shed"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::AnswerNotDerived), "{error:?}");
-    }
-
     /// The one admission rule at the top of `reduce` refuses four bodies before
     /// any of them is read, and the clock's capability is refused the fifth.
     #[test]
     fn a_system_capability_is_admitted_for_exactly_one_body() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "Capability");
-        let held = elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end));
+        let held = CallerId::System(SystemCapability::Consumer {
+            consumer: ConsumerId::of_name("capability-consumer"),
+        });
         let opportunity = opportunity_for(&active, clockwork.reeve);
-        let answered = dead_end_boundary(&kernel);
         let forbidden = [
             CommandBody::ApproveDraft,
             CommandBody::ActivateWorld,
@@ -15301,370 +13798,12 @@ mod clock_tests {
             &mut kernel,
             clock_caller(),
             CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
                 patch: shed_under(clockwork.dead_end, "shed"),
             },
         )
         .unwrap_err();
         assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
         assert_eq!(kernel.state.revision, active.revision);
-    }
-
-    /// Seed admission is the owner's lane: an elaborator in Draft has no
-    /// derived boundary to answer and nothing to be authorized for.
-    #[test]
-    fn elaborator_in_draft_is_unauthorized() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation(CommandId::new(), "DraftLane"),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let commons = kernel.snapshot().unwrap().places[0].id;
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(commons)),
-            CommandBody::AdmitPatch {
-                answers: None,
-                patch: shed_under(commons, "shed"),
-            },
-        )
-        .unwrap_err();
-        // Draft answers nothing, so the answer gate passes and authority
-        // refuses: an elaborator with no answer holds nothing.
-        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-    }
-
-    /// Boundaries are covered transitively, so a parent jurisdiction's
-    /// elaborator may answer a boundary in a nested child — and a sibling root
-    /// may not answer it at all.
-    #[test]
-    fn boundary_jurisdiction_is_transitive_and_exclusive() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Transitive");
-        let answered = dead_end_boundary(&kernel);
-        let hall = kernel.state.entities[&clockwork.yard]
-            .container
-            .expect("the yard sits in the hall");
-
-        // The hall's elaborator does not cover the unwalked road.
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(hall)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered.clone())),
-                patch: shed_under(clockwork.dead_end, "shed"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-
-        // One unconfined owner patch answers that boundary and opens a second
-        // one strictly inside the hall, so the two coverings can be told apart
-        // on one world.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered.clone())),
-                patch: WorldPatch {
-                    declarations: vec![
-                        Declaration::Entity(EntityDeclaration {
-                            handle: DraftHandle::new("shed"),
-                            label: "The Roadside Shed".into(),
-                            kind: EntityKind::Place,
-                            container: Some(Ref::Existing(clockwork.dead_end)),
-                        }),
-                        Declaration::Entity(EntityDeclaration {
-                            handle: DraftHandle::new("cellar"),
-                            label: "The Yard Cellar".into(),
-                            kind: EntityKind::Place,
-                            container: Some(Ref::Existing(clockwork.yard)),
-                        }),
-                        Declaration::Route(RouteDeclaration {
-                            handle: DraftHandle::new("hatch"),
-                            label: "The Cellar Hatch".into(),
-                            from: Ref::Existing(clockwork.yard),
-                            to: Ref::Draft(DraftHandle::new("cellar")),
-                            access: AccessKind::Public,
-                            cost: Cost(1),
-                        }),
-                    ],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        );
-        assert!(
-            !derive_boundaries(&kernel.state)
-                .unwrap()
-                .contains(&answered)
-        );
-
-        let cellar = kernel
-            .state
-            .entities
-            .iter()
-            .find(|(_, entity)| entity.label == "The Yard Cellar")
-            .map(|(id, _)| *id)
-            .expect("the declared cellar");
-        let nested = dead_end_boundary(&kernel);
-        assert!(matches!(
-            nested,
-            CausalBoundary::UnelaboratedDestination { place, .. } if place == cellar
-        ));
-
-        // The road's root does not reach into the hall.
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(nested.clone())),
-                patch: shed_under(cellar, "crock"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-
-        // The hall's does, transitively, through the same containment walk the
-        // civic lane uses.
-        submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(hall)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(nested.clone())),
-                patch: shed_under(cellar, "crock"),
-            },
-        )
-        .expect("the parent root covers a nested boundary");
-        assert!(!derive_boundaries(&kernel.state).unwrap().contains(&nested));
-    }
-
-    /// A deficit is covered by exact key equality. A parent answering a child's
-    /// row would reduce two targets with one subject, because a subject under
-    /// nested roots counts toward both.
-    #[test]
-    fn parent_jurisdiction_cannot_answer_a_child_deficit_row() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation_with_intent(
-                CommandId::new(),
-                "Rows",
-                intent(super::tests::COMMONS, 3, 1000),
-            ),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let commons = *kernel
-            .state
-            .scale_intent
-            .jurisdictions
-            .keys()
-            .next()
-            .expect("the declared root");
-        let active = activate(&mut kernel);
-        let inner = active.places[0].id;
-        let row = JurisdictionKey::PlaceSubtree(commons);
-        assert!(
-            derive_scale_deficit(&kernel.state)
-                .unwrap()
-                .iter()
-                .any(|candidate| candidate.jurisdiction == row && candidate.deficit > 0)
-        );
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::Uncovered),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Deficit(row)),
-                patch: shed_under(inner, "shed"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-    }
-
-    /// Confinement: a valid answer does not license a write outside the
-    /// jurisdiction, and a place with no container is a new root, which is the
-    /// owner's act.
-    #[test]
-    fn an_elaborator_cannot_write_outside_its_jurisdiction() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Confined");
-        let answered = dead_end_boundary(&kernel);
-        let held = elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end));
-
-        let foreign = submit_as(
-            &mut kernel,
-            held.clone(),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered.clone())),
-                patch: shed_under(clockwork.yard, "yardshed"),
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&foreign, KernelError::PatchRejected(set)
-            if set == &vec![Mismatch::OutsideJurisdiction {
-                site: Site::Declaration(DraftHandle::new("yardshed")),
-            }]),
-            "{foreign:?}"
-        );
-
-        let rootless = submit_as(
-            &mut kernel,
-            held,
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered.clone())),
-                patch: WorldPatch {
-                    declarations: vec![Declaration::Entity(EntityDeclaration {
-                        handle: DraftHandle::new("newroot"),
-                        label: "A New Country".into(),
-                        kind: EntityKind::Place,
-                        container: None,
-                    })],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&rootless, KernelError::PatchRejected(set)
-            if set == &vec![Mismatch::OutsideJurisdiction {
-                site: Site::Declaration(DraftHandle::new("newroot")),
-            }]),
-            "{rootless:?}"
-        );
-
-        // The owner is unconfined, and the identical rootless patch commits —
-        // once it answers something the kernel derives.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
-                patch: WorldPatch {
-                    declarations: vec![Declaration::Entity(EntityDeclaration {
-                        handle: DraftHandle::new("newroot"),
-                        label: "A New Country".into(),
-                        kind: EntityKind::Place,
-                        container: Some(Ref::Existing(clockwork.dead_end)),
-                    })],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        );
-    }
-
-    /// Verification 17: seed admission and boundary elaboration reach one
-    /// reducer. The same structural defect returns the same complete set on
-    /// both lanes.
-    #[test]
-    fn seed_admission_and_boundary_elaboration_reach_one_reducer() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OneReducer");
-        let answered = dead_end_boundary(&kernel);
-        let dangling = |handle: &str| WorldPatch {
-            declarations: vec![Declaration::Entity(EntityDeclaration {
-                handle: DraftHandle::new(handle),
-                label: "The Nowhere Shed".into(),
-                kind: EntityKind::Place,
-                container: Some(Ref::Draft(DraftHandle::new("nothing"))),
-            })],
-            operations: Vec::new(),
-            evidence: Vec::new(),
-        };
-        let snapshot = kernel.snapshot().unwrap();
-        let owner_error = kernel
-            .submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    CallerId::Principal(owner()),
-                    CommandBody::AdmitPatch {
-                        answers: Some(PatchAnswer::Boundary(answered.clone())),
-                        patch: dangling("shed"),
-                    },
-                ),
-                &auth_principal(owner()),
-            )
-            .unwrap_err();
-        let elaborator_error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered.clone())),
-                patch: dangling("shed"),
-            },
-        )
-        .unwrap_err();
-        let set_of = |error: &KernelError| match error {
-            KernelError::PatchRejected(set) => set.clone(),
-            other => panic!("{other:?}"),
-        };
-        assert_eq!(set_of(&owner_error), set_of(&elaborator_error));
-
-        // And both lanes commit the sound patch through the one writer.
-        submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
-                patch: shed_under(clockwork.dead_end, "shed"),
-            },
-        )
-        .expect("the elaborated patch commits");
-    }
-
-    /// `reduce` decides and `apply_effect` re-decides: a hand-built effect with
-    /// a jurisdiction that does not cover its answer never applies.
-    #[test]
-    fn apply_effect_re_decides_elaborator_authority() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, _) = clock_kernel(directory.path(), "Redecide");
-        let answered = dead_end_boundary(&kernel);
-        let hall = kernel.state.entities[&clockwork.yard].container.unwrap();
-        let command_id = CommandId::issue();
-        let resolved = patch::resolve_patch(
-            &kernel.state,
-            command_id,
-            &shed_under(clockwork.dead_end, "shed"),
-            None,
-        )
-        .expect("the patch resolves");
-        let effect = WorldEffect::PatchAdmitted {
-            answers: Some(PatchAnswer::Boundary(answered)),
-            resolved,
-        };
-
-        let mut candidate = kernel.state.clone();
-        let error = apply_effect(
-            &mut candidate,
-            command_id,
-            &elaborator(JurisdictionKey::PlaceSubtree(hall)),
-            &effect,
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
-        assert_eq!(candidate, kernel.state);
-
-        // The honest jurisdiction applies through the same arm.
-        let mut candidate = kernel.state.clone();
-        apply_effect(
-            &mut candidate,
-            command_id,
-            &elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            &effect,
-        )
-        .expect("the covering jurisdiction applies");
-        assert_ne!(candidate, kernel.state);
     }
 
     /// The mismatch vocabulary is kernel-internal plus controller telemetry. It
@@ -15674,16 +13813,14 @@ mod clock_tests {
     fn mismatch_never_appears_in_a_world_commit() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Separation");
-        let answered = dead_end_boundary(&kernel);
         submit_as(
             &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
+            CallerId::Principal(owner()),
             CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
                 patch: shed_under(clockwork.dead_end, "shed"),
             },
         )
-        .expect("the elaboration commits");
+        .expect("the owner's patch commits");
 
         let bytes = rmp_serde::to_vec_named(&kernel.state).expect("state encodes");
         let text = String::from_utf8_lossy(&bytes);
@@ -15698,349 +13835,6 @@ mod clock_tests {
     }
 
     // ---- Soul: the confinement predicate past its declaration lane ------
-
-    /// Confinement is claimed for every referent a jurisdictional author
-    /// writes, not only for declarations. An operation naming a route with one
-    /// endpoint outside the jurisdiction is outside, and the site it reports is
-    /// the operation's.
-    #[test]
-    fn soul_an_operation_naming_a_half_outside_route_is_outside_the_jurisdiction() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OperationLane");
-        let answered = dead_end_boundary(&kernel);
-        let revision = kernel.state.revision;
-        // The Field Gate runs hall -> dead end. The dead end's elaborator holds
-        // one of its two ends and therefore holds neither.
-        let mut patch = shed_under(clockwork.dead_end, "shed");
-        patch.operations = vec![ComponentOp::AlterCost {
-            route: Ref::Existing(clockwork.gate),
-            cost: Cost(2),
-        }];
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered.clone())),
-                patch,
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set == &vec![Mismatch::OutsideJurisdiction { site: Site::Operation(0) }]),
-            "{error:?}"
-        );
-        assert_eq!(kernel.state.revision, revision);
-
-        // The owner is unconfined and the identical patch commits.
-        let snapshot = kernel.snapshot().unwrap();
-        let mut owner_patch = shed_under(clockwork.dead_end, "shed");
-        owner_patch.operations = vec![ComponentOp::AlterCost {
-            route: Ref::Existing(clockwork.gate),
-            cost: Cost(2),
-        }];
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
-                patch: owner_patch,
-            },
-        );
-    }
-
-    /// The fifth body the capability rule refuses. `ExerciseDecision` is the
-    /// one the existing negative omits, and it is the one a subject's lane uses.
-    #[test]
-    fn soul_an_elaborator_cannot_exercise_a_decision() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "NoExercise");
-        let revision = kernel.state.revision;
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::ExerciseDecision {
-                opportunity: opportunity_for(&active, clockwork.reeve),
-                invocation: DecisionInvocation {
-                    affordance: clockwork.deliver,
-                    bindings: Vec::new(),
-                    proposed: Vec::new(),
-                    speech: None,
-                    display: None,
-                },
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-        assert_eq!(kernel.state.revision, revision);
-    }
-
-    /// Two boundaries under two disjoint roots, opened by one owner patch.
-    /// Answering one leaves the other derived with its digest unmoved, so the
-    /// second elaborator commits afterwards at a later revision. Answering the
-    /// first a second time is not derived.
-    #[test]
-    fn soul_disjoint_boundaries_commit_independently_and_a_spent_answer_is_not_derived() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Disjoint");
-        let road = dead_end_boundary(&kernel);
-        let hall = kernel.state.entities[&clockwork.yard]
-            .container
-            .expect("the yard sits in the hall");
-
-        // One unconfined patch answers the road and opens one dead end under
-        // each root: a cellar under the yard, an annex off the road.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(road)),
-                patch: WorldPatch {
-                    declarations: vec![
-                        Declaration::Entity(EntityDeclaration {
-                            handle: DraftHandle::new("cellar"),
-                            label: "The Yard Cellar".into(),
-                            kind: EntityKind::Place,
-                            container: Some(Ref::Existing(clockwork.yard)),
-                        }),
-                        Declaration::Route(RouteDeclaration {
-                            handle: DraftHandle::new("hatch"),
-                            label: "The Cellar Hatch".into(),
-                            from: Ref::Existing(clockwork.yard),
-                            to: Ref::Draft(DraftHandle::new("cellar")),
-                            access: AccessKind::Public,
-                            cost: Cost(1),
-                        }),
-                        Declaration::Entity(EntityDeclaration {
-                            handle: DraftHandle::new("annex"),
-                            label: "The Road Annex".into(),
-                            kind: EntityKind::Place,
-                            container: Some(Ref::Existing(clockwork.dead_end)),
-                        }),
-                        Declaration::Route(RouteDeclaration {
-                            handle: DraftHandle::new("spur"),
-                            label: "The Road Spur".into(),
-                            from: Ref::Existing(clockwork.dead_end),
-                            to: Ref::Draft(DraftHandle::new("annex")),
-                            access: AccessKind::Public,
-                            cost: Cost(1),
-                        }),
-                    ],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        );
-
-        let place_named = |kernel: &WorldKernel, label: &str| {
-            kernel
-                .state
-                .entities
-                .iter()
-                .find(|(_, entity)| entity.label == label)
-                .map(|(id, _)| *id)
-                .expect("the declared place")
-        };
-        let cellar = place_named(&kernel, "The Yard Cellar");
-        let annex = place_named(&kernel, "The Road Annex");
-        let boundary_at = |kernel: &WorldKernel, place: EntityId| {
-            derive_boundaries(&kernel.state)
-                .unwrap()
-                .into_iter()
-                .find(|boundary| {
-                    matches!(boundary, CausalBoundary::UnelaboratedDestination { place: at, .. } if *at == place)
-                })
-                .unwrap_or_else(|| panic!("no boundary at {place:?}"))
-        };
-        // Both are derived at the same revision, and both are read before
-        // either is answered.
-        let cellar_answer = boundary_at(&kernel, cellar);
-        let annex_answer = boundary_at(&kernel, annex);
-
-        submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(hall)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(cellar_answer.clone())),
-                patch: shed_under(cellar, "crock"),
-            },
-        )
-        .expect("the hall's elaborator answers the cellar");
-        let after_first = kernel.state.revision;
-
-        // The other root's answer is untouched by that commit: same value,
-        // same digest, still derived.
-        assert!(
-            derive_boundaries(&kernel.state)
-                .unwrap()
-                .contains(&annex_answer)
-        );
-        submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(annex_answer)),
-                patch: shed_under(annex, "barrow"),
-            },
-        )
-        .expect("the road's elaborator answers the annex");
-        assert!(kernel.state.revision > after_first);
-
-        // The spent answer is a value nothing derives any more.
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(hall)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(cellar_answer)),
-                patch: shed_under(cellar, "second_crock"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::AnswerNotDerived), "{error:?}");
-    }
-
-    /// The third structural bound, reached through the elaborator lane: the
-    /// answer must be derived, every write must be inside the jurisdiction, and
-    /// the answer must stop being derived after the write.
-    #[test]
-    fn soul_an_elaborator_patch_that_does_not_satisfy_its_answer_is_refused() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Unsatisfied");
-        let road = dead_end_boundary(&kernel);
-        let hall = kernel.state.entities[&clockwork.yard]
-            .container
-            .expect("the yard sits in the hall");
-
-        // One owner patch answers the road and opens a cellar dead end inside
-        // the hall, so the hall's elaborator has an answer it covers and a
-        // legal write that does not satisfy it.
-        let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
-            &mut kernel,
-            &snapshot,
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(road)),
-                patch: WorldPatch {
-                    declarations: vec![
-                        Declaration::Entity(EntityDeclaration {
-                            handle: DraftHandle::new("shed"),
-                            label: "The Roadside Shed".into(),
-                            kind: EntityKind::Place,
-                            container: Some(Ref::Existing(clockwork.dead_end)),
-                        }),
-                        Declaration::Entity(EntityDeclaration {
-                            handle: DraftHandle::new("cellar"),
-                            label: "The Yard Cellar".into(),
-                            kind: EntityKind::Place,
-                            container: Some(Ref::Existing(clockwork.yard)),
-                        }),
-                        Declaration::Route(RouteDeclaration {
-                            handle: DraftHandle::new("hatch"),
-                            label: "The Cellar Hatch".into(),
-                            from: Ref::Existing(clockwork.yard),
-                            to: Ref::Draft(DraftHandle::new("cellar")),
-                            access: AccessKind::Public,
-                            cost: Cost(1),
-                        }),
-                    ],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        );
-        let cellar = kernel
-            .state
-            .entities
-            .iter()
-            .find(|(_, entity)| entity.label == "The Yard Cellar")
-            .map(|(id, _)| *id)
-            .expect("the declared cellar");
-        let cellar_answer = derive_boundaries(&kernel.state)
-            .unwrap()
-            .into_iter()
-            .find(|boundary| {
-                matches!(boundary, CausalBoundary::UnelaboratedDestination { place, .. } if *place == cellar)
-            })
-            .expect("the cellar is a dead end");
-        let revision = kernel.state.revision;
-
-        // Inside the hall, so confinement passes; nowhere near the cellar, so
-        // the answered boundary is still derived after the write.
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(hall)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(cellar_answer.clone())),
-                patch: shed_under(clockwork.yard, "yardshed"),
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(error, KernelError::AnswerNotSatisfied),
-            "{error:?}"
-        );
-        assert_eq!(kernel.state.revision, revision);
-        assert!(
-            derive_boundaries(&kernel.state)
-                .unwrap()
-                .contains(&cellar_answer),
-            "a refused patch left the boundary derived"
-        );
-
-        // The same author satisfying the same answer commits.
-        submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(hall)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(cellar_answer.clone())),
-                patch: shed_under(cellar, "crock"),
-            },
-        )
-        .expect("the satisfying patch commits");
-        assert!(
-            !derive_boundaries(&kernel.state)
-                .unwrap()
-                .contains(&cellar_answer)
-        );
-    }
-
-    /// Pass 6's rule survives the ungating of `EvidenceRef::new`: a canonical
-    /// fact still needs its receipt listed on the patch that declares it, and an
-    /// elaborator gets the same refusal the owner does.
-    #[test]
-    fn soul_an_elaborator_cannot_mint_a_canonical_fact_without_a_listed_receipt() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Provenance");
-        let answered = dead_end_boundary(&kernel);
-        let revision = kernel.state.revision;
-        let mut patch = shed_under(clockwork.dead_end, "shed");
-        patch.declarations.push(Declaration::Fact(FactDeclaration {
-            handle: DraftHandle::new("flood"),
-            label: "The Flooded Hinge".into(),
-            statement: Statement::new("The lower hinge flooded.").expect("a canonical statement"),
-            standing: FactStandingRef::Canonical {
-                evidence: EvidenceRef::new("vault:forged"),
-            },
-        }));
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
-                patch,
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-            if set.contains(&Mismatch::FactWithoutEvidence {
-                handle: DraftHandle::new("flood"),
-            })),
-            "{error:?}"
-        );
-        assert_eq!(kernel.state.revision, revision);
-    }
 
     // ---- Cut 3: the play authority, `Ruled` facts and `Mint` -----------
 
@@ -16081,7 +13875,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: shed_under(clockwork.dead_end, "play-shed"),
             },
         )
@@ -16089,50 +13882,32 @@ mod clock_tests {
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
     }
 
-    /// Invariant 5, second half: the elaborator gate is unchanged.
+    /// With no answer gate, the owner declares in Active as it does in Draft.
     #[test]
-    fn an_elaborator_declaration_in_active_without_an_answer_is_still_refused() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "ElaboratorUnanswered");
-        let error = submit_as(
-            &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
-            CommandBody::AdmitPatch {
-                answers: None,
-                patch: shed_under(clockwork.dead_end, "shed"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::AnswerRequired), "{error:?}");
-    }
-
-    /// Invariant 5, second half: the owner's own gate is unchanged too. Only
-    /// `Play` is exempted from `AnswerRequired`.
-    #[test]
-    fn the_owner_still_cannot_declare_unanswered_in_active() {
+    fn the_owner_declares_in_active_without_an_answer() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OwnerUnanswered");
         let snapshot = kernel.snapshot().unwrap();
-        let error = kernel
+        let receipt = kernel
             .submit(
                 command(
                     &snapshot,
                     CommandId::new(),
                     CallerId::Principal(owner()),
                     CommandBody::AdmitPatch {
-                        answers: None,
                         patch: shed_under(clockwork.dead_end, "shed"),
                     },
                 ),
                 &auth_principal(owner()),
             )
-            .unwrap_err();
-        assert!(matches!(error, KernelError::AnswerRequired), "{error:?}");
+            .expect("the owner declares in Active");
+        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(kernel.state.entities.values().any(|entity| entity.label == "The shed"));
     }
 
     /// Invariant 5: the play authority reaches the whole world, unconfined to
-    /// a ground. Writing under a place no jurisdiction covers, with no
-    /// answer, is exactly what an elaborator or the owner cannot do.
+    /// a ground. Writing under a place no jurisdiction covers is exactly what
+    /// a confined author cannot do.
     #[test]
     fn the_play_authority_is_unconfined() {
         let directory = tempfile::tempdir().unwrap();
@@ -16141,7 +13916,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: shed_under(clockwork.dead_end, "unconfined-shed"),
             },
         )
@@ -16164,7 +13938,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: shed_under(commons, "shed"),
             },
         )
@@ -16261,7 +14034,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch,
             },
         )
@@ -16304,7 +14076,6 @@ mod clock_tests {
                 &mut kernel,
                 play_caller(),
                 CommandBody::AdmitPatch {
-                    answers: None,
                     patch: WorldPatch {
                         declarations: Vec::new(),
                         operations: vec![ComponentOp::Mint {
@@ -16343,7 +14114,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch,
             },
         )
@@ -16370,7 +14140,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::Admit {
@@ -16396,7 +14165,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::Admit {
@@ -16438,7 +14206,6 @@ mod clock_tests {
                         CommandId::new(),
                         CallerId::Principal(owner()),
                         CommandBody::AdmitPatch {
-                            answers: None,
                             patch: WorldPatch {
                                 declarations: vec![fact("vault:draft-uncited")],
                                 operations: Vec::new(),
@@ -16464,7 +14231,6 @@ mod clock_tests {
                         CommandId::new(),
                         CallerId::Principal(owner()),
                         CommandBody::AdmitPatch {
-                            answers: None,
                             patch: WorldPatch {
                                 declarations: vec![fact("vault:draft-cited")],
                                 operations: Vec::new(),
@@ -16477,17 +14243,11 @@ mod clock_tests {
                 .expect("a cited canonical fact is admitted for the owner in Draft");
         }
 
-        // PA.f29a: the owner in Active, with a real answer. Its own
-        // `clock_kernel`, so the boundary this answers is not the one the
-        // Play blocks above already left cleared. The cited patch also
-        // seats a fresh occupant at the dead end: what actually clears an
-        // `UnelaboratedDestination` boundary ("a commit clears exactly the
-        // boundary it answers"), so the citation succeeding is not
-        // masked by an `AnswerNotSatisfied` refusal.
+        // PA.f29a: the owner in Active. Its own `clock_kernel`. The cited
+        // patch also seats a fresh occupant at the dead end.
         {
             let directory = tempfile::tempdir().unwrap();
             let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OwnerActiveEvidence");
-            let answered = dead_end_boundary(&kernel);
             let speak = super::tests::speak_entry(&kernel);
             let fact = |evidence: &str| {
                 Declaration::Fact(FactDeclaration {
@@ -16503,7 +14263,6 @@ mod clock_tests {
                 &mut kernel,
                 CallerId::Principal(owner()),
                 CommandBody::AdmitPatch {
-                    answers: Some(PatchAnswer::Boundary(answered.clone())),
                     patch: WorldPatch {
                         declarations: vec![fact("vault:active-uncited")],
                         operations: Vec::new(),
@@ -16523,7 +14282,6 @@ mod clock_tests {
                 &mut kernel,
                 CallerId::Principal(owner()),
                 CommandBody::AdmitPatch {
-                    answers: Some(PatchAnswer::Boundary(answered)),
                     patch: WorldPatch {
                         declarations: vec![
                             fact("vault:active-cited"),
@@ -16544,218 +14302,17 @@ mod clock_tests {
             )
             .expect("a cited canonical fact is admitted for the owner in Active");
         }
-
-        // PA.f29a: an answered elaborator. Its own `clock_kernel` for the
-        // same reason. The occupant the cited patch seats at the dead end
-        // is inside the elaborator's own `PlaceSubtree` jurisdiction, so
-        // `confine_to_ground` admits it the same as the fact.
-        {
-            let directory = tempfile::tempdir().unwrap();
-            let (mut kernel, clockwork, _) =
-                clock_kernel(directory.path(), "ElaboratorEvidence");
-            let answered = dead_end_boundary(&kernel);
-            let speak = super::tests::speak_entry(&kernel);
-            let caller = elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end));
-            let fact = |evidence: &str| {
-                Declaration::Fact(FactDeclaration {
-                    handle: DraftHandle::new("elaborator-fact"),
-                    label: "The Elaborator Count".into(),
-                    statement: Statement::new("The elaborator count stands.").unwrap(),
-                    standing: FactStandingRef::Canonical {
-                        evidence: EvidenceRef::new(evidence),
-                    },
-                })
-            };
-            let error = submit_as(
-                &mut kernel,
-                caller.clone(),
-                CommandBody::AdmitPatch {
-                    answers: Some(PatchAnswer::Boundary(answered.clone())),
-                    patch: WorldPatch {
-                        declarations: vec![fact("vault:elaborator-uncited")],
-                        operations: Vec::new(),
-                        evidence: Vec::new(),
-                    },
-                },
-            )
-            .unwrap_err();
-            assert!(
-                matches!(&error, KernelError::PatchRejected(set)
-                    if set.contains(&Mismatch::FactWithoutEvidence {
-                        handle: DraftHandle::new("elaborator-fact"),
-                    })),
-                "{error:?}"
-            );
-            submit_as(
-                &mut kernel,
-                caller,
-                CommandBody::AdmitPatch {
-                    answers: Some(PatchAnswer::Boundary(answered)),
-                    patch: WorldPatch {
-                        declarations: vec![
-                            fact("vault:elaborator-cited"),
-                            Declaration::Subject(SubjectDeclaration {
-                                handle: DraftHandle::new("wanderer"),
-                                label: "The Elaborator's Wanderer".into(),
-                                kind: SubjectKind::Person,
-                                controller: NewController::NarrativePersona,
-                                affordances: BTreeSet::from([speak]),
-                                position: Some(Ref::Existing(clockwork.dead_end)),
-                                import_key: None,
-                            }),
-                        ],
-                        operations: Vec::new(),
-                        evidence: vec![EvidenceRef::new("vault:elaborator-cited")],
-                    },
-                },
-            )
-            .expect("a cited canonical fact is admitted for an answered elaborator");
-        }
-
-        // PA.f29a: a consumer, on its own mirror. A consumer cannot canonize
-        // (confine_to_ground refuses `Canonical` for consumer ground
-        // outright), so this exercises the same gate through `Admit`
-        // instead. In Draft, where `require_answer` asks nothing of anyone,
-        // so this is the evidence gate alone and not entangled with a
-        // consumer's inability to ever clear a place-shaped boundary (a
-        // consumer touches no place at all).
-        {
-            let directory = tempfile::tempdir().unwrap();
-            let mut kernel = WorldKernel::create(
-                directory.path().join("world.cc"),
-                creation(CommandId::new(), "ConsumerMirrorEvidence"),
-                &auth_principal(owner()),
-            )
-            .expect("a created world")
-            .0;
-            let commons = *kernel
-                .state
-                .entities
-                .iter()
-                .find(|(_, record)| record.label == "The Commons")
-                .expect("the declared commons")
-                .0;
-            let grain = {
-                let snapshot = kernel.snapshot().unwrap();
-                submit_owner(
-                    &mut kernel,
-                    &snapshot,
-                    CommandBody::AdmitPatch {
-                        answers: None,
-                        patch: WorldPatch {
-                            declarations: vec![Declaration::Entity(EntityDeclaration {
-                                handle: DraftHandle::new("grain"),
-                                label: "Consumer Grain".into(),
-                                kind: EntityKind::Resource,
-                                container: None,
-                            })],
-                            operations: Vec::new(),
-                            evidence: Vec::new(),
-                        },
-                    },
-                );
-                *kernel
-                    .state
-                    .entities
-                    .iter()
-                    .find(|(_, record)| record.label == "Consumer Grain")
-                    .expect("the declared resource")
-                    .0
-            };
-            let consumer_id = ConsumerId::of_name("clock-mirror-consumer");
-            let snapshot = kernel.snapshot().unwrap();
-            submit_owner(
-                &mut kernel,
-                &snapshot,
-                CommandBody::AdmitPatch {
-                    answers: None,
-                    patch: WorldPatch {
-                        declarations: vec![Declaration::Subject(SubjectDeclaration {
-                            handle: DraftHandle::new("mirror"),
-                            label: "The Clockwork Mirror".into(),
-                            kind: SubjectKind::Institution,
-                            controller: NewController::External {
-                                consumer: consumer_id,
-                            },
-                            affordances: BTreeSet::new(),
-                            position: Some(Ref::Existing(commons)),
-                            import_key: None,
-                        })],
-                        operations: Vec::new(),
-                        evidence: Vec::new(),
-                    },
-                },
-            );
-            let mirror = *kernel
-                .state
-                .subjects
-                .iter()
-                .find(|(_, subject)| subject.label == "The Clockwork Mirror")
-                .expect("the declared mirror")
-                .0;
-            let consumer_caller = CallerId::System(SystemCapability::Consumer {
-                consumer: consumer_id,
-            });
-
-            let error = submit_as(
-                &mut kernel,
-                consumer_caller.clone(),
-                CommandBody::AdmitPatch {
-                    answers: None,
-                    patch: WorldPatch {
-                        declarations: Vec::new(),
-                        operations: vec![ComponentOp::Admit {
-                            holder: Ref::Existing(mirror),
-                            resource: Ref::Existing(grain),
-                            qty: Quantity(1),
-                            evidence: EvidenceRef::new("vault:mirror-uncited"),
-                        }],
-                        evidence: Vec::new(),
-                    },
-                },
-            )
-            .unwrap_err();
-            assert!(
-                matches!(&error, KernelError::PatchRejected(set)
-                    if set.contains(&Mismatch::AdmitWithoutEvidence { operation: 0 })),
-                "{error:?}"
-            );
-
-            submit_as(
-                &mut kernel,
-                consumer_caller,
-                CommandBody::AdmitPatch {
-                    answers: None,
-                    patch: WorldPatch {
-                        declarations: Vec::new(),
-                        operations: vec![ComponentOp::Admit {
-                            holder: Ref::Existing(mirror),
-                            resource: Ref::Existing(grain),
-                            qty: Quantity(1),
-                            evidence: EvidenceRef::new("vault:mirror-cited"),
-                        }],
-                        evidence: vec![EvidenceRef::new("vault:mirror-cited")],
-                    },
-                },
-            )
-            .expect("a cited admit is admitted for a consumer on its own mirror");
-        }
     }
 
     /// `reduce` decides and `apply_effect` re-decides: a forged
-    /// `PatchAdmitted` under an elaborator caller, carrying a `Mint` the
-    /// resolver would accept (the resolver is actor-blind) and that fully
-    /// satisfies confinement (the minted subject is declared inside the
-    /// elaborator's own jurisdiction), is still refused at apply. `Mint`
-    /// carries no confinement veto of its own — unlike a `Ruled` fact,
-    /// `confine_to_ground` has no redundant clause for it — so only
-    /// `require_ruler`'s re-decision can be refusing this. Follows
-    /// `apply_effect_re_decides_elaborator_authority`.
+    /// `PatchAdmitted` under the owner, carrying a `Mint` the resolver would
+    /// accept (the resolver is actor-blind) and that fully satisfies
+    /// confinement (the owner is unconfined), is still refused at apply. Only
+    /// `require_ruler`'s re-decision can be refusing this.
     #[test]
     fn apply_effect_re_decides_the_ruler() {
         let directory = tempfile::tempdir().unwrap();
         let (kernel, clockwork, _) = clock_kernel(directory.path(), "RedecideRulerMint");
-        let answered = dead_end_boundary(&kernel);
         let speak = super::tests::speak_entry(&kernel);
         let command_id = CommandId::issue();
         let patch = WorldPatch {
@@ -16783,18 +14340,15 @@ mod clock_tests {
             }],
             evidence: Vec::new(),
         };
-        let resolved = patch::resolve_patch(&kernel.state, command_id, &patch, None)
+        let resolved = patch::resolve_patch(&kernel.state, command_id, &patch)
             .expect("the patch resolves; the resolver is actor-blind");
-        let effect = WorldEffect::PatchAdmitted {
-            answers: Some(PatchAnswer::Boundary(answered)),
-            resolved,
-        };
+        let effect = WorldEffect::PatchAdmitted { resolved };
 
         let mut candidate = kernel.state.clone();
         let error = apply_effect(
             &mut candidate,
             command_id,
-            &elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
+            &CallerId::Principal(owner()),
             &effect,
         )
         .unwrap_err();
@@ -16817,15 +14371,11 @@ mod clock_tests {
     fn apply_effect_re_decides_the_ruler_for_the_owner_too() {
         let directory = tempfile::tempdir().unwrap();
         let (kernel, _, _) = clock_kernel(directory.path(), "RedecideRulerOwner");
-        let answered = dead_end_boundary(&kernel);
         let command_id = CommandId::issue();
         let patch = ruled_fact_patch("rule");
-        let resolved = patch::resolve_patch(&kernel.state, command_id, &patch, None)
+        let resolved = patch::resolve_patch(&kernel.state, command_id, &patch)
             .expect("the patch resolves; the resolver is actor-blind");
-        let effect = WorldEffect::PatchAdmitted {
-            answers: Some(PatchAnswer::Boundary(answered)),
-            resolved,
-        };
+        let effect = WorldEffect::PatchAdmitted { resolved };
 
         let mut candidate = kernel.state.clone();
         let error = apply_effect(
@@ -16913,7 +14463,6 @@ mod clock_tests {
                 CommandId::new(),
                 CallerId::Principal(owner()),
                 CommandBody::AdmitPatch {
-                    answers: None,
                     patch,
                 },
             ),
@@ -16951,7 +14500,6 @@ mod clock_tests {
                 &mut kernel,
                 play_caller(),
                 CommandBody::AdmitPatch {
-                    answers: None,
                     patch,
                 },
             )
@@ -16987,7 +14535,6 @@ mod clock_tests {
             kernel,
             CallerId::Principal(owner()),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: retire_patch(subject),
             },
         )
@@ -16997,12 +14544,10 @@ mod clock_tests {
     /// via the owner in Active. Shared by the retirement and grant tests that
     /// need a subject `mode()` already excludes.
     fn declare_mirror(kernel: &mut WorldKernel, clockwork: &Clockwork, name: &str) -> SubjectId {
-        let answered = dead_end_boundary(kernel);
         submit_as(
             kernel,
             CallerId::Principal(owner()),
             CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
                 patch: WorldPatch {
                     declarations: vec![Declaration::Subject(SubjectDeclaration {
                         handle: DraftHandle::new("mirror"),
@@ -17012,9 +14557,6 @@ mod clock_tests {
                             consumer: ConsumerId::of_name(name),
                         },
                         affordances: BTreeSet::new(),
-                        // At the dead end, so this declaration also clears
-                        // the boundary its own answer claims: an occupied
-                        // place is no longer unelaborated.
                         position: Some(Ref::Existing(clockwork.dead_end)),
                         import_key: None,
                     })],
@@ -17103,7 +14645,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch,
             },
         )
@@ -17174,19 +14715,18 @@ mod clock_tests {
     }
 
     /// P4.3: `confine_to_ground` refuses a `Retire` for a confined author
-    /// unconditionally, even for a subject this same patch declares and
-    /// places inside the elaborator's own jurisdiction.
+    /// unconditionally, even for a subject this same patch declares.
     #[test]
-    fn an_elaborator_cannot_retire_inside_its_jurisdiction() {
+    fn a_confined_author_cannot_retire() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireElaborator");
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireConfined");
         let speak = super::tests::speak_entry(&kernel);
-        let answered = dead_end_boundary(&kernel);
         let error = submit_as(
             &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
+            CallerId::System(SystemCapability::Consumer {
+                consumer: ConsumerId::of_name("confined"),
+            }),
             CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
                 patch: WorldPatch {
                     declarations: vec![Declaration::Subject(SubjectDeclaration {
                         handle: DraftHandle::new("stray"),
@@ -17225,7 +14765,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: retire_patch(clockwork.farmer),
             },
         )
@@ -17294,7 +14833,6 @@ mod clock_tests {
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![
                         wave_affordance(),
@@ -17338,7 +14876,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![wave_affordance()],
                     operations: vec![ComponentOp::GrantAffordance {
@@ -17375,7 +14912,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::RevokeAffordance {
@@ -17410,7 +14946,6 @@ mod clock_tests {
                 &mut kernel,
                 play_caller(),
                 CommandBody::AdmitPatch {
-                    answers: None,
                     patch: WorldPatch {
                         declarations: Vec::new(),
                         operations: vec![ComponentOp::RevokeAffordance {
@@ -17430,7 +14965,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::RevokeAffordance {
@@ -17471,7 +15005,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: Vec::new(),
                     operations: vec![ComponentOp::RevokeAffordance {
@@ -17499,19 +15032,18 @@ mod clock_tests {
     }
 
     /// P5.1: `confine_to_ground` refuses `GrantAffordance` for a confined
-    /// author unconditionally, even for a subject this same patch declares
-    /// and places inside the elaborator's own jurisdiction.
+    /// author unconditionally, even for a subject this same patch declares.
     #[test]
-    fn an_elaborator_cannot_grant() {
+    fn a_confined_author_cannot_grant() {
         let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "GrantElaborator");
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "GrantConfined");
         let speak = super::tests::speak_entry(&kernel);
-        let answered = dead_end_boundary(&kernel);
         let error = submit_as(
             &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
+            CallerId::System(SystemCapability::Consumer {
+                consumer: ConsumerId::of_name("confined"),
+            }),
             CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
                 patch: WorldPatch {
                     declarations: vec![Declaration::Subject(SubjectDeclaration {
                         handle: DraftHandle::new("stray"),
@@ -17691,7 +15223,7 @@ mod clock_tests {
             fact: Ref::Draft(DraftHandle::new("news")),
             to: AudienceRef::Channel(Ref::Draft(DraftHandle::new("wire"))),
         });
-        submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { answers: None, patch })
+        submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch })
             .expect("admitted");
         let reeve_knows = kernel
             .state
@@ -17719,7 +15251,7 @@ mod clock_tests {
             ])),
             controller: None,
         }));
-        submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { answers: None, patch: declare })
+        submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch: declare })
             .expect("declare");
         owner_retires(&mut kernel, clockwork.reeve).expect("retire");
         let wire = *kernel.state.channels.keys().next().unwrap();
@@ -17729,7 +15261,7 @@ mod clock_tests {
             fact: Ref::Draft(DraftHandle::new("news")),
             to: AudienceRef::Channel(Ref::Existing(wire)),
         });
-        let error = submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { answers: None, patch })
+        let error = submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch })
             .unwrap_err();
         assert!(
             matches!(&error, KernelError::PatchRejected(set)
@@ -17788,7 +15320,7 @@ mod clock_tests {
             source: AuthoredSource::Witnessed,
             confidence: Confidence::Certain,
         });
-        let error = submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { answers: None, patch })
+        let error = submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch })
             .unwrap_err();
         assert!(
             matches!(&error, KernelError::PatchRejected(set)
@@ -17809,7 +15341,7 @@ mod clock_tests {
             source: AuthoredSource::Witnessed,
             confidence: Confidence::Certain,
         });
-        submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { answers: None, patch: declare })
+        submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch: declare })
             .expect("the reeve learns the fact");
         let fact = *kernel.state.knowledge[&clockwork.reeve].keys().next().unwrap();
         owner_retires(&mut kernel, clockwork.reeve).expect("retire");
@@ -17915,19 +15447,19 @@ mod clock_tests {
     }
 
     /// PA.f35, MuB: `RevokeAffordance` is confined exactly as every other
-    /// structural operation, so an elaborator cannot use it to touch a
-    /// subject's grants outside its jurisdiction.
+    /// structural operation, so a confined author cannot use it to touch a
+    /// subject's grants.
     #[test]
-    fn an_elaborator_cannot_revoke() {
+    fn a_confined_author_cannot_revoke() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf35ElabRevoke");
-        let answered = dead_end_boundary(&kernel);
         let speak = super::tests::speak_entry(&kernel);
         let error = submit_as(
             &mut kernel,
-            elaborator(JurisdictionKey::PlaceSubtree(clockwork.dead_end)),
+            CallerId::System(SystemCapability::Consumer {
+                consumer: ConsumerId::of_name("confined"),
+            }),
             CommandBody::AdmitPatch {
-                answers: Some(PatchAnswer::Boundary(answered)),
                 patch: WorldPatch {
                     declarations: vec![Declaration::Subject(SubjectDeclaration {
                         handle: DraftHandle::new("stray"),
@@ -18310,7 +15842,7 @@ mod clock_tests {
         let error = submit_as(
             &mut kernel,
             play_caller(),
-            CommandBody::AdmitPatch { answers: None, patch },
+            CommandBody::AdmitPatch { patch },
         )
         .unwrap_err();
         assert!(
@@ -18348,7 +15880,7 @@ mod clock_tests {
         submit_as(
             &mut kernel,
             play_caller(),
-            CommandBody::AdmitPatch { answers: None, patch },
+            CommandBody::AdmitPatch { patch },
         )
         .expect("admitted");
         let mirror_knows = kernel
@@ -18378,7 +15910,6 @@ mod clock_tests {
             &mut kernel,
             play_caller(),
             CommandBody::AdmitPatch {
-                answers: None,
                 patch: WorldPatch {
                     declarations: vec![
                         Declaration::Subject(SubjectDeclaration {

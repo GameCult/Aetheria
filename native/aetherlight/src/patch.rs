@@ -608,40 +608,6 @@ pub(crate) enum PreconditionRef {
     },
 }
 
-/// The authored scale target: how many qualified subjects of each kind the
-/// world means to hold, and how that target distributes over jurisdiction
-/// roots. Written once by genesis and never mutated. Not a component of any
-/// referent, so not a `Declaration` and not a partition.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct WorldScaleIntent {
-    /// Target qualified subjects per kind, world-wide.
-    pub(crate) targets: BTreeMap<SubjectKind, u32>,
-    /// Jurisdiction roots and their share, in permille. Weights distribute the
-    /// target and never raise it: the sum is checked `<= 1000`.
-    pub(crate) jurisdictions: BTreeMap<EntityId, u32>,
-}
-
-/// The genesis-lane twin: the intent names places the same patch declares, and
-/// there is no other way to name them before they exist.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct WorldScaleIntentRef {
-    pub(crate) targets: BTreeMap<SubjectKind, u32>,
-    pub(crate) jurisdictions: BTreeMap<DraftHandle, u32>,
-}
-
-/// One counted region of the scale deficit. `Uncovered` is the residual: a
-/// subject with no jurisdiction root covering it — standing nowhere, or
-/// standing somewhere outside every declared root's subtree — is counted and
-/// visible while reducing no target.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(tag = "jurisdiction", content = "root", rename_all = "snake_case")]
-pub enum JurisdictionKey {
-    PlaceSubtree(EntityId),
-    Uncovered,
-}
-
 /// What must already be true of committed state before an invocation is
 /// admitted.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -908,7 +874,7 @@ pub enum Site {
 pub(crate) struct EvidenceRef(String);
 
 impl EvidenceRef {
-    /// The elaborator's evidence receipts are built here, and `Deserialize`
+    /// An author's evidence receipts are built here, and `Deserialize`
     /// already mints one from any string, so this constructor gates nothing.
     /// Canonical text is checked by the resolver, in the complete mismatch set.
     pub(super) fn new(value: impl Into<String>) -> Self {
@@ -1297,16 +1263,6 @@ pub(crate) enum ComponentOp {
     },
 }
 
-/// What an Active `AdmitPatch` answers. Draft answers nothing; Active must
-/// answer a boundary the kernel currently derives or a jurisdiction whose
-/// deficit is nonzero, and the commit must satisfy what it answered.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "answer", rename_all = "snake_case")]
-pub enum PatchAnswer {
-    Boundary(super::CausalBoundary),
-    Deficit(JurisdictionKey),
-}
-
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct WorldPatch {
@@ -1675,13 +1631,6 @@ pub enum Mismatch {
     UnknownCommitment {
         operation: usize,
     },
-    /// A scale-intent jurisdiction root that is not a declared place.
-    UnknownJurisdictionRoot {
-        handle: DraftHandle,
-    },
-    /// The permille weights sum over 1000: weights distribute the target and
-    /// never raise it.
-    ScaleWeightsExceedWhole,
     /// A jurisdictional author wrote outside its jurisdiction. The owner is
     /// unconfined and never sees this.
     OutsideJurisdiction {
@@ -1951,7 +1900,7 @@ pub(crate) enum ResolvedOp {
     },
     /// A visible act: the actor's own sentence, seen by everyone standing in
     /// the actor's place. Lowered only by the kernel's speech path beside
-    /// `AssertClaim`, never by a patch, so no seed or elaborator can move a
+    /// `AssertClaim`, never by a patch, so no author can move a
     /// person's body from outside the person. There is no audience field: a
     /// display cannot go down a channel, and the room is re-derived from live
     /// `positions` at apply, so a forged effect cannot assert a landing the
@@ -2075,10 +2024,6 @@ pub(super) struct ResolvedPatch {
     pub(super) channels: Vec<ResolvedChannel>,
     pub(super) operations: Vec<ResolvedOp>,
     pub(super) evidence: Vec<EvidenceRef>,
-    /// `Some` on the genesis lane and nowhere else: `CommandBody::AdmitPatch`
-    /// carries no intent, so the write-once rule is the command shape rather
-    /// than a check.
-    pub(super) scale_intent: Option<WorldScaleIntent>,
 }
 
 impl ResolvedPatch {
@@ -3153,7 +3098,6 @@ pub(super) fn resolve_patch(
     state: &super::WorldState,
     command_id: CommandId,
     patch: &WorldPatch,
-    scale_intent: Option<&WorldScaleIntentRef>,
 ) -> Result<ResolvedPatch, Vec<Mismatch>> {
     let world_id = state.world_id;
     let admits_human = super::admits_human(state.revision, &state.subjects);
@@ -5004,26 +4948,6 @@ pub(super) fn resolve_patch(
         });
     }
 
-    if let Some(intent) = scale_intent {
-        for handle in intent.jurisdictions.keys() {
-            if index.get(handle) != Some(&PLACE) {
-                mismatches.push(Mismatch::UnknownJurisdictionRoot {
-                    handle: handle.clone(),
-                });
-            }
-        }
-        // Weights distribute the target and never raise it.
-        if intent
-            .jurisdictions
-            .values()
-            .map(|weight| u64::from(*weight))
-            .sum::<u64>()
-            > 1000
-        {
-            mismatches.push(Mismatch::ScaleWeightsExceedWhole);
-        }
-    }
-
     if patch.declarations.is_empty() && patch.operations.is_empty() {
         mismatches.push(Mismatch::NoCanonicalChange);
     }
@@ -5688,21 +5612,6 @@ pub(super) fn resolve_patch(
         channels: declared_channels,
         operations,
         evidence: patch.evidence.clone(),
-        scale_intent: scale_intent.map(|intent| WorldScaleIntent {
-            targets: intent.targets.clone(),
-            jurisdictions: intent
-                .jurisdictions
-                .iter()
-                .map(|(handle, weight)| {
-                    (
-                        *allocated_entities
-                            .get(handle)
-                            .expect("a jurisdiction root resolved above"),
-                        *weight,
-                    )
-                })
-                .collect(),
-        }),
     })
 }
 
@@ -5990,7 +5899,6 @@ mod tests {
 
     fn admit(patch: WorldPatch) -> CommandBody {
         CommandBody::AdmitPatch {
-            answers: None,
             patch,
         }
     }
@@ -6615,46 +6523,6 @@ mod tests {
         assert_eq!(kernel.journal.commit_count(), 1);
     }
 
-    /// Active admits the four operations and nothing else, so it never mints a
-    /// canonical ID.
-    #[test]
-    fn an_active_patch_that_declares_anything_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
-        let active = activate(&mut kernel);
-        let commits_before = kernel.journal.commit_count();
-        let declaring = patch_of(vec![entity(
-            "rhythm-road",
-            "The Rhythm Road",
-            EntityKind::Place,
-        )]);
-        let bearing_evidence = WorldPatch {
-            declarations: Vec::new(),
-            operations: Vec::new(),
-            evidence: vec![EvidenceRef("run-115".into())],
-        };
-
-        for patch in [declaring, bearing_evidence] {
-            let error = kernel
-                .submit(
-                    command(
-                        &active,
-                        CommandId::new(),
-                        CallerId::Principal(owner()),
-                        admit(patch),
-                    ),
-                    &auth_principal(owner()),
-                )
-                .unwrap_err();
-            // Declaring in Active is elaboration, and elaboration answers a
-            // boundary. An unanswered one is refused before resolution.
-            assert!(matches!(error, KernelError::AnswerRequired));
-        }
-        assert_eq!(kernel.journal.commit_count(), commits_before);
-        assert_eq!(kernel.snapshot().unwrap(), active);
-        assert_eq!(kernel.state.entities.len(), FIXTURE_ENTITIES);
-    }
-
     /// Three places whose containers form a cycle name themselves, and the
     /// unrelated empty label joins the same complete set.
     #[test]
@@ -6880,8 +6748,7 @@ mod tests {
         let (topology, civic, before) = civic_world(&mut kernel);
 
         // `topology.walker` already exists and already stands at `yard`, so
-        // this delegation patch is operations-only: no declaration, no
-        // `AnswerRequired` elaboration boundary to clear.
+        // this delegation patch is operations-only: no declaration.
         let delegated = submit_owner(
             &mut kernel,
             &before,
@@ -7151,8 +7018,8 @@ mod tests {
         assert_ne!(admitted, genesis_human);
 
         let command_id = CommandId::new();
-        let first = resolve_patch(&kernel.state, command_id, &patch, None).unwrap();
-        let second = resolve_patch(&kernel.state, command_id, &patch, None).unwrap();
+        let first = resolve_patch(&kernel.state, command_id, &patch).unwrap();
+        let second = resolve_patch(&kernel.state, command_id, &patch).unwrap();
         assert_eq!(first, second);
     }
 
@@ -7279,13 +7146,12 @@ mod tests {
     }
 
     /// The `PatchAdmitted` arm is not a trusting applier. A forged effect, a
-    /// replayed one, a non-owner caller, and the Active phase each die inside
-    /// `apply_effect`, without the journal's reduce-equality check running.
+    /// replayed one and a non-owner caller each die inside `apply_effect`,
+    /// without the journal's reduce-equality check running.
     #[test]
-    fn apply_effect_rejects_a_forged_stale_unauthorized_or_active_patch_effect() {
+    fn apply_effect_rejects_a_forged_stale_or_unauthorized_patch_effect() {
         let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
-        let before = kernel.snapshot().unwrap();
+        let kernel = draft_world(directory.path());
         let patch = patch_of(vec![
             entity("rhythm-road", "The Rhythm Road", EntityKind::Place),
             institution(
@@ -7295,10 +7161,9 @@ mod tests {
                 Some(Ref::Draft(DraftHandle::new("rhythm-road"))),
             ),
         ]);
-        let resolved = resolve_patch(&kernel.state, CommandId::new(), &patch, None).unwrap();
+        let resolved = resolve_patch(&kernel.state, CommandId::new(), &patch).unwrap();
         let honest = super::super::WorldEffect::PatchAdmitted {
             resolved: resolved.clone(),
-            answers: None,
         };
 
         // Forged: the position names a place no partition holds, and the effect
@@ -7314,7 +7179,6 @@ mod tests {
             CommandId::issue(),
             &CallerId::Principal(owner()),
             &super::super::WorldEffect::PatchAdmitted {
-                answers: None,
                 resolved: forged,
             },
         )
@@ -7349,21 +7213,6 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(unauthorized, KernelError::Invariant(_)));
-        assert_eq!(candidate, kernel.state);
-
-        // And an unanswered declaring effect is refused in Active before any
-        // partition is touched.
-        let active = activate(&mut kernel);
-        assert_eq!(active.revision, before.revision + 3);
-        let mut candidate = kernel.state.clone();
-        let unanswered = super::super::apply_effect(
-            &mut candidate,
-            CommandId::issue(),
-            &CallerId::Principal(owner()),
-            &honest,
-        )
-        .unwrap_err();
-        assert!(matches!(unanswered, KernelError::AnswerRequired));
         assert_eq!(candidate, kernel.state);
     }
 
@@ -7510,9 +7359,7 @@ mod tests {
                         edge_id,
                     }],
                     evidence: Vec::new(),
-                    scale_intent: None,
                 },
-                answers: None,
             };
             let mut candidate = kernel.state.clone();
             let error = super::super::apply_effect(
