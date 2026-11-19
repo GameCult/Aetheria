@@ -8,14 +8,17 @@ using float2 = CultMath.float2;
 using float3 = CultMath.float3;
 
 // The run half of a scenario's vocabulary (docs/scenarios-cut.md, R.4). A scenario's Stage builds its fits and places
-// them here; nothing joins the arena until Stage returns with no failure, and then RunStart admits it all at once.
+// them here; nothing joins the arena until Stage returns with no failure, and then the stage admits it all at once.
 // Every verb names what it could not do instead of throwing, so one bad name in a script lists every bad name.
-// Designs, hulls and products are named as the catalog names them. Only RunStart builds a stage.
-public sealed class ScenarioStage
+// Designs, hulls and products are named as the catalog names them.
+// ZoneStage is the placement vocabulary and the admission of what it placed; Zone.Admit stays the only admission.
+// RunStart builds a ScenarioStage (a ZoneStage that also stages the player); ZoneStage.Summon builds a ZoneStage for a
+// running zone. A ZoneStage has no Player verb, so a summon placing a player is unrepresentable.
+public class ZoneStage
 {
     private readonly ItemManager _items;
     private readonly Func<CraftedItemData, FactionProductData> _choose;
-    private readonly List<string> _failures = new List<string>();
+    private protected readonly List<string> _failures = new List<string>();
     private readonly List<Placement> _placed = new List<Placement>();
     private int _placements;
     // The entities this stage built from a fit (a packed fit is a saved ship, whose cargo is its own) and those whose cargo the scenario
@@ -23,12 +26,10 @@ public sealed class ScenarioStage
     private readonly HashSet<Entity> _fitted = new HashSet<Entity>();
     private readonly HashSet<Entity> _cargoAuthored = new HashSet<Entity>();
 
-    internal ScenarioStage(ItemManager items, Zone arena, string startingHull)
+    internal ZoneStage(ItemManager items, Zone arena)
     {
         _items = items;
         Arena = arena;
-        StartingHull = startingHull;
-        Credits = items.GameplaySettings.StartingCredits;
         // A design named without a product is chosen by the generator's ChooseProduct. The stage outfits with no faction,
         // so every maker is reachable and the run's seed draws.
         _choose = new LoadoutGenerator(ref items.Random, items, arena.Galaxy, arena.GalaxyZone, null, 2).ChooseProduct;
@@ -36,22 +37,16 @@ public sealed class ScenarioStage
 
     public Galaxy Galaxy => Arena.Galaxy;
     public Zone Arena { get; }
-    public string StartingHull { get; }
-
-    // What the run starts with: the gameplay settings' starting credits unless the scenario sets another amount.
-    public int Credits { get; set; }
 
     internal IReadOnlyList<string> Failures => _failures;
 
     // Staging's last step: a fitted entity whose cargo the scenario did not author gets the crates its weapons draw, like every other
     // newly built armed entity (Loadouts.StockAmmunition). Draws nothing, so it moves no item roll.
-    internal void StockUnauthoredAmmunition()
+    private protected void StockUnauthoredAmmunition()
     {
         foreach (var entity in _fitted.Where(entity => !_cargoAuthored.Contains(entity)))
             Loadouts.StockAmmunition(_items, entity);
     }
-    internal bool PlayerPlaced { get; private set; }
-    internal Ship PlayerShip { get; private set; }
     internal IReadOnlyList<Placement> Placed => _placed;
 
     internal sealed class Placement
@@ -118,22 +113,6 @@ public sealed class ScenarioStage
         return null;
     }
 
-    // The player's ship. A run has exactly one, and it is a ship hull.
-    public Ship Player(ScenarioFit fit, float2 at, float2 facing = default)
-    {
-        if (PlayerPlaced)
-        {
-            _failures.Add("player: the scenario places a second player");
-            return null;
-        }
-        PlayerPlaced = true;
-        var entity = Build(fit, "player", at, facing);
-        if (entity == null) return null;
-        if (entity is Ship ship) return PlayerShip = ship;
-        _failures.Add($"player: {entity.Name} is not a ship hull");
-        return null;
-    }
-
     // Anything else in the arena. A stance holds both ways between it and the player. A piloted ship gets the zone's
     // pilot; an unpiloted entity has none and goes nowhere on its own unless it is placed moving: velocity is the planar
     // velocity it starts with, and the sim carries it from there. A turret hull stays where it is put.
@@ -193,7 +172,45 @@ public sealed class ScenarioStage
         }
     }
 
-    private Entity Build(ScenarioFit fit, string where, float2 at, float2 facing)
+    // Admits what was placed: each entity's stance set both ways with the player, then Zone.Admit with a pilot for each
+    // piloted one. A start state includes what a pilot knows (ruling stage-states-pilot-knowledge): its anchor is tracked
+    // from the first step, by the sensors' own path (info gathered past the detection threshold), so they can lose it
+    // like any track. The one owner of admitting placements.
+    private protected void AdmitPlaced(Ship player)
+    {
+        foreach (var placed in _placed)
+        {
+            var hostile = placed.Stance == ScenarioStance.Hostile;
+            placed.Entity.SetIff(player, hostile);
+            player.SetIff(placed.Entity, hostile);
+            Arena.Admit(placed.Entity, placed.Piloted, placed.Task);
+        }
+        foreach (var placed in _placed)
+            if (placed.Knows != null && placed.Piloted)
+                placed.Entity.EntityInfoGathered[placed.Knows] = (_items.GameplaySettings.TargetDetectionInfoThreshold + 1f) / 2f;
+    }
+
+    // Places ships into a running zone through the admission a run start uses: the script places with the stage's verbs,
+    // and the entities join with their stance toward the player, a pilot when piloted and the knowledge the script stated.
+    // Returns the placed entities in order, or null with every failure listed and the zone unchanged. It draws from the
+    // live item stream and does not reseed (a reseed would give every summon the same fits).
+    public static IReadOnlyList<Entity> Summon(ItemManager items, Zone zone, Ship player, Action<ZoneStage> script, List<string> failures)
+    {
+        if (!zone.Entities.Contains(player))
+        {
+            failures.Add("summon: the player is not in this zone");
+            return null;
+        }
+        var stage = new ZoneStage(items, zone);
+        script(stage);
+        failures.AddRange(stage._failures);
+        if (stage._failures.Count > 0) return null;
+        stage.StockUnauthoredAmmunition();
+        stage.AdmitPlaced(player);
+        return stage._placed.Select(placed => placed.Entity).ToList();
+    }
+
+    private protected Entity Build(ScenarioFit fit, string where, float2 at, float2 facing)
     {
         if (fit == null) return null; // the verb that made it named why
 
@@ -233,8 +250,53 @@ public sealed class ScenarioStage
     }
 }
 
+// The run-start stage: a ZoneStage that also stages the player, the credits the run starts with and the hull it
+// starts in. Only RunStart builds one.
+public sealed class ScenarioStage : ZoneStage
+{
+    internal ScenarioStage(ItemManager items, Zone arena, string startingHull) : base(items, arena)
+    {
+        StartingHull = startingHull;
+        Credits = items.GameplaySettings.StartingCredits;
+    }
+
+    public string StartingHull { get; }
+
+    // What the run starts with: the gameplay settings' starting credits unless the scenario sets another amount.
+    public int Credits { get; set; }
+
+    internal bool PlayerPlaced { get; private set; }
+    internal Ship PlayerShip { get; private set; }
+
+    // The player's ship. A run has exactly one, and it is a ship hull.
+    public Ship Player(ScenarioFit fit, float2 at, float2 facing = default)
+    {
+        if (PlayerPlaced)
+        {
+            _failures.Add("player: the scenario places a second player");
+            return null;
+        }
+        PlayerPlaced = true;
+        var entity = Build(fit, "player", at, facing);
+        if (entity == null) return null;
+        if (entity is Ship ship) return PlayerShip = ship;
+        _failures.Add($"player: {entity.Name} is not a ship hull");
+        return null;
+    }
+
+    // Run start's admission, in this order: stock unauthored ammunition (Activate reads cargo-driven behaviours, so it
+    // comes before admission), the player, then everything placed.
+    internal void Admit()
+    {
+        StockUnauthoredAmmunition();
+        PlayerShip.IsPlayerShip = true;
+        Arena.Admit(PlayerShip, piloted: false);
+        AdmitPlaced(PlayerShip);
+    }
+}
+
 // What a scenario places: a fit built from named designs or a preset, or a ship generated as the game generates them.
-// Only ScenarioStage makes one.
+// Only a ZoneStage makes one.
 public sealed class ScenarioFit
 {
     internal readonly Loadout Loadout;

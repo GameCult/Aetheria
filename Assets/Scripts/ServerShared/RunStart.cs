@@ -45,8 +45,8 @@ public static class RunStart
         return staged;
     }
 
-    // Runs the scenario's Stage, then admits its player and everything it placed: each entity's stance set both ways
-    // with the player, a pilot for each piloted one. Returns null, with every failure listed and the arena unchanged,
+    // Runs the scenario's Stage, then has the stage admit its player and everything it placed.
+    // Returns null, with every failure listed and the arena unchanged,
     // unless the whole scenario staged.
     public static Staged Stage(ItemManager itemManager, Zone arena, Scenario scenario, string startingHull,
         List<string> failures)
@@ -59,25 +59,8 @@ public static class RunStart
         if (!stage.PlayerPlaced)
             failures.Add("player: the scenario places no player");
         if (failures.Count > reported) return null;
-        stage.StockUnauthoredAmmunition();
-
-        var player = stage.PlayerShip;
-        player.IsPlayerShip = true;
-        arena.Admit(player, piloted: false);
-        foreach (var placed in stage.Placed)
-        {
-            var hostile = placed.Stance == ScenarioStance.Hostile;
-            placed.Entity.SetIff(player, hostile);
-            player.SetIff(placed.Entity, hostile);
-            arena.Admit(placed.Entity, placed.Piloted, placed.Task);
-        }
-
-        // A start state includes what a pilot knows (ruling stage-states-pilot-knowledge): its anchor is tracked from the first
-        // step, by the sensors' own path (info gathered past the detection threshold), so they can lose it like any track.
-        foreach (var placed in stage.Placed)
-            if (placed.Knows != null && placed.Piloted)
-                placed.Entity.EntityInfoGathered[placed.Knows] = (itemManager.GameplaySettings.TargetDetectionInfoThreshold + 1f) / 2f;
-        return new Staged { Player = player, Credits = stage.Credits, Entities = stage.Placed.Select(placed => placed.Entity).ToList() };
+        stage.Admit();
+        return new Staged { Player = stage.PlayerShip, Credits = stage.Credits, Entities = stage.Placed.Select(placed => placed.Entity).ToList() };
     }
 
     // A new run's item draws (each lot's quality, each generated fit) come from its galaxy's seed, not the process clock,
