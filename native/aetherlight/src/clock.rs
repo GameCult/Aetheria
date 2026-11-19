@@ -24,13 +24,6 @@ impl FictionalMinutes {
     pub(crate) fn checked_add(self, span: TickMinutes) -> Option<Self> {
         self.0.checked_add(u64::from(span.0)).map(Self)
     }
-
-    /// Minutes elapsed since an earlier reading. Saturating because the caller
-    /// is the attention order, which reads a stamp `verify_state_shape` already
-    /// holds to `<= now`.
-    pub(crate) fn since(self, earlier: Self) -> u64 {
-        self.0.saturating_sub(earlier.0)
-    }
 }
 
 /// The span one `AdvanceTime` names. Constructor-checked `1..=MAX_ROUTE_COST`

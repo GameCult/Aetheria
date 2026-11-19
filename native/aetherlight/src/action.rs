@@ -73,8 +73,8 @@ pub enum ActionMismatch {
     EmptyDisplay,
     /// The acting subject's effective authority covers no such target under
     /// this kind. A target that walked out of the jurisdiction while the
-    /// proposal was in flight arrives here, not as a rebind: what the actor is
-    /// authorized over is in the digest, the world it reaches is not.
+    /// proposal was in flight arrives here: what the actor is authorized over
+    /// is in its scope, the world it reaches is not.
     NotAuthorized {
         precondition: usize,
     },
@@ -92,7 +92,7 @@ pub enum ActionMismatch {
     },
     /// The actor does not hold the bound fact at the required confidence. A
     /// re-appraisal that lowered its own confidence while the proposal was in
-    /// flight arrives here rather than as a rebind: confidence is admission-only.
+    /// flight arrives here: confidence is admission-only.
     FactUnknown {
         precondition: usize,
     },
@@ -1976,9 +1976,8 @@ mod tests {
         assert!(bench.try_as(treasury, &bench.levy(farmer, 1)).is_ok());
     }
 
-    /// An office lends jurisdiction its holder does not own, vacating takes it
-    /// back, and a proposal bound before the vacate rebinds rather than
-    /// rejecting: revocation mid-flight is a `ScopeChanged`.
+    /// An office lends jurisdiction its holder does not own, and vacating takes
+    /// it back: the act is refused at admission.
     #[test]
     fn office_delegation_grants_and_vacating_revokes() {
         let directory = tempfile::tempdir().unwrap();

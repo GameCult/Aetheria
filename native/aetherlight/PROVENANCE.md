@@ -172,9 +172,9 @@ door beside that path.
 
 Kept untouched for AL2b: controllers and `ControllerMode`, consumers
 (`ConsumerId`, `SystemCapability::Consumer`, `PatchGround::Consumer`,
-`bound_to_consumer`), opportunities, scope digests, attention order, the draft
-phase and approvals, `ExerciseDecision`, `DeclineDecision`,
-`VerifiedPrincipalEvidence`.
+`bound_to_consumer`), the draft phase and approvals, `VerifiedPrincipalEvidence`.
+(Opportunities, scope digests, the attention order, `ExerciseDecision` and
+`DeclineDecision` went in AL2b-1, below.)
 
 ## Leave-set vocabulary still compiled (AL2b's and AL4's triage list)
 
@@ -185,13 +185,12 @@ What the cut deletes is gone; what remains is part B's:
   `PatchGround::Consumer` and the consumer arm of `confine_to_ground`,
   `VerifiedPrincipalEvidence`.
 - Controller lane: `verified_controller`, `resolve_controller`, `controller_mode`,
-  `controller_receipt`, `controller_decline_receipt`, `controller_key`.
-- Tick-driver readers `WorldKernel::opportunities` and `clock_advances`, and
-  `CreateWorldIntent` (no consumer after the mailbox left).
+  `controller_key`.
+- `CreateWorldIntent` (no consumer after the mailbox left).
 - Authenticated-caller vocabulary: `AuthenticatedCaller::fixture`,
   `verified_principal`, `verified_controller`, `verified_system`, and
-  `requires_owner_restart`; id helpers `text` and `nil_for_test`; `as_str`,
-  `digest` (scope preimage); `commits_for_test`; grammar `verbs`. AL4's ABI
+  `requires_owner_restart`; id helpers `text` and `nil_for_test`;
+  `commits_for_test`; grammar `verbs`. AL4's ABI
   decides which of these it needs.
 - Patch ingress: `decode_patch`, `check_patch_caps`, `PatchDecodeError` and
   `MAX_PATCH_BYTES`, `MAX_PATCH_DECLARATIONS`, `MAX_PATCH_OPERATIONS`,
@@ -202,6 +201,51 @@ What the cut deletes is gone; what remains is part B's:
 
 Reproduce the list with `RUSTFLAGS=--force-warn dead_code cargo test --lib --no-run`:
 under test configuration the items nothing exercises show up.
+
+## Cut AL2b-1: Play's Act replaces opportunity-based exercise
+
+Base `bf92a054f`. An act is one command, `Act { actor, invocation }`, admitted for
+`System(Play)` in Active only, and one effect, `Acted { invocation, event }`.
+`require_granted(state, actor, affordance)` is the only constructor of
+`GrantedAffordance`: the actor's `affordance_grants` entry holds the affordance
+and the catalog defines it, otherwise `AffordanceDenied`. `Retire` removes a
+subject's grants, so a retired actor is refused by that check alone.
+`action::exercise` takes the actor in place of an opportunity; its pipeline is
+unchanged and the band draw keeps `command_id` as its only per-command term.
+`DecisionEvent` carries `actor`, not `scope` and `controller_id`. `STATE_SCHEMA`
+and `COMMIT_SCHEMA` moved to `consumer.v8`.
+
+Deleted, with their `bf92a054f` locations in `lib.rs`:
+
+- `ScopeDigest`, `ScopePreimage`, `DecisionOpportunity` (459-506) and
+  `scope_digest`, `exact_opportunity`, `derive_opportunities`,
+  `order_opportunities`, `pressure_total`, `attention_debt`, `granted_entries`
+  (3841-4034). `WorldSnapshot.opportunities`, `WorldState.last_opportunity_at` and
+  the attention-stamp shape check in `journal.rs` (730-738).
+- `CommandBody::ExerciseDecision` and `DeclineDecision`, `WorldEffect::
+  DecisionExercised` and `DecisionDeclined`, their `reduce` and `apply_effect`
+  arms, and `KernelError::OpportunityMismatch`, `ScopeChanged`,
+  `ControllerMismatch`.
+- The operator log: `operator_log`, `OperatorEvent`, `BoundRole` (3518-3579,
+  1109-1134), and the kernel readers `opportunities`, `clock_advances`,
+  `controller_receipt`, `controller_decline_receipt`.
+- `WorldJournal::commits` and `FictionalMinutes::since`, dead once the readers
+  above went.
+
+Kept: the whole dialogue lane (`carries_speech`, `Communicate`, `Display`, the
+kernel Speak entry, the grammar, `preconditions_hold`). `DecisionScope` stays the
+grant key and `ControllerAssignment` stays; the owner's `AdmitPatch` and
+`AdvanceTime` doors and `SystemCapability::Clock` stay.
+
+AL2b-2 still owns, under `aetherlight-play-only-after-genesis`: the owner's and
+`Clock`'s post-genesis doors (`AdmitPatch` and `AdvanceTime`), `CallerId::Controller`
+and the controller assignment, the consumer lane and ground, the draft phase and
+approvals, `VerifiedPrincipalEvidence`, the never-mute rule
+(`WouldLeaveSubjectMute`) and the `verify_state_shape` clause requiring a grant per
+controlled scope.
+
+`last_acted_at` and `minted_at` in `snapshot` still read `state.events` (by
+`event.actor`). AL3 needs keyed rows instead of a scan; that is the AL3 cut's.
 
 ## Obligations this cut hands to AL4
 

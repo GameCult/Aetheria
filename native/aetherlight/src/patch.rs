@@ -114,8 +114,7 @@ pub(crate) struct OfficeName(pub(crate) String);
 /// A seat inside one institution. It carries no term and no selection method:
 /// there is no clock, so nothing can expire, and a field nothing reads is a
 /// decoration the next pass has to delete. `delegated` is the field that earns
-/// its keep — `scope_components` reads it, `Authorized` resolves through it, and
-/// the scope digest binds it.
+/// its keep — `scope_components` reads it and `Authorized` resolves through it.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Office {
@@ -348,7 +347,7 @@ pub(crate) enum ReachRef {
 pub(crate) struct ChannelRecord {
     pub(crate) reach: Reach,
     /// Who may speak on it besides those inside its reach, and whose scope
-    /// digest binds it. The horn belongs to the temple, not to whoever happens
+    /// components carry it. The horn belongs to the temple, not to whoever happens
     /// to be within earshot of it.
     pub(crate) controller: Option<SubjectId>,
 }
@@ -495,9 +494,8 @@ pub(crate) struct Commitment {
 #[serde(transparent)]
 pub(crate) struct PressureMagnitude(pub(crate) u32);
 
-/// Target-major, because every reader is: the attention order reads pressure
-/// *on* a subject and the typed view shows pressure on self. Source-major has no
-/// reader.
+/// Target-major, because every reader is: the typed view shows pressure on
+/// self. Source-major has no reader.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(tag = "from", content = "of", rename_all = "snake_case")]
 pub(crate) enum PressureSource {
@@ -1242,8 +1240,8 @@ pub(crate) enum ComponentOp {
         source: PressureSourceRef,
         target: Ref<SubjectId>,
     },
-    /// Ends a subject's turn for good: no opportunity, no position, no
-    /// audience, its history kept. Only the owner and `Play` may write it.
+    /// Ends a subject for good: no grants, no position, no audience, its
+    /// history kept. Only the owner and `Play` may write it.
     Retire {
         subject: Ref<SubjectId>,
     },
@@ -1256,7 +1254,7 @@ pub(crate) enum ComponentOp {
         affordance: Ref<AffordanceId>,
     },
     /// Revokes a grant. Refused if it would leave a controlled subject with
-    /// none: `derive_opportunities` requires at least one.
+    /// none: a controlled subject is never left mute.
     RevokeAffordance {
         subject: Ref<SubjectId>,
         affordance: Ref<AffordanceId>,
@@ -1666,8 +1664,7 @@ pub enum Mismatch {
         operation: usize,
     },
     /// A `RevokeAffordance` that would leave a controlled subject with no
-    /// affordance at all. `derive_opportunities` requires at least one; a
-    /// subject is never left mute.
+    /// affordance at all: a subject is never left mute.
     WouldLeaveSubjectMute {
         operation: usize,
     },
@@ -3228,7 +3225,7 @@ pub(super) fn resolve_patch(
             }
         }
         if let Declaration::Subject(subject) = declaration {
-            // Both ways. A mirror receives no opportunity, so it may hold no
+            // Both ways. A mirror receives no controller, so it may hold no
             // affordance; every other controller must hold one.
             if matches!(subject.controller, NewController::External { .. })
                 != subject.affordances.is_empty()

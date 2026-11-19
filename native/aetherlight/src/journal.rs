@@ -181,11 +181,6 @@ impl WorldJournal {
         self.commits.get(&command_id)
     }
 
-    /// Every commit the journal holds, in no particular order.
-    pub(super) fn commits(&self) -> impl Iterator<Item = &WorldCommit> {
-        self.commits.values()
-    }
-
     #[cfg(test)]
     pub(super) fn commit_count(&self) -> usize {
         self.commits.len()
@@ -667,7 +662,7 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             ));
         }
     }
-    // Commitments, pressures, attention stamps, and the authored scale target.
+    // Commitments, pressures, and the authored scale target.
     // Absence is the only spelling of nothing at every level, so a store
     // satisfying these clauses carries no empty inner map, no zero magnitude,
     // and no dangling row — with no scan for any of them.

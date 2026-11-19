@@ -47,7 +47,7 @@
 //! ```
 //!
 //! ```compile_fail
-//! let _ = aetherlight::ScopeDigest::fixture("x");
+//! use aetherlight::DecisionEvent;
 //! ```
 
 // The kernel has no entry point until AL4 adds the ABI, so most of it is unreachable
@@ -346,7 +346,7 @@ pub(crate) enum NewController {
     NarrativePersona,
     OperationalAgent,
     /// Declared as a mirror of state this world does not own. Mints no
-    /// controller, no mode, and no opportunity.
+    /// controller, no mode, and no grants.
     External {
         consumer: ConsumerId,
     },
@@ -581,7 +581,7 @@ enum ControllerAssignment {
     /// A subject `Retire` ended for good. Not a second partition:
     /// `controller_assignments` stays the sole answer to who may call, and
     /// this is one of its values. It has no controller id, no mode, and no
-    /// caller, so it mints no opportunity and is never an audience.
+    /// caller, so it holds no grants and is never an audience.
     Retired,
 }
 
@@ -705,26 +705,23 @@ struct WorldState {
     /// between two sources of one permission.
     authority: BTreeMap<SubjectId, BTreeSet<AuthorityGrant>>,
     /// The offices each institution constitutes, and who sits in them. An
-    /// incumbent never exercises its institution's opportunity:
-    /// `controller_assignments` stays the sole answer to who may call, and an
-    /// office answers the different question of what its incumbent has
-    /// jurisdiction over.
+    /// incumbent never acts as its institution: an office answers what its
+    /// incumbent has jurisdiction over, not who the actor is.
     selection: BTreeMap<SubjectId, BTreeMap<OfficeName, Office>>,
     /// Where each kind of grievance goes, and who may bring it. Keyed by
-    /// neither a subject nor a referent, so it enters no scope digest and is
-    /// admission-only state.
+    /// neither a subject nor a referent, so it enters no scope components and
+    /// is admission-only state.
     redress: BTreeMap<GrievanceKindName, Forum>,
     /// What each subject has promised. Never empty for a present key.
     commitments: BTreeMap<SubjectId, BTreeMap<CommitmentKey, Commitment>>,
     /// Lived meaning per subject. Read by projection and by nothing that
-    /// decides, so it enters `state_digest` and no `ScopePreimage`.
+    /// decides, so it enters `state_digest` and no scope.
     /// Pressure *on* each subject, keyed target-major then source. Never empty
     /// for a present key; no stored zero magnitude.
     pressures: BTreeMap<SubjectId, BTreeMap<PressureSource, PressureMagnitude>>,
     /// Minutes since genesis. The world's only clock, advanced by exactly one
     /// command body and read by no wall clock. It enters `state_digest` and no
-    /// `ScopePreimage`: it is world truth, and it is read by no precondition, so
-    /// a tick that only advances pressure moves no proposal's binding.
+    /// scope: it is world truth, and it is read by no precondition.
     now: FictionalMinutes,
     controller_assignments: BTreeMap<DecisionScope, ControllerAssignment>,
     /// What an affordance *is*. World-authored, Draft-only, written by
@@ -827,12 +824,12 @@ pub struct SubjectSnapshot {
     pub human_controller: Option<PrincipalId>,
     pub affordances: BTreeSet<AffordanceId>,
     pub(crate) position: Option<EntityId>,
-    /// Set for a subject `Retire` ended: no opportunity, no position, no
+    /// Set for a subject `Retire` ended: no grants, no position, no
     /// audience, its history kept. The agent's view and the surface read this
     /// rather than inferring retirement from an absent position, which a
     /// merely unplaced live subject also has.
     pub retired: bool,
-    /// Exactly what the scope digest binds for this subject, carried whole
+    /// Exactly what a verification reads for this subject, carried whole
     /// rather than lowered into projections that then have to be diffed back
     /// together: its own position, incident routes, holdings, dependencies,
     /// grants, delegated offices, known fact keys, controlled channels, and
@@ -864,10 +861,9 @@ pub struct SubjectSnapshot {
     /// This subject's own dependencies, lowered from `components.dependencies`
     /// (private to this module) so the play table's omniscient view can print
     /// what a `release` may name without reaching into `ScopeComponents`
-    /// itself. View-only, covered by no digest of its own: it is already bound
-    /// through `components`.
+    /// itself. View-only: it is already carried by `components`.
     pub(crate) dependencies: Vec<DependencyTarget>,
-    /// The greatest `DecisionEvent.revision` whose scope is this subject, or
+    /// The greatest `DecisionEvent.revision` whose actor is this subject, or
     /// `None` if the subject never acted. Derived from `state.events` alone:
     /// no new state, no schema change. The recency marker `projector_knowledge`
     /// stamps onto each knowledge row is `acquired_at > last_acted_at`.
@@ -1754,9 +1750,7 @@ fn admit_resolved(
             ));
         }
         // Controller-shaped, both ways: a mirror receives no affordance, and
-        // every other controller must receive one. That is what makes the
-        // mirror's exclusion from opportunity derivation consistent rather than
-        // merely enforced.
+        // every other controller must receive one.
         if matches!(
             subject.controller,
             ControllerAssignment::ExternallyControlled { .. }
@@ -3100,25 +3094,20 @@ fn overlapping_holder(state: &WorldState) -> Option<SubjectId> {
 }
 
 /// Exactly the components a subject's verification reads. One owner, consumed by
-/// the scope digest and by the snapshot, so the two cannot drift. `routes` is
+/// `action::exercise` and by the snapshot, so the two cannot drift. `routes` is
 /// every edge whose `from` or `to` is the subject's place: an inbound route
 /// decides who can arrive, and reading too little is a correctness hole while
 /// reading too much only costs an extra rejection. `holdings` and `dependencies`
 /// are the acting subject's own; a counterparty's holdings do not enter, because
-/// a transfer changes both subjects' components and so changes both digests.
+/// a transfer changes both subjects' components.
 /// It also holds what the actor *is* authorized over, and nothing about the
 /// world the actor reaches: the target's position, the target's container
 /// chain, the forum's state, and any subordinate's components stay out. A
-/// realm-wide authority whose preimage held its jurisdiction's occupancy would
-/// conflict with every commit in the realm, which is whole-world binding
-/// restored by the front door. A target that walks out of a jurisdiction
-/// mid-flight therefore fails at `Authorized` rather than rebinding, while a
-/// revoked grant is a `ScopeChanged`.
+/// target that walks out of a jurisdiction mid-flight fails at `Authorized`
+/// at commit, and a revoked grant fails the same way.
 ///
 /// `Deserialize` is here so the narrative lane can persist a subject's own
-/// components as the "before" an interruption is measured against. No field
-/// changes with it, so `ScopePreimage`'s serialization — and therefore every
-/// scope digest — is byte-identical.
+/// components as the "before" an interruption is measured against.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ScopeComponents {
@@ -3131,9 +3120,9 @@ pub struct ScopeComponents {
     /// What each held office lends: for every office whose incumbent is this
     /// subject, the institution's live grants whose kind that office delegates.
     /// The institution's authority is copied in through the office link, so one
-    /// scope digest covers the grant, the office, and the institution's
-    /// jurisdiction, and only delegated kinds enter — an institution's `judge`
-    /// jurisdiction never churns a `levy`-only incumbent's proposals.
+    /// scope covers the grant, the office, and the institution's jurisdiction,
+    /// and only delegated kinds enter — an institution's `judge` jurisdiction
+    /// never reaches a `levy`-only incumbent.
     delegated: BTreeMap<SubjectId, BTreeMap<OfficeName, BTreeSet<AuthorityGrant>>>,
     /// The keys of this subject's own knowledge. Keys, not payloads: a statement
     /// is immutable, so it cannot change without the key changing, and
@@ -3143,13 +3132,11 @@ pub struct ScopeComponents {
     knows: BTreeSet<EntityId>,
     /// The channels this subject controls, with their records. Membership of a
     /// channel it merely hears never enters: a 1,000-member channel would churn
-    /// a thousand digests per membership change, which is whole-world binding by
-    /// the front door.
+    /// a thousand scopes per membership change.
     controls: BTreeMap<EntityId, ChannelRecord>,
     /// This subject's own commitments. `Precondition::Committed` reads them, so
-    /// the digest must bind them. Pressure, the clock, and the attention stamp
-    /// stay out: no precondition reads any of the three, so a tick that only
-    /// advances pressure invalidates no in-flight proposal.
+    /// they are in scope. Pressure and the clock stay out: no precondition reads
+    /// either.
     commitments: BTreeMap<CommitmentKey, Commitment>,
 }
 
@@ -8742,8 +8729,8 @@ mod knowledge_tests {
         assert!(candidate.knowledge.contains_key(&speech.listener));
     }
 
-    /// The scope table: a telling rebinds its listener and leaves a bystander
-    /// alone, and a reach change moves only the controller's digest.
+    /// The scope table: a telling moves its listener's scope and leaves a bystander
+    /// alone, and a reach change moves only the controller's scope.
     #[test]
     fn a_telling_moves_only_the_listeners_scope() {
         let directory = tempfile::tempdir().unwrap();
@@ -9237,7 +9224,7 @@ mod soul_knowledge_tests {
             assert_eq!(
                 digest_of(&kernel, *subject),
                 digest,
-                "an utterance nobody heard moved a scope digest"
+                "an utterance nobody heard moved a scope"
             );
         }
     }
@@ -10632,7 +10619,7 @@ mod witness_tests {
     }
 }
 
-/// The clock, commitments, pressure, ordered attention, boundaries, and scale.
+/// The clock, commitments, pressure, boundaries, and scale.
 #[cfg(test)]
 mod clock_tests {
     use super::patch::{PreconditionRef, PressureSourceRef};
@@ -11737,9 +11724,9 @@ mod clock_tests {
         let after = digests(&kernel);
         for (subject, digest) in &before {
             if *subject == clockwork.reeve {
-                assert_ne!(after[subject], *digest, "the fulfilling subject rebinds");
+                assert_ne!(after[subject], *digest, "the fulfilling subject's scope moved");
             } else {
-                assert_eq!(after[subject], *digest, "everyone else still commits");
+                assert_eq!(after[subject], *digest, "everyone else's scope is untouched");
             }
         }
     }
