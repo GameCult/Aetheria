@@ -308,6 +308,8 @@ public static class ShipModCatalog
         foreach (var anchor in emitters)
         {
             var hardpoint = hull.Hardpoints.FirstOrDefault(candidate => candidate.Type == HardpointType.Thruster && candidate.Transform == anchor.Id);
+            // An emitter anchor with no thruster hardpoint is already a package fault: ShipAuthoringStore.Validate (run by Read and
+            // PackageOf before Bind) refuses a mount-role anchor that is not the mount of a hardpoint of its type.
             if (hardpoint == null) continue;
             var facing = hardpoint.Rotation.Direction();
             // The model's frame is glTF's, nose toward +Z and port toward +X (the Blender kit's nose at -Y and port at +X,
@@ -353,7 +355,9 @@ public static class ShipModCatalog
             foreach (var primitive in (JArray)_json["meshes"][meshIndex.Value]["primitives"])
             {
                 var attributes = (JObject)primitive["attributes"];
-                if (primitive["extensions"] != null) throw Unreadable($"mesh {meshIndex} uses a primitive extension");
+                if (primitive["extensions"] is JObject extensions && extensions.Properties().Any(p => HidesGeometry(p.Name)))
+                    throw Unreadable($"mesh {meshIndex} is compressed by {extensions.Properties().First(p => HidesGeometry(p.Name)).Name}");
+                var normalMatrix = Matrix4x4.Invert(world, out var inverse) ? Matrix4x4.Transpose(inverse) : throw Unreadable($"node {node} has a transform that cannot be inverted");
                 var positions = Vectors((int)attributes["POSITION"]).Select(point => Vector3.Transform(point, world)).ToArray();
                 var indices = primitive["indices"] == null ? Enumerable.Range(0, positions.Length).ToArray() : Indices((int)primitive["indices"]);
                 for (var i = 0; i + 2 < indices.Length; i += 3)
@@ -364,7 +368,7 @@ public static class ShipModCatalog
                 }
                 if (attributes["NORMAL"] != null)
                     foreach (var normal in Vectors((int)attributes["NORMAL"]))
-                        if (normal.LengthSquared() > 1e-12f) yield return Vector3.Normalize(Vector3.TransformNormal(normal, world));
+                        if (normal.LengthSquared() > 1e-12f) yield return Vector3.Normalize(Vector3.TransformNormal(normal, normalMatrix));
             }
         }
 
@@ -406,6 +410,8 @@ public static class ShipModCatalog
             var a = (JObject)_json["accessors"][accessor];
             if (a["sparse"] != null || a["bufferView"] == null) throw Unreadable($"accessor {accessor} is sparse or has no buffer view");
             var view = (JObject)_json["bufferViews"][(int)a["bufferView"]];
+            if (view["extensions"] is JObject viewExtensions && viewExtensions.Properties().Any(p => HidesGeometry(p.Name)))
+                throw Unreadable($"accessor {accessor} is compressed by {viewExtensions.Properties().First(p => HidesGeometry(p.Name)).Name}");
             var component = (int)a["componentType"];
             var type = (string)a["type"];
             var width = (component == 5126 || component == 5125 ? 4 : component == 5123 ? 2 : 1) * (type == "VEC3" ? 3 : 1);
@@ -441,6 +447,10 @@ public static class ShipModCatalog
             }
             return result;
         }
+
+        // The extensions that store geometry in a form this reader does not decode; any other (materials, variants) leaves the
+        // positions and normals where the accessors say.
+        private static bool HidesGeometry(string extension) => extension == "KHR_draco_mesh_compression" || extension == "EXT_meshopt_compression";
 
         private InvalidOperationException Unreadable(string reason) => new InvalidOperationException($"{_path}: emitter geometry is unreadable: {reason}.");
     }

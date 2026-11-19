@@ -464,6 +464,10 @@ def build(runner, library, hull_type, projector):
     anchor_meshes = {a.id: parse_off(runner(MESH_ROLES[a.role] + a.id)[0]) for a in anchors if a.role in MESH_ROLES}
     for a in anchors:
         if a.role == "thruster-emitter":
+            # The hardpoint Rotation the catalog gate judges the emitter against is one of four directions, so the one authority
+            # for which way an emitter faces is a quarter turn; a source that turns one otherwise is refused here, not rounded.
+            if abs(a.yaw / 90 - round(a.yaw / 90)) > 1e-6:
+                raise HullSourceError("The hull source turns a thruster emitter by something other than a quarter turn")
             anchor_meshes[a.id] = exhaust_face(anchor_meshes[a.id], a.yaw)
     kit_lines = read_lines(runner("lines")[1])
     judge = donor or own

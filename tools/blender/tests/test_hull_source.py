@@ -410,6 +410,15 @@ class JudgementTests(unittest.TestCase):
             self.assertEqual(len(mesh.triangles), 2, yaw)
             self.assertEqual(set(self._normals(mesh)), {facing}, yaw)
 
+    def test_an_emitter_turned_off_a_quarter_turn_is_refused(self):
+        # The gate knows four directions (a hardpoint Rotation); an emitter yawed 45 degrees has none, so it is not rounded.
+        fixture = Fixture()
+        fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""])
+                                    + echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, -3, 3], 0, "Gun.A"])
+                                    + echo("anchor", ["Th.A", "thruster-emitter", [1, 5, 1], 45, ""]))
+        with self.assertRaises(hs.HullSourceError):
+            fixture.build()
+
     def test_an_emitter_with_no_side_facing_its_exhaust_is_refused(self):
         # A single quad that faces the push, not the exhaust, has nothing left once the wrong side is dropped.
         fixture = Fixture()
