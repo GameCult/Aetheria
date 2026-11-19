@@ -181,22 +181,18 @@ Kept untouched for AL2b: controllers and `ControllerMode`, consumers
 `#![allow(dead_code)]` still hides the dead code of a crate with no entry point.
 What the cut deletes is gone; what remains is part B's:
 
-- Consumer lane: `ConsumerId`, `CONSUMER_ID_NAMESPACE`, `bound_to_consumer`,
-  `PatchGround::Consumer` and the consumer arm of `confine_to_ground`,
-  `VerifiedPrincipalEvidence`.
-- Controller lane: `verified_controller`, `resolve_controller`, `controller_mode`,
+- Controller lane (AL2b-2b's): `resolve_controller`, `controller_mode`,
   `controller_key`.
-- `CreateWorldIntent` (no consumer after the mailbox left).
 - Authenticated-caller vocabulary: `AuthenticatedCaller::fixture`,
-  `verified_principal`, `verified_controller`, `verified_system`, and
+  `verified_principal`, `verified_play`, and
   `requires_owner_restart`; id helpers `text` and `nil_for_test`;
   `commits_for_test`; grammar `verbs`. AL4's ABI
   decides which of these it needs.
 - Patch ingress: `decode_patch`, `check_patch_caps`, `PatchDecodeError` and
   `MAX_PATCH_BYTES`, `MAX_PATCH_DECLARATIONS`, `MAX_PATCH_OPERATIONS`,
   `MAX_PATCH_EVIDENCE`; the consumer ingress and elaboration lane read them, and
-  nothing here does. AL2b deletes them with the consumer lane unless AL4's ABI
-  decodes patches itself.
+  nothing here does. They stay: AL4's ABI decides whether it decodes patches
+  itself.
 - Mailbox and vault comments (`WorldMailbox`, `vault:` evidence strings).
 
 Reproduce the list with `RUSTFLAGS=--force-warn dead_code cargo test --lib --no-run`:
@@ -237,20 +233,78 @@ kernel Speak entry, the grammar, `preconditions_hold`). `DecisionScope` stays th
 grant key and `ControllerAssignment` stays; the owner's `AdmitPatch` and
 `AdvanceTime` doors and `SystemCapability::Clock` stay.
 
-AL2b-2 still owns, under `aetherlight-play-only-after-genesis`: the owner's and
-`Clock`'s post-genesis doors (`AdmitPatch` and `AdvanceTime`), `CallerId::Controller`
-and the controller assignment, the consumer lane and ground, the draft phase and
-approvals, `VerifiedPrincipalEvidence`, the never-mute rule
-(`WouldLeaveSubjectMute`) and the `verify_state_shape` clause requiring a grant per
-controlled scope.
+AL2b-2a (below) took the writers; AL2b-2b still owns the controller half under
+`aetherlight-play-only-after-genesis`: `ControllerAssignment` (which until then
+holds only the `Retired` flag and unread identity data), `NewController`,
+`ControllerId`, `ControllerMode`, `DecisionScope` as the grant key,
+`SubjectState.retired`, `Mismatch::UnadmittedController`, the `admits_human`
+rename and the snapshot's controller fields.
 
 `last_acted_at` and `minted_at` in `snapshot` still read `state.events` (by
 `event.actor`). AL3 needs keyed rows instead of a scan; that is the AL3 cut's.
+
+## Cut AL2b-2a: after genesis only Play writes
+
+Base `f51275c61`. A world is born Active: the genesis commit is the owner's
+only act, and `WorldState::empty` has no phase and no approvals. After it
+`CallerId::Play` is the only caller any command body admits. `CallerId` is
+`{ Principal, Play }`; `Principal` survives as the genesis creator (and as the
+refused caller of every post-genesis body). One rule, `require_play`, decides it
+at the top of `reduce` and again at the top of `apply_effect`, so it holds on
+commit and at replay; the journal gains no caller rule.
+`require_ruler` is `forbid_rulings_at_genesis`: genesis may not rule or mint,
+Play may. A grant row exists if and only if the subject holds a verb; a subject
+may be declared with none, and revoking the last verb removes the row.
+`GrantsOutsideControl` is `GrantsToRetired`. `STATE_SCHEMA` and `COMMIT_SCHEMA`
+moved to `consumer.v9`.
+
+Deleted, with their `f51275c61` locations in `lib.rs` unless noted:
+
+- The Clock and Consumer capabilities and `CallerId::Controller`:
+  `SystemCapability` (388-406), `AuthenticatedCaller::verified_controller` (433),
+  `require_system_capability`, `require_clock_caller`, `require_play_active`,
+  `require_owner` and `require_patch_author` (1456-1514, 3594-3625, 3989-4006),
+  and `apply_effect`'s capability table.
+- The consumer lane: `ConsumerId` and its namespace (317-338), `PatchGround`
+  (408-419), `NewController::External`, `ControllerAssignment::
+  ExternallyControlled`, `expected_caller`, `consumer()`, `bound_to_consumer`,
+  `candidate_places`, `confine_to_ground` (3628-3792), `operation_ground`
+  (3826-3987), and in `patch.rs` the mirror and human candidate sets,
+  `Mismatch::OutsideJurisdiction`, `RetiresAMirror`, `ControllerGrantMismatch`.
+- The draft phase: `WorldPhase`, `WorldState.phase` and `draft_approvals`,
+  `CommandBody::ApproveDraft` and `ActivateWorld`, `WorldEffect::DraftApproved`
+  and `WorldActivated`, `required_approvers`, `KernelError::WrongPhase`,
+  `NotDraftApprover`, `DraftAlreadyApproved`, `MissingApprovals`, the snapshot's
+  `phase`, `draft_approvals` and `required_approvers`, `Mismatch::RetiresAnApprover`,
+  and the Draft-only shape clause in `journal.rs`.
+- The never-mute rule and the controller/grant pairing: in `admit_resolved`, the
+  resolver, `Mismatch::WouldLeaveSubjectMute`, and the shape clauses in
+  `verify_state_shape` that required a grant row per controlled scope.
+- `CommandId::derived`, whose only caller was `ConsumerId::of_name`.
+- `VerifiedPrincipalEvidence` (106-146), `CreateWorldIntent` (366-376) and
+  `PrincipalCommandIntent` (521-529). The `valid_until` enforcement that
+  Ghostlight's mailbox did is no longer an AL4 obligation: the type that carried
+  it is gone.
+
+Kept: the whole dialogue lane, `decode_patch`, `check_patch_caps`,
+`PatchDecodeError` and the `MAX_PATCH_*` constants (AL4's ABI decides whether
+it decodes patches itself), the `ghostlight.*` schema namespaces (AL3 renames
+them), `Retire`, `GrantAffordance` and `RevokeAffordance` as Play's patch
+operations, and `#![allow(dead_code)]`.
+
+Nothing decides with a controller after this cut. `ControllerAssignment`,
+`NewController::{Human, NarrativePersona, OperationalAgent}`, `ControllerId`,
+`ControllerMode`, `DecisionScope` as the grant key, `validate_assignment`,
+`Mismatch::UnadmittedController` and `admits_human` (the genesis predicate three
+places read) stay compiled for AL2b-2b, which removes the controllers and
+renames the predicate.
+
+`last_acted_at` and `minted_at` in `snapshot` still read `state.events`; the
+count of code readers of `state.events` did not rise (idea
+`cutspecs-1119.al3-needs-keyed-rows`).
 
 ## Obligations this cut hands to AL4
 
 - A cross-crate proof that forged opportunities and ids are refused, equivalent to
   the dropped `tests/external_admission.rs`, against the ABI's surface.
-- Enforcement of `VerifiedPrincipalEvidence::valid_until`, which Ghostlight's
-  mailbox did and the fork does not.
 - Removal of `#![allow(dead_code)]`.
