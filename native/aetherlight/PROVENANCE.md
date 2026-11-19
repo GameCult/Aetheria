@@ -12,8 +12,8 @@ Every file below was copied as a raw git blob (`git show`), never `git archive`.
 The blobs are LF, as upstream. A Windows checkout with `core.autocrlf` turns the
 `.rs` files and the two text fixtures into CRLF; rustc, the fixture readers
 (`lines()`, `trim()`) and the golden test absorb that, so no `.gitattributes` is
-kept (a first commit had one; its stated reason did not hold). `base_world.cc` is
-binary and no newline rule touches it. Line ranges are in the c43eb54 file.
+kept (a first commit had one; its stated reason did not hold). The recorded-world
+fixture (removed in AL2a) was binary and no newline rule touched it. Line ranges are in the c43eb54 file.
 
 ## Taken
 
@@ -77,9 +77,13 @@ unicode-normalization, unicode-properties, uuid; dev tempfile.
   `import_key_tests.rs` lose the symbols and tests listed there.
 
 Not renamed: the `ghostlight.*` schema ids and namespaces in the code
-(`STATE_SCHEMA`, `COMMIT_SCHEMA`, journal schema rows, `ghostlight.speech`). They enter derived ids and digests. No test pins them
-since AL2a removed the golden replay (see below); AL4 adds Aetherlight's own
-golden. AL3 owns the format rename.
+(`STATE_SCHEMA`, `COMMIT_SCHEMA`, journal schema rows, `ghostlight.speech`). They
+enter derived ids and digests. No test pins their digests since AL2a removed the
+golden replay (see below); AL3/AL5 add Aetherlight's own once ids are derived
+(follow-up `aetherlight-golden-replay-dialogue`). AL2a bumped `STATE_SCHEMA` and
+`COMMIT_SCHEMA` from `consumer.v6` to `consumer.v7` because the state shape lost
+fields, so a pre-cut store is refused at the schema gate (tested with v6 rows).
+AL3 owns the format rename.
 
 ## Left behind
 
@@ -109,7 +113,7 @@ binding, preconditions, audience, band selection and lowering (`action.rs`);
 
 `cultcache-rs` is pinned at Ghostlight's rev
 `85f7024a35ea42cf9f0a0199a064526427150191`, the rev that wrote
-`tests/fixtures/base_world.cc`, not Aetheria's C# CultLib pin. The fork
+Ghostlight's recorded-world fixture (removed in AL2a), not Aetheria's C# CultLib pin. The fork
 reproduces Ghostlight first; AL3 removes cultcache-rs.
 
 ## Pulling a later Ghostlight fix
@@ -151,15 +155,20 @@ Deleted, with their c43eb54 homes:
   `AnswerNotDerived`, `AnswerNotSatisfied`; `Mismatch::UnknownJurisdictionRoot`
   and `ScaleWeightsExceedWhole`. `resolve_patch` loses its intent parameter.
 - The golden replay `grammar::tests::existing_world_reopens_with_unchanged_digests`
-  and `tests/fixtures/base_world.*`: removing state fields changed the state
+  and the recorded-world fixtures under `tests/fixtures`: removing state fields changed the state
   shape, so Ghostlight's recorded world no longer decodes. AL4 adds
   Aetherlight's own golden.
 
-Behaviour that changed with the gate: with `require_answer` gone, the owner and
-`Play` declare in Active with no answer, and a confined author's only remaining
-check is `confine_to_ground`, which now serves the consumer ground alone.
-`require_play_active` keeps the one rule `require_answer` also held: `Play`
-authors nothing in Draft.
+Behaviour with the gate gone: `require_play_active` keeps the one rule
+`require_answer` also held (`Play` authors nothing in Draft) and states the other
+as a plain rule: in Active, declaring (new structure or evidence) is `Play`'s act
+alone, and the owner is refused. A confined author's only remaining check is
+`confine_to_ground`, which now serves the consumer ground alone.
+
+AL4's ABI must route the host through typed commands (the sim reports events,
+scripts propose), never through owner declarations in Active: under
+`aetherlight-narrative-state-owner` an owner declaring in Active would be a second
+door beside that path.
 
 Kept untouched for AL2b: controllers and `ControllerMode`, consumers
 (`ConsumerId`, `SystemCapability::Consumer`, `PatchGround::Consumer`,
@@ -179,9 +188,19 @@ What the cut deletes is gone; what remains is part B's:
   `controller_receipt`, `controller_decline_receipt`, `controller_key`.
 - Tick-driver readers `WorldKernel::opportunities` and `clock_advances`, and
   `CreateWorldIntent` (no consumer after the mailbox left).
+- Authenticated-caller vocabulary: `AuthenticatedCaller::fixture`,
+  `verified_principal`, `verified_controller`, `verified_system`, and
+  `requires_owner_restart`; id helpers `text` and `nil_for_test`; `as_str`,
+  `digest` (scope preimage); `commits_for_test`; grammar `verbs`. AL4's ABI
+  decides which of these it needs.
+- Patch ingress: `decode_patch`, `check_patch_caps`, `PatchDecodeError` and
+  `MAX_PATCH_BYTES`, `MAX_PATCH_DECLARATIONS`, `MAX_PATCH_OPERATIONS`,
+  `MAX_PATCH_EVIDENCE`; the consumer ingress and elaboration lane read them, and
+  nothing here does. AL2b deletes them with the consumer lane unless AL4's ABI
+  decodes patches itself.
 - Mailbox and vault comments (`WorldMailbox`, `vault:` evidence strings).
 
-Reproduce the list with `RUSTFLAGS=--force-warn dead_code cargo test --no-run`:
+Reproduce the list with `RUSTFLAGS=--force-warn dead_code cargo test --lib --no-run`:
 under test configuration the items nothing exercises show up.
 
 ## Obligations this cut hands to AL4
