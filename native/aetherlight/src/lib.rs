@@ -12602,6 +12602,44 @@ mod agency_tests {
         }
     }
 
+    /// The gate sits at the top of `reduce`, so a non-Play caller learns
+    /// nothing about the world through a refusal: a patch that would be
+    /// rejected for naming an unknown subject, and an act the actor has no
+    /// grant for, both come back Unauthorized.
+    #[test]
+    fn a_non_play_caller_is_refused_before_the_world_is_read() {
+        let (_directory, _path, mut kernel) = world("Blind");
+        let snapshot = kernel.snapshot().unwrap();
+        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let ungranted = affordance_named(&snapshot, "convene");
+        let broken = operations(vec![ComponentOp::Retire {
+            subject: Ref::Existing(SubjectId::issue()),
+        }]);
+        let denied = CommandBody::Act {
+            actor: persona,
+            invocation: speak(ungranted, "Not mine."),
+        };
+        for caller in [
+            CallerId::Principal(owner()),
+            CallerId::Principal(human_principal()),
+        ] {
+            for body in [broken.clone(), denied.clone()] {
+                let error = kernel
+                    .submit(
+                        command(&snapshot, CommandId::new(), caller.clone(), body),
+                        &AuthenticatedCaller::fixture(caller.clone()),
+                    )
+                    .unwrap_err();
+                assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
+            }
+        }
+        // The same commands from Play are refused for what they are.
+        let error = reject_play(&mut kernel, &snapshot, broken);
+        assert!(!error.is_empty());
+        let error = act(&mut kernel, persona, speak(ungranted, "Not mine.")).unwrap_err();
+        assert!(matches!(error, KernelError::AffordanceDenied), "{error:?}");
+    }
+
     #[test]
     fn a_world_is_born_active() {
         let (_directory, path, mut kernel) = world("BornActive");

@@ -2302,6 +2302,30 @@ mod custody_tests {
         );
     }
 
+    /// The title clause of the shape check refuses an empty title and a
+    /// noncanonical one, each on its own.
+    #[test]
+    fn a_forged_empty_or_padded_title_is_corrupt() {
+        use crate::tests::{auth_principal, creation, owner};
+
+        let directory = tempfile::tempdir().unwrap();
+        let (kernel, _) = WorldKernel::create(
+            directory.path().join("world.cc"),
+            creation(CommandId::new(), "Titled"),
+            &auth_principal(owner()),
+        )
+        .unwrap();
+        verify_state_shape(&kernel.state).expect("a canonical title passes");
+        for title in ["", "  ", " Titled", "Titled "] {
+            let mut forged = kernel.state.clone();
+            forged.title = title.into();
+            assert!(
+                matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
+                "title {title:?} passed the shape check"
+            );
+        }
+    }
+
     /// A grant row is a verb list for a live subject: each clause of the shape
     /// check is pinned on `verify_state_shape` directly, one forged state per
     /// clause, so deleting any one of them fails a case.
