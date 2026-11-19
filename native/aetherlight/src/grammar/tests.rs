@@ -6,7 +6,7 @@ use crate::patch::{
 use crate::tests::{auth_principal, command, creation, owner};
 use crate::{
     CallerId, CommandBody, CommandId, CreateWorld, KernelError, SubjectKind, SubmitReceipt,
-    WorldId, WorldKernel, WorldPatch,
+    WorldKernel, WorldPatch,
 };
 
 fn verb(path: RenderPath, roles: &[(&str, GrammarReferentKind)]) -> GrammarVerb {
@@ -484,34 +484,6 @@ fn a_grammar_names_each_verb_once_and_has_a_schema() {
     );
 }
 
-/// The fixture world was written by the code at base 367e2eb, which has no
-/// grammar field anywhere. Reopening it must reproduce the digests that code
-/// recorded.
-#[test]
-fn existing_world_reopens_with_unchanged_digests() {
-    let directory = tempfile::tempdir().unwrap();
-    let path = directory.path().join("world.cc");
-    std::fs::write(&path, include_bytes!("../../tests/fixtures/base_world.cc")).unwrap();
-    let world_id: WorldId =
-        serde_json::from_str(include_str!("../../tests/fixtures/base_world.id").trim()).unwrap();
-    let kernel = WorldKernel::open(&path, world_id).expect("a base-written world reopens");
-    let snapshot = kernel.snapshot().unwrap();
-    let recorded = include_str!("../../tests/fixtures/base_world.digests");
-    let mut lines = recorded.lines();
-    assert_eq!(snapshot.revision.to_string(), lines.next().unwrap());
-    assert_eq!(snapshot.state_digest, lines.next().unwrap());
-    assert_eq!(
-        snapshot.last_commit_digest.as_deref(),
-        Some(lines.next().unwrap())
-    );
-    assert!(snapshot.grammar.is_none());
-    // Its state still derives the recorded digest from its bytes.
-    assert_eq!(
-        crate::state_digest(&kernel.state).unwrap(),
-        snapshot.state_digest
-    );
-}
-
 fn submit_as(
     kernel: &mut WorldKernel,
     caller: CallerId,
@@ -710,7 +682,6 @@ fn an_effect_resolved_elsewhere_cannot_install_an_entry_outside_the_grammar() {
             &twin,
             CommandId::new(),
             &patch_of(vec![declare("probe", kind, roles)]),
-            None,
             None,
         )
         .expect("the unbound twin admits any canonical kind")

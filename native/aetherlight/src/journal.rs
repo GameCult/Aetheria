@@ -759,11 +759,6 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             "the scale intent names a non-place root or distributes more than the whole".into(),
         ));
     }
-    // The third statement of the draw rule, beside genesis and
-    // `SetLensWeights`: no stored world holds weights that never draw.
-    if !state.lens_weights.draws() {
-        return Err(JournalError::Corrupt("the lens weights never draw".into()));
-    }
     // The civic subgraph, in the slot the deleted `authority_scope` check
     // occupied: a jurisdiction names live ground under a canonical kind, an
     // office sits on an institution and lends something to a person who holds
@@ -1109,7 +1104,6 @@ mod tests {
         let owner = PrincipalId::new("owner@example.test");
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
         let creation = CreateWorld {
-            lens_weights: crate::tests::stock_weights(),
             id: CommandId::new(),
             owner: owner.clone(),
             title: "Before".into(),
@@ -1194,7 +1188,6 @@ mod tests {
         let owner = PrincipalId::new("owner@example.test");
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
         let creation = CreateWorld {
-            lens_weights: crate::tests::stock_weights(),
             id: CommandId::new(),
             owner: owner.clone(),
             title: "Kharad".into(),
@@ -1319,11 +1312,10 @@ mod tests {
         }
     }
 
-    /// Lens weights entered both rows — the state row holds them and a commit
-    /// row carries `LensWeightsReplaced` — so both schemas bumped and both
-    /// `consumer.v4` strings are refused at open. No migration, no dual read.
+    /// A store written under an older schema is refused at open: both
+    /// `consumer.v4` strings. No migration, no dual read.
     #[test]
-    fn a_store_written_before_the_lens_schema_is_refused() {
+    fn a_store_written_under_an_older_schema_is_refused() {
         for (row_type, schema) in [
             (STATE_ROW, "ghostlight.world_state.consumer.v4"),
             (COMMIT_ROW, "ghostlight.world_commit.consumer.v4"),
@@ -1346,34 +1338,28 @@ mod tests {
         }
     }
 
-    /// A world whose history includes an owner's `SetLensWeights`, reopened
-    /// from its own store rows.
-    fn lens_history() -> (tempfile::TempDir, WorldKernel, crate::LensWeights) {
-        use crate::tests::{auth_principal, creation, owner, submit_owner};
-        use crate::{Lens, LensWeights};
+    /// A world whose history includes an owner's clock advance, reopened from
+    /// its own store rows.
+    fn clock_history() -> (tempfile::TempDir, WorldKernel) {
+        use crate::tests::{activate, auth_principal, creation, owner, submit_owner};
+        use crate::TickMinutes;
 
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "Lens History"),
+            creation(CommandId::new(), "Clock History"),
             &auth_principal(owner()),
         )
         .unwrap();
-        let replaced = LensWeights::new(BTreeMap::from([
-            (Lens::Patina, 0),
-            (Lens::Charter, 4),
-            (Lens::Ledger, 1),
-            (Lens::Numen, 2),
-        ]));
-        let snapshot = kernel.snapshot().unwrap();
+        let snapshot = activate(&mut kernel);
         submit_owner(
             &mut kernel,
             &snapshot,
-            CommandBody::SetLensWeights {
-                weights: replaced.clone(),
+            CommandBody::AdvanceTime {
+                minutes: TickMinutes::new(30).unwrap(),
             },
         );
-        (directory, kernel, replaced)
+        (directory, kernel)
     }
 
     fn rows_of(state: &WorldState, commits: &[WorldCommit]) -> Vec<CultCacheEnvelope> {
@@ -1387,151 +1373,69 @@ mod tests {
         rows
     }
 
-    /// Replay re-derives the owner's weight change: the honest history reopens
-    /// to the same state digest and weights, and the store on disk does too.
+    /// Replay re-derives the owner's clock advance: the honest history reopens
+    /// to the same state digest and reading, and the store on disk does too.
     #[test]
-    fn a_history_with_a_lens_weight_change_replays_exactly() {
-        let (directory, kernel, replaced) = lens_history();
+    fn a_history_with_an_owner_clock_advance_replays_exactly() {
+        let (directory, kernel) = clock_history();
         let honest: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
         let (_, replayed, commits) =
             recover(rows_of(&kernel.state, &honest), None).expect("the honest history replays");
         assert_eq!(commits.len(), honest.len());
         assert_eq!(replayed.state_digest, kernel.state.state_digest);
-        assert_eq!(replayed.lens_weights, replaced);
+        assert_eq!(replayed.now, kernel.state.now);
 
-        let (world_id, digest) = (kernel.state.world_id, kernel.state.state_digest.clone());
+        let (world_id, digest, now) =
+            (kernel.state.world_id, kernel.state.state_digest.clone(), kernel.state.now);
         drop(kernel);
         let reopened = WorldKernel::open(directory.path().join("world.cc"), world_id).unwrap();
         assert_eq!(reopened.state.state_digest, digest);
-        assert_eq!(reopened.state.lens_weights, replaced);
+        assert_eq!(reopened.state.now, now);
     }
 
-    /// A stored weight change is not believed about who made it or what it
-    /// wrote. Each forgery re-seals the whole store around its rewrite: the
-    /// head state takes the effect's weights, its state digest is recomputed,
-    /// the commit's resulting state digest and its own digest follow, and the
-    /// head's last commit digest names the re-sealed commit. No digest can
-    /// answer for the check, which the drawing control proves: the same
-    /// re-sealing around a set that draws replays.
+    /// A stored command is not believed about who made it. The forgery re-seals
+    /// the commit around its rewrite and the head's last commit digest names the
+    /// re-sealed commit, so no digest can answer for the check; the control, the
+    /// same re-sealing around the honest caller, replays.
     #[test]
-    fn a_forged_lens_weights_row_fails_replay() {
+    fn a_clock_advance_forged_to_another_caller_fails_replay() {
         use crate::tests::human_principal;
-        use crate::{Lens, LensWeights};
 
-        let (_directory, kernel, _) = lens_history();
+        let (_directory, kernel) = clock_history();
         let honest: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
         let forge = |rewrite: &dyn Fn(&mut WorldCommit)| -> (WorldState, Vec<WorldCommit>) {
             let mut head = kernel.state.clone();
             let mut forged: Vec<WorldCommit> = honest.clone();
-            let lens_row = forged
+            let clock_row = forged
                 .iter_mut()
-                .filter(|commit| matches!(commit.effect, WorldEffect::LensWeightsReplaced { .. }))
+                .filter(|commit| matches!(commit.effect, WorldEffect::TimeAdvanced { .. }))
                 .collect::<Vec<_>>();
-            let [commit] = <[&mut WorldCommit; 1]>::try_from(lens_row)
-                .expect("the history holds exactly one lens weights row");
+            let [commit] = <[&mut WorldCommit; 1]>::try_from(clock_row)
+                .expect("the history holds exactly one clock row");
             assert_eq!(
                 commit.resulting_revision, head.revision,
-                "the lens weights row is the head commit"
+                "the clock row is the head commit"
             );
             rewrite(commit);
-            let WorldEffect::LensWeightsReplaced { weights } = &commit.effect else {
-                unreachable!("a lens weights row stays one");
-            };
-            head.lens_weights = weights.clone();
-            head.state_digest = crate::state_digest(&head).unwrap();
-            commit.resulting_state_digest = head.state_digest.clone();
             commit.digest = commit_digest(commit).unwrap();
             head.last_commit_digest = Some(commit.digest.clone());
-
-            // Every seal agrees with what it seals.
-            assert_eq!(crate::state_digest(&head).unwrap(), head.state_digest);
-            assert_eq!(commit_digest(commit).unwrap(), commit.digest);
-            assert_eq!(commit.resulting_state_digest, head.state_digest);
-            assert_eq!(head.last_commit_digest.as_deref(), Some(commit.digest.as_str()));
             (head, forged)
         };
-        let set = |weights: LensWeights| {
-            move |commit: &mut WorldCommit| {
-                if let CommittedCommand::WorldCommand(command) = &mut commit.command {
-                    command.body = CommandBody::SetLensWeights {
-                        weights: weights.clone(),
-                    };
-                }
-                commit.effect = WorldEffect::LensWeightsReplaced {
-                    weights: weights.clone(),
-                };
-            }
-        };
-        let refused = |(head, forged): (WorldState, Vec<WorldCommit>)| -> String {
-            let error =
-                recover(rows_of(&head, &forged), None).expect_err("a forged lens weights row replayed");
-            let JournalError::Corrupt(detail) = error else {
-                panic!("unexpected refusal: {error:?}");
-            };
-            detail
-        };
 
-        // The control: a re-sealed store around a different set that draws
-        // replays, so the re-sealing leaves nothing for a digest to catch.
-        let drawing = LensWeights::new(BTreeMap::from([(Lens::Veil, 2), (Lens::Ember, 1)]));
-        let (head, forged) = forge(&set(drawing.clone()));
-        let (_, replayed, _) =
-            recover(rows_of(&head, &forged), None).expect("a consistent re-sealed store replays");
-        assert_eq!(replayed.lens_weights, drawing);
+        let (head, control) = forge(&|_| {});
+        recover(rows_of(&head, &control), None).expect("a consistent re-sealed store replays");
 
-        // A non-owner principal with a live approver role in this world.
-        let detail = refused(forge(&|commit| {
+        let (head, forged) = forge(&|commit| {
             if let CommittedCommand::WorldCommand(command) = &mut commit.command {
                 command.caller = CallerId::Principal(human_principal());
             }
-        }));
-        assert!(detail.contains("Unauthorized") || detail.contains("does not own"), "{detail}");
-        // The clock capability.
-        let detail = refused(forge(&|commit| {
-            if let CommittedCommand::WorldCommand(command) = &mut commit.command {
-                command.caller = CallerId::System(crate::SystemCapability::Clock);
-            }
-        }));
-        assert!(detail.contains("Unauthorized") || detail.contains("does not own"), "{detail}");
-        // Every lens named, all at zero, in the command, its effect and the
-        // head: only the draw rule is left to refuse it.
-        let never = LensWeights::new(Lens::ALL.into_iter().map(|lens| (lens, 0)).collect());
-        let detail = refused(forge(&set(never)));
-        assert!(
-            detail.contains("never draw") || detail.contains("LensWeightsNeverDraw"),
-            "something other than the draw rule refused the all-zero row: {detail}"
-        );
-    }
-
-    /// The third statement of the draw rule: a state row whose weights never
-    /// draw is refused by the shape check itself, not only by replay.
-    #[test]
-    fn a_state_row_whose_lens_weights_never_draw_is_refused() {
-        use crate::{Lens, LensWeights};
-
-        let (_directory, kernel, _) = lens_history();
-        let mut forged = kernel.state.clone();
-        forged.lens_weights =
-            LensWeights::new(Lens::ALL.into_iter().map(|lens| (lens, 0)).collect());
-        let JournalError::Corrupt(detail) =
-            verify_state_shape(&forged).expect_err("an all-zero weight set passed the shape check")
-        else {
-            unreachable!("the shape check only reports corruption")
+        });
+        let error = recover(rows_of(&head, &forged), None)
+            .expect_err("a clock advance forged to a non-owner replayed");
+        let JournalError::Corrupt(detail) = error else {
+            panic!("unexpected refusal: {error:?}");
         };
-        assert!(detail.contains("lens weights"), "unexpected refusal: {detail}");
-
-        forged.lens_weights = LensWeights::default();
-        assert!(verify_state_shape(&forged).is_err());
-        assert!(verify_state_shape(&kernel.state).is_ok());
-
-        let commits: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
-        let mut zeroed = kernel.state.clone();
-        zeroed.lens_weights =
-            LensWeights::new(Lens::ALL.into_iter().map(|lens| (lens, 0)).collect());
-        assert!(matches!(
-            recover(rows_of(&zeroed, &commits), None),
-            Err(JournalError::Corrupt(_))
-        ));
+        assert!(detail.contains("Unauthorized") || detail.contains("does not own"), "{detail}");
     }
 
     /// The tick is re-derived at replay by the same function that produced it,
@@ -1764,7 +1668,6 @@ mod tests {
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
         let creation_id = CommandId::new();
         let creation = CreateWorld {
-            lens_weights: crate::tests::stock_weights(),
             id: creation_id,
             owner: owner.clone(),
             title: "Admitted".into(),

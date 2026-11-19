@@ -463,7 +463,6 @@ fn the_subjects_map_refuses_a_second_subject_for_one_key_even_when_resolved_else
                 place,
             )]),
             None,
-            None,
         )
         .expect("the key is unheld at the revision both were resolved against")
     };
@@ -679,7 +678,6 @@ fn admitting_a_resolved_effect_refuses_two_subjects_with_one_key() {
                 mirror("first", Some(key("aetheria.ship", "Beta")), place),
                 mirror("second", Some(key("aetheria.ship", "Gamma")), place),
             ]),
-            None,
             None,
         )
         .expect("two distinct keys resolve")

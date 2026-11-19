@@ -14,7 +14,7 @@
 use super::clock::{FictionalMinutes, TickMinutes};
 use super::grammar::GrammarRefusal;
 use super::{
-    AffordanceId, CommandId, ControllerAssignment, ControllerId, EdgeId, EntityId, LensWeights,
+    AffordanceId, CommandId, ControllerAssignment, ControllerId, EdgeId, EntityId,
     NewController, SubjectId, SubjectKind, SubjectState, WorldId,
 };
 use serde::{Deserialize, Serialize};
@@ -1737,9 +1737,6 @@ pub enum Mismatch {
     /// The permille weights sum over 1000: weights distribute the target and
     /// never raise it.
     ScaleWeightsExceedWhole,
-    /// A lens weight set with no nonzero weight, at genesis or in
-    /// `SetLensWeights`. A single zero weight is admitted and never draws.
-    LensWeightsNeverDraw,
     /// A jurisdictional author wrote outside its jurisdiction. The owner is
     /// unconfined and never sees this.
     OutsideJurisdiction {
@@ -2141,9 +2138,6 @@ pub(super) struct ResolvedPatch {
     /// carries no intent, so the write-once rule is the command shape rather
     /// than a check.
     pub(super) scale_intent: Option<WorldScaleIntent>,
-    /// `Some` on the genesis lane and nowhere else, as `scale_intent` is. After
-    /// genesis the weights change only through `SetLensWeights`.
-    pub(super) lens_weights: Option<LensWeights>,
 }
 
 impl ResolvedPatch {
@@ -3219,7 +3213,6 @@ pub(super) fn resolve_patch(
     command_id: CommandId,
     patch: &WorldPatch,
     scale_intent: Option<&WorldScaleIntentRef>,
-    lens_weights: Option<&LensWeights>,
 ) -> Result<ResolvedPatch, Vec<Mismatch>> {
     let world_id = state.world_id;
     let admits_human = super::admits_human(state.revision, &state.subjects);
@@ -5151,12 +5144,6 @@ pub(super) fn resolve_patch(
         }
     }
 
-    if let Some(weights) = lens_weights
-        && !weights.draws()
-    {
-        mismatches.push(Mismatch::LensWeightsNeverDraw);
-    }
-
     if patch.declarations.is_empty() && patch.operations.is_empty() {
         mismatches.push(Mismatch::NoCanonicalChange);
     }
@@ -5854,7 +5841,6 @@ pub(super) fn resolve_patch(
                 })
                 .collect(),
         }),
-        lens_weights: lens_weights.cloned(),
     })
 }
 
@@ -7378,8 +7364,8 @@ mod tests {
         assert_ne!(admitted, genesis_human);
 
         let command_id = CommandId::new();
-        let first = resolve_patch(&kernel.state, command_id, &patch, None, None).unwrap();
-        let second = resolve_patch(&kernel.state, command_id, &patch, None, None).unwrap();
+        let first = resolve_patch(&kernel.state, command_id, &patch, None).unwrap();
+        let second = resolve_patch(&kernel.state, command_id, &patch, None).unwrap();
         assert_eq!(first, second);
     }
 
@@ -7522,7 +7508,7 @@ mod tests {
                 Some(Ref::Draft(DraftHandle::new("rhythm-road"))),
             ),
         ]);
-        let resolved = resolve_patch(&kernel.state, CommandId::new(), &patch, None, None).unwrap();
+        let resolved = resolve_patch(&kernel.state, CommandId::new(), &patch, None).unwrap();
         let honest = super::super::WorldEffect::PatchAdmitted {
             resolved: resolved.clone(),
             answers: None,
@@ -7726,7 +7712,6 @@ mod tests {
         for edge_id in [topology.span, topology.shutter, topology.toll] {
             let forged = super::super::WorldEffect::PatchAdmitted {
                 resolved: ResolvedPatch {
-                    lens_weights: None,
                     subjects: Vec::new(),
                     entities: Vec::new(),
                     routes: Vec::new(),
