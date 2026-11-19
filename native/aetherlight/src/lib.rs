@@ -56,7 +56,6 @@
 
 mod action;
 mod clock;
-mod cover;
 mod grammar;
 #[cfg(test)]
 mod import_key_tests;
@@ -66,7 +65,6 @@ mod patch;
 pub(crate) use action::ActionMismatch;
 pub(crate) use clock::Motion;
 pub use clock::{FictionalMinutes, TickMinutes};
-pub use cover::{AgencyGraph, Cell, Cover, CoverBudget, CoverBudgetError, TickIndex, derive_cover};
 pub use grammar::{
     GrammarBinding, GrammarError, GrammarIdentity, GrammarReferentKind, GrammarRole, GrammarVerb,
     RenderPath,
@@ -201,26 +199,6 @@ impl CommandId {
         Uuid::parse_str(value)
             .map(Self)
             .map_err(|_| KernelError::InvalidCommandId)
-    }
-
-    /// The cell's own controller-work key. One row per cell per tick, derived so
-    /// a resumed tick reopens the row it wrote rather than starting a second
-    /// cognition chain over the same opportunities.
-    pub(crate) fn for_cell(world: WorldId, cell: cover::CellId, tick: cover::TickIndex) -> Self {
-        Self(cover::cell_work_uuid(world, cell, tick))
-    }
-
-    /// One constituent's submission id. Deterministic over
-    /// `(world, cell, subject, tick)`, so a resumed cell re-submits the same id
-    /// and the kernel's idempotency ledger answers with the original receipt
-    /// instead of committing a second time.
-    pub(crate) fn for_cell_constituent(
-        world: WorldId,
-        cell: cover::CellId,
-        subject: SubjectId,
-        tick: cover::TickIndex,
-    ) -> Self {
-        Self(cover::cell_constituent_uuid(world, cell, subject, tick))
     }
 
     /// sha256 over a namespace and its ordered, length-prefixed parts, first
@@ -1519,8 +1497,7 @@ impl WorldKernel {
     }
 
     /// The tick driver's opportunity list, in the same order a snapshot
-    /// carries it. Separate from `snapshot` for the reason `agency_graph` is:
-    /// only the tick driver reads it.
+    /// carries it. Separate from `snapshot`: only the tick driver reads it.
     fn opportunities(&self) -> Result<Vec<DecisionOpportunity>, KernelError> {
         self.journal.ensure_healthy()?;
         Ok(order_opportunities(
@@ -1540,15 +1517,6 @@ impl WorldKernel {
             .commits()
             .filter(|commit| matches!(commit.effect, WorldEffect::TimeAdvanced { .. }))
             .count() as u64)
-    }
-
-    /// The scheduler's adjacency projection. Separate from `snapshot` for the
-    /// same reason `operator_log` is: it is wider than any subject view, so a
-    /// `WorldSnapshot` field carrying it would be reachable from every prompt
-    /// builder in the process.
-    fn agency_graph(&self) -> Result<AgencyGraph, KernelError> {
-        self.journal.ensure_healthy()?;
-        Ok(agency_graph(&self.state))
     }
 
     fn submit(
@@ -3746,161 +3714,6 @@ fn operator_log(
             })
         })
         .collect()
-}
-
-/// The scheduler's adjacency projection. It is deliberately wider than any
-/// subject view — channel reach and place containment are in no subject's
-/// snapshot at all — which is exactly why it is derived here, beside
-/// `operator_log`, and handed to the cover rather than assembled by a
-/// controller organ out of the union of what subjects can see.
-///
-/// Nothing here is authority. Two subjects are adjacent when a decision by one
-/// can plausibly land on the other, and adjacency only decides which prompt
-/// they share.
-fn agency_graph(state: &WorldState) -> AgencyGraph {
-    let active: BTreeSet<SubjectId> = state
-        .controller_assignments
-        .iter()
-        .filter(|(_, controller)| {
-            matches!(controller.mode(), Some(mode) if mode != ControllerMode::Human)
-        })
-        .map(|(scope, _)| scope.subject_id)
-        .collect();
-    let mut graph = AgencyGraph {
-        subjects: active.iter().copied().collect(),
-        edges: BTreeSet::new(),
-    };
-    if active.len() < 2 {
-        return graph;
-    }
-    let live = |subject: &SubjectId| active.contains(subject);
-
-    // Place containment, which subsumes "standing in the same room": a place
-    // covers itself, so one closure states both.
-    let mut in_place: BTreeMap<EntityId, BTreeSet<SubjectId>> = BTreeMap::new();
-    for (place, record) in &state.entities {
-        if record.kind != EntityKind::Place {
-            continue;
-        }
-        let occupants: BTreeSet<SubjectId> = state
-            .positions
-            .iter()
-            .filter(|(subject, position)| {
-                live(subject) && patch::covers_place(&state.entities, *place, position.place)
-            })
-            .map(|(subject, _)| *subject)
-            .collect();
-        if occupants.len() >= 2 {
-            graph.relate(&occupants);
-        }
-        if !occupants.is_empty() {
-            in_place.insert(*place, occupants);
-        }
-    }
-
-    // An open route makes two rooms one neighbourhood. One representative per
-    // side is enough: each side is already related internally.
-    for edge in state.edges.values() {
-        let EdgeRecord::Route { from, to, open, .. } = edge;
-        if !open {
-            continue;
-        }
-        if let (Some(here), Some(there)) = (in_place.get(from), in_place.get(to))
-            && let (Some(one), Some(other)) = (here.first(), there.first())
-        {
-            graph.link(*one, *other);
-        }
-    }
-
-    // Dependencies: a named subject is a direct edge, a shared resource or
-    // route is a star over everyone leaning on it.
-    let mut shared: BTreeMap<DependencyTarget, BTreeSet<SubjectId>> = BTreeMap::new();
-    for (subject, targets) in &state.dependencies {
-        if !live(subject) {
-            continue;
-        }
-        for target in targets {
-            match target {
-                DependencyTarget::Subject(other) if live(other) => graph.link(*subject, *other),
-                DependencyTarget::Subject(_) => {}
-                other => {
-                    shared.entry(*other).or_default().insert(*subject);
-                }
-            }
-        }
-    }
-    for group in shared.values() {
-        graph.relate(group);
-    }
-
-    // Authority and office: an institution and the people who hold its seats,
-    // and a jurisdiction that names one subject as its ground.
-    for (institution, offices) in &state.selection {
-        let mut seated: BTreeSet<SubjectId> = offices
-            .values()
-            .filter_map(|office| office.incumbent)
-            .filter(live)
-            .collect();
-        if live(institution) {
-            seated.insert(*institution);
-        }
-        graph.relate(&seated);
-    }
-    for (holder, grants) in &state.authority {
-        if !live(holder) {
-            continue;
-        }
-        for grant in grants {
-            if let AuthorityTarget::Subject(over) = grant.over
-                && live(&over)
-            {
-                graph.link(*holder, over);
-            }
-        }
-    }
-
-    // Channel reach. This is the edge no union of subject views could produce:
-    // a subject sees the channels it controls, never who else is in earshot.
-    for record in state.channels.values() {
-        let mut reached: BTreeSet<SubjectId> = match &record.reach {
-            Reach::Subjects(subjects) => subjects.iter().copied().filter(live).collect(),
-            Reach::Place(place) => in_place.get(place).cloned().unwrap_or_default(),
-        };
-        if let Some(controller) = record.controller.filter(live) {
-            reached.insert(controller);
-        }
-        graph.relate(&reached);
-    }
-
-    // Pressure, and the promises that raise it.
-    for (target, sources) in &state.pressures {
-        if !live(target) {
-            continue;
-        }
-        for source in sources.keys() {
-            let other = match source {
-                PressureSource::Commitment { subject, .. } => Some(*subject),
-                PressureSource::Dependency(DependencyTarget::Subject(subject)) => Some(*subject),
-                PressureSource::Subject(subject) => Some(*subject),
-                PressureSource::Dependency(_) => None,
-            };
-            if let Some(other) = other.filter(live) {
-                graph.link(*target, other);
-            }
-        }
-    }
-    for (subject, promises) in &state.commitments {
-        if !live(subject) {
-            continue;
-        }
-        for commitment in promises.values() {
-            if let Some(counterparty) = commitment.counterparty.filter(live) {
-                graph.link(*subject, counterparty);
-            }
-        }
-    }
-
-    graph
 }
 
 fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
