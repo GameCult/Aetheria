@@ -10,7 +10,7 @@ public sealed class LauncherAngles : Scenario
     public override uint Seed => 105;
     public override bool Ambient => false;
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

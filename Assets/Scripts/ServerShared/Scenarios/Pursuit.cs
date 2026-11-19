@@ -22,7 +22,7 @@ public sealed class Pursuit : Scenario
     public override uint Seed => 111;
     public override bool Ambient => false;
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

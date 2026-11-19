@@ -33,7 +33,7 @@ public sealed class Crossing : Scenario
     public const float ProjectorRange = 997f;
     public static readonly CultMath.float2 Waiting = Origin + float2(0, ProjectorRange * .8f);
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

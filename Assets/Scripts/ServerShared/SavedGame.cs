@@ -42,8 +42,7 @@ public class SavedGame
     [Key(10)]
     public SavedActionBarBinding[] ActionBarBindings;
 
-    [Key(11)]
-    public bool IsTutorial;
+    // Key(11): retired, do not reuse (a retired run-mode flag)
 
     // Read only by a save written before Standings: its entries follow galaxy.Factions order, not Factions order, so
     // Galaxy trusts it only when the two orders cannot differ (see Galaxy's save constructor).
@@ -68,6 +67,11 @@ public class SavedGame
     // null in a save written before it, which then reads Relationships.
     [Key(16)]
     public List<SavedStanding> Standings;
+
+    // Galaxy.InfluenceScale: every zone generated after Continue reads it (ZoneGenerator's factionPresence). Written only
+    // by RunSave.Capture and read only by Galaxy's save constructor, which refuses a save without one (0).
+    [Key(17)]
+    public float InfluenceScale;
 }
 
 [MessagePackObject]
@@ -122,7 +126,7 @@ public static class RunSave
             CurrentZoneEntity = currentZone.Entities.IndexOf(currentEntity),
             Entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance),
             Exit = Array.IndexOf(galaxy.Zones, galaxy.Exit),
-            IsTutorial = galaxy.IsPrelude,
+            InfluenceScale = galaxy.InfluenceScale,
             ActionBarBindings = actionBar,
             Credits = credits,
             Seed = galaxy.Seed

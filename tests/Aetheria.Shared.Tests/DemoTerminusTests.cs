@@ -8,7 +8,7 @@ using System.Linq;
 using CultMath;
 using Xunit;
 
-// The demo scenario (aetheria-release, cut demo-galaxy): a prelude galaxy of a fixed cast whose antagonist's home is the
+// The demo scenario (aetheria-release, cut demo-galaxy): a galaxy of a fixed cast whose antagonist's home is the
 // boss zone and the exit. The cast, the Pirates included, is in the shipped catalog.
 public sealed partial class RunStartTests
 {
@@ -82,7 +82,7 @@ public sealed partial class RunStartTests
         Assert.DoesNotContain(_cache.GetAll<Faction>(), faction => faction.Name.StartsWith("Pirates", StringComparison.Ordinal));
         var refusal = Assert.Throws<InvalidOperationException>(() => DemoGalaxy(1));
         Assert.Contains("Pirates", refusal.Message);
-        Assert.Contains(nameof(TutorialGenerationSettings.ProtagonistFaction), refusal.Message);
+        Assert.Contains(nameof(GalaxyCast.ProtagonistFaction), refusal.Message);
     }
 
     // The operator's ruling is that the first release is a demo: the one scenario a release build lists says so by name.
@@ -144,12 +144,12 @@ public sealed partial class RunStartTests
             string.Join(",", zone.AdjacentZones.Select(adjacent => Array.IndexOf(g.Zones, adjacent)).OrderBy(index => index))));
         Galaxy Reference(uint seed, float density)
         {
-            var cast = new TutorialGenerationSettings
+            var cast = new GalaxyCast
             {
                 ProtagonistFaction = "Pirates", AntagonistFaction = "Zhe", BufferFaction = "Luc",
-                NeutralFactions = new[] { "Aero" }, QuestFaction = null, ZoneCount = 64, LinkDensity = density
+                NeutralFactions = new[] { "Aero" }, QuestFaction = null, ZoneCount = 64, LinkDensity = density, InfluenceScale = .5f
             };
-            return RunStart.Generate(new Scripted(false, _ => { }, seed, galaxy => galaxy.Prelude(cast)), Inputs());
+            return RunStart.Generate(new Scripted(false, _ => { }, seed, stage => stage.Cast(cast)), Inputs());
         }
 
         foreach (var seed in DemoSeeds)
@@ -172,50 +172,42 @@ public sealed partial class RunStartTests
 
     // A name that resolves to nothing refuses the galaxy whichever cast field names it, and the refusal names the field.
     [Theory]
-    [InlineData(nameof(TutorialGenerationSettings.ProtagonistFaction))]
-    [InlineData(nameof(TutorialGenerationSettings.AntagonistFaction))]
-    [InlineData(nameof(TutorialGenerationSettings.BufferFaction))]
-    [InlineData(nameof(TutorialGenerationSettings.QuestFaction))]
-    [InlineData(nameof(TutorialGenerationSettings.NeutralFactions))]
+    [InlineData(nameof(GalaxyCast.ProtagonistFaction))]
+    [InlineData(nameof(GalaxyCast.AntagonistFaction))]
+    [InlineData(nameof(GalaxyCast.BufferFaction))]
+    [InlineData(nameof(GalaxyCast.QuestFaction))]
+    [InlineData(nameof(GalaxyCast.NeutralFactions))]
     public void AnUnresolvedCastNameRefusesTheGalaxyNamingItsField(string field)
     {
-        var cast = new TutorialGenerationSettings
-        {
-            ProtagonistFaction = _tutorialSettings.ProtagonistFaction,
-            AntagonistFaction = _tutorialSettings.AntagonistFaction,
-            BufferFaction = _tutorialSettings.BufferFaction,
-            QuestFaction = _tutorialSettings.QuestFaction,
-            NeutralFactions = _tutorialSettings.NeutralFactions,
-            ZoneCount = _tutorialSettings.ZoneCount,
-            LinkDensity = _tutorialSettings.LinkDensity
-        };
-        typeof(TutorialGenerationSettings).GetField(field).SetValue(cast, field == nameof(cast.NeutralFactions) ? new[] { "Nonesuch" } : "Nonesuch");
-        var scenario = new Scripted(false, _ => { }, generate: galaxy => galaxy.Prelude(cast));
+        var cast = TestCasts.Wide;
+        typeof(GalaxyCast).GetField(field).SetValue(cast, field == nameof(cast.NeutralFactions) ? new[] { "Nonesuch" } : "Nonesuch");
+        var scenario = new Scripted(false, _ => { }, generate: stage => stage.Cast(cast));
         var refusal = Assert.Throws<InvalidOperationException>(() => RunStart.Generate(scenario, Inputs()));
         Assert.Contains(field, refusal.Message);
     }
 
-    // What a release build lists under New Game is the demo alone; the tutorial and the main galaxy are listed only in
+    // What a release build lists under New Game is the demo alone; the main galaxy is listed only in
     // editor and development builds (MainMenu.ShowScenarios), beside the test arenas.
     [Fact]
     public void ReleaseBuildsListOnlyTheDemo()
     {
         Assert.Equal(new[] { typeof(DemoTerminus) }, Scenarios.Modes.Select(scenario => scenario.GetType()));
-        Assert.Equal(new[] { typeof(TutorialGalaxy), typeof(MainGalaxy) }, Scenarios.Development.Select(scenario => scenario.GetType()));
+        Assert.Equal(new[] { typeof(MainGalaxy) }, Scenarios.Development.Select(scenario => scenario.GetType()));
     }
 
-    // The tutorial is the galaxy it was before the demo: its cast, homes, entrance and ownership at a fixed seed, with
-    // no exit and no boss zone.
+    // The wide test cast at half influence is the galaxy it was before the prelude was retired: its cast, homes, entrance
+    // and ownership at a fixed seed, with no exit and no boss zone. Homes, entrance and owners depend on InfluenceOf, so
+    // an InfluenceScale of 1 or a lost halving fails it.
     [Fact]
-    public void TutorialGalaxy_unchanged()
+    public void CastGalaxyAtHalfInfluenceIsUnchanged()
     {
-        var galaxy = RunStart.Generate(new TutorialGalaxy(), Inputs(() => GalaxySeed));
-        Assert.Equal(TutorialSeed1, TutorialShape(galaxy));
-        Assert.True(galaxy.Exit == null, "the tutorial has no exit");
-        Assert.True(galaxy.BossZones.Count == 0, $"the tutorial has {galaxy.BossZones.Count} boss zones");
+        var galaxy = RunStart.Generate(new Scripted(false, _ => { }, generate: stage => stage.Cast(TestCasts.Wide)), Inputs(() => GalaxySeed));
+        Assert.Equal(WideCastSeed1, CastShape(galaxy));
+        Assert.True(galaxy.Exit == null, "a cast galaxy has no exit until its scenario places the gate");
+        Assert.True(galaxy.BossZones.Count == 0, $"the cast galaxy has {galaxy.BossZones.Count} boss zones");
     }
 
-    private static string TutorialShape(Galaxy g) =>
+    private static string CastShape(Galaxy g) =>
         string.Join(",", g.Factions.Select(f => f.Name)) +
         " | homes " + string.Join(",", g.Factions.Select(f => g.HomeZones.TryGetValue(f, out var z) ? Array.IndexOf(g.Zones, z) : -2)) +
         " | entrance " + Array.IndexOf(g.Zones, g.Entrance) +
@@ -223,6 +215,6 @@ public sealed partial class RunStartTests
         " | owners " + string.Join(",", g.Zones.Select(z => z.Owner == null ? "-" : z.Owner.ShortName));
 
     // Measured at seed 1 under CultMath 0.3.0 (cultmath-unity-v0.3.0); the noise kernel changed there, which re-rolled the galaxy.
-    private const string TutorialSeed1 =
+    private const string WideCastSeed1 =
         "Miss Terri’s Sugariffic Snack Company,Zhestokost,Lucent Media,Adrasteia,Aeronautics Unlimited,Finch Cybernetics | homes 3,44,40,19,0,30 | entrance 12 | zones 64 | owners AU,AU,Finch,Miss Terri's,Lucent,Zhestokost,-,Lucent,AU,AU,Lucent,Adrasteia,-,Finch,Zhestokost,-,Adrasteia,-,AU,Adrasteia,AU,Zhestokost,Miss Terri's,-,AU,Finch,Miss Terri's,-,Zhestokost,-,Finch,-,-,AU,-,-,-,-,Miss Terri's,AU,Lucent,-,Finch,-,Zhestokost,AU,-,Zhestokost,Adrasteia,Adrasteia,AU,Miss Terri's,Finch,AU,Finch,-,Lucent,Zhestokost,-,AU,Miss Terri's,Zhestokost,-,Lucent";
 }

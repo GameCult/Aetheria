@@ -27,7 +27,7 @@ public static class RunStart
     {
         SeedItems(itemManager, galaxy, ArenaStep);
         return galaxy.Entrance.PackedContents = ZoneGenerator.GenerateZone(
-            itemManager, zoneSettings, planetSettings, galaxy, galaxy.Entrance, galaxy.IsPrelude, scenario.Ambient);
+            itemManager, zoneSettings, planetSettings, galaxy, galaxy.Entrance, scenario.EntranceStation, scenario.Ambient);
     }
 
     // Runs a start and answers whether it produced a run: null, with the reason in `failures`, when `start` throws or
@@ -49,10 +49,10 @@ public static class RunStart
     // with the player, a pilot for each piloted one. Returns null, with every failure listed and the arena unchanged,
     // unless the whole scenario staged.
     public static Staged Stage(ItemManager itemManager, Zone arena, Scenario scenario, string startingHull,
-        TutorialGenerationSettings tutorialGenerationSettings, List<string> failures)
+        List<string> failures)
     {
         SeedItems(itemManager, arena.Galaxy, StageStep);
-        var stage = new ScenarioStage(itemManager, arena, startingHull, tutorialGenerationSettings);
+        var stage = new ScenarioStage(itemManager, arena, startingHull);
         scenario.Stage(stage);
         var reported = failures.Count;
         failures.AddRange(stage.Failures);

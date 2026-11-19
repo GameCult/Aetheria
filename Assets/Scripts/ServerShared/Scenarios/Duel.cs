@@ -10,7 +10,7 @@ public sealed class Duel : Scenario
     public override uint Seed => 104;
     public override bool Ambient => false;
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

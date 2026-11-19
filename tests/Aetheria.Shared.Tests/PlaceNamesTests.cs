@@ -30,8 +30,8 @@ public sealed class PlaceNamesTests : IDisposable
     }
 
     private static Galaxy Build(CultCache cache, bool prelude, uint seed) => prelude
-        ? new Galaxy(Authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"), Authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-            cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed)
+        ? new Galaxy(TestCasts.Wide, Authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"),
+            cache, _ => { }, null, seed)
         : new Galaxy(Authored.Read<SectorGenerationSettings>("SectorGenerationSettings"), Authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"),
             cache, _ => { }, null, seed);
 

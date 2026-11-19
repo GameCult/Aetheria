@@ -26,7 +26,7 @@ public sealed class FusedRounds : Scenario
     // The shooter is staged at this quality, so the damage its Cluster Cannon deals does not ride the item stream.
     public const float StagedQuality = .6f;
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

@@ -52,10 +52,9 @@ public sealed class StationPlacementTests : IDisposable
             cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(Path.Combine(dir, "run.cc")), AetheriaStores.RunTypes);
             var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
             var settings = authored.Read<GameplaySettings>("GameplaySettings");
-            var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
-                authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-                cache, new PlayerSettings(),
-                Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
+            var galaxy = new Galaxy(TestCasts.Wide,
+                authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"),
+                cache, _ => { }, null, seed);
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), settings, _ => { });
             stock?.Invoke(items);
             foreach (var galaxyZone in entranceOnly ? new[] { galaxy.Entrance } : galaxy.Zones.Take(zonesPerSeed))
@@ -65,7 +64,7 @@ public sealed class StationPlacementTests : IDisposable
                 var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
                 tune?.Invoke(zoneSettings);
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone,
-                    galaxyZone == galaxy.Entrance && galaxy.IsPrelude, true);
+                    true, true);
                 var zone = new Zone(items, authored.Read<PlanetSettings>("PlanetSettings"), pack, galaxyZone, galaxy);
                 zone.Update(.02f);
                 yield return new Built(seed, zone, items);

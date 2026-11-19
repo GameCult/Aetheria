@@ -26,7 +26,7 @@ public sealed class Arcs : Scenario
     // holding every gun down. The guided launchers fire only on a lock, which that run cannot give them, so they carry the default three crates.
     public const int TurretAmmoCrates = 22, PlayerAmmoCrates = 42, PlayerMissileCrates = 3;
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

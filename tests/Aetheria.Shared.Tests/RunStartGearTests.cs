@@ -79,9 +79,9 @@ public sealed partial class RunStartTests
     }
 
     [Fact]
-    public void APreludeNoLongerOffersEverything()
+    public void ACastGalaxyNoLongerOffersEverything()
     {
-        Assert.True(_galaxy.IsPrelude);
+        Assert.Equal(.5f, _galaxy.InfluenceScale);
         var (absentProduct, _) = AbsentMaker("AbsentToPrelude");
         var generator = GeneratorFor(_galaxy, "PreludeLoner");
         Assert.False(generator.IsAvailable(absentProduct));

@@ -234,6 +234,7 @@ public sealed class FireControlCut6cTests : IDisposable
         // Targeting Maker, so IsAvailable rejects Targeting Maker's products by allegiance.
         var game = new SavedGame
         {
+            InfluenceScale = 1,
             Factions = new[] { maker },
             Relationships = new[] { FactionRelationship.Neutral },
             HomeZones = new Dictionary<int, int> { { 0, 0 } },

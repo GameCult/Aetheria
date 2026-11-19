@@ -17,7 +17,7 @@ using float2 = CultMath.float2;
 using float3 = CultMath.float3;
 
 // RunStart owns what a new run starts with, and Zone.Admit is the one admission into a zone (docs/scenarios-cut.md,
-// 2.2 and R). Every test stages into a real arena: the entrance zone of a prelude galaxy at a fixed seed, built from a
+// 2.2 and R). Every test stages into a real arena: the entrance zone of a cast galaxy at a fixed seed, built from a
 // scratch copy of the catalog the game boots (TestCatalog) and the authored settings (Assets/Resources/Settings.asset).
 public sealed partial class RunStartTests : IDisposable
 {
@@ -31,7 +31,6 @@ public sealed partial class RunStartTests : IDisposable
     private readonly PlanetSettings _planetSettings;
     private readonly string _startingHull;
     private readonly Faction _protagonist;
-    private readonly TutorialGenerationSettings _tutorialSettings;
 
     public RunStartTests()
     {
@@ -49,10 +48,9 @@ public sealed partial class RunStartTests : IDisposable
         var authored = AuthoredSettings.Load(repo);
         _zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
         _planetSettings = authored.Read<PlanetSettings>("PlanetSettings");
-        var tutorial = _tutorialSettings = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
-        _galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-            _cache, new PlayerSettings(),
-            Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, GalaxySeed);
+        var tutorial = TestCasts.Wide;
+        _galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"),
+            _cache, _ => { }, null, GalaxySeed);
         _items = new ItemManager(1u, _cache, new ProvenanceLedger(), RestoredHullsTests.PinnedFlight(authored.Read<GameplaySettings>("GameplaySettings")), _ => { });
         _protagonist = _galaxy.ResolveFaction(tutorial.ProtagonistFaction);
 
@@ -125,11 +123,11 @@ public sealed partial class RunStartTests : IDisposable
         var background = authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings");
         var sector = authored.Read<SectorGenerationSettings>("SectorGenerationSettings");
         sector.ZoneCount = 8;
-        var tutorial = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
+        var tutorial = TestCasts.Wide;
 
         var main = Assert.Throws<ArgumentOutOfRangeException>(() => new Galaxy(sector, background, _cache, _ => { }, null, 0));
         var prelude = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new Galaxy(tutorial, background, _cache, new PlayerSettings(), new DirectoryInfo(_root), _ => { }, null, 0));
+            new Galaxy(tutorial, background, _cache, _ => { }, null, 0));
         foreach (var refusal in new[] { main, prelude })
         {
             Assert.Equal("seed", refusal.ParamName);
@@ -161,7 +159,7 @@ public sealed partial class RunStartTests : IDisposable
     public void EveryFactionsStationsCarryOnlyGearItCanReachIncludingAHeaterAndAReactor()
     {
         var galaxy = MainSectorGalaxy();
-        Assert.False(galaxy.IsPrelude);
+        Assert.Equal(1f, galaxy.InfluenceScale);
         var zone = Arena(true);
         foreach (var faction in galaxy.Factions)
         {

@@ -494,6 +494,7 @@ public sealed class LoadoutTests : IDisposable
 
             var game = new SavedGame
             {
+                InfluenceScale = 1,
                 Factions = Array.Empty<CultRecordRef<Faction>>(),
                 Relationships = Array.Empty<FactionRelationship>(),
                 HomeZones = new Dictionary<int, int>(),

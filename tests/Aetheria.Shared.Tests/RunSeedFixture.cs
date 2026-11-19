@@ -9,6 +9,7 @@ internal static class RunSeedFixture
     {
         var game = new SavedGame
         {
+            InfluenceScale = 1,
             Seed = seed,
             Factions = new CultRecordRef<Faction>[0],
             Relationships = new FactionRelationship[0],

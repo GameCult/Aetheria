@@ -740,8 +740,7 @@ public class ActionGameManager : MonoBehaviour
                 Settings.ZoneSettings,
                 Settings.PlanetSettings,
                 CurrentGalaxy,
-                galaxyZone,
-                CurrentGalaxy.IsPrelude
+                galaxyZone
             );
             galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
         }
@@ -861,7 +860,7 @@ public class ActionGameManager : MonoBehaviour
         {
             RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
             PopulateLevel(CurrentGalaxy.Entrance);
-            return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures);
+            return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, failures);
         }), failures, Debug.LogException);
 
         if (staged == null)

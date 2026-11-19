@@ -17,7 +17,7 @@ using float2 = CultMath.float2;
 using float3 = CultMath.float3;
 
 // Scenarios S2 (docs/scenarios-cut.md, R): every new run is a scenario. The fixture is RunStartTests': a scratch copy
-// of the shipped catalog, the authored settings and a prelude galaxy at a fixed seed.
+// of the shipped catalog, the authored settings and a cast galaxy at a fixed seed.
 public sealed partial class RunStartTests
 {
     // A test's own scenario: a script given inline, staged into the fixture's arena or launched whole.
@@ -33,7 +33,7 @@ public sealed partial class RunStartTests
             _ambient = ambient;
             _stage = stage;
             _seed = seed;
-            _generate = generate ?? (galaxy => galaxy.Prelude());
+            _generate = generate ?? (stage => stage.Cast(TestCasts.Wide));
         }
 
         public override string Name => "Scripted";
@@ -54,9 +54,8 @@ public sealed partial class RunStartTests
         return new GalaxyStage(
             authored.Read<SectorGenerationSettings>("SectorGenerationSettings"),
             authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"),
-            authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
-            authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-            _cache, new PlayerSettings(), Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, clock);
+            authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"),
+            _cache, _ => { }, null, clock);
     }
 
     // What MainMenu.Launch and StartGame do with a scenario: its galaxy, its arena, then staging. beforeStaging stands in
@@ -67,14 +66,14 @@ public sealed partial class RunStartTests
         var arena = new Zone(_items, _planetSettings, RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, galaxy, scenario), galaxy.Entrance, galaxy);
         beforeStaging?.Invoke();
         var failures = new List<string>();
-        var staged = RunStart.Stage(_items, arena, scenario, _startingHull, _tutorialSettings, failures);
+        var staged = RunStart.Stage(_items, arena, scenario, _startingHull, failures);
         return (galaxy, arena, staged, failures);
     }
 
     private RunStart.Staged Stage(Zone zone, Scenario scenario)
     {
         var failures = new List<string>();
-        var staged = RunStart.Stage(_items, zone, scenario, _startingHull, _tutorialSettings, failures);
+        var staged = RunStart.Stage(_items, zone, scenario, _startingHull, failures);
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         Assert.NotNull(staged);
         return staged;
@@ -86,7 +85,7 @@ public sealed partial class RunStartTests
         var entities = zone.Entities.ToList();
         var agents = zone.Agents.ToList();
         var failures = new List<string>();
-        Assert.Null(RunStart.Stage(_items, zone, scenario, _startingHull, _tutorialSettings, failures));
+        Assert.Null(RunStart.Stage(_items, zone, scenario, _startingHull, failures));
         SafeAssert.Unchanged(zone, entities, agents);
         return failures;
     }
@@ -123,26 +122,25 @@ public sealed partial class RunStartTests
         Assert.Equal(1234, poor.Credits);
     }
 
-    // The two game modes are what New Game did: the tutorial a prelude galaxy and a starting-hull ship of the
-    // protagonist faction at the entrance's origin; the main galaxy a main galaxy and a starting-hull ship there. Both
-    // arenas keep their generated ships.
+    // The two game modes are what New Game did: the demo a cast galaxy at half influence and a starting-hull ship at the
+    // entrance's origin; the main galaxy a main galaxy at full influence and a starting-hull ship there. Both arenas
+    // keep their generated ships.
     [Fact]
     public void ModesMatchOldNewGame()
     {
         Assert.Equal("Longinus", _startingHull);
 
-        var tutorial = Launch(new TutorialGalaxy(), Inputs(() => GalaxySeed));
-        Assert.Empty(tutorial.failures);
-        Assert.True(tutorial.galaxy.IsPrelude, "the tutorial is a prelude galaxy");
-        Assert.Equal(_startingHull, tutorial.staged.Player.HullData.Name);
-        Assert.Same(tutorial.galaxy.ResolveFaction(_tutorialSettings.ProtagonistFaction), tutorial.staged.Player.Faction);
-        Assert.Equal(float3.zero, tutorial.staged.Player.Position);
-        Assert.Empty(tutorial.staged.Entities);
-        Assert.Contains(tutorial.arena.Pack.Entities, entity => entity is ShipPack { IsPlayerShip: false });
+        var demo = Launch(new DemoTerminus(), Inputs(() => GalaxySeed));
+        Assert.Empty(demo.failures);
+        Assert.Equal(.5f, demo.galaxy.InfluenceScale);
+        Assert.Equal(_startingHull, demo.staged.Player.HullData.Name);
+        Assert.Equal(float3.zero, demo.staged.Player.Position);
+        Assert.Empty(demo.staged.Entities);
+        Assert.Contains(demo.arena.Pack.Entities, entity => entity is ShipPack { IsPlayerShip: false });
 
         var main = Launch(new MainGalaxy(), Inputs(() => GalaxySeed));
         Assert.Empty(main.failures);
-        Assert.False(main.galaxy.IsPrelude, "the main galaxy is not a prelude");
+        Assert.Equal(1f, main.galaxy.InfluenceScale);
         Assert.Equal(_startingHull, main.staged.Player.HullData.Name);
         Assert.Equal(float3.zero, main.staged.Player.Position);
         Assert.Empty(main.staged.Entities);
@@ -209,12 +207,12 @@ public sealed partial class RunStartTests
         Assert.NotEqual(Layout(a), Layout(b));
     }
 
-    // Generating a galaxy writes nothing a later one reads: a prelude leaves the catalog's faction influence as authored.
+    // Generating a galaxy writes nothing a later one reads: a cast galaxy leaves the catalog's faction influence as authored.
     [Fact]
     public void AGalaxyLeavesTheCatalogsFactionsAsAuthored()
     {
         var authored = _cache.GetAll<Faction>().ToDictionary(faction => faction, faction => faction.InfluenceDistance);
-        RunStart.Generate(new TutorialGalaxy(), Inputs());
+        RunStart.Generate(new DemoTerminus(), Inputs());
         RunStart.Generate(new MainGalaxy(), Inputs());
         Assert.All(authored, pair => Assert.Equal(pair.Value, pair.Key.InfluenceDistance));
     }
@@ -233,7 +231,7 @@ public sealed partial class RunStartTests
     [InlineData(34u, false)]
     public void EveryZoneIsLinked(uint seed, bool prelude)
     {
-        var galaxy = RunStart.Generate(new Scripted(true, _ => { }, seed, stage => prelude ? stage.Prelude() : stage.Main()), Inputs());
+        var galaxy = RunStart.Generate(new Scripted(true, _ => { }, seed, stage => prelude ? stage.Cast(TestCasts.Wide) : stage.Main()), Inputs());
         Assert.All(galaxy.Zones, zone => Assert.Equal(galaxy.Zones.Length, zone.Distance.Count));
 
         var positions = galaxy.Zones.Select(zone => zone.Position).ToArray();
@@ -438,7 +436,7 @@ public sealed partial class RunStartTests
     public void UndockingAdmitsWithNoAgent()
     {
         var zone = Arena(true);
-        var player = Stage(zone, new TutorialGalaxy()).Player;
+        var player = Stage(zone, new Scripted(false, stage => stage.Player(stage.Generated(stage.StartingHull), float2(0, 0)))).Player;
         var station = zone.Entities.First(entity => entity is OrbitalEntity && entity.DockingBays.Count > 0);
         var agents = zone.Agents.Count;
 
@@ -617,17 +615,68 @@ public sealed partial class RunStartTests
         Assert.Empty(UnsoldAndUnplaced(runs));
     }
 
-    // Whether a run is the prelude is the galaxy's fact (Galaxy.IsPrelude); a save records it with no second owner.
+    // How far influence reaches is the galaxy's fact (Galaxy.InfluenceScale); a save records it with no second owner, and
+    // a save without one (written before it existed) is refused by name rather than read as full influence.
     [Fact]
-    public void SaveReadsPrelude()
+    public void InfluenceScaleRoundTripsAndOldSavesAreRefused()
     {
         var arena = Arena(true);
-        var (prelude, _) = RunSave.Capture(_cache, _galaxy, arena, null, new SavedActionBarBinding[0], 0);
-        Assert.True(prelude.IsTutorial);
-
+        var (demo, _) = RunSave.Capture(_cache, _galaxy, arena, null, new SavedActionBarBinding[0], 0);
+        Assert.Equal(.5f, demo.InfluenceScale);
         var (main, _) = RunSave.Capture(_cache, MainSectorGalaxy(), arena, null, new SavedActionBarBinding[0], 0);
-        Assert.False(main.IsTutorial);
+        Assert.Equal(1f, main.InfluenceScale);
+
+        var old = Assert.Throws<InvalidOperationException>(() => new Galaxy(_cache, new SavedGame
+        {
+            Zones = demo.Zones, Factions = demo.Factions, HomeZones = demo.HomeZones, BossZones = demo.BossZones,
+            Entrance = demo.Entrance, Exit = demo.Exit, DiscoveredZones = demo.DiscoveredZones, Background = demo.Background,
+            Relationships = demo.Relationships, Standings = demo.Standings, Seed = demo.Seed,
+            InfluenceScale = 0,
+        }, _ => { }));
+        Assert.Contains(nameof(SavedGame.InfluenceScale), old.Message);
     }
+
+    // The halving is the cast's: InfluenceOf scales a faction's authored distance by the galaxy's InfluenceScale, rounding up.
+    [Fact]
+    public void InfluenceOfMatchesTheHalving()
+    {
+        var half = _galaxy;
+        var full = MainSectorGalaxy();
+        var faction = _cache.GetAll<Faction>().First();
+        var authored = faction.InfluenceDistance;
+        try
+        {
+            for (var distance = 0; distance <= 10; distance++)
+            {
+                faction.InfluenceDistance = distance;
+                Assert.Equal((distance + 1) / 2, half.InfluenceOf(faction));
+                Assert.Equal(distance, full.InfluenceOf(faction));
+            }
+        }
+        finally { faction.InfluenceDistance = authored; }
+    }
+
+    // Whether the arena gets a forced entrance station is the scenario's declaration, not the galaxy's. At a seed whose
+    // natural roll is zero stations, a scenario declaring one gets a docking station and the same arena generated without
+    // the declaration gets none.
+    [Fact]
+    public void EntranceStationIsTheScenariosDeclaration()
+    {
+        Assert.True(new DemoTerminus().EntranceStation);
+        Assert.False(new MainGalaxy().EntranceStation);
+
+        var natural = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, _galaxy, _galaxy.Entrance, entranceStation: false, ambient: false);
+        var forced = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, _galaxy, _galaxy.Entrance, entranceStation: true, ambient: false);
+        Assert.Equal(0, StationsOf(natural));
+        Assert.True(StationsOf(forced) >= 1);
+
+        // Through RunStart, the scenario's declaration is what reaches the generator.
+        Assert.True(StationsOf(RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new DemoTerminus())) >= 1);
+        Assert.Equal(0, StationsOf(RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new MainGalaxy())));
+    }
+
+    private int StationsOf(ZonePack pack) =>
+        pack.Entities.OfType<OrbitalEntityPack>().Count(entity => (_cache.Get(entity.Hull.Data) as HullData)?.HullType == HullType.Station);
 
     // PlayerSettings Key 2, the never-written tutorial flag, is retired: a player.cc written with it still loads, every other field intact.
     [Fact]

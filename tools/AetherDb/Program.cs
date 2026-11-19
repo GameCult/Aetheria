@@ -560,7 +560,7 @@ public static class Program
     private static int SettingsDump()
     {
         var authored = AuthoredSettings.Load(AetherDb.FindRoot());
-        authored.Dump("TutorialGenerationSettings", 2);
+        authored.Dump("CastBackgroundSettings", 2);
         Console.WriteLine();
         authored.Dump("GameplaySettings", 2);
         return 0;
@@ -572,15 +572,10 @@ public static class Program
     {
         var authored = AuthoredSettings.Load(AetherDb.FindRoot());
 
-        var tutorial = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
-        var background = authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings");
+        var background = authored.Read<SectorBackgroundSettings>("CastBackgroundSettings");
         var zones = authored.Read<ZoneGenerationSettings>("ZoneSettings");
         var gameplay = authored.Read<GameplaySettings>("GameplaySettings");
 
-        Console.WriteLine($"tutorial: protagonist {tutorial.ProtagonistFaction}, antagonist {tutorial.AntagonistFaction}, " +
-            $"buffer {tutorial.BufferFaction}, quest {tutorial.QuestFaction}, " +
-            $"neutrals [{string.Join(", ", tutorial.NeutralFactions ?? new string[0])}], " +
-            $"{tutorial.ZoneCount} zones, link density {tutorial.LinkDensity}");
         Console.WriteLine($"background: frequency {background.NoiseFrequency}, amplitude {background.NoiseAmplitude}, " +
             $"cloud exponent {background.CloudExponent}, density at centre {background.CloudDensity(new float2(.5f)):0.000}");
         Console.WriteLine($"zones: sun mass {zones.SunMass}, planet mass {zones.PlanetMass}, satellite passes {zones.SatellitePasses}, " +
@@ -600,8 +595,6 @@ public static class Program
         else if (gameplay.Tiers.Any(t => string.IsNullOrEmpty(t.Name) || t.Quality <= 0)) missing.Add("GameplaySettings.Tiers (a tier parsed without a name or quality)");
         if (gameplay.DefaultEntitySettings == null) missing.Add("GameplaySettings.DefaultEntitySettings");
         if (gameplay.QualityPriceModifier == null || gameplay.QualityPriceModifier.Maximum <= 0) missing.Add("GameplaySettings.QualityPriceModifier");
-        if (tutorial.NeutralFactions == null || tutorial.NeutralFactions.Length != 2) missing.Add($"TutorialGenerationSettings.NeutralFactions (expected 2, got {tutorial.NeutralFactions?.Length ?? 0})");
-        if (string.IsNullOrEmpty(tutorial.ProtagonistFaction)) missing.Add("TutorialGenerationSettings.ProtagonistFaction");
 
         Console.WriteLine($"\n{authored.Unplaced.Count} fields in the asset had nowhere to go");
         foreach (var field in authored.Unplaced.Take(20)) Console.WriteLine($"  {field}");

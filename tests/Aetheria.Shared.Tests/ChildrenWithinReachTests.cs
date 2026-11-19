@@ -40,10 +40,9 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
                 cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
                 cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(Path.Combine(dir, "run.cc")), AetheriaStores.RunTypes);
                 var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
-                var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
-                    authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-                    cache, new PlayerSettings(),
-                    Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
+                var galaxy = new Galaxy(TestCasts.Wide,
+                    authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"),
+                    cache, _ => { }, null, seed);
                 var items = new ItemManager(1u, cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
                 var planetSettings = authored.Read<PlanetSettings>("PlanetSettings");
                 foreach (var galaxyZone in galaxy.Zones)
@@ -51,7 +50,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
                     Settings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
                     tune?.Invoke(Settings);
                     var pack = ZoneGenerator.GenerateZone(items, Settings, planetSettings, galaxy, galaxyZone,
-                        galaxyZone == galaxy.Entrance && galaxy.IsPrelude, false);
+                        true, false);
                     foreach (var belt in pack.Planets.Select(cache.Get).OfType<AsteroidBeltData>())
                     {
                         Belts++;

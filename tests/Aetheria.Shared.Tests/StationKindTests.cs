@@ -352,11 +352,10 @@ public sealed class StationKindTests : IDisposable
             stock?.Invoke(w);
             var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
             var dir = Path.Combine(_root, "galaxy" + _worlds++);
-            var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
-                authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), w.Cache, new PlayerSettings(),
-                Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, 3);
+            var galaxy = new Galaxy(TestCasts.Wide,
+                authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"), w.Cache, _ => { }, null, 3);
             var pack = ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, galaxy.IsPrelude, true);
+                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, true, true);
             Assert.NotEmpty(pack.Entities.OfType<OrbitalEntityPack>());
             return pack.Orbits.Select(orbit => w.Cache.Get(orbit)).Select(orbit => (orbit.Distance, orbit.Phase)).ToArray();
         }
@@ -376,11 +375,10 @@ public sealed class StationKindTests : IDisposable
             foreach (var faction in new[] { w.Au, w.Zh, w.Lucent })
                 foreach (var kind in new[] { "mining", "shipyard", "depot", "power" }) w.Sell(faction, kind);
             var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
-            var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
-                authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), w.Cache, new PlayerSettings(),
-                Directory.CreateDirectory(Path.Combine(_root, "galaxy" + _worlds++, "Narrative")), _ => { }, null, 3);
+            var galaxy = new Galaxy(TestCasts.Wide,
+                authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"), w.Cache, _ => { }, null, 3);
             return galaxy.Zones.Take(8).SelectMany(zone => ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-                    authored.Read<PlanetSettings>("PlanetSettings"), galaxy, zone, zone == galaxy.Entrance && galaxy.IsPrelude, true)
+                    authored.Read<PlanetSettings>("PlanetSettings"), galaxy, zone, true, true)
                 .Entities.OfType<OrbitalEntityPack>().Where(e => e.Kind.IsSet()).Select(e => e.Kind.Key.Value)).ToArray();
         }
         var first = Kinds();
@@ -397,15 +395,14 @@ public sealed class StationKindTests : IDisposable
         w.StandIn("depot", w.Lucent, "power");
         w.StandIn("depot", w.Zh, "power");
         var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
-        var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
-            authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), w.Cache, new PlayerSettings(),
-            Directory.CreateDirectory(Path.Combine(_root, "zones", "Narrative")), _ => { }, null, 5);
+        var galaxy = new Galaxy(TestCasts.Wide,
+            authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"), w.Cache, _ => { }, null, 5);
         var stations = 0;
         var fallbacks = 0;
         foreach (var galaxyZone in galaxy.Zones.Take(8))
         {
             var pack = ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone, galaxyZone == galaxy.Entrance && galaxy.IsPrelude, true);
+                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone, true, true);
             foreach (var station in pack.Entities.OfType<OrbitalEntityPack>().Where(e => w.HullOf(e).HullType == HullType.Station))
             {
                 stations++;
@@ -473,11 +470,10 @@ public sealed class StationKindTests : IDisposable
             }
 
         var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
-        var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
-            authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), world.Cache, new PlayerSettings(),
-            Directory.CreateDirectory(Path.Combine(_root, "galaxy" + _worlds++, "Narrative")), _ => { }, null, 5);
+        var galaxy = new Galaxy(TestCasts.Wide,
+            authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"), world.Cache, _ => { }, null, 5);
         var entrance = ZoneGenerator.GenerateZone(world.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-            authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, galaxy.IsPrelude, true);
+            authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, true, true);
         Assert.Contains(entrance.Entities.OfType<OrbitalEntityPack>(), e => world.HullOf(e).HullType == HullType.Station);
     }
 

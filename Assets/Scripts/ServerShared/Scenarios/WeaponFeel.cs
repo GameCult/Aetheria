@@ -14,7 +14,7 @@ public sealed class WeaponFeel : Scenario
     // The one target, ahead of the nose: inside every forward mount's arc.
     public static readonly CultMath.float2 Target = float2(0, 400);
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

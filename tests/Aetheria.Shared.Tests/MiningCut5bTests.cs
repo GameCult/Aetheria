@@ -46,6 +46,7 @@ public sealed class MiningCut5bTests : IDisposable
         MiningCut5aTests.Stock(scene, kind, (ore, 1f));
         var game = new SavedGame
         {
+            InfluenceScale = 1,
             Seed = 5, Factions = new CultRecordRef<Faction>[0], Relationships = new FactionRelationship[0],
             HomeZones = new Dictionary<int, int>(), BossZones = new Dictionary<int, int>(), DiscoveredZones = new[] { 0 },
             ActionBarBindings = new SavedActionBarBinding[0], Entrance = 0, Exit = -1
@@ -222,6 +223,7 @@ public sealed class MiningCut5bTests : IDisposable
         {
             var game = new SavedGame
             {
+                InfluenceScale = 1,
                 Factions = new CultRecordRef<Faction>[0], Relationships = new FactionRelationship[0],
                 HomeZones = new Dictionary<int, int>(), BossZones = new Dictionary<int, int>(), DiscoveredZones = new[] { 0 },
                 ActionBarBindings = new SavedActionBarBinding[0], Exit = -1

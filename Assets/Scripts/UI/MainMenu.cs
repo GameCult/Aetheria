@@ -120,9 +120,14 @@ public class MainMenu : MonoBehaviour
                 Debug.Log("run store has no SavedGame; Continue disabled");
             _nextMenu.panel.AddButton("Continue", saved == null ? (Action) null : () =>
             {
-                try { RunSave.RequireDesigns(cache, saved); }
+                Galaxy galaxy;
+                try
+                {
+                    RunSave.RequireDesigns(cache, saved);
+                    galaxy = new Galaxy(cache, saved, Debug.Log);
+                }
                 catch (InvalidOperationException error) { Refuse("Cannot continue this run", error.Message); return; }
-                ActionGameManager.CurrentGalaxy = new Galaxy(cache, saved, Debug.Log);
+                ActionGameManager.CurrentGalaxy = galaxy;
                 EnterGame();
             });
         }
@@ -246,11 +251,8 @@ public class MainMenu : MonoBehaviour
         var stage = new GalaxyStage(
             Settings.SectorGenerationSettings,
             Settings.SectorBackgroundSettings,
-            Settings.TutorialGenerationSettings,
-            Settings.TutorialBackgroundSettings,
+            Settings.CastBackgroundSettings,
             ActionGameManager.CultCache,
-            ActionGameManager.PlayerSettings,
-            ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
             Debug.Log,
             state => generatorState = state);
         Task.Run(() => RunStart.Generate(scenario, stage)).ContinueWith(generation =>

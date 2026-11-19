@@ -26,7 +26,10 @@ public class Galaxy
     public GalaxyZone Exit { get; private set; }
     public Dictionary<Faction, FactionRelationship> FactionRelationships { get; } = new Dictionary<Faction, FactionRelationship>();
     private Action<string> Log { get; }
-    public bool IsPrelude { get; }
+
+    // How far each faction's authored InfluenceDistance reaches in this galaxy (InfluenceOf): the cast's InfluenceScale,
+    // 1 for a main galaxy. Carried by the save because every zone generated after Continue reads it.
+    public float InfluenceScale { get; }
 
     // The run's seed, minted once by GalaxyStage.SeedFrom and carried by the save (SavedGame.Seed). It seeds
     // generation, the run's item draws (RunStart) and the zone's drop dice (Zone.DropSeed).
@@ -51,7 +54,9 @@ public class Galaxy
 
     public Galaxy(CultCache cultCache, SavedGame savedGame, Action<string> log)
     {
-        IsPrelude = savedGame.IsTutorial;
+        InfluenceScale = savedGame.InfluenceScale > 0
+            ? savedGame.InfluenceScale
+            : throw new InvalidOperationException($"the save has no {nameof(InfluenceScale)} ({savedGame.InfluenceScale}); a run saved before InfluenceScale existed cannot be continued");
         _cache = cultCache;
         Log = log;
         Background = savedGame.Background;
@@ -112,7 +117,7 @@ public class Galaxy
         uint seed)
     {
         _cache = cache;
-        IsPrelude = false;
+        InfluenceScale = 1;
         Background = background;
         Log = log;
         var factions = cache.GetAll<Faction>();
@@ -186,11 +191,11 @@ public class Galaxy
         return _cache.GetAll<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
     }
 
-    // A cast member of a prelude galaxy, by name. A name the catalog does not hold refuses the galaxy, naming the field.
+    // A cast member of a cast galaxy, by name. A name the catalog does not hold refuses the galaxy, naming the field.
     private Faction ResolveCast(string field, string name) =>
         ResolveFaction(name) ?? throw new InvalidOperationException($"cast faction {name} ({field}) is not in the catalog");
 
-    // Gives a prelude galaxy its gate: the antagonist's home is the boss zone and the exit. The only writer of Exit
+    // Gives a cast galaxy its gate: the antagonist's home is the boss zone and the exit. The only writer of Exit
     // besides the constructors.
     public void PlaceGate(Faction antagonist)
     {
@@ -198,23 +203,24 @@ public class Galaxy
         Exit = HomeZones[antagonist];
     }
 
-    // How many jumps a faction's influence reaches in this galaxy: its authored distance, halved (rounding up) in a
-    // prelude. Derived, never written back to the catalog's Faction, so one galaxy's generation cannot change the next.
+    // How many jumps a faction's influence reaches in this galaxy: its authored distance scaled by the galaxy's
+    // InfluenceScale (the cast decides the scale), rounding up. Derived, never written back to the catalog's Faction,
+    // so one galaxy's generation cannot change the next.
     public int InfluenceOf(Faction faction) =>
-        IsPrelude ? (faction.InfluenceDistance + 1) / 2 : faction.InfluenceDistance;
+        (int) MathF.Ceiling(faction.InfluenceDistance * InfluenceScale);
 
     public Galaxy(
-        TutorialGenerationSettings settings,
+        GalaxyCast cast,
         SectorBackgroundSettings background,
         CultCache cache,
-        PlayerSettings playerSettings, 
-        DirectoryInfo narrativeDirectory,
         Action<string> log,
         Action<string> progressCallback,
         uint seed)
     {
         _cache = cache;
-        IsPrelude = true;
+        InfluenceScale = cast.InfluenceScale > 0
+            ? cast.InfluenceScale
+            : throw new InvalidOperationException($"the cast's {nameof(cast.InfluenceScale)} must be positive, got {cast.InfluenceScale}");
 
         Background = background;
         Log = log;
@@ -223,32 +229,32 @@ public class Galaxy
         
         var factions = new List<Faction>();
 
-        var protagonistFaction = ResolveCast(nameof(settings.ProtagonistFaction), settings.ProtagonistFaction);
+        var protagonistFaction = ResolveCast(nameof(cast.ProtagonistFaction), cast.ProtagonistFaction);
         factions.Add(protagonistFaction);
         
-        var antagonistFaction = ResolveCast(nameof(settings.AntagonistFaction), settings.AntagonistFaction);
+        var antagonistFaction = ResolveCast(nameof(cast.AntagonistFaction), cast.AntagonistFaction);
         factions.Add(antagonistFaction);
         
-        var bufferFaction = ResolveCast(nameof(settings.BufferFaction), settings.BufferFaction);
+        var bufferFaction = ResolveCast(nameof(cast.BufferFaction), cast.BufferFaction);
         factions.Add(bufferFaction);
         
         // A cast without a quest faction places no quest zone.
-        var questFaction = string.IsNullOrEmpty(settings.QuestFaction)
+        var questFaction = string.IsNullOrEmpty(cast.QuestFaction)
             ? null
-            : ResolveCast(nameof(settings.QuestFaction), settings.QuestFaction);
+            : ResolveCast(nameof(cast.QuestFaction), cast.QuestFaction);
         if (questFaction != null) factions.Add(questFaction);
         
-        var neutralFactions = settings.NeutralFactions
-            .Select(name => ResolveCast(nameof(settings.NeutralFactions), name))
+        var neutralFactions = cast.NeutralFactions
+            .Select(name => ResolveCast(nameof(cast.NeutralFactions), name))
             .ToArray();
         factions.AddRange(neutralFactions);
         
         Factions = factions.ToArray();
         foreach (var faction in Factions) FactionRelationships[faction] = FactionRelationship.Neutral;
 
-        Zones = GenerateZones(settings.ZoneCount, ref random, progressCallback);
+        Zones = GenerateZones(cast.ZoneCount, ref random, progressCallback);
 
-        GenerateLinks(settings.LinkDensity, progressCallback);
+        GenerateLinks(cast.LinkDensity, progressCallback);
 
         CalculateDistanceMatrix(progressCallback);
 
@@ -302,15 +308,11 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        // No boss zone and no Exit yet (PlaceGate comes after): the prelude is one region.
-        BuildProvinces(settings.ProvinceZones);
+        // No boss zone and no Exit yet (PlaceGate comes after): a cast galaxy is one region.
+        BuildProvinces(cast.ProvinceZones);
 
         NamePlaces(ref random, progressCallback);
         
-        // progressCallback?.Invoke("Weaving Narrative");
-        // var processor = new StoryProcessor(playerSettings, narrativeDirectory, this, ref random, Log);
-        // processor.ProcessStories();
-
         progressCallback?.Invoke("Done!");
         if(progressCallback!=null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
     }

@@ -43,7 +43,7 @@ public static class ZoneGenerator
 		PlanetSettings planetSettings,
 		Galaxy galaxy,
 		GalaxyZone galaxyZone,
-		bool isTutorial = false,
+		bool entranceStation = false,
 		bool ambient = true)
 	{
 		var pack = new ZonePack();
@@ -294,15 +294,15 @@ public static class ZoneGenerator
 
         var storyStations = galaxyZone.Locations.Where(story => story.Type == LocationType.Station).ToArray();
         var stationCount = (int)(random.NextFloat() * (factionPresence + 1)) + storyStations.Length;
-        // Enemy count below is based on this pre-override value, so the tutorial entrance doesn't gain an enemy
+        // Enemy count below is based on this pre-override value, so the entrance station zone doesn't gain an enemy
         // just because its station got forced.
         var baseStationCount = stationCount;
-        // Operator ruling, 2026-09-25 (docs/locomotion-cut.md, "Tutorial station"): the entrance zone always
-        // gets a generated faction station with a docking bay, deterministically. Galaxy.cs halves influence and
-        // picks the lowest-influence unowned zone for Entrance, which otherwise rolls stationCount 0 on every
-        // seed. galaxy.Entrance is reference-identity, not a name comparison.
-        var isTutorialEntrance = isTutorial && galaxyZone == galaxy.Entrance;
-        if (isTutorialEntrance && stationCount < 1) stationCount = 1;
+        // Operator ruling, 2026-09-25 (docs/locomotion-cut.md): a scenario that declares an entrance station
+        // (Scenario.EntranceStation) gets a generated faction station with a docking bay in its entrance zone,
+        // deterministically. A cast galaxy's halved influence and its lowest-influence unowned Entrance otherwise roll
+        // stationCount 0 on every seed. galaxy.Entrance is reference-identity, not a name comparison.
+        var isEntranceStation = entranceStation && galaxyZone == galaxy.Entrance;
+        if (isEntranceStation && stationCount < 1) stationCount = 1;
         // A station's source is a well-bearing body alone on its ring whose rail clears every massive sibling's extent (the
         // sibling's support, or its Roche margin if more) and the largest reach of any station or turret hull: whatever hull
         // is built there, its Lagrange orbit then sits clear of any other body.
@@ -318,7 +318,7 @@ public static class ZoneGenerator
         // (the rail, how far a body on it keeps others out, whether it is a station's own orbit rather than a base's)
         var sources = candidates.Skip(candidates.Length / 2).Take(stationCount)
 	        .Select(p => (orbit: orbitMap[p], extent: Extent(p), direct: false)).ToArray();
-        if (isTutorialEntrance && candidates.Length == 0)
+        if (isEntranceStation && candidates.Length == 0)
         {
 	        // The entrance gets a station whatever its bodies: it orbits a root node beyond its ring group (or, for a body, its
 	        // whole family), never at a ring member's distance, and sits there, not at a Lagrange point.
@@ -326,7 +326,7 @@ public static class ZoneGenerator
 	        var rootNode = roots.FirstOrDefault(p => p.Children.Count > 0) ?? (roots.Count > 1 ? roots.OrderByDescending(p => p.Mass).First() : null);
 	        if (rootNode == null)
 		        throw new InvalidOperationException(
-			        "The tutorial entrance zone must always get a station, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
+			        "The entrance station zone must always get a station, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
 	        var distance = rootNode.Empty
 		        ? (1 + GravityField.RingReach) * GravityField.Beta * rootNode.Children.Where(Massive).Min(c => c.Distance)
 		        : Extent(rootNode);
@@ -445,9 +445,9 @@ public static class ZoneGenerator
 		        StationKinds.Choose(cache, nearestFaction, $"{seed}:station:{i}", itemManager.Log));
 	        if (station == null)
 	        {
-		        if (isTutorialEntrance)
+		        if (isEntranceStation)
 			        throw new InvalidOperationException(
-				        $"The tutorial entrance zone must always get a station, but {nearestFaction?.Name} has no station loadout to generate.");
+				        $"The entrance station zone must always get a station, but {nearestFaction?.Name} has no station loadout to generate.");
 		        continue;
 	        }
 	        station.Orbit = cache.RefOf(lagrangeOrbit);

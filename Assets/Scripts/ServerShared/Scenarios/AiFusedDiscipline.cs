@@ -13,7 +13,7 @@ public sealed class AiFusedDiscipline : Scenario
 
     public static readonly CultMath.float2 Hostile = float2(0, 700), Neutral = float2(500, 300);
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

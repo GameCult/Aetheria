@@ -458,6 +458,7 @@ public sealed class RunSaveTests : IDisposable
 
             var game = new SavedGame
             {
+                InfluenceScale = 1,
                 Factions = Array.Empty<CultRecordRef<Faction>>(),
                 Relationships = Array.Empty<FactionRelationship>(),
                 HomeZones = new Dictionary<int, int>(),
@@ -841,6 +842,7 @@ public sealed class RunSaveTests : IDisposable
     // HomeZones lists the factions in reverse of their saved order.
     private static SavedGame Game(CultCache cache, params Faction[] factions) => new SavedGame
     {
+        InfluenceScale = 1,
         Factions = factions.Select(f => cache.RefOf(f)).ToArray(),
         Relationships = factions.Select(_ => FactionRelationship.Neutral).ToArray(),
         HomeZones = factions.Select((_, i) => factions.Length - 1 - i).ToDictionary(i => i, _ => 0),

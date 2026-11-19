@@ -5,7 +5,7 @@ public static class Scenarios
 {
     public static readonly Scenario[] Modes = { new DemoTerminus() };
 
-    public static readonly Scenario[] Development = { new TutorialGalaxy(), new MainGalaxy() };
+    public static readonly Scenario[] Development = { new MainGalaxy() };
 
     public static readonly Scenario[] Tests =
     {

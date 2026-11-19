@@ -94,8 +94,10 @@ public class SectorGenerationSettings
     public int BossCount;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
-public class TutorialGenerationSettings
+// The fixed cast of a galaxy a scenario generates through GalaxyStage.Cast: who plays which part, how big the galaxy is,
+// and how far the factions' authored influence reaches (Galaxy.InfluenceOf). Held by the scenario that casts it; no
+// asset or store holds one.
+public class GalaxyCast
 {
     public string ProtagonistFaction;
     public string AntagonistFaction;
@@ -106,6 +108,8 @@ public class TutorialGenerationSettings
     public int ZoneCount = 32;
     // Zones per resource province (Provinces.Partition): calibration, not a gate.
     public int ProvinceZones = Provinces.DefaultZonesPerProvince;
+    // Multiplies every faction's authored InfluenceDistance in this galaxy (rounding up); 1 leaves them as authored.
+    public float InfluenceScale = 1;
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]

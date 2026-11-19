@@ -23,12 +23,11 @@ public sealed class ScenarioStage
     private readonly HashSet<Entity> _fitted = new HashSet<Entity>();
     private readonly HashSet<Entity> _cargoAuthored = new HashSet<Entity>();
 
-    internal ScenarioStage(ItemManager items, Zone arena, string startingHull, TutorialGenerationSettings tutorialGenerationSettings)
+    internal ScenarioStage(ItemManager items, Zone arena, string startingHull)
     {
         _items = items;
         Arena = arena;
         StartingHull = startingHull;
-        TutorialGenerationSettings = tutorialGenerationSettings;
         Credits = items.GameplaySettings.StartingCredits;
         // A design named without a product is chosen by the generator's ChooseProduct. The stage outfits with no faction,
         // so every maker is reachable and the run's seed draws.
@@ -38,7 +37,6 @@ public sealed class ScenarioStage
     public Galaxy Galaxy => Arena.Galaxy;
     public Zone Arena { get; }
     public string StartingHull { get; }
-    public TutorialGenerationSettings TutorialGenerationSettings { get; }
 
     // What the run starts with: the gameplay settings' starting credits unless the scenario sets another amount.
     public int Credits { get; set; }

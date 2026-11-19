@@ -14,7 +14,7 @@ public sealed class DjinniShakedown : Scenario
     // Where the targets sit: the ballistic mount faces +z, so Ahead is inside its arc and Abeam outside it.
     public static readonly float2 Ahead = new float2(0, 400), Abeam = new float2(400, 0);
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage)
     {

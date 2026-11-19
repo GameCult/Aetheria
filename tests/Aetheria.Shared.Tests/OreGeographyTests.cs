@@ -128,14 +128,14 @@ public sealed class OreGeographyTests : IDisposable
         return reached;
     }
 
-    private static Galaxy Build(CultCache cache, bool prelude, uint seed, TutorialGenerationSettings cast = null) => prelude
-        ? new Galaxy(cast ?? Authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"), Authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-            cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed)
+    private static Galaxy Build(CultCache cache, bool prelude, uint seed, GalaxyCast cast = null) => prelude
+        ? new Galaxy(cast ?? TestCasts.Wide, Authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"),
+            cache, _ => { }, null, seed)
         : new Galaxy(Authored.Read<SectorGenerationSettings>("SectorGenerationSettings"), Authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"),
             cache, _ => { }, null, seed);
 
     // Galaxy refuses some seeds (RestoredHullsTests calls it seed-dependent flakiness); those are skipped.
-    private static Galaxy TryBuild(CultCache cache, bool prelude, uint seed, TutorialGenerationSettings cast = null)
+    private static Galaxy TryBuild(CultCache cache, bool prelude, uint seed, GalaxyCast cast = null)
     {
         try { return Build(cache, prelude, seed, cast); }
         catch (Exception) { return null; }
@@ -151,14 +151,14 @@ public sealed class OreGeographyTests : IDisposable
         Enumerable.Range(1, (int) last).Select(seed => SharedGalaxy(prelude, (uint) seed)).Where(galaxy => galaxy != null);
 
     // The demo's cast: the same fixed cast, with the province size chosen.
-    private static TutorialGenerationSettings Cast(int provinceZones)
+    private static GalaxyCast Cast(int provinceZones)
     {
         var cast = DemoTerminus.Cast;
-        return new TutorialGenerationSettings
+        return new GalaxyCast
         {
             ProtagonistFaction = cast.ProtagonistFaction, AntagonistFaction = cast.AntagonistFaction, BufferFaction = cast.BufferFaction,
             NeutralFactions = cast.NeutralFactions, QuestFaction = cast.QuestFaction, ZoneCount = cast.ZoneCount, LinkDensity = cast.LinkDensity,
-            ProvinceZones = provinceZones
+            ProvinceZones = provinceZones, InfluenceScale = cast.InfluenceScale
         };
     }
 
@@ -929,7 +929,7 @@ public sealed class OreGeographyTests : IDisposable
     {
         foreach (var zone in galaxy.Zones.Take(zones))
         {
-            var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, isTutorial: zone == galaxy.Entrance);
+            var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, entranceStation: zone == galaxy.Entrance);
             foreach (var belt in pack.Planets.Select(body => cache.Get(body)).OfType<AsteroidBeltData>())
                 yield return (belt, zone, pack);
         }

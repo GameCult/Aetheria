@@ -181,10 +181,9 @@ public sealed class SunsNeverGreenTests : IDisposable
             cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
             cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(Path.Combine(dir, "run.cc")), AetheriaStores.RunTypes);
             var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
-            var tutorial = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
-            var galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"),
-                cache, new PlayerSettings(),
-                Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
+            var tutorial = TestCasts.Wide;
+            var galaxy = new Galaxy(tutorial, authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"),
+                cache, _ => { }, null, seed);
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
             var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
             adjust(zoneSettings);

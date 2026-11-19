@@ -2,10 +2,10 @@ using float2 = CultMath.float2;
 
 // The demo: one gate, one region and one boss, with a fixed cast. The Pirates are the protagonist's ostensible
 // employer, Zhestokost the antagonist whose home is the boss zone and the exit, Lucent Media and Aeronautics Unlimited
-// the neutrals. A prelude galaxy of that cast; the player, who is not a Pirate, flies the base Longinus.
+// the neutrals. A galaxy of that cast at half influence; the player, who is not a Pirate, flies the base Longinus.
 public sealed class DemoTerminus : Scenario
 {
-    public static readonly TutorialGenerationSettings Cast = new TutorialGenerationSettings
+    public static readonly GalaxyCast Cast = new GalaxyCast
     {
         ProtagonistFaction = "Pirates",
         AntagonistFaction = "Zhe",
@@ -13,7 +13,8 @@ public sealed class DemoTerminus : Scenario
         NeutralFactions = new[] { "Aero" },
         QuestFaction = null,
         ZoneCount = 64,
-        LinkDensity = .5f
+        LinkDensity = .5f,
+        InfluenceScale = .5f
     };
 
     public override string Name => "Terminus (Demo)";
@@ -23,7 +24,7 @@ public sealed class DemoTerminus : Scenario
 
     public override Galaxy Generate(GalaxyStage stage)
     {
-        var galaxy = stage.Prelude(Cast);
+        var galaxy = stage.Cast(Cast);
         galaxy.PlaceGate(galaxy.ResolveFaction(Cast.AntagonistFaction));
         return galaxy;
     }

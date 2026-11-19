@@ -139,6 +139,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         _caches.Add(cache);
         var game = new SavedGame
         {
+            InfluenceScale = 1,
             Factions = new[] { maker },
             Relationships = new[] { FactionRelationship.Neutral },
             HomeZones = new Dictionary<int, int> { { 0, 0 } },
@@ -282,8 +283,8 @@ public sealed class ConsumableSupplyTests : IDisposable
         cache.Upsert(new FactionProductData { Name = "Overdrive by Maker", Design = new CultRecordRef<CraftedItemData>(overdrive.Key), Manufacturer = maker });
 
         var authored = AuthoredSettings.Load(repo);
-        var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
-            authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), cache, new PlayerSettings(), Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, 1);
+        var galaxy = new Galaxy(TestCasts.Wide,
+            authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"), cache, _ => { }, null, 1);
         var items = new ItemManager(1u, cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
 
         int stations = 0, ships = 0;

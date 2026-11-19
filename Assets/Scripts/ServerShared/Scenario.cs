@@ -22,7 +22,11 @@ public abstract class Scenario
     // the scenario's conditions.
     public virtual bool Ambient => true;
 
-    // Which galaxy the run is in: stage.Main() or stage.Prelude().
+    // True: the arena's zone always gets a generated faction station with a docking bay, whatever its seed rolls
+    // (ZoneGenerator). False: its stations are rolled like any other zone's.
+    public virtual bool EntranceStation => true;
+
+    // Which galaxy the run is in: stage.Main() or stage.Cast(cast).
     public abstract Galaxy Generate(GalaxyStage stage);
 
     // What the run starts with: exactly one stage.Player, and anything else the scenario places.

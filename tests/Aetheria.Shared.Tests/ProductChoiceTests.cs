@@ -128,6 +128,7 @@ public sealed class ProductChoiceTests : IDisposable
         var outZ = cache.GetByName<Faction>("OutZ");
         var game = new SavedGame
         {
+            InfluenceScale = 1,
             // Alpha's headquarters are in zone 0 and Zeta's in zone 1.
             Factions = new[] { cache.RefOf(outA), cache.RefOf(outZ), cache.RefOf(cache.GetByName<Faction>("Alpha")), cache.RefOf(cache.GetByName<Faction>("Zeta")) },
             Relationships = new[] { FactionRelationship.Neutral, FactionRelationship.Neutral, FactionRelationship.Neutral, FactionRelationship.Neutral },

@@ -8,7 +8,7 @@ public sealed class LongHaul : Scenario
                                     "warp, quit and Continue keep items, tier and brand; death disables Continue.";
     public override uint Seed => 106;
 
-    public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();
+    public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 
     public override void Stage(ScenarioStage stage) =>
         stage.Player(stage.Generated(stage.StartingHull), float2.zero);
