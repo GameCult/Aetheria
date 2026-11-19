@@ -578,7 +578,7 @@ fn bound_audience(via: &AudienceSpec, bindings: &BTreeMap<Role, Target>) -> Opti
 /// to a complete attempt and cannot see the band.
 ///
 /// The rule is action-lane only, and that is not two truths. The patch lane's
-/// `GrantAuthority`/`RevokeAuthority` is admitted by the world owner;
+/// `GrantAuthority`/`RevokeAuthority` is admitted for Play;
 /// monotonicity *is* the action lane's authority envelope, and both lanes
 /// reach one `apply_operation` with the identical mutation.
 fn check_delegation(
@@ -1134,7 +1134,7 @@ mod tests {
         }
 
         /// The same Carry attempt against a sibling entry: one dial moved, one
-        /// name. The catalog is Draft-only, so a variant is declared rather
+        /// name. The catalog is declared structure, so a variant is declared rather
         /// than patched into committed state.
         fn variant(&self, invocation: &DecisionInvocation, kind: &str) -> DecisionInvocation {
             DecisionInvocation {
@@ -2019,7 +2019,7 @@ mod tests {
             vec![ActionMismatch::ActorRoleBound]
         );
 
-        // The declaration half is Draft-only, so it runs against a fresh world.
+        // The declaration half runs at genesis, so it runs against a fresh world.
         let draft_directory = tempfile::tempdir().unwrap();
         let mut draft = custody_kernel(draft_directory.path(), "ReservedRole");
         let before = draft.snapshot().unwrap();

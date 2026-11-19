@@ -1400,9 +1400,8 @@ pub enum Mismatch {
     },
     NoCanonicalChange,
     /// A genesis-lane resolution (the same empty-state case `admits_human`
-    /// tests) declared no subject, so the world would have no decision
-    /// subject to admit. This is a rejected patch, not a corrupt journal: the
-    /// mailbox actor must survive it.
+    /// tests) declared no subject, so the world would have nobody to act. This
+    /// is a rejected patch, not a corrupt journal: the kernel must survive it.
     NoDecisionSubject,
     /// A declared place contains itself through its container chain.
     ContainmentCycle {
@@ -3828,7 +3827,7 @@ pub(super) fn resolve_patch(
                 }
                 // The resolver reads authority for the subject being moved, not
                 // for whoever proposed the patch, which is what keeps it
-                // actor-blind: the owner-admitted lane and the action lane get
+                // actor-blind: the patch lane and the action lane get
                 // the same answer for the same move. A destination this patch
                 // declares is canonically unknown, so only a `Public` route
                 // reaches it.
@@ -6812,33 +6811,6 @@ mod tests {
                     .map(|position| position.place)
             );
         }
-    }
-
-    #[test]
-    fn admit_patch_from_a_non_owner_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
-        let before = kernel.snapshot().unwrap();
-        let commits_before = kernel.journal.commit_count();
-
-        let error = kernel
-            .submit(
-                command(
-                    &before,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    admit(patch_of(vec![entity(
-                        "rhythm-road",
-                        "The Rhythm Road",
-                        EntityKind::Place,
-                    )])),
-                ),
-                &auth_principal(human_principal()),
-            )
-            .unwrap_err();
-        assert!(matches!(error, KernelError::Unauthorized));
-        assert_eq!(kernel.journal.commit_count(), commits_before);
-        assert_eq!(kernel.snapshot().unwrap(), before);
     }
 
     #[test]

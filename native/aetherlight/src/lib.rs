@@ -157,22 +157,6 @@ impl CommandId {
             .map_err(|_| KernelError::InvalidCommandId)
     }
 
-    /// sha256 over a namespace and its ordered, length-prefixed parts, first
-    /// sixteen bytes. A command key, not a referent id: `patch::derive_id`
-    /// still has exactly two call sites. No `uuid/v5`.
-    pub(crate) fn derived(namespace: &str, parts: &[&str]) -> Self {
-        let mut hasher = Sha256::new();
-        hasher.update(namespace.as_bytes());
-        for part in parts {
-            hasher.update((part.len() as u64).to_be_bytes());
-            hasher.update(part.as_bytes());
-        }
-        let bytes: [u8; 16] = hasher.finalize()[..16]
-            .try_into()
-            .expect("sha256 yields at least sixteen bytes");
-        Self(Uuid::from_bytes(bytes))
-    }
-
     fn key(self) -> String {
         self.0.to_string()
     }
@@ -587,7 +571,7 @@ enum WorldEffect {
     },
 }
 
-/// The exact raw command admitted by the world owner. This is the sole
+/// The exact raw command admitted by the kernel. This is the sole
 /// persistent command authority: IDs, callers, retry identity, and effects are
 /// derived from this value rather than copied into independently forgeable
 /// commit fields.
@@ -4790,7 +4774,7 @@ mod tests {
     }
 
     /// The first subject whose controller has this mode.
-    fn subject_by_mode(state: &WorldState, mode: ControllerMode) -> SubjectId {
+    pub(crate) fn subject_by_mode(state: &WorldState, mode: ControllerMode) -> SubjectId {
         state
             .controller_assignments
             .iter()
@@ -12449,6 +12433,430 @@ mod clock_tests {
             matches!(&error, KernelError::ActionRejected(set)
                 if set.contains(&ActionMismatch::CannotReach { precondition: 0 })),
             "{error:?}"
+        );
+    }
+}
+
+/// After genesis only Play writes, and a world is born Active. Each rule here
+/// is the one the reducer's single admission gate decides, on commit and at
+/// the commit-time re-decision.
+#[cfg(test)]
+mod agency_tests {
+    use super::tests::{
+        act, affordance_named, auth_principal, command, creation, first_grant, human_principal,
+        operations, owner, play_command, reject_play, speak, subject_by_mode, submit_play,
+        tick_body,
+    };
+    use super::*;
+
+    fn world(title: &str) -> (tempfile::TempDir, std::path::PathBuf, WorldKernel) {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("world.cc");
+        let (kernel, _) = WorldKernel::create(
+            &path,
+            creation(CommandId::new(), title),
+            &auth_principal(owner()),
+        )
+        .unwrap();
+        (directory, path, kernel)
+    }
+
+    fn declare_place_patch(handle: &str) -> WorldPatch {
+        WorldPatch {
+            declarations: vec![Declaration::Entity(EntityDeclaration {
+                handle: DraftHandle::new(handle),
+                label: format!("The {handle}"),
+                kind: EntityKind::Place,
+                container: None,
+            })],
+            operations: Vec::new(),
+            evidence: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn after_genesis_only_play_writes() {
+        let (_directory, _path, mut kernel) = world("PlayOnly");
+        let snapshot = kernel.snapshot().unwrap();
+        let human = subject_by_mode(&kernel.state, ControllerMode::Human);
+        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let operator = subject_by_mode(&kernel.state, ControllerMode::OperationalAgent);
+        let convene = affordance_named(&snapshot, "convene");
+        let bodies = vec![
+            (
+                "declare",
+                CommandBody::AdmitPatch {
+                    patch: declare_place_patch("annex"),
+                },
+            ),
+            (
+                "retire",
+                operations(vec![ComponentOp::Retire {
+                    subject: Ref::Existing(persona),
+                }]),
+            ),
+            (
+                "grant",
+                operations(vec![ComponentOp::GrantAffordance {
+                    subject: Ref::Existing(human),
+                    affordance: Ref::Existing(convene),
+                }]),
+            ),
+            (
+                "revoke",
+                operations(vec![ComponentOp::RevokeAffordance {
+                    subject: Ref::Existing(operator),
+                    affordance: Ref::Existing(convene),
+                }]),
+            ),
+            ("advance", tick_body(5)),
+            (
+                "act",
+                CommandBody::Act {
+                    actor: human,
+                    invocation: speak(first_grant(&snapshot, human), "Hello."),
+                },
+            ),
+        ];
+
+        for (name, body) in &bodies {
+            for caller in [
+                CallerId::Principal(owner()),
+                CallerId::Principal(human_principal()),
+            ] {
+                let commits = kernel.journal.commit_count();
+                let error = kernel
+                    .submit(
+                        command(&snapshot, CommandId::new(), caller.clone(), body.clone()),
+                        &AuthenticatedCaller::fixture(caller.clone()),
+                    )
+                    .unwrap_err();
+                assert!(
+                    matches!(error, KernelError::Unauthorized),
+                    "{name} as {caller:?}: {error:?}"
+                );
+                assert_eq!(kernel.journal.commit_count(), commits, "{name} committed");
+                assert_eq!(kernel.snapshot().unwrap(), snapshot, "{name} moved the world");
+            }
+        }
+        for (name, body) in bodies {
+            let before = kernel.snapshot().unwrap();
+            let receipt = kernel
+                .submit(
+                    play_command(&before, CommandId::new(), body),
+                    &AuthenticatedCaller::verified_play(),
+                )
+                .unwrap_or_else(|error| panic!("Play {name}: {error:?}"));
+            assert!(matches!(receipt, SubmitReceipt::Applied(_)), "Play {name}");
+        }
+    }
+
+    #[test]
+    fn apply_effect_re_decides_play() {
+        let (_directory, _path, kernel) = world("ReDecide");
+        let state = &kernel.state;
+        let command_id = CommandId::issue();
+        let human = subject_by_mode(state, ControllerMode::Human);
+        let affordance = first_grant(&kernel.snapshot().unwrap(), human);
+        let invocation = speak(affordance, "Spoken.");
+        let granted = require_granted(state, human, affordance).unwrap();
+        let event = action::exercise(state, command_id, human, &granted, &invocation).unwrap();
+        let minutes = TickMinutes::new(9).unwrap();
+        let to = state.now.checked_add(minutes).unwrap();
+        let effects = [
+            (
+                "patch",
+                WorldEffect::PatchAdmitted {
+                    resolved: patch::resolve_patch(
+                        state,
+                        command_id,
+                        &declare_place_patch("annex"),
+                    )
+                    .unwrap(),
+                },
+            ),
+            ("act", WorldEffect::Acted { invocation, event }),
+            (
+                "tick",
+                WorldEffect::TimeAdvanced {
+                    minutes,
+                    to,
+                    motion: clock::derive_motion(state, to),
+                },
+            ),
+        ];
+        for (name, effect) in &effects {
+            for caller in [
+                CallerId::Principal(owner()),
+                CallerId::Principal(human_principal()),
+            ] {
+                let mut candidate = state.clone();
+                let error = apply_effect(&mut candidate, command_id, &caller, effect).unwrap_err();
+                assert!(matches!(error, KernelError::Unauthorized), "{name}: {error:?}");
+                assert_eq!(&candidate, state, "{name} mutated before refusing");
+            }
+            let mut candidate = state.clone();
+            apply_effect(&mut candidate, command_id, &CallerId::Play, effect)
+                .unwrap_or_else(|error| panic!("Play {name}: {error:?}"));
+            assert_ne!(&candidate, state, "Play {name} changed nothing");
+        }
+    }
+
+    #[test]
+    fn a_world_is_born_active() {
+        let (_directory, path, mut kernel) = world("BornActive");
+        let snapshot = kernel.snapshot().unwrap();
+        assert_eq!(snapshot.revision, 0);
+        let human = subject_by_mode(&kernel.state, ControllerMode::Human);
+        act(&mut kernel, human, speak(first_grant(&snapshot, human), "At once.")).unwrap();
+        let accepted = kernel.snapshot().unwrap();
+        assert_eq!(accepted.revision, 1);
+        drop(kernel);
+        let reopened = WorldKernel::open(&path, accepted.world_id).unwrap();
+        assert_eq!(reopened.snapshot().unwrap(), accepted);
+
+        let (_other, _path, mut kernel) = world("BornActiveClock");
+        let genesis = kernel.snapshot().unwrap();
+        submit_play(&mut kernel, &genesis, tick_body(1));
+        assert_eq!(kernel.snapshot().unwrap().revision, 1);
+    }
+
+    #[test]
+    fn retired_tags_do_not_decode() {
+        fn refused<T: serde::de::DeserializeOwned>(json: &str) {
+            assert!(serde_json::from_str::<T>(json).is_err(), "{json} decoded");
+        }
+        let id = "\"00000000-0000-4000-8000-000000000000\"";
+        refused::<CommandBody>(r#"{"type":"approve_draft"}"#);
+        refused::<CommandBody>(r#"{"type":"activate_world"}"#);
+        refused::<CallerId>(&format!(r#"{{"type":"controller","id":{id}}}"#));
+        refused::<CallerId>(r#"{"type":"system","id":{"capability":"clock"}}"#);
+        refused::<CallerId>(r#"{"type":"system","id":{"capability":"play"}}"#);
+        refused::<CallerId>(&format!(
+            r#"{{"type":"system","id":{{"capability":"consumer","consumer":{id}}}}}"#
+        ));
+        refused::<NewController>(&format!(r#"{{"type":"external","consumer":{id}}}"#));
+        refused::<WorldEffect>(r#"{"type":"draft_approved","principal":"p"}"#);
+        refused::<WorldEffect>(r#"{"type":"world_activated"}"#);
+        assert_eq!(
+            serde_json::from_str::<CallerId>(r#"{"type":"play"}"#).unwrap(),
+            CallerId::Play
+        );
+    }
+
+    #[test]
+    fn a_revoke_may_leave_a_subject_with_no_verbs() {
+        let (_directory, path, mut kernel) = world("Mute");
+        let snapshot = kernel.snapshot().unwrap();
+        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let only = first_grant(&snapshot, persona);
+        submit_play(
+            &mut kernel,
+            &snapshot,
+            operations(vec![ComponentOp::RevokeAffordance {
+                subject: Ref::Existing(persona),
+                affordance: Ref::Existing(only),
+            }]),
+        );
+        assert!(
+            !kernel
+                .state
+                .affordance_grants
+                .contains_key(&DecisionScope { subject_id: persona }),
+            "the emptied row was kept"
+        );
+        let error = act(&mut kernel, persona, speak(only, "Silent.")).unwrap_err();
+        assert!(matches!(error, KernelError::AffordanceDenied), "{error:?}");
+        journal::verify_state_shape(&kernel.state).expect("a mute subject is a legal shape");
+        let accepted = kernel.snapshot().unwrap();
+        drop(kernel);
+        assert_eq!(
+            WorldKernel::open(&path, accepted.world_id)
+                .unwrap()
+                .snapshot()
+                .unwrap(),
+            accepted
+        );
+    }
+
+    #[test]
+    fn a_subject_may_be_declared_with_no_verbs() {
+        let mute = |handle: &str| {
+            Declaration::Subject(SubjectDeclaration {
+                handle: DraftHandle::new(handle),
+                label: format!("The {handle}"),
+                kind: SubjectKind::Person,
+                controller: NewController::OperationalAgent,
+                affordances: BTreeSet::new(),
+                position: Some(Ref::Draft(DraftHandle::new(super::tests::COMMONS))),
+                import_key: None,
+            })
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let mut input = creation(CommandId::new(), "Mutes");
+        input.patch.declarations.push(mute("born-mute"));
+        let (mut kernel, _) = WorldKernel::create(
+            directory.path().join("world.cc"),
+            input,
+            &auth_principal(owner()),
+        )
+        .unwrap();
+        let snapshot = kernel.snapshot().unwrap();
+        let speaking = first_grant(&snapshot, subject_by_mode(&kernel.state, ControllerMode::Human));
+        submit_play(
+            &mut kernel,
+            &snapshot,
+            CommandBody::AdmitPatch {
+                patch: WorldPatch {
+                    declarations: vec![Declaration::Subject(SubjectDeclaration {
+                        position: None,
+                        ..match mute("declared-mute") {
+                            Declaration::Subject(subject) => subject,
+                            _ => unreachable!(),
+                        }
+                    })],
+                    operations: Vec::new(),
+                    evidence: Vec::new(),
+                },
+            },
+        );
+        let snapshot = kernel.snapshot().unwrap();
+        for label in ["The born-mute", "The declared-mute"] {
+            let found = snapshot
+                .subjects
+                .iter()
+                .find(|subject| subject.label == label)
+                .unwrap();
+            assert!(found.affordances.is_empty(), "{label}");
+            assert!(
+                !kernel
+                    .state
+                    .affordance_grants
+                    .contains_key(&DecisionScope { subject_id: found.id }),
+                "{label} holds a grant row"
+            );
+            let error = act(&mut kernel, found.id, speak(speaking, "Mute.")).unwrap_err();
+            assert!(matches!(error, KernelError::AffordanceDenied), "{label}: {error:?}");
+        }
+    }
+
+    #[test]
+    fn a_retired_subject_takes_no_grant() {
+        let (_directory, _path, mut kernel) = world("RetiredGrants");
+        let snapshot = kernel.snapshot().unwrap();
+        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let convene = affordance_named(&snapshot, "convene");
+        let grant = ComponentOp::GrantAffordance {
+            subject: Ref::Existing(persona),
+            affordance: Ref::Existing(convene),
+        };
+        let revoke = ComponentOp::RevokeAffordance {
+            subject: Ref::Existing(persona),
+            affordance: Ref::Existing(first_grant(&snapshot, persona)),
+        };
+        let retire = ComponentOp::Retire {
+            subject: Ref::Existing(persona),
+        };
+        for op in [grant.clone(), revoke.clone()] {
+            let mismatches = reject_play(
+                &mut kernel,
+                &snapshot,
+                operations(vec![retire.clone(), op]),
+            );
+            assert_eq!(
+                mismatches,
+                vec![Mismatch::GrantsToRetired { operation: 1 }],
+                "same patch"
+            );
+        }
+        submit_play(&mut kernel, &snapshot, operations(vec![retire]));
+        let snapshot = kernel.snapshot().unwrap();
+        for op in [grant, revoke] {
+            let mismatches = reject_play(&mut kernel, &snapshot, operations(vec![op]));
+            assert_eq!(mismatches, vec![Mismatch::GrantsToRetired { operation: 0 }]);
+        }
+    }
+
+    #[test]
+    fn retire_applies_to_every_subject() {
+        let (_directory, path, mut kernel) = world("RetireAll");
+        let snapshot = kernel.snapshot().unwrap();
+        let everyone = [
+            ControllerMode::Human,
+            ControllerMode::NarrativePersona,
+            ControllerMode::OperationalAgent,
+        ]
+        .map(|mode| subject_by_mode(&kernel.state, mode));
+        submit_play(
+            &mut kernel,
+            &snapshot,
+            operations(
+                everyone
+                    .iter()
+                    .map(|subject| ComponentOp::Retire {
+                        subject: Ref::Existing(*subject),
+                    })
+                    .collect(),
+            ),
+        );
+        let after = kernel.snapshot().unwrap();
+        assert_eq!(after.subjects.len(), everyone.len());
+        for subject in &after.subjects {
+            assert!(subject.retired, "{} was not retired", subject.label);
+            assert!(subject.affordances.is_empty());
+            assert!(subject.position.is_none());
+        }
+        assert!(kernel.state.affordance_grants.is_empty());
+        drop(kernel);
+        assert_eq!(
+            WorldKernel::open(&path, after.world_id)
+                .unwrap()
+                .snapshot()
+                .unwrap(),
+            after
+        );
+    }
+
+    /// `apply_operation` re-decides the retired guard the resolver also holds:
+    /// a forged `PatchAdmitted` that grants a retired subject a verb is refused
+    /// at apply rather than leaving a grant row the shape check calls corrupt.
+    #[test]
+    fn apply_refuses_a_grant_to_a_retired_subject() {
+        let (_directory, _path, mut kernel) = world("ForgedGrant");
+        let snapshot = kernel.snapshot().unwrap();
+        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let convene = affordance_named(&snapshot, "convene");
+        submit_play(
+            &mut kernel,
+            &snapshot,
+            operations(vec![ComponentOp::Retire {
+                subject: Ref::Existing(persona),
+            }]),
+        );
+        let forged = WorldEffect::PatchAdmitted {
+            resolved: ResolvedPatch {
+                subjects: Vec::new(),
+                entities: Vec::new(),
+                routes: Vec::new(),
+                affordances: Vec::new(),
+                facts: Vec::new(),
+                channels: Vec::new(),
+                operations: vec![ResolvedOp::GrantAffordance {
+                    subject: persona,
+                    affordance: convene,
+                }],
+                evidence: Vec::new(),
+            },
+        };
+        let mut candidate = kernel.state.clone();
+        let error =
+            apply_effect(&mut candidate, CommandId::issue(), &CallerId::Play, &forged).unwrap_err();
+        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
+        assert!(
+            !candidate
+                .affordance_grants
+                .contains_key(&DecisionScope { subject_id: persona }),
+            "a retired subject was granted a verb"
         );
     }
 }
