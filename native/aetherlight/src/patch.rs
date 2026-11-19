@@ -12,15 +12,12 @@
 //! after that set is empty, so a rejected patch never mints an ID.
 
 use super::clock::{FictionalMinutes, TickMinutes};
-use super::tool_schema;
 use super::grammar::GrammarRefusal;
 use super::{
     AffordanceId, CommandId, ControllerAssignment, ControllerId, EdgeId, EntityId, LensWeights,
     NewController, SubjectId, SubjectKind, SubjectState, WorldId,
 };
-use codex_connector::CodexToolDefinition;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
@@ -5374,7 +5371,7 @@ pub(super) fn resolve_patch(
             });
         }
         allocated_subjects.insert(input.handle.clone(), subject_id);
-        let mut controller_id = || {
+        let controller_id = || {
             ControllerId(derive_id(
                 CONTROLLER_NAMESPACE,
                 world_id,

@@ -1,4 +1,4 @@
-//! The Ghostlight world library.
+//! The Aetherlight world library, a fork of Ghostlight c43eb54 (see `PROVENANCE.md`).
 //!
 //! The world owner is one deterministic authority: authenticated commands enter,
 //! one reducer decides, and one journal atomically commits the resulting state.
@@ -16,117 +16,83 @@
 //! stand exactly where a consumer stands.
 //!
 //! ```compile_fail,E0603
-//! use ghostlight::WorldKernel;
+//! use aetherlight::WorldKernel;
 //! ```
 //!
 //! ```compile_fail,E0603
-//! use ghostlight::reduce;
+//! use aetherlight::reduce;
 //! ```
 //!
 //! ```compile_fail,E0603
-//! use ghostlight::WorldState;
+//! use aetherlight::WorldState;
 //! ```
 //!
 //! ```compile_fail,E0603
-//! use ghostlight::CommandEnvelope;
+//! use aetherlight::CommandEnvelope;
 //! ```
 //!
 //! ```compile_fail,E0603
-//! use ghostlight::AuthenticatedCaller;
+//! use aetherlight::AuthenticatedCaller;
 //! ```
 //!
 //! ```compile_fail,E0603
-//! use ghostlight::journal::WorldJournal;
+//! use aetherlight::journal::WorldJournal;
 //! ```
 //!
 //! ```compile_fail,E0599
-//! let _ = ghostlight::SubjectId::issue();
+//! let _ = aetherlight::SubjectId::issue();
 //! ```
 //!
 //! ```compile_fail,E0603
-//! let _ = ghostlight::ScopeDigest::fixture("x");
+//! let _ = aetherlight::ScopeDigest::fixture("x");
 //! ```
 //!
 //! ```compile_fail,E0425
-//! let _ = ghostlight::fixture_controller_opportunities(&[]);
+//! let _ = aetherlight::fixture_controller_opportunities(&[]);
 //! ```
 //!
 //! ```compile_fail,E0425
-//! let _ = ghostlight::fixture_inference_output("prose", "receipt");
+//! let _ = aetherlight::fixture_inference_output("prose", "receipt");
 //! ```
 
+// The kernel has no entry point until AL4 adds the ABI, so most of it is unreachable
+// from the public surface. AL4 removes this attribute.
+#![allow(dead_code)]
+
 mod action;
-mod aetheria;
 mod clock;
-mod consumer;
-mod controllers;
 mod cover;
-mod elaboration;
 mod grammar;
 #[cfg(test)]
 mod import_key_tests;
 mod journal;
 mod lens;
-mod local_inference;
-mod mailbox;
 mod patch;
-mod sdk_inference;
-mod table;
-mod tool_schema;
-mod vault;
-mod verse;
 
 pub(crate) use action::ActionMismatch;
 pub(crate) use clock::Motion;
 pub use clock::{FictionalMinutes, TickMinutes};
-pub use consumer::{
-    CONSUMER_BODY_LIMIT, CONSUMER_CREDENTIALS_ENVIRONMENT, CONSUMER_PATCH_SCHEMA,
-    CONSUMER_RECEIPT_SCHEMA, ConsumerRegistry, admit_document, encode_receipt,
-};
-pub use controllers::{
-    CONTROLLER_WORK_SCHEMA, CellRun, ConnectorBinding, ControllerError, ControllerModels,
-    ControllerOpenError,
-    ControllerNeed, ControllerPendingReason, ControllerRunner, ControllerWork,
-    ControllerWorkCustody, ControllerWorkLookup, ControllerWorkStore, ControllerWorkStoreError,
-    ControllerWorkWrite,
-    GroupedCheckpoint, InferenceEvent, InferenceFault, InferenceFaultClass, InferenceFaultDisposition, InferenceOutput,
-    InferencePort,
-    InferencePurpose, InferenceRequest, NarrativeCheckpoint, NarrativeRun, OperationalCheckpoint,
-    OperationalRun, PersonaLane, PreparedInference, SubmissionDisposition, TokenUsage, ToolResultOracle,
-    TracingInferencePort, open_controller_work, open_inference,
-};
-pub(crate) use cover::{CellId, Constituent, Resolution};
-pub use aetheria::{
-    AetheriaCatalog, AetheriaFaction, CatalogReadError, VerbRule, read_aetheria_catalog,
-};
 pub use cover::{AgencyGraph, Cell, Cover, CoverBudget, CoverBudgetError, TickIndex, derive_cover};
-pub use elaboration::{
-    ElaborationCheckpoint, ElaborationRunner, ElaboratorSession, EvidenceError, EvidenceQuery,
-    EvidenceReceipt, EvidenceSource, SeedCheckpoint, SeedOutcome, SeedRunner, select_row,
-};
 pub use grammar::{
     GrammarBinding, GrammarError, GrammarIdentity, GrammarReferentKind, GrammarRole, GrammarVerb,
     RenderPath,
 };
 pub use lens::{Lens, LensWeights};
-pub use local_inference::{DEFAULT_HOSTED_MODEL_PREFIX, DEFAULT_LOCAL_MODEL_PREFIX, HostedBinding, LocalBinding};
-#[cfg(feature = "test-support")]
-pub use local_inference::open_local_port_with_timeout;
-pub(crate) use mailbox::ElaborationPort;
-pub use mailbox::{ConsumerPort, ControllerPort, MailboxError, PlayPort, SeedPort, WorldMailbox};
 pub use patch::{
     CommitmentKey, DraftHandle, JurisdictionKey, Mismatch, PatchAnswer, Ref, RefKind, RefName, Role,
     Site, Statement, WorldPatch,
 };
 pub(crate) use patch::{
     AccessKind, Affordance, Audience, AuthoredSource, AuthorityGrant, AuthorityTarget,
-    BoundPrecondition, Bounds, ChannelRecord, Commitment, CommitmentKind, Confidence, Cost,
-    Declaration, DependencyTarget, EntityDeclaration, EntityKind, EvidenceRef, FactRecord,
+    BoundPrecondition, ChannelRecord, Commitment, CommitmentKind, Confidence, Cost,
+    DependencyTarget, EntityKind, EvidenceRef, FactRecord,
     FactStanding, Forum, GrievanceKindName, Knowledge, KnowledgeSource, Office, OfficeName,
     PersonaMaterial, Position, PressureMagnitude, PressureSource, Quantity, Reach,
-    SubjectDeclaration, WorldScaleIntent, WorldScaleIntentRef,
+    WorldScaleIntent, WorldScaleIntentRef,
 };
 pub use patch::ImportKey;
+#[cfg(test)]
+pub(crate) use patch::{Bounds, Declaration, EntityDeclaration, SubjectDeclaration};
 #[cfg(test)]
 use patch::{
     AffordanceDeclaration, AudienceRef, AudienceSpec, ChannelDeclaration, ComponentOp,
@@ -136,20 +102,6 @@ use patch::{
 pub(crate) use patch::{
     AffordanceKindName, AuthorityGrantRef, AuthorityKindName, AuthorityTargetRef, ComponentOpKind,
     EffectSlot, OutcomeBand, Precondition, RoleSpec,
-};
-pub use sdk_inference::{DEFAULT_SDK_MODEL_PREFIX, SdkBinding};
-pub use table::{
-    DecodedBatch, PatchSite, TableError, actor_tools, authoring_tools, decode_actor_call,
-    decode_authoring_call, decode_authoring_calls, describe_refusal, describe_refusal_to_actor,
-    id_text, id_text_matches, table_view,
-};
-pub use vault::{VaultError, VaultEvidenceSource};
-pub use verse::{
-    CALL_RECORD_SCHEMA, CallRecordError, CallRecordStore, CreateVerseWorldIntent, ProviderCallRecord,
-    RUN_RECORD_SCHEMA, RecordedCoverBudget, RecordingInferencePort, Refusal, RefusalReason, RunClaim,
-    ReplayInferencePort, RunField, RunId, RunOutcome, RunStart, RunStatus, TickCheckpoint,
-    TickReport, UnattributedCall, VerseGenesisError, VerseRunConfig, VerseRunError, VerseRunRecord, VerseRunStore,
-    call_run_id, run_manual,
 };
 use patch::{EdgeRecord, EntityRecord, LedgerDelta, ResolvedOp, ResolvedPatch};
 
@@ -4956,7 +4908,7 @@ fn confine_to_ground(
     }
 
     let mut mismatches = Vec::new();
-    let mut confine_subject = |site: &Site, subject: SubjectId, mismatches: &mut Vec<Mismatch>| {
+    let confine_subject = |site: &Site, subject: SubjectId, mismatches: &mut Vec<Mismatch>| {
         let admitted = match held {
             PatchGround::Jurisdiction(jurisdiction) => {
                 match positions.get(&subject).copied().flatten() {
@@ -4974,7 +4926,7 @@ fn confine_to_ground(
             mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() });
         }
     };
-    let mut confine_place = |site: &Site, place: EntityId, mismatches: &mut Vec<Mismatch>| {
+    let confine_place = |site: &Site, place: EntityId, mismatches: &mut Vec<Mismatch>| {
         if !inside(place) {
             mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() });
         }

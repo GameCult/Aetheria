@@ -65,7 +65,7 @@ impl Lens {
         }
     }
 
-    /// Existing `PATCH_TOOLS` names in emphasis order. Emphasis is prompt text
+    /// Existing patch tool names in emphasis order. Emphasis is prompt text
     /// only: the catalog, its order, and its schemas are the same for every lens.
     pub(crate) fn leads_with(self) -> &'static [&'static str] {
         match self {
@@ -225,7 +225,6 @@ pub(crate) fn draw(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::patch::PATCH_TOOLS;
     use crate::tests::stock_weights;
     use std::collections::BTreeSet;
 
@@ -242,23 +241,6 @@ mod tests {
             *counts.entry(lens).or_insert(0) += 1;
         }
         counts
-    }
-
-    #[test]
-    fn every_lead_names_a_patch_tool() {
-        let catalog: BTreeSet<&str> = PATCH_TOOLS.iter().map(|entry| entry.name).collect();
-        for lens in Lens::ALL {
-            let leads = lens.leads_with();
-            assert!(!leads.is_empty(), "{lens:?} leads with nothing");
-            let distinct: BTreeSet<&str> = leads.iter().copied().collect();
-            assert_eq!(distinct.len(), leads.len(), "{lens:?} repeats a lead");
-            for name in leads {
-                assert!(
-                    catalog.contains(name),
-                    "{lens:?} leads with unknown tool {name}"
-                );
-            }
-        }
     }
 
     #[test]
