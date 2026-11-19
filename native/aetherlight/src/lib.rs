@@ -11600,6 +11600,41 @@ mod clock_tests {
         );
     }
 
+    /// `Committed` reads the actor's commitments at Act time: once the
+    /// obligation to the treasury is discharged, the promisor's act that needs
+    /// it is refused and nothing commits.
+    #[test]
+    fn a_discharged_commitment_refuses_the_act_that_needs_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "DischargeThenAct");
+        let snapshot = kernel.snapshot().unwrap();
+        submit_owner(
+            &mut kernel,
+            &snapshot,
+            operations(vec![ComponentOp::DischargeCommitment {
+                subject: Ref::Existing(clockwork.farmer),
+                key: clockwork.obligation,
+            }]),
+        );
+        let events = kernel.state.events.len();
+        let error = exercise(
+            &mut kernel,
+            clockwork.farmer,
+            clockwork.deliver,
+            vec![binding("creditor", Target::Subject(clockwork.treasury))],
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                error,
+                KernelError::ActionRejected(ref mismatches)
+                    if *mismatches == vec![ActionMismatch::NotCommitted { precondition: 0 }]
+            ),
+            "{error:?}"
+        );
+        assert_eq!(kernel.state.events.len(), events);
+    }
+
     /// `Committed` is a conjunction: the actor holds a commitment to this very
     /// counterparty and of this very kind. The farmer owes the treasury an
     /// obligation and nobody else, so naming the reeve fails the counterparty

@@ -2371,6 +2371,123 @@ mod custody_tests {
         );
     }
 
+    /// Stores written at the previous schema ids (v7) are refused outright,
+    /// state row and commit row each on their own: reverting either constant
+    /// to v7 would let its half of the store in.
+    #[test]
+    fn v7_state_and_commit_rows_are_refused() {
+        use crate::tests::{act, activate, auth_principal, creation, first_grant, owner, speak};
+
+        let directory = tempfile::tempdir().unwrap();
+        let (mut kernel, _) = WorldKernel::create(
+            directory.path().join("world.cc"),
+            creation(CommandId::new(), "SchemaV7"),
+            &auth_principal(owner()),
+        )
+        .unwrap();
+        let active = activate(&mut kernel);
+        let actor = active.subjects[0].id;
+        act(&mut kernel, actor, speak(first_grant(&active, actor), "Counted.")).unwrap();
+        let commits: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
+        let commit_rows = |schema: &str| -> Vec<CultCacheEnvelope> {
+            commits
+                .iter()
+                .map(|commit| envelope(COMMIT_ROW, schema, commit.command.id().key(), commit).unwrap())
+                .collect()
+        };
+        let state_row = |schema: &str| {
+            envelope(STATE_ROW, schema, kernel.state.world_id.key(), &kernel.state).unwrap()
+        };
+        assert_eq!(STATE_SCHEMA, "ghostlight.world_state.consumer.v8");
+        assert_eq!(COMMIT_SCHEMA, "ghostlight.world_commit.consumer.v8");
+        recover(
+            [commit_rows(COMMIT_SCHEMA), vec![state_row(STATE_SCHEMA)]].concat(),
+            None,
+        )
+        .expect("the current schema ids recover");
+
+        for (what, rows) in [
+            (
+                "v7 state row",
+                [
+                    commit_rows(COMMIT_SCHEMA),
+                    vec![state_row("ghostlight.world_state.consumer.v7")],
+                ]
+                .concat(),
+            ),
+            (
+                "v7 commit rows",
+                [
+                    commit_rows("ghostlight.world_commit.consumer.v7"),
+                    vec![state_row(STATE_SCHEMA)],
+                ]
+                .concat(),
+            ),
+        ] {
+            let error = recover(rows, None).unwrap_err();
+            let JournalError::Corrupt(message) = error else {
+                panic!("{what}: expected a corrupt store, got {error:?}");
+            };
+            assert!(message.contains("wrong schema"), "{what}: {message}");
+        }
+    }
+
+    /// The event shape check holds for a silent act too: a non-speech event
+    /// whose actor is no subject is corrupt, with no minted claim to catch it.
+    #[test]
+    fn a_non_speech_event_with_a_foreign_actor_is_corrupt() {
+        use crate::tests::{
+            act, activate, admit_custody, admit_topology, affordance_named, auth_principal,
+            creation, owner,
+        };
+        use crate::{DecisionInvocation, Magnitude, ProposedEffect, Quantity, Role, RoleBinding, Target};
+
+        let directory = tempfile::tempdir().unwrap();
+        let (mut kernel, _) = WorldKernel::create(
+            directory.path().join("world.cc"),
+            creation(CommandId::new(), "SilentForgery"),
+            &auth_principal(owner()),
+        )
+        .unwrap();
+        let topology = admit_topology(&mut kernel);
+        let custody = admit_custody(&mut kernel, &topology);
+        let active = activate(&mut kernel);
+        let role = |name: &str, target| RoleBinding {
+            role: Role(name.into()),
+            target,
+        };
+        act(
+            &mut kernel,
+            custody.holder,
+            DecisionInvocation {
+                affordance: affordance_named(&active, "carry"),
+                bindings: vec![
+                    role("from", Target::Subject(custody.holder)),
+                    role("recipient", Target::Subject(custody.counterparty)),
+                    role("place", Target::Entity(topology.yard)),
+                    role("resource", Target::Entity(custody.tithe)),
+                ],
+                proposed: vec![ProposedEffect {
+                    slot: 0,
+                    magnitude: Magnitude::Quantity(Quantity(1)),
+                }],
+                speech: None,
+                display: None,
+            },
+        )
+        .unwrap();
+        let event = kernel.state.events.last().unwrap();
+        assert!(event.speech.is_none() && event.display.is_none());
+        verify_state_shape(&kernel.state).expect("the honest silent event passes");
+
+        let mut forged = kernel.state.clone();
+        forged.events.last_mut().unwrap().actor = crate::SubjectId::issue();
+        assert!(
+            matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
+            "a silent event naming no subject passed the shape check"
+        );
+    }
+
     /// Absence is zero and one slot holds one pair, so a stored zero, an empty
     /// holder, and a holding on something that is not a resource are each
     /// corrupt at replay.
