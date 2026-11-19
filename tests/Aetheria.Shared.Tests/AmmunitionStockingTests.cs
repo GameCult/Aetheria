@@ -104,6 +104,27 @@ public sealed partial class RunStartTests
         Assert.Equal(LoadoutGenerator.AmmunitionCrates, weapon.Reserve);
     }
 
+    // A ship summoned into a running zone is stocked like one a run start stages: a fed fit carries the crates its weapon draws,
+    // and one whose scenario authored its cargo keeps exactly that. Kills: Summon skipping StockUnauthoredAmmunition.
+    [Fact]
+    public void ASummonedFedShipCarriesItsCrates()
+    {
+        var (hull, slots) = FedFit(bay: true);
+        var (_, arena, staged, failures) = Launch(new Scripted(false, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0))), Inputs(() => GalaxySeed));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+
+        var summoned = ZoneStage.Summon(_items, arena, staged.Player, stage =>
+        {
+            stage.Place(stage.Fit(hull, slots), float2(300, 0));
+            var authored = stage.Place(stage.Fit(hull, slots), float2(-300, 0));
+            stage.Cargo(authored);
+        }, failures);
+
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        Assert.Equal(LoadoutGenerator.AmmunitionCrates, Assert.Single(summoned[0].Weapons).Reserve);
+        Assert.Equal(0, Assert.Single(summoned[1].Weapons).Reserve);
+    }
+
     // The Loadout path with the DEFAULT stocking argument (what the boss in ZoneGenerator and the console `fly` call): a ship built from a
     // Loadout holds the crates its fed weapon draws, and one whose only weapon draws nothing holds none. Kills: Materialize
     // dropping its default StockAmmunition (every Loadout-built armed ship fires one magazine).

@@ -399,6 +399,76 @@ public sealed partial class RunStartTests
         Assert.Equal(0, AgentsOf(zone, neutral));
     }
 
+    // A summon places into a running zone through the stage's admission (ruling ifl-ships-in-demo-as-tactical-view): after a run
+    // has started and stepped, a hostile piloted generated ship that approaches the player is a member with one agent, hostile
+    // both ways, and its pilot knows the player by the sensors' own path. Kills: a summon that skips the stance, the pilot or
+    // the knowledge seed.
+    [Fact]
+    public void ASummonJoinsARunningZone()
+    {
+        var zone = Arena(true);
+        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
+        for (var tick = 0; tick < 20; tick++) zone.Update(.1f);
+
+        var failures = new List<string>();
+        var summoned = ZoneStage.Summon(_items, zone, player, stage =>
+        {
+            var placed = stage.Place(stage.Generated("Longinus"), float2(400, 0), stance: ScenarioStance.Hostile, piloted: true);
+            stage.Approach(placed, player);
+        }, failures);
+
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        var raider = Assert.Single(summoned);
+        SafeAssert.In(zone, raider, "the summoned ship is admitted");
+        Assert.Equal(1, AgentsOf(zone, raider));
+        Assert.True(player.IsHostileTo(raider) && raider.IsHostileTo(player), "hostile both ways");
+        Assert.Equal((_items.GameplaySettings.TargetDetectionInfoThreshold + 1f) / 2f, raider.EntityInfoGathered[player]);
+        for (var tick = 0; tick < 20; tick++) zone.Update(.1f);
+        Assert.True(player.EntityHostility[raider] && raider.EntityHostility[player], "the live hostility agrees");
+        Assert.Equal(1, AgentsOf(zone, raider));
+    }
+
+    // A summon naming a design the catalog lacks admits nothing, and names it. Kills: admitting before the failure check.
+    [Fact]
+    public void ARefusedSummonAdmitsNothing()
+    {
+        var zone = Arena(true);
+        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
+        var entities = zone.Entities.ToList();
+        var agents = zone.Agents.ToList();
+        var failures = new List<string>();
+
+        var summoned = ZoneStage.Summon(_items, zone, player, stage =>
+        {
+            stage.Place(stage.Generated("Longinus"), float2(400, 0), stance: ScenarioStance.Hostile, piloted: true);
+            stage.Place(stage.Bare("No Such Hull"), float2(-400, 0));
+        }, failures);
+
+        Assert.Null(summoned);
+        Assert.Contains(failures, failure => failure.Contains("No Such Hull"));
+        SafeAssert.Unchanged(zone, entities, agents);
+    }
+
+    // A summon needs the player to be in the zone it summons into: with the player docked it refuses, names why and admits nothing.
+    // Kills: dropping the membership check, which would write stance onto a non-member.
+    [Fact]
+    public void ASummonNeedsThePlayerInTheZone()
+    {
+        var zone = Arena(true);
+        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
+        Assert.True(zone.Remove(player));
+        var entities = zone.Entities.ToList();
+        var agents = zone.Agents.ToList();
+        var failures = new List<string>();
+
+        var summoned = ZoneStage.Summon(_items, zone, player, stage =>
+            stage.Place(stage.Bare("Longinus"), float2(400, 0), stance: ScenarioStance.Hostile), failures);
+
+        Assert.Null(summoned);
+        Assert.Equal(new[] { "summon: the player is not in this zone" }, failures);
+        SafeAssert.Unchanged(zone, entities, agents);
+    }
+
     // A stance lasts the sitting: the player docking and undocking leaves it standing both ways. It goes with an entity
     // gone for good: once an entity is destroyed, the player holds no stance toward it.
     [Fact]
