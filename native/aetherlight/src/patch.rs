@@ -257,7 +257,7 @@ pub struct AffordanceKindName(pub String);
 #[serde(transparent)]
 pub struct Role(pub(crate) String);
 
-/// What a role must be bound to. `RefKind` is reused rather than mirrored: it
+/// What a role must be bound to. `RefKind` is reused rather than restated: it
 /// already spells subject, entity kind, and edge kind, so the binding kind-check
 /// and the declaration kind-check are one predicate.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -1241,20 +1241,18 @@ pub(crate) enum ComponentOp {
         target: Ref<SubjectId>,
     },
     /// Ends a subject for good: no grants, no position, no audience, its
-    /// history kept. Only the owner and `Play` may write it.
+    /// history kept. Play's alone, like every post-genesis patch.
     Retire {
         subject: Ref<SubjectId>,
     },
-    /// Grants one more standing catalog entry to an existing subject. Only the
-    /// owner (including the seed lane, the owner in Draft) and `Play` may
-    /// write it: a grant is authority, not structure, so a confined author is
-    /// refused whatever ground the subject stands on.
+    /// Grants one more standing catalog entry to an existing subject. Play's
+    /// alone.
     GrantAffordance {
         subject: Ref<SubjectId>,
         affordance: Ref<AffordanceId>,
     },
-    /// Revokes a grant. Refused if it would leave a controlled subject with
-    /// none: a controlled subject is never left mute.
+    /// Revokes a grant. A subject left with no verb holds no grant row and
+    /// simply cannot act.
     RevokeAffordance {
         subject: Ref<SubjectId>,
         affordance: Ref<AffordanceId>,
@@ -1393,12 +1391,6 @@ pub enum Mismatch {
     },
     UnadmittedController {
         handle: DraftHandle,
-    },
-    /// A declared subject's controller and affordance grant do not pair: a
-    /// mirror was granted an affordance, or an ordinary controller was granted
-    /// none. `admit_resolved` re-decides the same rule.
-    ControllerGrantMismatch {
-        site: Site,
     },
     EmptyEvidence {
         position: usize,
@@ -1628,26 +1620,10 @@ pub enum Mismatch {
     UnknownCommitment {
         operation: usize,
     },
-    /// A jurisdictional author wrote outside its jurisdiction. The owner is
-    /// unconfined and never sees this.
-    OutsideJurisdiction {
-        site: Site,
-    },
     /// A `Ruled` fact or a `Mint` was written by a caller other than the play
     /// authority.
     RuledWithoutAuthority {
         site: Site,
-    },
-    /// `Retire` named an `ExternallyControlled` subject: a mirror is owned by
-    /// another world, so this one cannot retire it.
-    RetiresAMirror {
-        operation: usize,
-    },
-    /// `Retire` named a `Human`-controlled subject while the world is still in
-    /// `Draft`. A human's Draft approval cannot be removed by removing the
-    /// human; the same retire is admitted once the world is `Active`.
-    RetiresAnApprover {
-        operation: usize,
     },
     /// `Communicate`, `AcquireKnowledge`, `Forget`, or `InstallIncumbent`
     /// named a retired subject as the one acting, learning, forgetting, or
@@ -1657,15 +1633,9 @@ pub enum Mismatch {
     RetiredSubjectActed {
         operation: usize,
     },
-    /// `GrantAffordance` or `RevokeAffordance` named a retired or an
-    /// `ExternallyControlled` subject: neither holds a grant this patch may
-    /// touch.
-    GrantsOutsideControl {
-        operation: usize,
-    },
-    /// A `RevokeAffordance` that would leave a controlled subject with no
-    /// affordance at all: a subject is never left mute.
-    WouldLeaveSubjectMute {
+    /// `GrantAffordance` or `RevokeAffordance` named a retired subject: it
+    /// holds no grant this patch may touch.
+    GrantsToRetired {
         operation: usize,
     },
 }
@@ -3225,15 +3195,6 @@ pub(super) fn resolve_patch(
             }
         }
         if let Declaration::Subject(subject) = declaration {
-            // Both ways. A mirror receives no controller, so it may hold no
-            // affordance; every other controller must hold one.
-            if matches!(subject.controller, NewController::External { .. })
-                != subject.affordances.is_empty()
-            {
-                mismatches.push(Mismatch::ControllerGrantMismatch {
-                    site: Site::Declaration(handle.clone()),
-                });
-            }
             if let NewController::Human { principal } = &subject.controller
                 && (!admits_human || super::validate_principal(principal).is_err())
             {
@@ -3361,38 +3322,17 @@ pub(super) fn resolve_patch(
             )
         })
         .collect();
-    // `Retire` and the affordance grant operations read and write these three
-    // candidates. `retired` and `mirrors` seed from the committed
-    // `ControllerAssignment`, which the resolver otherwise never reads: a
-    // declared subject can only ever be a fresh, unretired controller (or a
-    // freshly declared mirror, added below), so drafts start out of both sets.
-    // `affordance_holdings` seeds from committed `affordance_grants` and is
-    // extended below for a subject this same patch declares.
+    // `Retire` and the affordance grant operations read and write these
+    // candidates. `retired` seeds from the committed `ControllerAssignment`,
+    // which the resolver otherwise never reads: a declared subject is always
+    // fresh and unretired, so drafts start out of the set. `affordance_holdings`
+    // seeds from committed `affordance_grants` and is extended below for a
+    // subject this same patch declares.
     let mut retired: BTreeSet<Key<SubjectId>> = state
         .controller_assignments
         .keys()
         .filter(|scope| super::is_retired(state, scope.subject_id))
         .map(|scope| Key::Existing(scope.subject_id))
-        .collect();
-    let mut mirrors: BTreeSet<Key<SubjectId>> = state
-        .controller_assignments
-        .iter()
-        .filter(|(_, assignment)| {
-            matches!(assignment, ControllerAssignment::ExternallyControlled { .. })
-        })
-        .map(|(scope, _)| Key::Existing(scope.subject_id))
-        .collect();
-    // Tracked the same way as `mirrors`: seeded from the committed human
-    // controller, extended below for a subject this same patch declares as
-    // `NewController::Human`. `Retire` refuses a Draft-phase approver out of
-    // this set instead of relying solely on the apply-time re-check, which
-    // otherwise only catches a genesis patch that declares and retires the
-    // human in the same breath after `open_owner` has already committed.
-    let mut humans: BTreeSet<Key<SubjectId>> = state
-        .controller_assignments
-        .iter()
-        .filter(|(_, assignment)| assignment.human_principal().is_some())
-        .map(|(scope, _)| Key::Existing(scope.subject_id))
         .collect();
     let mut affordance_holdings: BTreeMap<Key<SubjectId>, BTreeSet<Key<AffordanceId>>> = state
         .affordance_grants
@@ -3606,12 +3546,6 @@ pub(super) fn resolve_patch(
                 }
                 if !granted.is_empty() {
                     affordance_holdings.insert(Key::Draft(subject.handle.clone()), granted);
-                }
-                if matches!(subject.controller, NewController::External { .. }) {
-                    mirrors.insert(Key::Draft(subject.handle.clone()));
-                }
-                if matches!(subject.controller, NewController::Human { .. }) {
-                    humans.insert(Key::Draft(subject.handle.clone()));
                 }
                 if let Some(reference) = &subject.position
                     && let Some(place) = resolve_entity(
@@ -3932,31 +3866,8 @@ pub(super) fn resolve_patch(
                 ) else {
                     continue;
                 };
-                if mirrors.contains(&subject_key) {
-                    mismatches.push(Mismatch::RetiresAMirror {
-                        operation: position,
-                    });
-                    continue;
-                }
                 if retired.contains(&subject_key) {
                     mismatches.push(Mismatch::NoOperationEffect {
-                        operation: position,
-                    });
-                    continue;
-                }
-                // A human's Draft approval cannot be removed by removing the
-                // human: `required_approvers` reads the live controller
-                // assignment and `Retired` carries no human principal, so an
-                // owner could otherwise retire the human, approve alone, and
-                // activate. Once the world is Active, approvals are frozen
-                // history judged by replay, and the human's subject may die.
-                // `humans` tracks a subject declared as `NewController::Human`
-                // in this same patch exactly as `mirrors` tracks a freshly
-                // declared mirror, so a genesis patch that declares and
-                // retires the human in one breath is refused here rather than
-                // only by the apply-time re-check after admission.
-                if state.phase == super::WorldPhase::Draft && humans.contains(&subject_key) {
-                    mismatches.push(Mismatch::RetiresAnApprover {
                         operation: position,
                     });
                     continue;
@@ -4410,11 +4321,9 @@ pub(super) fn resolve_patch(
                 else {
                     continue;
                 };
-                // A grant is authority over the catalog, not structure over
-                // ground: retirement and a mirror both hold no grant a patch
-                // may touch, whatever confinement later decides.
-                if retired.contains(&subject_key) || mirrors.contains(&subject_key) {
-                    mismatches.push(Mismatch::GrantsOutsideControl {
+                // A retired subject holds no grant a patch may touch.
+                if retired.contains(&subject_key) {
+                    mismatches.push(Mismatch::GrantsToRetired {
                         operation: position,
                     });
                     continue;
@@ -4434,14 +4343,11 @@ pub(super) fn resolve_patch(
                         .or_default()
                         .insert(affordance_key);
                 } else {
-                    let granted = affordance_holdings.entry(subject_key).or_default();
-                    if granted.len() == 1 {
-                        mismatches.push(Mismatch::WouldLeaveSubjectMute {
-                            operation: position,
-                        });
-                        continue;
-                    }
+                    let granted = affordance_holdings.entry(subject_key.clone()).or_default();
                     granted.remove(&affordance_key);
+                    if granted.is_empty() {
+                        affordance_holdings.remove(&subject_key);
+                    }
                 }
             }
             ComponentOp::OpenOffice {
@@ -5178,10 +5084,6 @@ pub(super) fn resolve_patch(
             NewController::OperationalAgent => ControllerAssignment::OperationalAgent {
                 controller_id: controller_id(),
             },
-            // No controller id is derived, because there is no controller.
-            NewController::External { consumer } => {
-                ControllerAssignment::ExternallyControlled { consumer }
-            }
         };
         let granted = input
             .affordances
@@ -5811,12 +5713,12 @@ pub(super) fn containment_terminates(
 mod tests {
     use super::*;
     use crate::tests::{
-        ADMIT_KIND, FIXTURE_ENTITIES, LEVY_KIND, activate, admit_topology, authority_kind,
+        ADMIT_KIND, FIXTURE_ENTITIES, LEVY_KIND, admit_topology, authority_kind,
         auth_principal, civic_world, command, creation, grant_to, human_principal, office,
-        over_place, owner, reject_owner, speak_entry, submit_owner,
+        over_place, owner, reject_play, speak_entry, submit_play,
     };
     use crate::{
-        CallerId, CommandBody, CommandId, KernelError, SubmitReceipt, WorldKernel, WorldPhase,
+        AuthenticatedCaller, CallerId, CommandBody, CommandId, KernelError, SubmitReceipt, WorldKernel,
     };
 
     fn entity(handle: &str, label: &str, kind: EntityKind) -> Declaration {
@@ -5989,7 +5891,7 @@ mod tests {
                 },
             ),
         ] {
-            let rejected = reject_owner(
+            let rejected = reject_play(
                 &mut kernel,
                 &before,
                 admit(patch_of(vec![catalog_entry(
@@ -6005,7 +5907,7 @@ mod tests {
         }
 
         // No effect slots and no speech: the entry could never change anything.
-        let rejected = reject_owner(
+        let rejected = reject_play(
             &mut kernel,
             &before,
             admit(patch_of(vec![catalog_entry(
@@ -6028,7 +5930,7 @@ mod tests {
 
         // A `Transfer` takes three referents, not two.
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &before,
                 admit(patch_of(vec![catalog_entry(
@@ -6050,7 +5952,7 @@ mod tests {
 
         // Its third referent is a resource, not a place.
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &before,
                 admit(patch_of(vec![catalog_entry(
@@ -6076,7 +5978,7 @@ mod tests {
 
         // A `Transfer` carries a quantity, so an unbounded slot has no ceiling.
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &before,
                 admit(patch_of(vec![catalog_entry(
@@ -6095,7 +5997,7 @@ mod tests {
 
         // A slot naming a role the entry does not declare.
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &before,
                 admit(patch_of(vec![catalog_entry(
@@ -6137,7 +6039,7 @@ mod tests {
         };
 
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &before,
                 admit(patch_of(vec![granting("verb")]))
@@ -6152,7 +6054,7 @@ mod tests {
         assert_eq!(kernel.state.subjects.len(), subjects_before);
 
         // Declaring the entry in the same patch commits both atomically.
-        let receipt = submit_owner(
+        let receipt = submit_play(
             &mut kernel,
             &before,
             admit(patch_of(vec![
@@ -6191,7 +6093,7 @@ mod tests {
         let mut kernel = draft_world(directory.path());
         let before = kernel.snapshot().unwrap();
         let slot = transfer_slot(vec!["from", "to", "goods"], Bounds::Quantity(Quantity(2)));
-        let rejected = reject_owner(
+        let rejected = reject_play(
             &mut kernel,
             &before,
             admit(patch_of(vec![
@@ -6220,7 +6122,7 @@ mod tests {
 
         // A kind name outside the tool-name alphabet is refused for the same
         // reason: it becomes a generated tool name.
-        let rejected = reject_owner(
+        let rejected = reject_play(
             &mut kernel,
             &before,
             admit(patch_of(vec![catalog_entry(
@@ -6266,7 +6168,7 @@ mod tests {
                 command(
                     &before,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(patch_of(vec![institution(
                         &kernel,
                         "rhythm-authority",
@@ -6274,7 +6176,7 @@ mod tests {
                         Some(Ref::Draft(DraftHandle::new("kharad-rhythm-road"))),
                     )])),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
 
@@ -6321,7 +6223,7 @@ mod tests {
                 Some(Ref::Draft(draft("kharad-rhythm-road"))),
             ),
         ]);
-        let receipt = submit_owner(&mut kernel, &before, admit(patch));
+        let receipt = submit_play(&mut kernel, &before, admit(patch));
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
 
         let after = kernel.snapshot().unwrap();
@@ -6376,7 +6278,7 @@ mod tests {
                 command(
                     &before,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(patch_of(vec![
                         entity("rhythm-tithe", "The Rhythm Tithe", EntityKind::Resource),
                         institution(
@@ -6387,7 +6289,7 @@ mod tests {
                         ),
                     ])),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
 
@@ -6441,10 +6343,10 @@ mod tests {
                 command(
                     &before,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(broken),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -6489,7 +6391,7 @@ mod tests {
                 import_key: None,
             }),
         ]);
-        let receipt = submit_owner(&mut kernel, &before, admit(repaired));
+        let receipt = submit_play(&mut kernel, &before, admit(repaired));
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
         assert_eq!(kernel.state.entities.len(), 3);
     }
@@ -6505,10 +6407,10 @@ mod tests {
                 command(
                     &before,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(patch_of(Vec::new())),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -6532,7 +6434,7 @@ mod tests {
                 command(
                     &before,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(patch_of(vec![
                         contained("yard", "The Cavity Yard", "road"),
                         contained("road", "The Rhythm Road", "gate"),
@@ -6540,7 +6442,7 @@ mod tests {
                         entity("orphan", "   ", EntityKind::Place),
                     ])),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -6577,14 +6479,14 @@ mod tests {
                 command(
                     &before,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(patch_of(vec![
                         entity("yard", "The Cavity Yard", EntityKind::Place),
                         entity("tithe", "The Rhythm Tithe", EntityKind::Resource),
                         route("ramp", "The Yard Ramp", "yard", "tithe", 12),
                     ])),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -6617,7 +6519,7 @@ mod tests {
                 command(
                     &before,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(WorldPatch {
                         declarations: vec![Declaration::Route(RouteDeclaration {
                             handle: draft("free-ride"),
@@ -6634,7 +6536,7 @@ mod tests {
                         evidence: Vec::new(),
                     }),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -6660,7 +6562,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = draft_world(directory.path());
         let topology = admit_topology(&mut kernel);
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let commits_before = kernel.journal.commit_count();
 
         for (edge_id, expected) in [
@@ -6676,13 +6578,13 @@ mod tests {
                     command(
                         &active,
                         CommandId::new(),
-                        CallerId::Principal(owner()),
+                        CallerId::Play,
                         admit(operations_of(vec![ComponentOp::Relocate {
                             subject: Ref::Existing(topology.walker),
                             via: Ref::Existing(edge_id),
                         }])),
                     ),
-                    &auth_principal(owner()),
+                    &AuthenticatedCaller::verified_play(),
                 )
                 .unwrap_err();
             let KernelError::PatchRejected(mismatches) = error else {
@@ -6715,7 +6617,7 @@ mod tests {
         // directly over the chamber the hall contains, so a resolver that
         // still counted the dead lend would see two distinct, overlapping
         // `GrantKey`s (not one collapsed duplicate) and refuse.
-        let receipt = submit_owner(
+        let receipt = submit_play(
             &mut kernel,
             &before,
             admit(operations_of(vec![
@@ -6745,7 +6647,7 @@ mod tests {
 
         // `topology.walker` already exists and already stands at `yard`, so
         // this delegation patch is operations-only: no declaration.
-        let delegated = submit_owner(
+        let delegated = submit_play(
             &mut kernel,
             &before,
             admit(operations_of(vec![
@@ -6769,7 +6671,7 @@ mod tests {
         let after_delegation = kernel.snapshot().unwrap();
 
         let commits_before = kernel.journal.commit_count();
-        let mismatches = reject_owner(
+        let mismatches = reject_play(
             &mut kernel,
             &after_delegation,
             admit(operations_of(vec![
@@ -6796,11 +6698,11 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = draft_world(directory.path());
         let topology = admit_topology(&mut kernel);
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let entities_before = kernel.state.entities.clone();
         let edges_before = kernel.state.edges.clone();
 
-        let receipt = submit_owner(
+        let receipt = submit_play(
             &mut kernel,
             &active,
             admit(operations_of(vec![ComponentOp::Relocate {
@@ -6840,18 +6742,18 @@ mod tests {
         )
         .unwrap();
         let topology = admit_topology(&mut kernel);
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let envelope = command(
             &active,
             CommandId::new(),
-            CallerId::Principal(owner()),
+            CallerId::Play,
             admit(operations_of(vec![ComponentOp::Relocate {
                 subject: Ref::Existing(topology.walker),
                 via: Ref::Existing(topology.ramp),
             }])),
         );
         kernel
-            .submit(envelope.clone(), &auth_principal(owner()))
+            .submit(envelope.clone(), &AuthenticatedCaller::verified_play())
             .unwrap();
         let committed = kernel.snapshot().unwrap();
         let world_id = committed.world_id;
@@ -6866,7 +6768,7 @@ mod tests {
             })
         );
         assert!(matches!(
-            reopened.submit(envelope, &auth_principal(owner())).unwrap(),
+            reopened.submit(envelope, &AuthenticatedCaller::verified_play()).unwrap(),
             SubmitReceipt::AlreadyApplied(_)
         ));
     }
@@ -6953,7 +6855,7 @@ mod tests {
         let envelope = command(
             &before,
             CommandId::new(),
-            CallerId::Principal(owner()),
+            CallerId::Play,
             admit(patch_of(vec![
                 entity("rhythm-road", "The Rhythm Road", EntityKind::Place),
                 institution(
@@ -6965,7 +6867,7 @@ mod tests {
             ])),
         );
         kernel
-            .submit(envelope.clone(), &auth_principal(owner()))
+            .submit(envelope.clone(), &AuthenticatedCaller::verified_play())
             .unwrap();
         let committed = kernel.snapshot().unwrap();
         let world_id = committed.world_id;
@@ -6974,7 +6876,7 @@ mod tests {
         let mut reopened = WorldKernel::open(&path, world_id).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), committed);
         assert!(matches!(
-            reopened.submit(envelope, &auth_principal(owner())).unwrap(),
+            reopened.submit(envelope, &AuthenticatedCaller::verified_play()).unwrap(),
             SubmitReceipt::AlreadyApplied(_)
         ));
     }
@@ -7003,7 +6905,7 @@ mod tests {
             position: None,
             import_key: None,
         })]);
-        submit_owner(&mut kernel, &before, admit(patch.clone()));
+        submit_play(&mut kernel, &before, admit(patch.clone()));
         let admitted = *kernel
             .state
             .subjects
@@ -7041,7 +6943,7 @@ mod tests {
                 command(
                     &before,
                     command_id,
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(patch_of(vec![institution(
                         &kernel,
                         "rhythm-authority",
@@ -7049,7 +6951,7 @@ mod tests {
                         Some(Ref::Draft(DraftHandle::new("kharad-rhythm-road"))),
                     )])),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         assert!(matches!(error, KernelError::PatchRejected(_)));
@@ -7173,7 +7075,7 @@ mod tests {
         let forged_error = super::super::apply_effect(
             &mut candidate,
             CommandId::issue(),
-            &CallerId::Principal(owner()),
+            &CallerId::Play,
             &super::super::WorldEffect::PatchAdmitted {
                 resolved: forged,
             },
@@ -7186,20 +7088,20 @@ mod tests {
         super::super::apply_effect(
             &mut candidate,
             CommandId::issue(),
-            &CallerId::Principal(owner()),
+            &CallerId::Play,
             &honest,
         )
         .unwrap();
         let stale_error = super::super::apply_effect(
             &mut candidate,
             CommandId::issue(),
-            &CallerId::Principal(owner()),
+            &CallerId::Play,
             &honest,
         )
         .unwrap_err();
         assert!(matches!(stale_error, KernelError::Invariant(_)));
 
-        // A non-owner caller never reaches admission.
+        // A non-Play caller never reaches admission.
         let mut candidate = kernel.state.clone();
         let unauthorized = super::super::apply_effect(
             &mut candidate,
@@ -7208,7 +7110,7 @@ mod tests {
             &honest,
         )
         .unwrap_err();
-        assert!(matches!(unauthorized, KernelError::Invariant(_)));
+        assert!(matches!(unauthorized, KernelError::Unauthorized));
         assert_eq!(candidate, kernel.state);
     }
 
@@ -7226,13 +7128,13 @@ mod tests {
                 command(
                     &before,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(patch_of(vec![
                         entity("hollow", "The Hollow", EntityKind::Place),
                         route("noose", "The Noose", "hollow", "hollow", 4),
                     ])),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -7250,7 +7152,7 @@ mod tests {
         // declared here rather than borrowed from a genesis accident.
         let before = kernel.snapshot().unwrap();
         let speak = speak_entry(&kernel);
-        submit_owner(
+        submit_play(
             &mut kernel,
             &before,
             admit(patch_of(vec![Declaration::Subject(SubjectDeclaration {
@@ -7263,7 +7165,7 @@ mod tests {
                 import_key: None,
             })])),
         );
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let commits_before = kernel.journal.commit_count();
         let unplaced = *kernel
             .state
@@ -7279,13 +7181,13 @@ mod tests {
                 command(
                     &active,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(operations_of(vec![ComponentOp::Relocate {
                         subject: Ref::Existing(unplaced),
                         via: Ref::Existing(topology.ramp),
                     }])),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -7300,7 +7202,7 @@ mod tests {
                 command(
                     &active,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     admit(operations_of(vec![
                         ComponentOp::OpenRoute {
                             route: Ref::Existing(topology.ramp),
@@ -7314,7 +7216,7 @@ mod tests {
                         },
                     ])),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -7340,7 +7242,6 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = draft_world(directory.path());
         let topology = admit_topology(&mut kernel);
-        activate(&mut kernel);
         for edge_id in [topology.span, topology.shutter, topology.toll] {
             let forged = super::super::WorldEffect::PatchAdmitted {
                 resolved: ResolvedPatch {
@@ -7361,7 +7262,7 @@ mod tests {
             let error = super::super::apply_effect(
                 &mut candidate,
                 CommandId::issue(),
-                &CallerId::Principal(owner()),
+                &CallerId::Play,
                 &forged,
             )
             .unwrap_err();

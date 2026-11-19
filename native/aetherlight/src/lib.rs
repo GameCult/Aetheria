@@ -103,50 +103,8 @@ use std::path::Path;
 use thiserror::Error;
 use uuid::Uuid;
 
-/// Proof that the consumer verified a live principal, and the moment that
-/// proof stops being worth anything.
-///
-/// The consumer verifies; this library carries the proof. `valid_until` is the
-/// consumer's own session expiry, not a fresh clock read at construction.
-/// Nothing in this crate enforces it yet: Ghostlight's mailbox refused evidence
-/// presented after it, and the mailbox is not part of the fork, so the ABI that
-/// AL4 adds must carry that check.
-///
-/// Keeping this type here, rather than taking the consumer's own session type,
-/// is what keeps the consumer's principal format out of the kernel.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VerifiedPrincipalEvidence {
-    account_subject_hash: String,
-    valid_until: DateTime<Utc>,
-}
-
-impl VerifiedPrincipalEvidence {
-    pub fn new(account_subject_hash: impl Into<String>, valid_until: DateTime<Utc>) -> Self {
-        Self {
-            account_subject_hash: account_subject_hash.into(),
-            valid_until,
-        }
-    }
-
-    pub fn account_subject_hash(&self) -> &str {
-        &self.account_subject_hash
-    }
-
-    pub fn valid_until(&self) -> DateTime<Utc> {
-        self.valid_until
-    }
-
-    #[cfg(test)]
-    pub(crate) fn fixture(
-        account_subject_hash: impl Into<String>,
-        valid_until: DateTime<Utc>,
-    ) -> Self {
-        Self::new(account_subject_hash, valid_until)
-    }
-}
-
-pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v8";
-pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v8";
+pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v9";
+pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v9";
 
 /// Compatibility tag derived from [`STATE_SCHEMA`]: the trailing
 /// `<family>-<version>` pair (e.g. `foundation-v1`). Callers that publish a
@@ -291,13 +249,6 @@ impl PrincipalId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum WorldPhase {
-    Draft,
-    Active,
-}
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum SubjectKind {
@@ -314,29 +265,6 @@ pub enum ControllerMode {
     OperationalAgent,
 }
 
-/// A configured external consumer. Opaque inside the kernel: derived from the
-/// consumer's configured name at the ingress registry and never spelled back
-/// out, so no consumer name can reach a match arm.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[serde(transparent)]
-pub(crate) struct ConsumerId(Uuid);
-
-/// The one namespace a configured consumer name lowers through.
-const CONSUMER_ID_NAMESPACE: &str = "ghostlight.consumer.id.v0";
-
-impl ConsumerId {
-    /// The one lowering from a configured name, through `CommandId::derived`'s
-    /// recipe over its own namespace. Called only by the ingress registry.
-    pub(crate) fn of_name(name: &str) -> Self {
-        Self(CommandId::derived(CONSUMER_ID_NAMESPACE, &[name]).0)
-    }
-
-    /// Canonical text, for the command-key derivation that hashes it.
-    pub(crate) fn text(self) -> String {
-        self.0.to_string()
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum NewController {
@@ -345,11 +273,6 @@ pub(crate) enum NewController {
     },
     NarrativePersona,
     OperationalAgent,
-    /// Declared as a mirror of state this world does not own. Mints no
-    /// controller, no mode, and no grants.
-    External {
-        consumer: ConsumerId,
-    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -364,58 +287,14 @@ struct CreateWorld {
     grammar: Option<GrammarBinding>,
 }
 
-/// Unattributed creation intent. World ingress derives ownership, controller
-/// identity, handles, kinds, and affordances from verified principal evidence.
-#[derive(Clone, Debug)]
-pub struct CreateWorldIntent {
-    pub id: CommandId,
-    pub title: String,
-    pub human_subject_label: String,
-    pub narrative_persona_label: Option<String>,
-    pub operational_agent_label: Option<String>,
-}
-
+/// Who wrote a command. The owner principal authors genesis and nothing after
+/// it; after genesis `Play` is the only caller any command body admits.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", content = "id", rename_all = "snake_case")]
 enum CallerId {
     Principal(PrincipalId),
-    Controller(ControllerId),
-    /// An internal capability. Never derived from session evidence, never
-    /// minted by ingress, and admitted for exactly one command body.
-    System(SystemCapability),
-}
-
-/// Internally tagged, because a data-carrying variant cannot join a bare-string
-/// encoding without silently changing every commit that already carries
-/// `Clock`. The tag is part of the commit digest, so the schema bumps with it.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "capability", rename_all = "snake_case")]
-enum SystemCapability {
-    Clock,
-    /// One external consumer, authoring only the subjects this world has
-    /// admitted as its mirrors. Minted by exactly one mailbox method, after the
-    /// ingress has authenticated the document; never derived from session
-    /// evidence.
-    Consumer {
-        consumer: ConsumerId,
-    },
-    /// The play table. Admitted for unanswered, unconfined Active patches, the
-    /// only author of `Ruled` facts and `Mint`, and for the clock. Minted only
-    /// by `PlayPort`.
+    /// The play table, minted only by `PlayPort`.
     Play,
-}
-
-/// What a confined patch author may write. `None` from `require_patch_author`
-/// still means unconfined: the owner.
-///
-/// Deliberately not `AuthorityTarget`. That is in-world grant vocabulary read
-/// by `covers` and `targets_overlap`; this names a caller's write scope, and
-/// its consumer arm names a caller rather than a subject — the subject set is
-/// derived from `controller_assignments` at decision time.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PatchGround {
-    /// Every subject bound to this consumer.
-    Consumer(ConsumerId),
 }
 
 #[derive(Clone, Debug)]
@@ -430,17 +309,10 @@ impl AuthenticatedCaller {
         }
     }
 
-    fn verified_controller(controller: ControllerId) -> Self {
+    /// Visible only inside the `world` subtree. Runtime ingress cannot reach it.
+    fn verified_play() -> Self {
         Self {
-            caller: CallerId::Controller(controller),
-        }
-    }
-
-    /// Visible only inside the `world` subtree and called only by
-    /// `WorldMailbox::submit_clock`. Runtime ingress cannot reach it.
-    fn verified_system(capability: SystemCapability) -> Self {
-        Self {
-            caller: CallerId::System(capability),
+            caller: CallerId::Play,
         }
     }
 
@@ -518,32 +390,20 @@ struct CommandEnvelope {
     body: CommandBody,
 }
 
-/// Unattributed human command intent. The mailbox derives the caller from
-/// live app-session evidence before the reducer sees an envelope.
-#[derive(Clone, Debug)]
-pub struct PrincipalCommandIntent {
-    pub id: CommandId,
-    pub world_id: WorldId,
-    pub expected_revision: u64,
-    pub body: CommandBody,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CommandBody {
-    ApproveDraft,
-    ActivateWorld,
     /// One subject's act. Play's alone: the actor's grants decide whether the
     /// affordance is its to use.
     Act {
         actor: SubjectId,
         invocation: DecisionInvocation,
     },
+    /// A patch to the world. Play's alone.
     AdmitPatch {
         patch: WorldPatch,
     },
-    /// The world's only clock advance. Owner or the clock capability, and the
-    /// clock capability may do nothing else.
+    /// The world's only clock advance. Play's alone.
     AdvanceTime {
         minutes: TickMinutes,
     },
@@ -572,16 +432,8 @@ enum ControllerAssignment {
     OperationalAgent {
         controller_id: ControllerId,
     },
-    /// A mirror of state this world does not own. It has no controller id and
-    /// no mode, because the kernel will not keep a fictional one so an accessor
-    /// can stay infallible.
-    ExternallyControlled {
-        consumer: ConsumerId,
-    },
-    /// A subject `Retire` ended for good. Not a second partition:
-    /// `controller_assignments` stays the sole answer to who may call, and
-    /// this is one of its values. It has no controller id, no mode, and no
-    /// caller, so it holds no grants and is never an audience.
+    /// A subject `Retire` ended for good. It has no controller id and no mode,
+    /// so it holds no grants and is never an audience.
     Retired,
 }
 
@@ -591,7 +443,7 @@ impl ControllerAssignment {
             Self::Human { controller_id, .. }
             | Self::NarrativePersona { controller_id }
             | Self::OperationalAgent { controller_id } => Some(*controller_id),
-            Self::ExternallyControlled { .. } | Self::Retired => None,
+            Self::Retired => None,
         }
     }
 
@@ -600,34 +452,7 @@ impl ControllerAssignment {
             Self::Human { .. } => Some(ControllerMode::Human),
             Self::NarrativePersona { .. } => Some(ControllerMode::NarrativePersona),
             Self::OperationalAgent { .. } => Some(ControllerMode::OperationalAgent),
-            Self::ExternallyControlled { .. } | Self::Retired => None,
-        }
-    }
-
-    /// `None` for a retired subject: no caller may ever act for it again. A
-    /// mirror still returns `Some`, the one caller that could ever act for
-    /// its scope; the controller lane cannot mint it either, but that caller
-    /// exists and is comparable.
-    fn expected_caller(&self) -> Option<CallerId> {
-        match self {
-            Self::Human { principal, .. } => Some(CallerId::Principal(principal.clone())),
-            Self::NarrativePersona { controller_id } | Self::OperationalAgent { controller_id } => {
-                Some(CallerId::Controller(*controller_id))
-            }
-            Self::ExternallyControlled { consumer } => Some(CallerId::System(
-                SystemCapability::Consumer { consumer: *consumer },
-            )),
             Self::Retired => None,
-        }
-    }
-
-    fn consumer(&self) -> Option<ConsumerId> {
-        match self {
-            Self::ExternallyControlled { consumer } => Some(*consumer),
-            Self::Human { .. }
-            | Self::NarrativePersona { .. }
-            | Self::OperationalAgent { .. }
-            | Self::Retired => None,
         }
     }
 
@@ -636,7 +461,6 @@ impl ControllerAssignment {
             Self::Human { principal, .. } => Some(principal),
             Self::NarrativePersona { .. }
             | Self::OperationalAgent { .. }
-            | Self::ExternallyControlled { .. }
             | Self::Retired => None,
         }
     }
@@ -669,7 +493,6 @@ struct WorldState {
     schema: String,
     world_id: WorldId,
     revision: u64,
-    phase: WorldPhase,
     owner: PrincipalId,
     title: String,
     /// Bound by genesis and never written again; absent from a world with no
@@ -677,7 +500,6 @@ struct WorldState {
     /// grammars existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     grammar: Option<GrammarBinding>,
-    draft_approvals: BTreeSet<PrincipalId>,
     subjects: BTreeMap<SubjectId, SubjectState>,
     entities: BTreeMap<EntityId, EntityRecord>,
     edges: BTreeMap<EdgeId, EdgeRecord>,
@@ -724,10 +546,11 @@ struct WorldState {
     /// scope: it is world truth, and it is read by no precondition.
     now: FictionalMinutes,
     controller_assignments: BTreeMap<DecisionScope, ControllerAssignment>,
-    /// What an affordance *is*. World-authored, Draft-only, written by
-    /// `admit_resolved` alone.
+    /// What an affordance *is*. World-authored and written by `admit_resolved`
+    /// alone.
     affordance_catalog: BTreeMap<AffordanceId, Affordance>,
-    /// Who may exercise which entry. A grant carries no payload, so a duplicate
+    /// Who may exercise which entry: a row exists if and only if the subject
+    /// holds at least one verb. A grant carries no payload, so a duplicate
     /// grant is unrepresentable rather than checked.
     affordance_grants: BTreeMap<DecisionScope, BTreeSet<AffordanceId>>,
     events: Vec<DecisionEvent>,
@@ -746,10 +569,6 @@ enum WorldEffect {
     PatchAdmitted {
         resolved: ResolvedPatch,
     },
-    DraftApproved {
-        principal: PrincipalId,
-    },
-    WorldActivated,
     Acted {
         /// The command's own input, kept beside the event rather than inside it:
         /// the invocation is what the caller said, the event is what the world
@@ -758,7 +577,7 @@ enum WorldEffect {
         event: DecisionEvent,
     },
     /// The first effect that mutates state for subjects other than one scope.
-    /// Its gate is the clock capability or the owner, and `apply_effect`
+    /// Play's alone, and `apply_effect`
     /// re-derives the whole motion, so a forged fulfilment, magnitude, row, or
     /// target is one comparison rather than a clause apiece.
     TimeAdvanced {
@@ -817,8 +636,8 @@ pub struct SubjectSnapshot {
     pub kind: SubjectKind,
     /// The Aetheria record this subject was imported from, if it was.
     pub import_key: Option<ImportKey>,
-    /// Absent for an externally controlled mirror, which has no controller and
-    /// no turn. Every reader fails closed on `None`; none gets a default.
+    /// Absent for a retired subject, which has no controller and no turn.
+    /// Every reader fails closed on `None`; none gets a default.
     pub(crate) controller_id: Option<ControllerId>,
     pub controller_mode: Option<ControllerMode>,
     pub human_controller: Option<PrincipalId>,
@@ -1012,13 +831,10 @@ pub(crate) struct FactSnapshot {
 pub struct WorldSnapshot {
     pub world_id: WorldId,
     pub revision: u64,
-    pub phase: WorldPhase,
     pub owner: PrincipalId,
     pub title: String,
     /// The bound grammar's identity; none for a world with an open catalog.
     pub grammar: Option<GrammarIdentity>,
-    pub draft_approvals: BTreeSet<PrincipalId>,
-    pub required_approvers: BTreeSet<PrincipalId>,
     pub subjects: Vec<SubjectSnapshot>,
     pub affordances: Vec<AffordanceSnapshot>,
     pub places: Vec<PlaceSnapshot>,
@@ -1098,7 +914,7 @@ pub enum KernelError {
     InvalidCommandId,
     #[error("world title must not be empty")]
     EmptyTitle,
-    #[error("world owner or human controller principal must be canonical and nonempty")]
+    #[error("world owner principal must be canonical and nonempty")]
     EmptyPrincipal,
     #[error("patch rejected: {0:?}")]
     PatchRejected(Vec<Mismatch>),
@@ -1110,17 +926,6 @@ pub enum KernelError {
     AuthenticationMismatch,
     #[error("caller does not own this world")]
     Unauthorized,
-    #[error("command requires phase {expected:?}, current phase is {actual:?}")]
-    WrongPhase {
-        expected: WorldPhase,
-        actual: WorldPhase,
-    },
-    #[error("caller is not a required draft approver")]
-    NotDraftApprover,
-    #[error("caller has already approved this draft")]
-    DraftAlreadyApproved,
-    #[error("draft is missing required approvals: {0:?}")]
-    MissingApprovals(Vec<PrincipalId>),
     #[error("decision affordance is not granted to the actor")]
     AffordanceDenied,
     #[error("expected revision {expected}, current revision {actual}")]
@@ -1215,8 +1020,7 @@ fn prepare_creation(
         &input.patch,
     )
     .map_err(KernelError::PatchRejected)?;
-    require_ruler(&CallerId::Principal(input.owner.clone()), &resolved)
-        .map_err(KernelError::PatchRejected)?;
+    forbid_rulings_at_genesis(&resolved).map_err(KernelError::PatchRejected)?;
     Ok(PreparedCreation {
         world_id,
         owner: input.owner.clone(),
@@ -1369,43 +1173,12 @@ impl WorldKernel {
 }
 
 fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, KernelError> {
-    // The one admission rule for internal capabilities, stated here and again
-    // at the top of `apply_effect`: `reduce` decides and `apply_effect`
-    // re-decides, which is how every gate in this file is written.
-    require_system_capability(&command.caller, &command.body)?;
+    // The one admission rule, stated here and again at the top of
+    // `apply_effect`: `reduce` decides and `apply_effect` re-decides, which is
+    // how every gate in this file is written.
+    require_play(&command.caller)?;
     match &command.body {
-        CommandBody::ApproveDraft => {
-            require_phase(state, WorldPhase::Draft)?;
-            let CallerId::Principal(principal) = &command.caller else {
-                return Err(KernelError::NotDraftApprover);
-            };
-            if !required_approvers(state).contains(principal) {
-                return Err(KernelError::NotDraftApprover);
-            }
-            if state.draft_approvals.contains(principal) {
-                return Err(KernelError::DraftAlreadyApproved);
-            }
-            Ok(WorldEffect::DraftApproved {
-                principal: principal.clone(),
-            })
-        }
-        CommandBody::ActivateWorld => {
-            require_owner(state, &command.caller)?;
-            require_phase(state, WorldPhase::Draft)?;
-            let missing: Vec<_> = required_approvers(state)
-                .difference(&state.draft_approvals)
-                .cloned()
-                .collect();
-            if !missing.is_empty() {
-                return Err(KernelError::MissingApprovals(missing));
-            }
-            Ok(WorldEffect::WorldActivated)
-        }
         CommandBody::Act { actor, invocation } => {
-            require_phase(state, WorldPhase::Active)?;
-            if command.caller != CallerId::System(SystemCapability::Play) {
-                return Err(KernelError::Unauthorized);
-            }
             let granted = require_granted(state, *actor, invocation.affordance)?;
             let event = action::exercise(state, command.id, *actor, &granted, invocation)?;
             Ok(WorldEffect::Acted {
@@ -1414,10 +1187,6 @@ fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, 
             })
         }
         CommandBody::AdvanceTime { minutes } => {
-            // There is no time in Draft: a world under construction has no due
-            // dates to cross.
-            require_phase(state, WorldPhase::Active)?;
-            require_clock_caller(state, &command.caller)?;
             let to = state
                 .now
                 .checked_add(*minutes)
@@ -1432,90 +1201,25 @@ fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, 
             })
         }
         CommandBody::AdmitPatch { patch } => {
-            require_play_active(
-                state,
-                &command.caller,
-                !(patch.declarations.is_empty() && patch.evidence.is_empty()),
-            )?;
-            // Resolution before confinement, because confinement reads
-            // draft-resolved referents and a structurally broken patch should
-            // return its complete mismatch set rather than a jurisdiction
-            // complaint about a reference that does not resolve.
-            let confinement = require_patch_author(state, &command.caller)?;
             let resolved = patch::resolve_patch(state, command.id, patch)
                 .map_err(KernelError::PatchRejected)?;
-            require_ruler(&command.caller, &resolved).map_err(KernelError::PatchRejected)?;
-            if let Some(ground) = confinement {
-                confine_to_ground(state, &resolved, ground).map_err(KernelError::PatchRejected)?;
-            }
             Ok(WorldEffect::PatchAdmitted { resolved })
         }
     }
 }
 
-/// A system capability is admitted for exactly one command body and nothing
-/// else. Stated once here, reached by `reduce` and by `apply_effect`.
-fn require_system_capability(caller: &CallerId, body: &CommandBody) -> Result<(), KernelError> {
-    let CallerId::System(capability) = caller else {
-        return Ok(());
-    };
-    let admitted = matches!(
-        (capability, body),
-        (SystemCapability::Clock, CommandBody::AdvanceTime { .. })
-            | (SystemCapability::Play, CommandBody::AdvanceTime { .. })
-            | (
-                SystemCapability::Consumer { .. } | SystemCapability::Play,
-                CommandBody::AdmitPatch { .. }
-            )
-            | (SystemCapability::Play, CommandBody::Act { .. })
-    );
-    if admitted {
-        Ok(())
-    } else {
-        Err(KernelError::Unauthorized)
+/// The one admission rule: after genesis Play is the only caller any command
+/// body admits. Stated once here, reached by `reduce` and by `apply_effect`.
+fn require_play(caller: &CallerId) -> Result<(), KernelError> {
+    match caller {
+        CallerId::Play => Ok(()),
+        CallerId::Principal(_) => Err(KernelError::Unauthorized),
     }
 }
 
-/// The owner may tick from an interface; the tick task may tick with no
-/// session. Nothing
-/// else may tick.
-fn require_clock_caller(state: &WorldState, caller: &CallerId) -> Result<(), KernelError> {
-    if matches!(
-        caller,
-        CallerId::System(SystemCapability::Clock) | CallerId::System(SystemCapability::Play)
-    ) {
-        Ok(())
-    } else {
-        require_owner(state, caller)
-    }
-}
-
-/// The play table authors nothing in Draft, and in Active declaring (new
-/// structure, or evidence) is the play table's act alone: the host reports
-/// events as typed commands and scripts propose, so no second door opens
-/// beside that path. A patch that only changes components of existing
-/// structure is any admitted author's.
-fn require_play_active(
-    state: &WorldState,
-    caller: &CallerId,
-    declares: bool,
-) -> Result<(), KernelError> {
-    let play = caller == &CallerId::System(SystemCapability::Play);
-    if play && state.phase == WorldPhase::Draft {
-        return Err(KernelError::WrongPhase {
-            expected: WorldPhase::Active,
-            actual: state.phase,
-        });
-    }
-    if declares && !play && state.phase == WorldPhase::Active {
-        return Err(KernelError::Unauthorized);
-    }
-    Ok(())
-}
-
-/// A human principal joins `required_approvers`, so only the lane that builds
-/// revision 0 from nothing may bind one. The predicate reads state, never the
-/// caller. It takes the two fields it inspects rather than a whole
+/// The genesis predicate: the world is being built from nothing, so the one
+/// lane that builds revision 0 may bind a human controller. It reads state,
+/// never the caller. It takes the two fields it inspects rather than a whole
 /// `WorldState` so the genesis lane, which resolves declarations before any
 /// `WorldState` exists, can call the same owner instead of hand-copying the
 /// literal it would otherwise always evaluate to.
@@ -1537,11 +1241,9 @@ impl WorldState {
             schema: STATE_SCHEMA.into(),
             world_id,
             revision: 0,
-            phase: WorldPhase::Draft,
             owner,
             title,
             grammar,
-            draft_approvals: BTreeSet::new(),
             subjects: BTreeMap::new(),
             entities: BTreeMap::new(),
             edges: BTreeMap::new(),
@@ -1603,10 +1305,8 @@ impl WorldState {
                 "genesis effect does not derive from its creation command".into(),
             ));
         }
-        require_ruler(&CallerId::Principal(command.owner.clone()), resolved).map_err(|_| {
-            KernelError::Invariant(
-                "genesis effect rules or mints without the play authority".into(),
-            )
+        forbid_rulings_at_genesis(resolved).map_err(|_| {
+            KernelError::Invariant("genesis effect rules or mints without the play authority".into())
         })?;
         // Genesis resolves to revision 0 itself: `state.revision` never
         // advances past 0 for the creating commit (`resulting_revision: 0`),
@@ -1747,17 +1447,6 @@ fn admit_resolved(
         if matches!(subject.controller, ControllerAssignment::Human { .. }) && !humans_admitted {
             return Err(KernelError::Invariant(
                 "only world genesis may bind a human controller".into(),
-            ));
-        }
-        // Controller-shaped, both ways: a mirror receives no affordance, and
-        // every other controller must receive one.
-        if matches!(
-            subject.controller,
-            ControllerAssignment::ExternallyControlled { .. }
-        ) != subject.affordances.is_empty()
-        {
-            return Err(KernelError::Invariant(
-                "admitted subject's controller and affordance grant do not pair".into(),
             ));
         }
         if let Some(position) = subject.position
@@ -2731,21 +2420,6 @@ fn apply_operation(
                         "retire operation names an already retired subject".into(),
                     ));
                 }
-                ControllerAssignment::ExternallyControlled { .. } => {
-                    return Err(KernelError::Invariant(
-                        "retire operation names a mirror this world does not own".into(),
-                    ));
-                }
-                // A human's Draft approval cannot be removed by removing the
-                // human: re-decided here beside the resolver's
-                // `RetiresAnApprover`, since resolution is speculative and
-                // this is the actual commit. Active retires the human freely;
-                // its approval is frozen history by then, judged by replay.
-                ControllerAssignment::Human { .. } if state.phase == WorldPhase::Draft => {
-                    return Err(KernelError::Invariant(
-                        "retire operation would remove a Draft approver".into(),
-                    ));
-                }
                 ControllerAssignment::Human { .. }
                 | ControllerAssignment::NarrativePersona { .. }
                 | ControllerAssignment::OperationalAgent { .. } => {}
@@ -2762,29 +2436,36 @@ fn apply_operation(
             let scope = DecisionScope {
                 subject_id: *subject,
             };
-            let assignment = state.controller_assignments.get(&scope).ok_or_else(unknown)?;
-            if assignment.mode().is_none() || !state.affordance_catalog.contains_key(affordance) {
+            if !state.controller_assignments.contains_key(&scope)
+                || is_retired(state, *subject)
+                || !state.affordance_catalog.contains_key(affordance)
+            {
                 return Err(unknown());
             }
-            let granted = state
-                .affordance_grants
-                .get_mut(&scope)
-                .ok_or_else(unknown)?;
-            let held = granted.contains(affordance);
-            if held == granting {
-                return Err(KernelError::Invariant(
-                    "affordance grant operation changes nothing".into(),
-                ));
-            }
             if granting {
-                granted.insert(*affordance);
-            } else {
-                if granted.len() == 1 {
+                if !state
+                    .affordance_grants
+                    .entry(scope)
+                    .or_default()
+                    .insert(*affordance)
+                {
                     return Err(KernelError::Invariant(
-                        "revoke would leave a controlled subject with no affordance".into(),
+                        "affordance grant operation changes nothing".into(),
                     ));
                 }
-                granted.remove(affordance);
+            } else {
+                let granted = state
+                    .affordance_grants
+                    .get_mut(&scope)
+                    .ok_or_else(unknown)?;
+                if !granted.remove(affordance) {
+                    return Err(KernelError::Invariant(
+                        "affordance grant operation changes nothing".into(),
+                    ));
+                }
+                if granted.is_empty() {
+                    state.affordance_grants.remove(&scope);
+                }
             }
         }
     }
@@ -2910,8 +2591,7 @@ fn channel_referents_exist(state: &WorldState, record: &ChannelRecord) -> bool {
 
 /// Whether a subject's controller assignment is `Retired`. The one statement
 /// of retirement read by anything downstream of it (audience derivation,
-/// preconditions, resolvers): a mirror's assignment is `ExternallyControlled`
-/// and is never retired by this check, only an actual `Retire` sets it.
+/// preconditions, resolvers): only an actual `Retire` sets it.
 pub(crate) fn is_retired(state: &WorldState, subject_id: SubjectId) -> bool {
     matches!(
         state.controller_assignments.get(&DecisionScope { subject_id }),
@@ -3512,12 +3192,9 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
     Ok(WorldSnapshot {
         world_id: state.world_id,
         revision: state.revision,
-        phase: state.phase,
         owner: state.owner.clone(),
         title: state.title.clone(),
         grammar: state.grammar.as_ref().map(GrammarBinding::identity),
-        draft_approvals: state.draft_approvals.clone(),
-        required_approvers: required_approvers(state),
         subjects,
         affordances: state
             .affordance_catalog
@@ -3579,228 +3256,12 @@ fn require_granted<'a>(
     })
 }
 
-fn required_approvers(state: &WorldState) -> BTreeSet<PrincipalId> {
-    std::iter::once(state.owner.clone())
-        .chain(
-            state
-                .controller_assignments
-                .values()
-                .filter_map(ControllerAssignment::human_principal)
-                .cloned(),
-        )
-        .collect()
-}
-
-/// Who may admit a patch, and inside what. `None` means unconfined: the owner.
-/// Reached from `reduce`'s `AdmitPatch` arm and re-reached from `apply_effect`'s
-/// `PatchAdmitted` arm, per the file's idiom that `reduce` decides and
-/// `apply_effect` re-decides.
-fn require_patch_author(
-    state: &WorldState,
-    caller: &CallerId,
-) -> Result<Option<PatchGround>, KernelError> {
-    match caller {
-        CallerId::Principal(principal) if principal == &state.owner => Ok(None),
-        CallerId::System(SystemCapability::Play) => Ok(None),
-        CallerId::System(SystemCapability::Consumer { consumer }) => {
-            // Authority over its own mirrors is not jurisdictional.
-            Ok(Some(PatchGround::Consumer(*consumer)))
-        }
-        _ => Err(KernelError::Unauthorized),
-    }
-}
-
-/// Is this committed subject one of that consumer's mirrors? The consumer's
-/// ground is derived here, at decision time, and never carried on the wire: a
-/// binding a later commit revoked shrinks the consumer's authority with no
-/// ingress change.
-fn bound_to_consumer(state: &WorldState, subject: SubjectId, consumer: ConsumerId) -> bool {
-    state
-        .controller_assignments
-        .get(&DecisionScope {
-            subject_id: subject,
-        })
-        .and_then(ControllerAssignment::consumer)
-        == Some(consumer)
-}
-
-
-/// The ground a patch writes on, as one map over `state ∪ patch`, so a place
-/// declared and built on in the same patch confines through the chain it
-/// declares.
-fn candidate_places(
-    state: &WorldState,
-    resolved: &ResolvedPatch,
-) -> BTreeMap<EntityId, EntityRecord> {
-    let mut entities = state.entities.clone();
-    for declared in &resolved.entities {
-        entities.insert(declared.entity_id, declared.entity.clone());
-    }
-    for declared in &resolved.facts {
-        entities.insert(declared.entity_id, declared.entity.clone());
-    }
-    for declared in &resolved.channels {
-        entities.insert(declared.entity_id, declared.entity.clone());
-    }
-    entities
-}
-
-/// Every referent a confined author writes must sit on its ground. Returns the
-/// complete set, like every other check.
-///
-/// Placeless referents — resource kinds, catalog entries, canonical facts —
-/// name no ground and are not confined. A place declared with no container is a
-/// new jurisdiction root and is the owner's act.
-fn confine_to_ground(
-    state: &WorldState,
-    resolved: &ResolvedPatch,
-    held: PatchGround,
-) -> Result<(), Vec<Mismatch>> {
-    let entities = candidate_places(state, resolved);
-    // A consumer names no place ground, so every place, every route, and every
-    // place-shaped reach is refused with no extra rule: relocation, route
-    // opening and closing, cost changes, and place-subtree grants are
-    // unrepresentable for it because they carry a place or a route.
-    //
-    // Every subject's consumer binding over `state ∪ patch`, so a consumer's
-    // first document can declare its own mirror and write it in one patch.
-    let mut bindings: BTreeMap<SubjectId, Option<ConsumerId>> = state
-        .controller_assignments
-        .iter()
-        .map(|(scope, assignment)| (scope.subject_id, assignment.consumer()))
-        .collect();
-    for declared in &resolved.subjects {
-        bindings.insert(declared.subject_id, declared.controller.consumer());
-    }
-    let mut edges: BTreeMap<EdgeId, (EntityId, EntityId)> = state
-        .edges
-        .iter()
-        .map(|(edge_id, record)| (*edge_id, record.endpoints()))
-        .collect();
-    for declared in &resolved.routes {
-        edges.insert(declared.edge_id, declared.edge.endpoints());
-    }
-
-    let mut mismatches = Vec::new();
-    let confine_subject = |site: &Site, subject: SubjectId, mismatches: &mut Vec<Mismatch>| {
-        // Position is unconfined for a consumer: what binds a mirror is who
-        // controls it, not where it stands.
-        let PatchGround::Consumer(consumer) = held;
-        let admitted = bindings.get(&subject).copied().flatten() == Some(consumer);
-        if !admitted {
-            mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() });
-        }
-    };
-    let confine_place = |site: &Site, _place: EntityId, mismatches: &mut Vec<Mismatch>| {
-        mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() });
-    };
-
-    for declared in &resolved.subjects {
-        let site = Site::Declaration(declared.handle.clone());
-        confine_subject(&site, declared.subject_id, &mut mismatches);
-    }
-    for declared in &resolved.entities {
-        if declared.entity.kind != EntityKind::Place {
-            continue;
-        }
-        let site = Site::Declaration(declared.handle.clone());
-        match declared.entity.container {
-            Some(container) => confine_place(&site, container, &mut mismatches),
-            // A root is the owner's act.
-            None => mismatches.push(Mismatch::OutsideJurisdiction { site }),
-        }
-    }
-    for declared in &resolved.routes {
-        let site = Site::Declaration(declared.handle.clone());
-        let (from, to) = declared.edge.endpoints();
-        confine_place(&site, from, &mut mismatches);
-        confine_place(&site, to, &mut mismatches);
-    }
-    for declared in &resolved.facts {
-        let site = Site::Declaration(declared.handle.clone());
-        match declared.fact.standing {
-            FactStanding::Claimed { by } => confine_subject(&site, by, &mut mismatches),
-            // A consumer's citation is its own provenance claim, and that claim
-            // buys an `Admit` into its own custody and a claimed fact. It
-            // cannot canonize.
-            FactStanding::Canonical { .. } => {
-                if matches!(held, PatchGround::Consumer(_)) {
-                    mismatches.push(Mismatch::OutsideJurisdiction { site });
-                }
-            }
-            // Redundant with `require_ruler`, which refuses a confined caller's
-            // `Ruled` fact outright; kept so this match stays total.
-            FactStanding::Ruled => {
-                mismatches.push(Mismatch::OutsideJurisdiction { site });
-            }
-        }
-    }
-    for declared in &resolved.channels {
-        let site = Site::Declaration(declared.handle.clone());
-        match &declared.channel.reach {
-            Reach::Place(place) => confine_place(&site, *place, &mut mismatches),
-            Reach::Subjects(subjects) => {
-                for subject in subjects {
-                    confine_subject(&site, *subject, &mut mismatches);
-                }
-            }
-        }
-        if let Some(controller) = declared.channel.controller {
-            confine_subject(&site, controller, &mut mismatches);
-        }
-    }
-    for (index, operation) in resolved.operations.iter().enumerate() {
-        let site = Site::Operation(index);
-        // Retirement and an affordance grant are authority over the subject's
-        // standing, not structure over ground: a confined author is refused
-        // whatever place the subject stands under, exactly as `require_ruler`
-        // refuses a `Ruled` fact or a `Mint` outright. The owner is unconfined
-        // and never reaches this clause.
-        if matches!(
-            operation,
-            ResolvedOp::Retire { .. }
-                | ResolvedOp::GrantAffordance { .. }
-                | ResolvedOp::RevokeAffordance { .. }
-        ) {
-            mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() });
-            continue;
-        }
-        let (subjects, places, routes) = operation_ground(operation, &entities);
-        for subject in subjects {
-            confine_subject(&site, subject, &mut mismatches);
-        }
-        for place in places {
-            confine_place(&site, place, &mut mismatches);
-        }
-        for route in routes {
-            match edges.get(&route) {
-                Some((from, to)) => {
-                    confine_place(&site, *from, &mut mismatches);
-                    confine_place(&site, *to, &mut mismatches);
-                }
-                None => mismatches.push(Mismatch::OutsideJurisdiction { site: site.clone() }),
-            }
-        }
-    }
-    mismatches.sort();
-    mismatches.dedup();
-    if mismatches.is_empty() {
-        Ok(())
-    } else {
-        Err(mismatches)
-    }
-}
-
-/// The one author of a `Ruled` fact and a `Mint`. `Ok` when the caller is
-/// `System(Play)`. Otherwise, one `Mismatch::RuledWithoutAuthority` per
-/// `Ruled` fact and per `Mint`, and `Ok` if there are none. Called in
-/// `reduce`'s `AdmitPatch` arm right after `resolve_patch` and before
-/// confinement, and re-decided in `apply_effect`'s `PatchAdmitted` arm. The
-/// resolver stays actor-blind: this runs after resolution, never inside it.
-fn require_ruler(caller: &CallerId, resolved: &ResolvedPatch) -> Result<(), Vec<Mismatch>> {
-    if caller == &CallerId::System(SystemCapability::Play) {
-        return Ok(());
-    }
+/// Genesis may not rule or mint: only Play authors a `Ruled` fact or a `Mint`,
+/// and Play only writes after genesis. One `Mismatch::RuledWithoutAuthority`
+/// per `Ruled` fact and per `Mint`, and `Ok` if there are none. Called by
+/// `prepare_creation` and by `WorldState::genesis` at replay. The resolver
+/// stays actor-blind: this runs after resolution, never inside it.
+fn forbid_rulings_at_genesis(resolved: &ResolvedPatch) -> Result<(), Vec<Mismatch>> {
     let mut mismatches = Vec::new();
     for declared in &resolved.facts {
         if matches!(declared.fact.standing, FactStanding::Ruled) {
@@ -3820,188 +3281,6 @@ fn require_ruler(caller: &CallerId, resolved: &ResolvedPatch) -> Result<(), Vec<
         Ok(())
     } else {
         Err(mismatches)
-    }
-}
-
-/// The ground one lowered operation touches: the subjects whose position it
-/// must sit under, the places it names directly, and the routes whose endpoints
-/// it must sit under. Total over `ResolvedOp`, so a new operation cannot ship
-/// without saying where it lands.
-fn operation_ground(
-    operation: &ResolvedOp,
-    entities: &BTreeMap<EntityId, EntityRecord>,
-) -> (Vec<SubjectId>, Vec<EntityId>, Vec<EdgeId>) {
-    // A resource, a fact, and a channel are placeless referents: they name no
-    // ground, so only a place among the named entities confines.
-    let places = |candidates: Vec<EntityId>| {
-        candidates
-            .into_iter()
-            .filter(|entity_id| {
-                entities
-                    .get(entity_id)
-                    .is_some_and(|record| record.kind == EntityKind::Place)
-            })
-            .collect()
-    };
-    match operation {
-        ResolvedOp::Relocate {
-            subject_id,
-            edge_id,
-        } => (vec![*subject_id], Vec::new(), vec![*edge_id]),
-        ResolvedOp::OpenRoute { edge_id } | ResolvedOp::CloseRoute { edge_id } => {
-            (Vec::new(), Vec::new(), vec![*edge_id])
-        }
-        ResolvedOp::AlterCost { edge_id, .. } => (Vec::new(), Vec::new(), vec![*edge_id]),
-        ResolvedOp::Transfer {
-            from, to, resource, ..
-        } => (vec![*from, *to], places(vec![*resource]), Vec::new()),
-        ResolvedOp::Transform {
-            holder,
-            from_resource,
-            into_resource,
-            ..
-        } => (
-            vec![*holder],
-            places(vec![*from_resource, *into_resource]),
-            Vec::new(),
-        ),
-        ResolvedOp::Consume {
-            holder, resource, ..
-        }
-        | ResolvedOp::Admit {
-            holder, resource, ..
-        }
-        | ResolvedOp::Mint {
-            holder, resource, ..
-        } => (vec![*holder], places(vec![*resource]), Vec::new()),
-        ResolvedOp::Bind { subject, target } | ResolvedOp::Release { subject, target } => {
-            match target {
-                DependencyTarget::Subject(other) => {
-                    (vec![*subject, *other], Vec::new(), Vec::new())
-                }
-                DependencyTarget::Route(edge_id) => (vec![*subject], Vec::new(), vec![*edge_id]),
-                DependencyTarget::Resource(resource) => {
-                    (vec![*subject], places(vec![*resource]), Vec::new())
-                }
-            }
-        }
-        ResolvedOp::GrantAuthority { holder, grant }
-        | ResolvedOp::RevokeAuthority { holder, grant } => match grant.over {
-            AuthorityTarget::Subject(other) => (vec![*holder, other], Vec::new(), Vec::new()),
-            AuthorityTarget::PlaceSubtree(root) => (vec![*holder], vec![root], Vec::new()),
-        },
-        ResolvedOp::OpenOffice { institution, .. }
-        | ResolvedOp::CloseOffice { institution, .. }
-        | ResolvedOp::VacateOffice { institution, .. } => {
-            (vec![*institution], Vec::new(), Vec::new())
-        }
-        ResolvedOp::InstallIncumbent {
-            institution,
-            incumbent,
-            ..
-        } => (vec![*institution, *incumbent], Vec::new(), Vec::new()),
-        ResolvedOp::OpenForum {
-            forum, standing, ..
-        } => match standing {
-            AuthorityTarget::Subject(other) => (vec![*forum, *other], Vec::new(), Vec::new()),
-            AuthorityTarget::PlaceSubtree(root) => (vec![*forum], vec![*root], Vec::new()),
-        },
-        ResolvedOp::CloseForum { .. } => (Vec::new(), Vec::new(), Vec::new()),
-        ResolvedOp::AcquireKnowledge { subject, .. } | ResolvedOp::Forget { subject, .. } => {
-            (vec![*subject], Vec::new(), Vec::new())
-        }
-        ResolvedOp::Communicate { speaker, .. } | ResolvedOp::Display { actor: speaker, .. } => {
-            (vec![*speaker], Vec::new(), Vec::new())
-        }
-        // The place is the whole ground. Confining by it is not weaker than
-        // confining by the recipients: `covers_place` is transitive, so every
-        // subject the fan-out selects stands under the place, and a place
-        // admitted under a root puts all of them under that root. Naming the
-        // recipients here would be a second statement of the same rule,
-        // computed from state this function does not read.
-        ResolvedOp::Witness { place, .. } => (Vec::new(), places(vec![*place]), Vec::new()),
-        ResolvedOp::SetReach { channel, reach } => {
-            let mut subjects = Vec::new();
-            let mut named = Vec::new();
-            match reach {
-                Reach::Place(place) => named.push(*place),
-                Reach::Subjects(members) => subjects.extend(members.iter().copied()),
-            }
-            named.push(*channel);
-            (subjects, places(named), Vec::new())
-        }
-        ResolvedOp::SetController {
-            channel,
-            controller,
-        } => (
-            controller.iter().copied().collect(),
-            places(vec![*channel]),
-            Vec::new(),
-        ),
-        // Kernel-synthesized by `action::exercise` and by nothing a patch may
-        // carry; it is confined by its speaker all the same.
-        ResolvedOp::AssertClaim { by, .. } => (vec![*by], Vec::new(), Vec::new()),
-        ResolvedOp::CreateCommitment {
-            subject,
-            commitment,
-            ..
-        } => (
-            std::iter::once(*subject)
-                .chain(commitment.counterparty)
-                .collect(),
-            Vec::new(),
-            Vec::new(),
-        ),
-        ResolvedOp::DischargeCommitment { subject, .. } => (vec![*subject], Vec::new(), Vec::new()),
-        ResolvedOp::AdvancePressure { source, target, .. }
-        | ResolvedOp::ReducePressure { source, target, .. }
-        | ResolvedOp::ResolvePressure { source, target } => {
-            let mut subjects = vec![*target];
-            let mut named = Vec::new();
-            let mut routes = Vec::new();
-            match source {
-                PressureSource::Commitment { subject, .. } | PressureSource::Subject(subject) => {
-                    subjects.push(*subject);
-                }
-                PressureSource::Dependency(DependencyTarget::Subject(subject)) => {
-                    subjects.push(*subject);
-                }
-                PressureSource::Dependency(DependencyTarget::Route(edge_id)) => {
-                    routes.push(*edge_id);
-                }
-                PressureSource::Dependency(DependencyTarget::Resource(resource)) => {
-                    named.push(*resource);
-                }
-            }
-            (subjects, places(named), routes)
-        }
-        // Confinement never reaches these through the ordinary ground check:
-        // `confine_to_ground` refuses `Retire`, `GrantAffordance`, and
-        // `RevokeAffordance` unconditionally for every confined author before
-        // this function is called for them. The subject is named here so the
-        // match stays total and correct if that clause is ever bypassed.
-        ResolvedOp::Retire { subject }
-        | ResolvedOp::GrantAffordance { subject, .. }
-        | ResolvedOp::RevokeAffordance { subject, .. } => (vec![*subject], Vec::new(), Vec::new()),
-    }
-}
-
-fn require_owner(state: &WorldState, caller: &CallerId) -> Result<(), KernelError> {
-    if caller == &CallerId::Principal(state.owner.clone()) {
-        Ok(())
-    } else {
-        Err(KernelError::Unauthorized)
-    }
-}
-
-fn require_phase(state: &WorldState, expected: WorldPhase) -> Result<(), KernelError> {
-    if state.phase == expected {
-        Ok(())
-    } else {
-        Err(KernelError::WrongPhase {
-            expected,
-            actual: state.phase,
-        })
     }
 }
 
@@ -4048,23 +3327,8 @@ fn apply_effect(
     caller: &CallerId,
     effect: &WorldEffect,
 ) -> Result<(), KernelError> {
-    // The capability rule `reduce` decided, re-decided here against the effect
-    // the command produced.
-    if let CallerId::System(capability) = caller {
-        let admitted = matches!(
-            (capability, effect),
-            (SystemCapability::Clock, WorldEffect::TimeAdvanced { .. })
-                | (SystemCapability::Play, WorldEffect::TimeAdvanced { .. })
-                | (
-                    SystemCapability::Consumer { .. } | SystemCapability::Play,
-                    WorldEffect::PatchAdmitted { .. }
-                )
-                | (SystemCapability::Play, WorldEffect::Acted { .. })
-        );
-        if !admitted {
-            return Err(KernelError::Unauthorized);
-        }
-    }
+    // The admission rule `reduce` decided, re-decided here.
+    require_play(caller)?;
     match effect {
         WorldEffect::WorldCreated { .. } => {
             return Err(KernelError::Invariant(
@@ -4072,58 +3336,10 @@ fn apply_effect(
             ));
         }
         WorldEffect::PatchAdmitted { resolved } => {
-            require_play_active(state, caller, !resolved.declares_nothing())?;
-            require_ruler(caller, resolved).map_err(|_| {
-                KernelError::Invariant(
-                    "admitted patch rules or mints without the play authority".into(),
-                )
-            })?;
-            let confinement =
-                require_patch_author(state, caller).map_err(|_| {
-                    KernelError::Invariant(
-                        "admitted patch does not satisfy admission authority".into(),
-                    )
-                })?;
-            if let Some(ground) = confinement {
-                confine_to_ground(state, resolved, ground).map_err(|_| {
-                    KernelError::Invariant(
-                        "admitted patch wrote outside its author's ground".into(),
-                    )
-                })?;
-            }
             let resolves_to = resolution_revision(state)?;
             admit_resolved(state, resolved, resolves_to)?;
         }
-        WorldEffect::DraftApproved { principal } => {
-            if state.phase != WorldPhase::Draft
-                || caller != &CallerId::Principal(principal.clone())
-                || !required_approvers(state).contains(principal)
-                || !state.draft_approvals.insert(principal.clone())
-            {
-                return Err(KernelError::Invariant(
-                    "draft-approval effect is unauthorized or duplicate".into(),
-                ));
-            }
-        }
-        WorldEffect::WorldActivated => {
-            if caller != &CallerId::Principal(state.owner.clone())
-                || state.phase != WorldPhase::Draft
-                || !required_approvers(state).is_subset(&state.draft_approvals)
-            {
-                return Err(KernelError::Invariant(
-                    "activation does not satisfy lifecycle authority".into(),
-                ));
-            }
-            state.phase = WorldPhase::Active;
-        }
         WorldEffect::Acted { invocation, event } => {
-            if state.phase != WorldPhase::Active
-                || caller != &CallerId::System(SystemCapability::Play)
-            {
-                return Err(KernelError::Invariant(
-                    "acted effect does not match Play's authority".into(),
-                ));
-            }
             let granted = require_granted(state, event.actor, invocation.affordance)?;
             // The whole event is re-derived by the function that produced the
             // honest one, so a forged band, operation, magnitude, minted claim,
@@ -4148,8 +3364,6 @@ fn apply_effect(
             to,
             motion,
         } => {
-            require_phase(state, WorldPhase::Active)?;
-            require_clock_caller(state, caller)?;
             let derived_to = state
                 .now
                 .checked_add(*minutes)
@@ -4369,7 +3583,18 @@ mod tests {
         }
     }
 
-    pub(crate) fn submit_owner(
+    /// The smallest Play command that commits: a one-minute clock advance.
+    pub(crate) fn tick_body(minutes: u32) -> CommandBody {
+        CommandBody::AdvanceTime {
+            minutes: TickMinutes::new(minutes).expect("a valid span"),
+        }
+    }
+
+    pub(crate) fn play_command(snapshot: &WorldSnapshot, id: CommandId, body: CommandBody) -> CommandEnvelope {
+        command(snapshot, id, CallerId::Play, body)
+    }
+
+    pub(crate) fn submit_play(
         kernel: &mut WorldKernel,
         snapshot: &WorldSnapshot,
         body: CommandBody,
@@ -4379,32 +3604,12 @@ mod tests {
                 command(
                     snapshot,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     body,
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap()
-    }
-
-    pub(crate) fn activate(kernel: &mut WorldKernel) -> WorldSnapshot {
-        let genesis = kernel.snapshot().unwrap();
-        submit_owner(kernel, &genesis, CommandBody::ApproveDraft);
-        let after_owner = kernel.snapshot().unwrap();
-        kernel
-            .submit(
-                command(
-                    &after_owner,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ApproveDraft,
-                ),
-                &auth_principal(human_principal()),
-            )
-            .unwrap();
-        let approved = kernel.snapshot().unwrap();
-        submit_owner(kernel, &approved, CommandBody::ActivateWorld);
-        kernel.snapshot().unwrap()
     }
 
     /// The canonical IDs of the shared topology fixture: three places, four
@@ -4509,7 +3714,7 @@ mod tests {
 
     pub(crate) fn admit_topology(kernel: &mut WorldKernel) -> Topology {
         let before = kernel.snapshot().unwrap();
-        let receipt = submit_owner(
+        let receipt = submit_play(
             kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -4828,7 +4033,7 @@ mod tests {
 
     pub(crate) fn admit_custody(kernel: &mut WorldKernel, topology: &Topology) -> Custody {
         let before = kernel.snapshot().unwrap();
-        let receipt = submit_owner(
+        let receipt = submit_play(
             kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -4867,7 +4072,7 @@ mod tests {
     pub(crate) fn custody_world(kernel: &mut WorldKernel) -> (Topology, Custody, WorldSnapshot) {
         let topology = admit_topology(kernel);
         let custody = admit_custody(kernel, &topology);
-        let active = activate(kernel);
+        let active = kernel.snapshot().unwrap();
         (topology, custody, active)
     }
 
@@ -5279,7 +4484,7 @@ mod tests {
 
     pub(crate) fn admit_civic(kernel: &mut WorldKernel, topology: &Topology) -> Civic {
         let before = kernel.snapshot().unwrap();
-        let receipt = submit_owner(
+        let receipt = submit_play(
             kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -5332,7 +4537,7 @@ mod tests {
     pub(crate) fn civic_world(kernel: &mut WorldKernel) -> (Topology, Civic, WorldSnapshot) {
         let topology = admit_topology(kernel);
         let civic = admit_civic(kernel, &topology);
-        let active = activate(kernel);
+        let active = kernel.snapshot().unwrap();
         (topology, civic, active)
     }
 
@@ -5379,7 +4584,7 @@ mod tests {
                 import_key: None,
             })
         };
-        submit_owner(
+        submit_play(
             kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -5490,7 +4695,7 @@ mod tests {
                 },
             },
         );
-        let active = activate(kernel);
+        let active = kernel.snapshot().unwrap();
         let place = |label: &str| {
             active
                 .places
@@ -5539,8 +4744,8 @@ mod tests {
         )
     }
 
-    /// Submits as owner and returns the complete mismatch set.
-    pub(crate) fn reject_owner(
+    /// Submits as Play and returns the complete mismatch set.
+    pub(crate) fn reject_play(
         kernel: &mut WorldKernel,
         snapshot: &WorldSnapshot,
         body: CommandBody,
@@ -5550,10 +4755,10 @@ mod tests {
                 command(
                     snapshot,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     body,
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -5634,7 +4839,7 @@ mod tests {
     }
 
     pub(crate) fn play_caller() -> CallerId {
-        CallerId::System(SystemCapability::Play)
+        CallerId::Play
     }
 
     pub(crate) fn act(
@@ -5644,132 +4849,10 @@ mod tests {
     ) -> Result<SubmitReceipt, KernelError> {
         act_as(
             kernel,
-            CallerId::System(SystemCapability::Play),
+            CallerId::Play,
             actor,
             invocation,
         )
-    }
-
-    #[test]
-    fn draft_activation_human_and_autonomous_actions_share_one_reducer() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation(CommandId::new(), "  Delvehold  "),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let genesis = kernel.snapshot().unwrap();
-        assert_eq!(genesis.title, "Delvehold");
-        assert_eq!(genesis.phase, WorldPhase::Draft);
-        let active = activate(&mut kernel);
-        assert_eq!(active.phase, WorldPhase::Active);
-
-        let human = subject_by_mode(&kernel.state, ControllerMode::Human);
-        act(
-            &mut kernel,
-            human,
-            speak(first_grant(&active, human), "I open the door."),
-        )
-        .unwrap();
-        let after_human = kernel.snapshot().unwrap();
-        assert_eq!(kernel.state.events.len(), 1);
-        assert_eq!(
-            spoken(&kernel.state, &kernel.state.events[0]),
-            Some("I open the door.")
-        );
-
-        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
-        act(
-            &mut kernel,
-            persona,
-            speak(first_grant(&after_human, persona), "Then mind the hinge."),
-        )
-        .unwrap();
-        assert_eq!(kernel.state.events.len(), 2);
-        assert_eq!(kernel.state.events[1].actor, persona);
-    }
-
-    #[test]
-    fn lifecycle_and_controller_authority_fail_closed_without_commits() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation(CommandId::new(), "Held"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let genesis = kernel.snapshot().unwrap();
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &genesis,
-                    CommandId::new(),
-                    CallerId::Principal(owner()),
-                    CommandBody::ActivateWorld,
-                ),
-                &auth_principal(owner())
-            ),
-            Err(KernelError::MissingApprovals(_))
-        ));
-        assert_eq!(kernel.journal.commit_count(), 1);
-
-        submit_owner(&mut kernel, &genesis, CommandBody::ApproveDraft);
-        let owner_approved = kernel.snapshot().unwrap();
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &owner_approved,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ActivateWorld,
-                ),
-                &auth_principal(human_principal())
-            ),
-            Err(KernelError::Unauthorized)
-        ));
-        assert!(matches!(
-            kernel.submit(
-                command(
-                    &owner_approved,
-                    CommandId::new(),
-                    CallerId::Principal(owner()),
-                    CommandBody::ApproveDraft,
-                ),
-                &auth_principal(owner())
-            ),
-            Err(KernelError::DraftAlreadyApproved)
-        ));
-        assert_eq!(kernel.journal.commit_count(), 2);
-
-        kernel
-            .submit(
-                command(
-                    &owner_approved,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ApproveDraft,
-                ),
-                &auth_principal(human_principal()),
-            )
-            .unwrap();
-        let approved = kernel.snapshot().unwrap();
-        submit_owner(&mut kernel, &approved, CommandBody::ActivateWorld);
-        let active = kernel.snapshot().unwrap();
-        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
-        let commits_before_forgery = kernel.journal.commit_count();
-        let error = act_as(
-            &mut kernel,
-            CallerId::Principal(human_principal()),
-            persona,
-            speak(first_grant(&active, persona), "Puppet"),
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-        assert_eq!(kernel.journal.commit_count(), commits_before_forgery);
-        assert_eq!(kernel.snapshot().unwrap(), active);
     }
 
     #[test]
@@ -5779,7 +4862,7 @@ mod tests {
         let creation = creation(CommandId::new(), "First");
         let (mut kernel, creation_receipt) =
             WorldKernel::create(&path, creation.clone(), &auth_principal(owner())).unwrap();
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let operator = subject_by_mode(&kernel.state, ControllerMode::OperationalAgent);
         let caller = play_caller();
         let command = command(
@@ -5819,7 +4902,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_and_stale_commands_do_not_commit() {
+    fn stale_commands_do_not_commit() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
@@ -5830,30 +4913,13 @@ mod tests {
         .unwrap();
         let genesis = kernel.snapshot().unwrap();
         assert!(matches!(
-            submit_owner(&mut kernel, &genesis, CommandBody::ApproveDraft),
+            submit_play(&mut kernel, &genesis, tick_body(1)),
             SubmitReceipt::Applied(_)
         ));
         let after = kernel.snapshot().unwrap();
+        let stale = play_command(&genesis, CommandId::new(), tick_body(1));
         assert!(matches!(
-            kernel.submit(
-                command(
-                    &after,
-                    CommandId::new(),
-                    CallerId::Principal(owner()),
-                    CommandBody::ApproveDraft,
-                ),
-                &auth_principal(owner())
-            ),
-            Err(KernelError::DraftAlreadyApproved)
-        ));
-        let stale = command(
-            &genesis,
-            CommandId::new(),
-            CallerId::Principal(owner()),
-            CommandBody::ApproveDraft,
-        );
-        assert!(matches!(
-            kernel.submit(stale, &auth_principal(owner())),
+            kernel.submit(stale, &AuthenticatedCaller::verified_play()),
             Err(KernelError::RevisionMismatch { .. })
         ));
         assert_eq!(kernel.snapshot().unwrap(), after);
@@ -5872,43 +4938,30 @@ mod tests {
         .unwrap();
         let genesis = kernel.snapshot().unwrap();
         let id = CommandId::new();
-        let first = command(
-            &genesis,
-            id,
-            CallerId::Principal(owner()),
-            CommandBody::ApproveDraft,
-        );
+        let first = play_command(&genesis, id, tick_body(1));
         let first_receipt = kernel
-            .submit(first.clone(), &auth_principal(owner()))
+            .submit(first.clone(), &AuthenticatedCaller::verified_play())
             .unwrap();
         let second_snapshot = kernel.snapshot().unwrap();
         kernel
             .submit(
-                command(
-                    &second_snapshot,
-                    CommandId::new(),
-                    CallerId::Principal(human_principal()),
-                    CommandBody::ApproveDraft,
-                ),
-                &auth_principal(human_principal()),
+                play_command(&second_snapshot, CommandId::new(), tick_body(1)),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap();
         let after_second = kernel.snapshot().unwrap();
         assert_eq!(
-            kernel.submit(first, &auth_principal(owner())).unwrap(),
+            kernel
+                .submit(first, &AuthenticatedCaller::verified_play())
+                .unwrap(),
             match first_receipt {
                 SubmitReceipt::Applied(value) => SubmitReceipt::AlreadyApplied(value),
                 _ => unreachable!(),
             }
         );
-        let conflict = command(
-            &genesis,
-            id,
-            CallerId::Principal(owner()),
-            CommandBody::ActivateWorld,
-        );
+        let conflict = play_command(&genesis, id, tick_body(2));
         assert!(matches!(
-            kernel.submit(conflict, &auth_principal(owner())),
+            kernel.submit(conflict, &AuthenticatedCaller::verified_play()),
             Err(KernelError::CommandIdConflict)
         ));
         assert_eq!(kernel.snapshot().unwrap(), after_second);
@@ -6002,15 +5055,10 @@ mod tests {
         .unwrap();
         let genesis = kernel.snapshot().unwrap();
         let uncertain = CommandId::new();
-        let attempted = command(
-            &genesis,
-            uncertain,
-            CallerId::Principal(owner()),
-            CommandBody::ApproveDraft,
-        );
+        let attempted = play_command(&genesis, uncertain, tick_body(1));
         kernel.journal.fail_after_durable_commit_for_test();
         assert!(matches!(
-            kernel.submit(attempted.clone(), &auth_principal(owner())),
+            kernel.submit(attempted.clone(), &AuthenticatedCaller::verified_play()),
             Err(KernelError::RecoveryRequired { command_id }) if command_id == uncertain
         ));
         assert!(matches!(
@@ -6022,10 +5070,9 @@ mod tests {
         let mut reopened = WorldKernel::open(&path, genesis.world_id).unwrap();
         let durable = reopened.snapshot().unwrap();
         assert_eq!(durable.revision, 1);
-        assert_eq!(durable.draft_approvals, BTreeSet::from([owner()]));
         assert!(matches!(
             reopened
-                .submit(attempted, &auth_principal(owner()))
+                .submit(attempted, &AuthenticatedCaller::verified_play())
                 .unwrap(),
             SubmitReceipt::AlreadyApplied(_)
         ));
@@ -6075,13 +5122,8 @@ mod tests {
         assert!(matches!(kernel.snapshot(), Err(KernelError::OwnershipLost)));
         assert!(matches!(
             kernel.submit(
-                command(
-                    &snapshot,
-                    CommandId::new(),
-                    CallerId::Principal(owner()),
-                    CommandBody::ApproveDraft,
-                ),
-                &auth_principal(owner())
+                play_command(&snapshot, CommandId::new(), tick_body(1)),
+                &AuthenticatedCaller::verified_play()
             ),
             Err(KernelError::OwnershipLost)
         ));
@@ -6108,7 +5150,7 @@ mod tests {
             &snapshot,
             CommandId::new(),
             CallerId::Principal(human_principal()),
-            CommandBody::ApproveDraft,
+            tick_body(1),
         );
         assert!(matches!(
             kernel.submit(forged, &auth_principal(owner())),
@@ -6117,11 +5159,11 @@ mod tests {
         assert_eq!(kernel.snapshot().unwrap(), snapshot);
     }
 
-    /// Soul falsification: the preimage must exclude the revision, the phase,
+    /// Soul falsification: the preimage must exclude the revision
     /// and every component outside the scope. Each step below is a real commit
     /// that moves the world, not a hand-edited state.
     #[test]
-    fn soul_scope_components_exclude_revision_phase_and_everything_outside_the_scope() {
+    fn soul_scope_components_exclude_revision_and_everything_outside_the_scope() {
         let dir = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             dir.path().join("world.cc"),
@@ -6140,7 +5182,7 @@ mod tests {
         // place nor it, and a second placed subject: all outside the scope.
         let speak = speak_entry(&kernel);
         let before = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -6178,11 +5220,6 @@ mod tests {
         assert_ne!(kernel.state.revision, start_revision);
         assert_eq!(scope_components(&kernel.state, scope.subject_id), base);
 
-        // Activation changes the phase, the approvals, and the revision.
-        let active = activate(&mut kernel);
-        assert_eq!(active.phase, WorldPhase::Active);
-        assert_eq!(scope_components(&kernel.state, scope.subject_id), base);
-
         // Another subject's Position moving is not this scope's business.
         let annexway = *kernel
             .state
@@ -6199,7 +5236,7 @@ mod tests {
             .expect("the declared subject")
             .0;
         let active = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             CommandBody::AdmitPatch {
@@ -6229,7 +5266,7 @@ mod tests {
 
         // A route incident to the walker's own place is inside the scope.
         let moved = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &moved,
             CommandBody::AdmitPatch {
@@ -6259,7 +5296,7 @@ mod tests {
             &auth_principal(owner()),
         )
         .unwrap();
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let speak = affordance_named(&active, "speak");
         let convened = affordance_named(&active, "convene");
 
@@ -6325,7 +5362,7 @@ mod tests {
         )
         .unwrap();
         let topology = admit_topology(&mut kernel);
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let speak = affordance_named(&active, "speak");
 
         // A route the actor does not stand beside is outside its scope.
@@ -6333,7 +5370,7 @@ mod tests {
         // stale topology.
         let before_components = scope_components(&kernel.state, topology.walker);
         let before = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &before,
             operations(vec![ComponentOp::CloseRoute {
@@ -6495,7 +5532,7 @@ mod tests {
         let (_, civic, _) = civic_world(&mut kernel);
         let refuse = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
-            reject_owner(kernel, &before, operations(ops))
+            reject_play(kernel, &before, operations(ops))
         };
 
         // An institution cannot occupy its own office.
@@ -6545,11 +5582,11 @@ mod tests {
         let (_, civic, _) = civic_world(&mut kernel);
         let refuse = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
-            reject_owner(kernel, &before, operations(ops))
+            reject_play(kernel, &before, operations(ops))
         };
         let admit = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
-            submit_owner(kernel, &before, operations(ops))
+            submit_play(kernel, &before, operations(ops))
         };
 
         // A direct grant under what the reeve's office already lends.
@@ -6649,7 +5686,7 @@ mod tests {
         ];
         expected.sort();
         assert_eq!(
-            reject_owner(&mut kernel, &before, operations(broken)),
+            reject_play(&mut kernel, &before, operations(broken)),
             expected
         );
         assert_eq!(kernel.snapshot().unwrap(), before);
@@ -6672,7 +5709,7 @@ mod tests {
             },
         ];
         assert!(matches!(
-            submit_owner(&mut kernel, &before, operations(repaired)),
+            submit_play(&mut kernel, &before, operations(repaired)),
             SubmitReceipt::Applied(_)
         ));
     }
@@ -6707,7 +5744,7 @@ mod tests {
         ] {
             let before = kernel.snapshot().unwrap();
             assert_eq!(
-                reject_owner(&mut kernel, &before, operations(vec![operation])),
+                reject_play(&mut kernel, &before, operations(vec![operation])),
                 vec![Mismatch::NoOperationEffect { operation: 0 }]
             );
         }
@@ -6725,7 +5762,7 @@ mod tests {
         };
         let admit = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
-            submit_owner(kernel, &before, operations(ops));
+            submit_play(kernel, &before, operations(ops));
         };
 
         // Moving an unrelated subject into and out of the jurisdiction, and
@@ -6898,7 +5935,7 @@ mod tests {
             evidence: Vec::new(),
         };
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &before,
                 CommandBody::AdmitPatch {
@@ -6928,7 +5965,7 @@ mod tests {
             "the reeve holds levy only through the warden office before retirement"
         );
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &before,
             operations(vec![ComponentOp::Retire {
@@ -6957,9 +5994,9 @@ mod tests {
 #[cfg(test)]
 mod custody_tests {
     use super::tests::{
-        OPENING_BALANCE, TITHE_RECEIPT, act, activate, admit_custody, admit_topology,
-        auth_principal, creation, custody_world, first_grant, operations, owner, reject_owner,
-        speak, speak_entry, submit_owner,
+        OPENING_BALANCE, TITHE_RECEIPT, act, admit_custody, admit_topology,
+        auth_principal, creation, custody_world, first_grant, operations, owner, reject_play,
+        speak, speak_entry, submit_play,
     };
     use super::*;
 
@@ -7014,7 +6051,7 @@ mod custody_tests {
         let error = apply_effect(
             &mut candidate,
             CommandId::issue(),
-            &CallerId::Principal(owner()),
+            &CallerId::Play,
             &forged,
         )
         .unwrap_err();
@@ -7056,7 +6093,7 @@ mod custody_tests {
         let before = kernel.snapshot().unwrap();
         let commits = kernel.journal.commit_count();
 
-        let mismatches = reject_owner(
+        let mismatches = reject_play(
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -7107,7 +6144,7 @@ mod custody_tests {
         let edges = kernel.state.edges.clone();
         let positions = kernel.state.positions.clone();
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Transfer {
@@ -7134,7 +6171,7 @@ mod custody_tests {
         let mut kernel = custody_kernel(directory.path(), "Consume");
         let (_, custody, active) = custody_world(&mut kernel);
 
-        let after_three = submit_owner(
+        let after_three = submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Consume {
@@ -7147,7 +6184,7 @@ mod custody_tests {
         assert_eq!(holding(&kernel, custody.holder, custody.tithe), 4);
 
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::Consume {
@@ -7173,7 +6210,7 @@ mod custody_tests {
         let mut kernel = custody_kernel(directory.path(), "Transform");
         let (_, custody, active) = custody_world(&mut kernel);
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Transform {
@@ -7219,7 +6256,7 @@ mod custody_tests {
         for attempt in attempts {
             let snapshot = kernel.snapshot().unwrap();
             let commits = kernel.journal.commit_count();
-            let mismatches = reject_owner(&mut kernel, &snapshot, operations(vec![attempt]));
+            let mismatches = reject_play(&mut kernel, &snapshot, operations(vec![attempt]));
             assert_eq!(
                 mismatches,
                 vec![Mismatch::InsufficientCustody { operation: 0 }]
@@ -7237,7 +6274,7 @@ mod custody_tests {
         let mut kernel = custody_kernel(directory.path(), "Absent");
         let (_, custody, active) = custody_world(&mut kernel);
 
-        let mismatches = reject_owner(
+        let mismatches = reject_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Consume {
@@ -7270,7 +6307,7 @@ mod custody_tests {
         // `Admit` is Draft-only, because Active refuses a patch carrying
         // evidence, so its zero case is proven before activation.
         let draft = kernel.snapshot().unwrap();
-        let mismatches = reject_owner(
+        let mismatches = reject_play(
             &mut kernel,
             &draft,
             CommandBody::AdmitPatch {
@@ -7288,7 +6325,7 @@ mod custody_tests {
         );
         assert_eq!(mismatches, vec![Mismatch::ZeroQuantity { operation: 0 }]);
 
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         for attempt in [
             ComponentOp::Transfer {
                 from: Ref::Existing(custody.holder),
@@ -7303,7 +6340,7 @@ mod custody_tests {
             },
         ] {
             let snapshot = kernel.snapshot().unwrap();
-            let mismatches = reject_owner(&mut kernel, &snapshot, operations(vec![attempt]));
+            let mismatches = reject_play(&mut kernel, &snapshot, operations(vec![attempt]));
             assert_eq!(mismatches, vec![Mismatch::ZeroQuantity { operation: 0 }]);
         }
         assert_eq!(kernel.snapshot().unwrap(), active);
@@ -7316,7 +6353,7 @@ mod custody_tests {
         let (_, custody, active) = custody_world(&mut kernel);
         let before = kernel.state.dependencies.clone();
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Bind {
@@ -7330,7 +6367,7 @@ mod custody_tests {
         );
 
         let bound = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &bound,
             operations(vec![ComponentOp::Release {
@@ -7354,15 +6391,15 @@ mod custody_tests {
             subject: Ref::Existing(custody.holder),
             target: DependencyRef::Resource(Ref::Existing(custody.tithe)),
         };
-        submit_owner(&mut kernel, &active, operations(vec![bind.clone()]));
+        submit_play(&mut kernel, &active, operations(vec![bind.clone()]));
 
         let bound = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(&mut kernel, &bound, operations(vec![bind])),
+            reject_play(&mut kernel, &bound, operations(vec![bind])),
             vec![Mismatch::NoOperationEffect { operation: 0 }]
         );
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &bound,
                 operations(vec![ComponentOp::Release {
@@ -7373,7 +6410,7 @@ mod custody_tests {
             vec![Mismatch::NoOperationEffect { operation: 0 }]
         );
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &bound,
                 operations(vec![ComponentOp::Bind {
@@ -7395,7 +6432,7 @@ mod custody_tests {
         let (topology, custody, active) = custody_world(&mut kernel);
         assert!(!kernel.state.edges[&topology.shutter].is_open());
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Bind {
@@ -7425,7 +6462,6 @@ mod custody_tests {
         let mut kernel = custody_kernel(directory.path(), "ScopeCustody");
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
-        activate(&mut kernel);
         let scope = DecisionScope {
             subject_id: custody.holder,
         };
@@ -7478,7 +6514,7 @@ mod custody_tests {
         let tithe_before = resource_total(&kernel.state, custody.tithe);
         let ingot_before = resource_total(&kernel.state, custody.ingot);
 
-        let receipt = submit_owner(
+        let receipt = submit_play(
             &mut kernel,
             &active,
             operations(vec![
@@ -7561,7 +6597,7 @@ mod custody_tests {
         let error = apply_effect(
             &mut candidate,
             CommandId::issue(),
-            &CallerId::Principal(owner()),
+            &CallerId::Play,
             &forge(vec![transfer(5), transfer(5)]),
         )
         .unwrap_err();
@@ -7578,7 +6614,7 @@ mod custody_tests {
         apply_effect(
             &mut conserving,
             CommandId::issue(),
-            &CallerId::Principal(owner()),
+            &CallerId::Play,
             &forge(vec![
                 transfer(5),
                 ResolvedOp::Transfer {
@@ -7612,7 +6648,7 @@ mod custody_tests {
             let error = apply_effect(
                 &mut candidate,
                 CommandId::issue(),
-                &CallerId::Principal(owner()),
+                &CallerId::Play,
                 &forge(vec![degenerate]),
             )
             .unwrap_err();
@@ -7628,7 +6664,7 @@ mod custody_tests {
         let error = apply_effect(
             &mut unevidenced,
             CommandId::issue(),
-            &CallerId::Principal(owner()),
+            &CallerId::Play,
             &forge(vec![ResolvedOp::Admit {
                 holder: custody.holder,
                 resource: custody.tithe,
@@ -7662,7 +6698,7 @@ mod custody_tests {
             qty: Quantity(qty),
             evidence: EvidenceRef::new(TITHE_RECEIPT),
         };
-        let mismatches = reject_owner(
+        let mismatches = reject_play(
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -7710,7 +6746,7 @@ mod custody_tests {
         let receiver_before = scope_components(&kernel.state, custody.counterparty);
         let bystander_before = scope_components(&kernel.state, topology.walker);
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Transfer {
@@ -7752,7 +6788,7 @@ mod knowledge_tests {
     use super::tests::{
         act, play_caller, affordance_named,
         FLOOD_EVIDENCE, FLOOD_STATEMENT, Speech, auth_principal, command, creation, operations,
-        owner, reject_owner, speech_world, spoken, submit_owner,
+        owner, reject_play, speech_world, spoken, submit_play,
     };
     use super::*;
     use std::path::Path;
@@ -7838,7 +6874,7 @@ mod knowledge_tests {
         let before = kernel.state.clone();
 
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &active,
                 operations(vec![acquire(
@@ -7854,7 +6890,7 @@ mod knowledge_tests {
         );
         // A live referent of the wrong kind names the kind it actually is.
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &active,
                 operations(vec![acquire(
@@ -7872,7 +6908,7 @@ mod knowledge_tests {
         );
         assert_eq!(kernel.state, before);
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![acquire(
@@ -7915,7 +6951,7 @@ mod knowledge_tests {
             };
 
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut draft,
                 &start,
                 declare(
@@ -7930,7 +6966,7 @@ mod knowledge_tests {
             }]
         );
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut draft,
                 &start,
                 declare(
@@ -7948,7 +6984,7 @@ mod knowledge_tests {
         );
         assert!(draft.state.facts.is_empty());
 
-        submit_owner(
+        submit_play(
             &mut draft,
             &start,
             declare(
@@ -7982,7 +7018,7 @@ mod knowledge_tests {
         let active = kernel.snapshot().unwrap();
 
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &active,
                 operations(vec![acquire(
@@ -7993,7 +7029,7 @@ mod knowledge_tests {
             ),
             vec![Mismatch::EvidencedKnowledgeOfClaim { operation: 0 }]
         );
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![acquire(
@@ -8091,7 +7127,7 @@ mod knowledge_tests {
 
         // Moving the bystander up the stair puts it in both audiences.
         let active = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Relocate {
@@ -8337,7 +7373,7 @@ mod knowledge_tests {
     fn a_channel_controller_may_speak_outside_its_own_reach() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "Controller");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::SetReach {
@@ -8356,7 +7392,7 @@ mod knowledge_tests {
             .expect("the controller may speak on its own channel");
 
         let active = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::SetController {
@@ -8389,7 +7425,7 @@ mod knowledge_tests {
             vec![ActionMismatch::CannotReach { precondition: 0 }]
         );
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Relocate {
@@ -8428,7 +7464,7 @@ mod knowledge_tests {
             vec![ActionMismatch::FactUnknown { precondition: 0 }]
         );
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::AcquireKnowledge {
@@ -8445,7 +7481,7 @@ mod knowledge_tests {
             "Believed falls short of Certain"
         );
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![acquire(
@@ -8461,7 +7497,7 @@ mod knowledge_tests {
 
         let active = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &active,
                 operations(vec![ComponentOp::Forget {
@@ -8479,7 +7515,7 @@ mod knowledge_tests {
     fn a_telling_never_overwrites_a_holder() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "NoOverwrite");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![acquire(
@@ -8491,7 +7527,7 @@ mod knowledge_tests {
         let before = knows(&kernel, speech.listener, speech.flood);
         let active = kernel.snapshot().unwrap();
 
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::Communicate {
@@ -8521,7 +7557,7 @@ mod knowledge_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "OutsideAudience");
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &active,
                 operations(vec![ComponentOp::Communicate {
@@ -8533,7 +7569,7 @@ mod knowledge_tests {
             vec![Mismatch::SpeakerOutsideAudience { operation: 0 }]
         );
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &active,
                 operations(vec![ComponentOp::Communicate {
@@ -8630,7 +7666,7 @@ mod knowledge_tests {
             )
             .expect("the whisper commits");
             let active = kernel.snapshot().unwrap();
-            submit_owner(
+            submit_play(
                 &mut kernel,
                 &active,
                 operations(vec![ComponentOp::Communicate {
@@ -8757,7 +7793,7 @@ mod knowledge_tests {
         let active = kernel.snapshot().unwrap();
         let hearer_before = digest(&kernel, speech.listener);
         let speaker_before = digest(&kernel, speech.speaker);
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::SetReach {
@@ -8802,13 +7838,13 @@ mod knowledge_tests {
             },
         };
         assert_eq!(
-            reject_owner(&mut kernel, &before, declare(Vec::new())),
+            reject_play(&mut kernel, &before, declare(Vec::new())),
             vec![Mismatch::SpeechWithoutAudience {
                 handle: DraftHandle::new("herald"),
             }]
         );
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &before,
                 declare(vec![
@@ -8878,7 +7914,7 @@ mod knowledge_tests {
 mod soul_knowledge_tests {
     use super::tests::{
         act, play_caller, FLOOD_STATEMENT, Speech, affordance_named, auth_principal, command, creation, operations,
-        owner, speech_world, submit_owner,
+        owner, speech_world, submit_play,
     };
     use super::*;
     use std::path::Path;
@@ -8954,7 +7990,7 @@ mod soul_knowledge_tests {
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "ControllerHears");
         // The horn now reaches exactly one subject. The speaker controls it and
         // is not in that set.
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::SetReach {
@@ -9254,10 +8290,10 @@ mod soul_knowledge_tests {
                 command(
                     &active,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     operations(vec![tell.clone(), forget.clone()]),
                 ),
-                &auth_principal(owner()),
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap_err();
         let KernelError::PatchRejected(mismatches) = error else {
@@ -9271,7 +8307,7 @@ mod soul_knowledge_tests {
         // The legitimate order. The listener holds the fact first, forgets it,
         // and the telling in the same patch lands it again as a telling, which
         // is what the committed state carries.
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::AcquireKnowledge {
@@ -9282,7 +8318,7 @@ mod soul_knowledge_tests {
             }]),
         );
         let active = kernel.snapshot().unwrap();
-        submit_owner(&mut kernel, &active, operations(vec![forget, tell]));
+        submit_play(&mut kernel, &active, operations(vec![forget, tell]));
         assert_eq!(
             knows(&kernel, speech.listener, speech.flood),
             Some(Knowledge {
@@ -9325,7 +8361,7 @@ mod soul_knowledge_tests {
                 command(
                     &active,
                     CommandId::new(),
-                    CallerId::System(SystemCapability::Play),
+                    CallerId::Play,
                     CommandBody::AdmitPatch {
                         patch: WorldPatch {
                             declarations: vec![Declaration::Fact(FactDeclaration {
@@ -9341,7 +8377,7 @@ mod soul_knowledge_tests {
                         },
                     },
                 ),
-                &AuthenticatedCaller::fixture(CallerId::System(SystemCapability::Play)),
+                &AuthenticatedCaller::fixture(CallerId::Play),
             )
             .expect("the play table declares a claim in Active");
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
@@ -9371,7 +8407,7 @@ mod soul_knowledge_tests {
             )
             .expect("the proclamation commits");
             let active = kernel.snapshot().unwrap();
-            submit_owner(
+            submit_play(
                 &mut kernel,
                 &active,
                 operations(vec![
@@ -9397,7 +8433,7 @@ mod soul_knowledge_tests {
                 ]),
             );
             let active = kernel.snapshot().unwrap();
-            submit_owner(
+            submit_play(
                 &mut kernel,
                 &active,
                 operations(vec![ComponentOp::Forget {
@@ -9483,10 +8519,9 @@ mod soul_knowledge_tests {
 /// alone, where it is refused, and what it costs an in-flight binding.
 #[cfg(test)]
 mod witness_tests {
-    use super::patch::Site;
     use super::tests::{
-        play_caller, activate, auth_principal, command, creation, operations, owner,
-        reject_owner, submit_owner,
+        play_caller, auth_principal, command, creation, operations, owner,
+        reject_play, submit_play,
     };
     use super::*;
 
@@ -9560,7 +8595,7 @@ mod witness_tests {
         .0;
         let before = kernel.snapshot().unwrap();
         let speak = super::tests::speak_entry(&kernel);
-        submit_owner(
+        submit_play(
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -9680,7 +8715,7 @@ mod witness_tests {
                 .expect("a declared route")
                 .0,
         };
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         (kernel, nesting, active)
     }
 
@@ -9707,7 +8742,7 @@ mod witness_tests {
     fn a_witness_reaches_every_subject_under_the_place_and_no_other() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Reach");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![witness(
@@ -9728,7 +8763,7 @@ mod witness_tests {
         assert_eq!(knows(&kernel, world.drifter, world.asteroid), None);
 
         let after = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &after,
             operations(vec![witness(
@@ -9832,7 +8867,7 @@ mod witness_tests {
         };
 
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &active,
                 operations(vec![witness(
@@ -9850,7 +8885,7 @@ mod witness_tests {
         ));
 
         // Every stander already holds it, which is the same refusal.
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![witness(
@@ -9861,7 +8896,7 @@ mod witness_tests {
         );
         let after = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &after,
                 operations(vec![witness(
@@ -9907,7 +8942,7 @@ mod witness_tests {
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Relocation");
         // The village's own standers already hold it, so the relocated coaster
         // is the only candidate recipient left.
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![witness(
@@ -9917,7 +8952,7 @@ mod witness_tests {
             )]),
         );
         let seeded = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &seeded,
             operations(vec![
@@ -9943,7 +8978,7 @@ mod witness_tests {
         // the coast reaches nobody. Both layers say so.
         let moved = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &moved,
                 operations(vec![witness(world.moon, world.coast, Confidence::Certain)]),
@@ -9969,40 +9004,13 @@ mod witness_tests {
         ));
     }
 
-    /// A consumer names no ground, and a jurisdiction over placeless subjects
-    /// names no place. Both refuse every witness through the same closure, with
-    /// no rule in `confine_to_ground` naming the operation.
-    #[test]
-    fn a_consumer_cannot_witness() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, world, _) = nesting_kernel(directory.path(), "Consumer");
-        let resolved = patch::resolve_patch(
-            &kernel.state,
-            CommandId::new(),
-            &WorldPatch {
-                declarations: Vec::new(),
-                operations: vec![witness(world.asteroid, world.village, Confidence::Certain)],
-                evidence: Vec::new(),
-            },
-        )
-        .expect("the witness resolves over committed state");
-        let ground = PatchGround::Consumer(ConsumerId::of_name("witness.consumer"));
-        assert_eq!(
-            confine_to_ground(&kernel.state, &resolved, ground),
-            Err(vec![Mismatch::OutsideJurisdiction {
-                site: Site::Operation(0)
-            }]),
-            "{ground:?} admitted a witness"
-        );
-    }
-
     /// The components carry the keys of a subject's own knowledge, so a witness
     /// moves exactly the components of the subjects that learned something.
     #[test]
     fn a_witness_moves_every_recipients_scope_components_and_nobody_elses() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Digest");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::AcquireKnowledge {
@@ -10020,7 +9028,7 @@ mod witness_tests {
         let outsider = digest(&kernel, world.coaster);
 
         let seeded = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &seeded,
             operations(vec![witness(
@@ -10135,7 +9143,7 @@ mod witness_tests {
     fn a_world_with_a_witness_replays() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Replay");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![witness(
@@ -10212,7 +9220,7 @@ mod witness_tests {
     fn a_later_commits_knowledge_row_is_acquired_at_that_commits_revision() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "PAf49Later");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![ComponentOp::AcquireKnowledge {
@@ -10237,7 +9245,7 @@ mod witness_tests {
     fn a_shape_check_refuses_a_knowledge_row_forged_ahead_of_the_world_revision() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "PAf49Shape");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![witness(
@@ -10407,7 +9415,7 @@ mod witness_tests {
     fn soul_a_subject_declared_and_placed_in_one_patch_is_a_recipient_at_both_layers() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Draft stander");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![witness(
@@ -10426,7 +9434,7 @@ mod witness_tests {
         let arrival =
             |kernel: &mut WorldKernel, handle: &str, label: &str, position: Option<EntityId>| {
                 let snapshot = kernel.snapshot().unwrap();
-                let caller = CallerId::System(SystemCapability::Play);
+                let caller = CallerId::Play;
                 kernel.submit(
                     command(
                         &snapshot,
@@ -10446,7 +9454,6 @@ mod witness_tests {
                                         label: label.into(),
                                         kind: SubjectKind::Person,
                                         controller: NewController::NarrativePersona,
-                                        // Every non-mirror subject must hold one.
                                         affordances: BTreeSet::from([Ref::Existing(beacon)]),
                                         position: position.map(Ref::Existing),
                                         import_key: None,
@@ -10522,7 +9529,7 @@ mod witness_tests {
     fn soul_a_forget_before_a_witness_agrees_at_both_layers() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Forget first");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![witness(
@@ -10534,7 +9541,7 @@ mod witness_tests {
         // Everyone under the village holds it, so the witness alone is refused.
         let seeded = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &seeded,
                 operations(vec![witness(
@@ -10547,7 +9554,7 @@ mod witness_tests {
         );
 
         let seeded = kernel.snapshot().unwrap();
-        let receipt = submit_owner(
+        let receipt = submit_play(
             &mut kernel,
             &seeded,
             operations(vec![
@@ -10583,7 +9590,7 @@ mod witness_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, world, active) = nesting_kernel(directory.path(), "Anonymous");
         let before = scope_components(&kernel.state, world.villager);
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![witness(
@@ -10624,9 +9631,9 @@ mod witness_tests {
 mod clock_tests {
     use super::patch::{PreconditionRef, PressureSourceRef};
     use super::tests::{
-        act, act_as, activate, affordance_named, auth_principal, authority_kind, command, creation,
-        human_principal, office, operations, owner, play_caller, reject_owner, speak,
-        speech_world, submit_owner,
+        act, affordance_named, auth_principal, authority_kind, command, creation,
+        human_principal, office, operations, owner, play_caller, reject_play,
+        speech_world, submit_play,
     };
     use super::*;
     use std::path::Path;
@@ -10686,7 +9693,7 @@ mod clock_tests {
             })
         };
         let subject = |handle: &str| Ref::Draft(DraftHandle::new(handle));
-        submit_owner(
+        submit_play(
             kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -10846,7 +9853,7 @@ mod clock_tests {
                 },
             },
         );
-        let active = activate(kernel);
+        let active = kernel.snapshot().unwrap();
         let place = |label: &str| {
             active
                 .places
@@ -10900,22 +9907,18 @@ mod clock_tests {
         )
     }
 
-    fn clock_caller() -> CallerId {
-        CallerId::System(SystemCapability::Clock)
-    }
-
     fn tick(kernel: &mut WorldKernel, span: u32) -> Result<SubmitReceipt, KernelError> {
         let snapshot = kernel.snapshot().unwrap();
         kernel.submit(
             command(
                 &snapshot,
                 CommandId::new(),
-                clock_caller(),
+                CallerId::Play,
                 CommandBody::AdvanceTime {
                     minutes: minutes(span),
                 },
             ),
-            &AuthenticatedCaller::fixture(clock_caller()),
+            &AuthenticatedCaller::fixture(CallerId::Play),
         )
     }
 
@@ -11024,7 +10027,7 @@ mod clock_tests {
                 .id
         };
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::Relocate {
@@ -11043,7 +10046,7 @@ mod clock_tests {
         );
 
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::Relocate {
@@ -11092,7 +10095,7 @@ mod clock_tests {
         assert_eq!(pressure(&kernel, clockwork.reeve, sourced), 0);
 
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::CloseRoute {
@@ -11104,7 +10107,7 @@ mod clock_tests {
 
         // Repair stops the pressing but never unwrites what accrued.
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::OpenRoute {
@@ -11115,7 +10118,7 @@ mod clock_tests {
         assert_eq!(pressure(&kernel, clockwork.reeve, sourced), 1);
 
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::ResolvePressure {
@@ -11149,7 +10152,7 @@ mod clock_tests {
         assert_eq!(kernel.state.now, now);
 
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::CloseRoute {
@@ -11157,46 +10160,6 @@ mod clock_tests {
             }]),
         );
         assert_eq!(kernel.state.now, now);
-    }
-
-    /// The clock capability is admitted for one body and nothing else.
-    #[test]
-    fn the_clock_capability_can_do_nothing_else() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Capability");
-        let before = kernel.state.clone();
-        let snapshot = kernel.snapshot().unwrap();
-
-        for body in [
-            CommandBody::ApproveDraft,
-            CommandBody::ActivateWorld,
-            CommandBody::Act {
-                actor: clockwork.reeve,
-                invocation: DecisionInvocation {
-                    affordance: clockwork.threaten,
-                    bindings: vec![binding("target", Target::Subject(clockwork.farmer))],
-                    proposed: vec![ProposedEffect {
-                        slot: 0,
-                        magnitude: Magnitude::None,
-                    }],
-                    speech: None,
-                    display: None,
-                },
-            },
-            operations(vec![ComponentOp::CloseRoute {
-                route: Ref::Existing(clockwork.gate),
-            }]),
-        ] {
-            let error = kernel
-                .submit(
-                    command(&snapshot, CommandId::new(), clock_caller(), body),
-                    &AuthenticatedCaller::fixture(clock_caller()),
-                )
-                .unwrap_err();
-            assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-        }
-        assert_eq!(kernel.state, before);
-        tick(&mut kernel, 1).expect("the same caller may tick");
     }
 
     /// Who may tick, when, and how far.
@@ -11211,30 +10174,7 @@ mod clock_tests {
         .expect("a created world")
         .0;
 
-        // There is no time in Draft.
-        let draft = kernel.snapshot().unwrap();
-        let error = kernel
-            .submit(
-                command(
-                    &draft,
-                    CommandId::new(),
-                    clock_caller(),
-                    CommandBody::AdvanceTime {
-                        minutes: minutes(1),
-                    },
-                ),
-                &AuthenticatedCaller::fixture(clock_caller()),
-            )
-            .unwrap_err();
-        assert!(matches!(
-            error,
-            KernelError::WrongPhase {
-                expected: WorldPhase::Active,
-                actual: WorldPhase::Draft,
-            }
-        ));
-
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         // A span is constructor-checked, so a malformed one never reaches a
         // command at all.
         assert!(TickMinutes::new(0).is_none());
@@ -11242,7 +10182,7 @@ mod clock_tests {
 
         for caller in [
             CallerId::Principal(human_principal()),
-            CallerId::Controller(ControllerId::issue()),
+            CallerId::Principal(owner()),
         ] {
             let error = kernel
                 .submit(
@@ -11260,8 +10200,8 @@ mod clock_tests {
             assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
         }
 
-        // The owner may tick from an interface.
-        submit_owner(
+        // Play ticks.
+        submit_play(
             &mut kernel,
             &active,
             CommandBody::AdvanceTime {
@@ -11279,12 +10219,12 @@ mod clock_tests {
                 command(
                     &snapshot,
                     CommandId::new(),
-                    clock_caller(),
+                    CallerId::Play,
                     CommandBody::AdvanceTime {
                         minutes: minutes(1),
                     },
                 ),
-                &AuthenticatedCaller::fixture(clock_caller()),
+                &AuthenticatedCaller::fixture(CallerId::Play),
             )
             .unwrap_err();
         assert!(matches!(error, KernelError::Serialization(_)), "{error:?}");
@@ -11357,7 +10297,7 @@ mod clock_tests {
         ];
         for forged in forgeries {
             let mut candidate = kernel.state.clone();
-            let error = apply_effect(&mut candidate, CommandId::issue(), &clock_caller(), &forged)
+            let error = apply_effect(&mut candidate, CommandId::issue(), &CallerId::Play, &forged)
                 .unwrap_err();
             assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
             assert_eq!(candidate, kernel.state);
@@ -11368,7 +10308,7 @@ mod clock_tests {
         apply_effect(
             &mut candidate,
             CommandId::issue(),
-            &clock_caller(),
+            &CallerId::Play,
             &WorldEffect::TimeAdvanced {
                 minutes: minutes(120),
                 to,
@@ -11400,14 +10340,14 @@ mod clock_tests {
         let repeat = command(
             &snapshot,
             CommandId::new(),
-            CallerId::Principal(owner()),
+            CallerId::Play,
             operations(vec![ComponentOp::DischargeCommitment {
                 subject: Ref::Existing(clockwork.farmer),
                 key: clockwork.obligation,
             }]),
         );
         kernel
-            .submit(repeat.clone(), &auth_principal(owner()))
+            .submit(repeat.clone(), &AuthenticatedCaller::verified_play())
             .expect("the discharge commits");
         // Discharge removes every pressure row it sourced.
         assert_eq!(
@@ -11429,7 +10369,7 @@ mod clock_tests {
         assert_eq!(replayed.state, before);
         assert_eq!(replayed.snapshot().unwrap(), before_snapshot);
         assert!(matches!(
-            replayed.submit(repeat, &auth_principal(owner())),
+            replayed.submit(repeat, &AuthenticatedCaller::verified_play()),
             Ok(SubmitReceipt::AlreadyApplied(_))
         ));
     }
@@ -11457,7 +10397,7 @@ mod clock_tests {
         };
 
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &active,
                 operations(vec![
@@ -11532,7 +10472,7 @@ mod clock_tests {
         assert_eq!(kernel.state, before);
 
         // Repairing exactly those commits.
-        submit_owner(
+        submit_play(
             &mut kernel,
             &active,
             operations(vec![
@@ -11608,7 +10548,7 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "DischargeThenAct");
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::DischargeCommitment {
@@ -11665,7 +10605,7 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "CommittedKind");
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::CreateCommitment {
@@ -11726,7 +10666,7 @@ mod clock_tests {
         // Past the obligation and the goal, but the routine is blocked out of
         // the yard first so only pressure moves.
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::DischargeCommitment {
@@ -11741,7 +10681,7 @@ mod clock_tests {
 
         // A routine fulfilment moves exactly its own subject's digest.
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::CreateCommitment {
@@ -11796,7 +10736,7 @@ mod clock_tests {
         tick(&mut kernel, u32::try_from(LATE_DUE).unwrap()).expect("the tick commits");
         assert_eq!(pressure(&kernel, clockwork.farmer, sourced), 1);
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::ReducePressure {
@@ -11816,7 +10756,7 @@ mod clock_tests {
 
         // Resolving an absent row changes nothing and is refused.
         let snapshot = kernel.snapshot().unwrap();
-        let mismatches = reject_owner(
+        let mismatches = reject_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::ResolvePressure {
@@ -11857,12 +10797,60 @@ mod clock_tests {
         assert_eq!(digests(&kernel), before, "the clock entered a scope");
     }
 
-    // ---- PA.f26: the genesis lane obeys `require_ruler` too ------------
+    // ---- genesis may not rule or mint ----------------------------------
 
-    /// PA.f26: `prepare_creation` and `WorldState::genesis` both call
-    /// `require_ruler` exactly where every other admission lane does. A
-    /// creation patch that carries a `Ruled` fact is refused before a world
-    /// is ever written.
+    /// Only Play rules or mints, and Play writes only after genesis: the
+    /// check reports every offender, not the first, so a scan narrowed to one
+    /// fact or one operation fails here.
+    #[test]
+    fn genesis_may_not_rule_or_mint() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("world.cc");
+        let mut input = creation(CommandId::new(), "RulesAndMints");
+        for handle in ["first-rule", "second-rule"] {
+            input
+                .patch
+                .declarations
+                .push(Declaration::Fact(FactDeclaration {
+                    handle: DraftHandle::new(handle),
+                    label: format!("The {handle}"),
+                    statement: Statement::new("Stated by the table.").unwrap(),
+                    standing: FactStandingRef::Ruled,
+                }));
+        }
+        input
+            .patch
+            .declarations
+            .push(super::tests::resource("loot", "Roadside Loot"));
+        for _ in 0..2 {
+            input.patch.operations.push(ComponentOp::Mint {
+                holder: Ref::Draft(DraftHandle::new("human")),
+                resource: Ref::Draft(DraftHandle::new("loot")),
+                qty: Quantity(4),
+            });
+        }
+        let Err(error) = WorldKernel::create(&path, input, &auth_principal(owner())) else {
+            panic!("a genesis patch that rules and mints was admitted");
+        };
+        let KernelError::PatchRejected(set) = error else {
+            panic!("expected a rejected patch, got {error:?}");
+        };
+        let offender = |site| Mismatch::RuledWithoutAuthority { site };
+        assert_eq!(
+            set,
+            vec![
+                offender(patch::Site::Declaration(DraftHandle::new("first-rule"))),
+                offender(patch::Site::Declaration(DraftHandle::new("second-rule"))),
+                offender(patch::Site::Operation(0)),
+                offender(patch::Site::Operation(1)),
+            ]
+        );
+        assert!(!path.exists(), "a refused genesis wrote a world file");
+    }
+
+    /// `prepare_creation` and `WorldState::genesis` both forbid rulings at
+    /// genesis. A creation patch that carries a `Ruled` fact is refused before
+    /// a world is ever written.
     #[test]
     fn a_genesis_patch_carrying_a_ruled_fact_is_refused() {
         let directory = tempfile::tempdir().unwrap();
@@ -11890,8 +10878,8 @@ mod clock_tests {
         assert!(!path.exists(), "a refused genesis wrote a world file");
     }
 
-    /// PA.f26, the `Mint` half: a creation patch that carries a `Mint` is
-    /// refused the same way.
+    /// The `Mint` half: a creation patch that carries a `Mint` is refused the
+    /// same way.
     #[test]
     fn a_genesis_patch_carrying_a_mint_is_refused() {
         let directory = tempfile::tempdir().unwrap();
@@ -11919,7 +10907,7 @@ mod clock_tests {
         assert!(!path.exists(), "a refused genesis wrote a world file");
     }
 
-    /// PA.f26: `WorldState::genesis` re-decides `require_ruler` on its own
+    /// `WorldState::genesis` re-decides `forbid_rulings_at_genesis` on its own
     /// terms, independent of `prepare_creation` — that is what protects
     /// journal replay of a stored genesis commit, not only a freshly
     /// admitted one. Called directly, bypassing `prepare_creation` entirely,
@@ -11988,7 +10976,7 @@ mod clock_tests {
         // The farmer's obligation, claimed by the reeve.
         let snapshot = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &snapshot,
                 operations(vec![ComponentOp::DischargeCommitment {
@@ -12001,7 +10989,7 @@ mod clock_tests {
 
         // Discharged once, and then not again.
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::DischargeCommitment {
@@ -12011,7 +10999,7 @@ mod clock_tests {
         );
         let snapshot = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &snapshot,
                 operations(vec![ComponentOp::DischargeCommitment {
@@ -12052,7 +11040,7 @@ mod clock_tests {
         // Checks belong to routines alone.
         let snapshot = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(
+            reject_play(
                 &mut kernel,
                 &snapshot,
                 operations(vec![ComponentOp::CreateCommitment {
@@ -12080,7 +11068,7 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Pure");
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::CloseRoute {
@@ -12106,7 +11094,7 @@ mod clock_tests {
         let ticking = command(
             &snapshot,
             CommandId::new(),
-            clock_caller(),
+            CallerId::Play,
             CommandBody::AdvanceTime {
                 minutes: minutes(span),
             },
@@ -12123,10 +11111,10 @@ mod clock_tests {
         // Applying the re-derived effect to a copy reproduces the committed
         // state exactly, which is the replay identity the journal relies on.
         let mut replayed = kernel.state.clone();
-        apply_effect(&mut replayed, ticking.id, &clock_caller(), &expected)
+        apply_effect(&mut replayed, ticking.id, &CallerId::Play, &expected)
             .expect("the re-derived effect applies");
         kernel
-            .submit(ticking, &AuthenticatedCaller::fixture(clock_caller()))
+            .submit(ticking, &AuthenticatedCaller::fixture(CallerId::Play))
             .expect("the tick commits");
         assert_eq!(replayed.now, kernel.state.now);
         assert_eq!(replayed.commitments, kernel.state.commitments);
@@ -12158,52 +11146,6 @@ mod clock_tests {
             operations: Vec::new(),
             evidence: Vec::new(),
         }
-    }
-
-    /// The one admission rule at the top of `reduce` refuses four bodies before
-    /// any of them is read, and the clock's capability is refused the fifth.
-    #[test]
-    fn a_system_capability_is_admitted_for_exactly_one_body() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "Capability");
-        let held = CallerId::System(SystemCapability::Consumer {
-            consumer: ConsumerId::of_name("capability-consumer"),
-        });
-        let forbidden = [
-            CommandBody::ApproveDraft,
-            CommandBody::ActivateWorld,
-            CommandBody::Act {
-                actor: clockwork.reeve,
-                invocation: DecisionInvocation {
-                    affordance: clockwork.threaten,
-                    bindings: vec![binding("target", Target::Subject(clockwork.farmer))],
-                    proposed: vec![ProposedEffect {
-                        slot: 0,
-                        magnitude: Magnitude::None,
-                    }],
-                    speech: None,
-                    display: None,
-                },
-            },
-            CommandBody::AdvanceTime {
-                minutes: minutes(60),
-            },
-        ];
-        for body in forbidden {
-            let error = submit_as(&mut kernel, held.clone(), body).unwrap_err();
-            assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-        }
-        // The mirror: the clock may not author.
-        let error = submit_as(
-            &mut kernel,
-            clock_caller(),
-            CommandBody::AdmitPatch {
-                patch: shed_under(clockwork.dead_end, "shed"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-        assert_eq!(kernel.state.revision, active.revision);
     }
 
     /// The mismatch vocabulary is kernel-internal plus controller telemetry. It
@@ -12278,39 +11220,6 @@ mod clock_tests {
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
     }
 
-    /// Declaring in Active is the play table's act alone: the owner is refused
-    /// for new structure and for evidence, and an operations-only owner patch
-    /// is still admitted (the other tests here do it).
-    #[test]
-    fn the_owner_cannot_declare_in_active() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OwnerDeclares");
-        let revision = kernel.state.revision;
-        let evidence_only = WorldPatch {
-            declarations: Vec::new(),
-            operations: Vec::new(),
-            evidence: vec![EvidenceRef::new("vault:loose")],
-        };
-        for patch in [shed_under(clockwork.dead_end, "shed"), evidence_only] {
-            let error = submit_as(
-                &mut kernel,
-                CallerId::Principal(owner()),
-                CommandBody::AdmitPatch { patch },
-            )
-            .unwrap_err();
-            assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-        }
-        assert_eq!(kernel.state.revision, revision);
-        submit_as(
-            &mut kernel,
-            play_caller(),
-            CommandBody::AdmitPatch {
-                patch: shed_under(clockwork.dead_end, "shed"),
-            },
-        )
-        .expect("the play table declares the same patch");
-    }
-
     /// Invariant 5: the play authority reaches the whole world, unconfined to
     /// a ground. Writing under a place no jurisdiction covers is exactly what
     /// a confined author cannot do.
@@ -12328,38 +11237,6 @@ mod clock_tests {
         .expect("the play authority is confined to no ground");
     }
 
-    /// P3.6: the play authority cannot act in Draft.
-    #[test]
-    fn the_play_authority_is_refused_in_draft() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation(CommandId::new(), "PlayDraft"),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let commons = kernel.snapshot().unwrap().places[0].id;
-        let error = submit_as(
-            &mut kernel,
-            play_caller(),
-            CommandBody::AdmitPatch {
-                patch: shed_under(commons, "shed"),
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(
-                error,
-                KernelError::WrongPhase {
-                    expected: WorldPhase::Active,
-                    actual: WorldPhase::Draft,
-                }
-            ),
-            "{error:?}"
-        );
-    }
-
     /// Invariant 5: the play authority advances time, the clock's precedent.
     #[test]
     fn the_play_authority_advances_time() {
@@ -12375,147 +11252,6 @@ mod clock_tests {
         .expect("the play authority advances time");
         assert!(matches!(receipt, SubmitReceipt::Applied(_)));
         assert!(kernel.state.now > active.now);
-    }
-
-    /// Act is Play's alone: the owner, the clock, a controller and a
-    /// non-owner principal are refused and commit nothing; Play applies.
-    #[test]
-    fn only_play_may_act() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OnlyPlayActs");
-        let invocation = DecisionInvocation {
-            affordance: clockwork.threaten,
-            bindings: vec![binding("target", Target::Subject(clockwork.farmer))],
-            proposed: vec![ProposedEffect {
-                slot: 0,
-                magnitude: Magnitude::None,
-            }],
-            speech: None,
-            display: None,
-        };
-        let before = kernel.state.clone();
-        for caller in [
-            CallerId::Principal(owner()),
-            CallerId::Principal(human_principal()),
-            clock_caller(),
-            CallerId::Controller(ControllerId::issue()),
-        ] {
-            let error =
-                act_as(&mut kernel, caller.clone(), clockwork.reeve, invocation.clone())
-                    .unwrap_err();
-            assert!(
-                matches!(error, KernelError::Unauthorized),
-                "{caller:?}: {error:?}"
-            );
-        }
-        assert_eq!(kernel.state, before, "a refused act commits nothing");
-        let receipt = act(&mut kernel, clockwork.reeve, invocation).expect("Play acts");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
-        assert_eq!(kernel.state.events.len(), before.events.len() + 1);
-        assert_eq!(kernel.state.events.last().unwrap().actor, clockwork.reeve);
-    }
-
-    /// The commit-time re-decision of an `Acted` effect is Play's, in Active:
-    /// the same honest effect is refused for the owner and in Draft.
-    #[test]
-    fn an_acted_effect_applies_only_for_play_in_active() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, _) = clock_kernel(directory.path(), "ActedGate");
-        let invocation = DecisionInvocation {
-            affordance: clockwork.threaten,
-            bindings: vec![binding("target", Target::Subject(clockwork.farmer))],
-            proposed: vec![ProposedEffect {
-                slot: 0,
-                magnitude: Magnitude::None,
-            }],
-            speech: None,
-            display: None,
-        };
-        let command_id = CommandId::new();
-        let granted =
-            require_granted(&kernel.state, clockwork.reeve, invocation.affordance).unwrap();
-        let event =
-            action::exercise(&kernel.state, command_id, clockwork.reeve, &granted, &invocation)
-                .unwrap();
-        let effect = WorldEffect::Acted { invocation, event };
-
-        let mut candidate = kernel.state.clone();
-        let error = apply_effect(
-            &mut candidate,
-            command_id,
-            &CallerId::Principal(owner()),
-            &effect,
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
-        assert_eq!(candidate, kernel.state);
-
-        let mut draft = kernel.state.clone();
-        draft.phase = WorldPhase::Draft;
-        let error = apply_effect(&mut draft, command_id, &play_caller(), &effect).unwrap_err();
-        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
-
-        let mut honest = kernel.state.clone();
-        apply_effect(&mut honest, command_id, &play_caller(), &effect).unwrap();
-        assert_eq!(honest.events.len(), kernel.state.events.len() + 1);
-    }
-
-    /// There is no acting before activation.
-    #[test]
-    fn act_in_draft_is_wrong_phase() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation(CommandId::new(), "ActInDraft"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let error = act(
-            &mut kernel,
-            SubjectId::issue(),
-            speak(AffordanceId::issue(), "Too soon."),
-        )
-        .unwrap_err();
-        assert!(
-            matches!(
-                error,
-                KernelError::WrongPhase {
-                    expected: WorldPhase::Active,
-                    actual: WorldPhase::Draft,
-                }
-            ),
-            "{error:?}"
-        );
-    }
-
-    /// P3.6: the play authority may not approve or activate.
-    /// `require_system_capability`, at the top of `reduce`, refuses both
-    /// before any body-specific arm is read.
-    #[test]
-    fn the_play_authority_cannot_approve_or_activate() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _, _) = clock_kernel(directory.path(), "PlayForbidden");
-        let forbidden = [CommandBody::ApproveDraft, CommandBody::ActivateWorld];
-        for body in &forbidden {
-            let error = submit_as(&mut kernel, play_caller(), body.clone()).unwrap_err();
-            assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-        }
-        // The end-to-end check above cannot tell "refused before any
-        // body-specific arm is read" apart from a downstream refusal that
-        // would fail Play just as closed (`require_owner`, for one, refuses
-        // every non-owner caller regardless of what admitted it). Pin
-        // `require_system_capability` directly, so widening its table for
-        // `Play` is caught even though every arm behind it still happens to
-        // refuse `Play` on its own.
-        for body in &forbidden {
-            assert!(
-                matches!(
-                    require_system_capability(&play_caller(), body),
-                    Err(KernelError::Unauthorized)
-                ),
-                "require_system_capability admitted {body:?} for the play authority"
-            );
-        }
     }
 
     /// P3.4: a ruled fact is world truth to every subject that knows it.
@@ -12625,12 +11361,11 @@ mod clock_tests {
         );
     }
 
-    /// The evidence gate on `Canonical` facts and `Admit` is byte-for-byte the
-    /// same predicate at the same sites for every author, `Play` included
-    /// (P3.3). `Play` carries no receipts, so its `Admit` is refused like
-    /// anyone's without one.
+    /// The evidence gate on `Canonical` facts and `Admit` is one predicate at
+    /// the same sites for genesis and for Play (P3.3). `Play` carries no
+    /// receipts, so its `Admit` is refused without one.
     #[test]
-    fn the_evidence_gate_is_unchanged_for_every_author() {
+    fn the_evidence_gate_holds_for_play() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayEvidenceGate");
         let grain = resource_named(&kernel, "Winter Grain");
@@ -12678,301 +11413,6 @@ mod clock_tests {
             },
         )
         .expect("an evidenced admit is admitted for the play authority too");
-
-        // PA.f29a: the owner in Draft — the seed's caller.
-        {
-            let seed_directory = tempfile::tempdir().unwrap();
-            let (mut seed_kernel, _) = WorldKernel::create(
-                seed_directory.path().join("world.cc"),
-                creation(CommandId::new(), "OwnerDraftEvidence"),
-                &auth_principal(owner()),
-            )
-            .expect("a created world");
-            let fact = |evidence: &str| {
-                Declaration::Fact(FactDeclaration {
-                    handle: DraftHandle::new("draft-fact"),
-                    label: "The Draft Count".into(),
-                    statement: Statement::new("The draft is counted.").unwrap(),
-                    standing: FactStandingRef::Canonical {
-                        evidence: EvidenceRef::new(evidence),
-                    },
-                })
-            };
-            let snapshot = seed_kernel.snapshot().unwrap();
-            let uncited = seed_kernel
-                .submit(
-                    command(
-                        &snapshot,
-                        CommandId::new(),
-                        CallerId::Principal(owner()),
-                        CommandBody::AdmitPatch {
-                            patch: WorldPatch {
-                                declarations: vec![fact("vault:draft-uncited")],
-                                operations: Vec::new(),
-                                evidence: Vec::new(),
-                            },
-                        },
-                    ),
-                    &auth_principal(owner()),
-                )
-                .unwrap_err();
-            assert!(
-                matches!(&uncited, KernelError::PatchRejected(set)
-                    if set.contains(&Mismatch::FactWithoutEvidence {
-                        handle: DraftHandle::new("draft-fact"),
-                    })),
-                "{uncited:?}"
-            );
-            let snapshot = seed_kernel.snapshot().unwrap();
-            seed_kernel
-                .submit(
-                    command(
-                        &snapshot,
-                        CommandId::new(),
-                        CallerId::Principal(owner()),
-                        CommandBody::AdmitPatch {
-                            patch: WorldPatch {
-                                declarations: vec![fact("vault:draft-cited")],
-                                operations: Vec::new(),
-                                evidence: vec![EvidenceRef::new("vault:draft-cited")],
-                            },
-                        },
-                    ),
-                    &auth_principal(owner()),
-                )
-                .expect("a cited canonical fact is admitted for the owner in Draft");
-        }
-    }
-
-    /// `reduce` decides and `apply_effect` re-decides: a forged
-    /// `PatchAdmitted` under the owner, carrying a `Mint` the resolver would
-    /// accept (the resolver is actor-blind) and that fully satisfies
-    /// confinement (the owner is unconfined), is still refused at apply. Only
-    /// `require_ruler`'s re-decision can be refusing this.
-    #[test]
-    fn apply_effect_re_decides_the_ruler() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, _) = clock_kernel(directory.path(), "RedecideRulerMint");
-        let grain = resource_named(&kernel, "Winter Grain");
-        let command_id = CommandId::issue();
-        let patch = WorldPatch {
-            declarations: Vec::new(),
-            operations: vec![ComponentOp::Mint {
-                holder: Ref::Existing(clockwork.reeve),
-                resource: Ref::Existing(grain),
-                qty: Quantity(4),
-            }],
-            evidence: Vec::new(),
-        };
-        let resolved = patch::resolve_patch(&kernel.state, command_id, &patch)
-            .expect("the patch resolves; the resolver is actor-blind");
-        let effect = WorldEffect::PatchAdmitted { resolved };
-
-        let mut candidate = kernel.state.clone();
-        let error = apply_effect(
-            &mut candidate,
-            command_id,
-            &CallerId::Principal(owner()),
-            &effect,
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
-        assert_eq!(candidate, kernel.state);
-
-        let mut candidate = kernel.state.clone();
-        apply_effect(&mut candidate, command_id, &play_caller(), &effect)
-            .expect("the play authority applies through the same arm");
-        assert_ne!(candidate, kernel.state);
-    }
-
-    /// `apply_effect` re-decides confinement: a forged `PatchAdmitted` under a
-    /// consumer, carrying an operations-only route cost change the resolver
-    /// accepts and no consumer ground covers, is refused at apply.
-    #[test]
-    fn apply_effect_re_decides_confinement() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, _) = clock_kernel(directory.path(), "RedecideGround");
-        let command_id = CommandId::issue();
-        let patch = WorldPatch {
-            declarations: Vec::new(),
-            operations: vec![ComponentOp::AlterCost {
-                route: Ref::Existing(clockwork.gate),
-                cost: Cost(2),
-            }],
-            evidence: Vec::new(),
-        };
-        let resolved = patch::resolve_patch(&kernel.state, command_id, &patch)
-            .expect("the patch resolves; the resolver is actor-blind");
-        let effect = WorldEffect::PatchAdmitted { resolved };
-        let consumer = CallerId::System(SystemCapability::Consumer {
-            consumer: ConsumerId::of_name("redecide-ground"),
-        });
-        let mut candidate = kernel.state.clone();
-        let error = apply_effect(&mut candidate, command_id, &consumer, &effect).unwrap_err();
-        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
-        assert_eq!(candidate, kernel.state);
-
-        let mut candidate = kernel.state.clone();
-        apply_effect(&mut candidate, command_id, &CallerId::Principal(owner()), &effect)
-            .expect("the unconfined owner applies the same effect");
-        assert_ne!(candidate, kernel.state);
-    }
-
-    /// `apply_effect` re-decides that declaring in Active is the play table's
-    /// act: a forged `PatchAdmitted` that declares, under the owner, is refused
-    /// at apply, and the play table applies it through the same arm.
-    #[test]
-    fn apply_effect_re_decides_that_declaring_in_active_is_plays() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, _) = clock_kernel(directory.path(), "RedecideDeclares");
-        let command_id = CommandId::issue();
-        let resolved = patch::resolve_patch(
-            &kernel.state,
-            command_id,
-            &shed_under(clockwork.dead_end, "shed"),
-        )
-        .expect("the patch resolves; the resolver is actor-blind");
-        let effect = WorldEffect::PatchAdmitted { resolved };
-        let mut candidate = kernel.state.clone();
-        let error = apply_effect(
-            &mut candidate,
-            command_id,
-            &CallerId::Principal(owner()),
-            &effect,
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
-        assert_eq!(candidate, kernel.state);
-
-        let mut candidate = kernel.state.clone();
-        apply_effect(&mut candidate, command_id, &play_caller(), &effect)
-            .expect("the play table applies it");
-        assert_ne!(candidate, kernel.state);
-    }
-
-    /// PA.f27a: the owner is a `CallerId::Principal` like any other, and
-    /// `apply_effect`'s re-decision of `require_ruler` carries no exemption
-    /// for that variant. A forged `PatchAdmitted` under the owner, carrying
-    /// a `Ruled` fact the resolver accepts (actor-blind) and that fully
-    /// satisfies confinement (the owner is unconfined), is still refused at
-    /// apply. Follows `apply_effect_re_decides_the_ruler`.
-    #[test]
-    fn apply_effect_re_decides_the_ruler_for_the_owner_too() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, _) = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation(CommandId::new(), "RedecideRulerOwner"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let command_id = CommandId::issue();
-        let patch = ruled_fact_patch("rule");
-        let resolved = patch::resolve_patch(&kernel.state, command_id, &patch)
-            .expect("the patch resolves; the resolver is actor-blind");
-        let effect = WorldEffect::PatchAdmitted { resolved };
-
-        let mut candidate = kernel.state.clone();
-        let error = apply_effect(
-            &mut candidate,
-            command_id,
-            &CallerId::Principal(owner()),
-            &effect,
-        )
-        .unwrap_err();
-        assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
-        assert_eq!(candidate, kernel.state);
-    }
-
-    /// PA.f27b: `require_ruler` walks every operation, not only the first.
-    /// A harmless `Relocate` at index 0 followed by a `Mint` at index 1,
-    /// from a non-`Play` author, is refused at index 1. Kills a scan
-    /// narrowed to `.take(1)`.
-    #[test]
-    fn require_ruler_catches_a_mint_past_the_first_operation() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RulerScansEveryOp");
-        let grain = resource_named(&kernel, "Winter Grain");
-        let stair = *kernel
-            .state
-            .edges
-            .iter()
-            .find(|(_, record)| record.label() == "The Yard Stair")
-            .expect("the declared route")
-            .0;
-        let snapshot = kernel.snapshot().unwrap();
-        let Err(error) = kernel.submit(
-            command(
-                &snapshot,
-                CommandId::new(),
-                CallerId::Principal(owner()),
-                operations(vec![
-                    ComponentOp::Relocate {
-                        subject: Ref::Existing(clockwork.reeve),
-                        via: Ref::Existing(stair),
-                    },
-                    ComponentOp::Mint {
-                        holder: Ref::Existing(clockwork.reeve),
-                        resource: Ref::Existing(grain),
-                        qty: Quantity(4),
-                    },
-                ]),
-            ),
-            &auth_principal(owner()),
-        ) else {
-            panic!("a non-Play Mint past the first operation was admitted");
-        };
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::RuledWithoutAuthority {
-                    site: patch::Site::Operation(1),
-                })),
-            "{error:?}"
-        );
-    }
-
-    /// PA.f27c: `require_ruler` reports every `Ruled` declaration, not only
-    /// the first. Two `Ruled` facts from a non-`Play` author are both
-    /// reported. Kills a check narrowed to the first ruled fact.
-    #[test]
-    fn require_ruler_reports_every_ruled_fact() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation(CommandId::new(), "RulerScansEveryFact"),
-            &auth_principal(owner()),
-        )
-        .expect("a created world");
-        let snapshot = kernel.snapshot().unwrap();
-        let mut patch = ruled_fact_patch("first-rule");
-        patch.declarations.push(Declaration::Fact(FactDeclaration {
-            handle: DraftHandle::new("second-rule"),
-            label: "The Second Ruling".into(),
-            statement: Statement::new("Stated by the table, again.").unwrap(),
-            standing: FactStandingRef::Ruled,
-        }));
-        let Err(error) = kernel.submit(
-            command(
-                &snapshot,
-                CommandId::new(),
-                CallerId::Principal(owner()),
-                CommandBody::AdmitPatch {
-                    patch,
-                },
-            ),
-            &auth_principal(owner()),
-        ) else {
-            panic!("two non-Play Ruled facts were admitted");
-        };
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::RuledWithoutAuthority {
-                    site: patch::Site::Declaration(DraftHandle::new("first-rule")),
-                }) && set.contains(&Mismatch::RuledWithoutAuthority {
-                    site: patch::Site::Declaration(DraftHandle::new("second-rule")),
-                })),
-            "{error:?}"
-        );
     }
 
     /// P3.5, replay half, folded with a ruled fact: reopening the journal
@@ -13020,54 +11460,15 @@ mod clock_tests {
         }
     }
 
-    /// The owner retires a subject in Active. `retire_patch` declares
-    /// nothing and cites no evidence, so `require_answer`'s `declares` gate
-    /// never opens for it and no answer is needed, exactly as an owner's
-    /// ordinary bare operation needs none.
-    fn owner_retires(kernel: &mut WorldKernel, subject: SubjectId) -> Result<SubmitReceipt, KernelError> {
+    /// Play retires a subject.
+    fn play_retires(kernel: &mut WorldKernel, subject: SubjectId) -> Result<SubmitReceipt, KernelError> {
         submit_as(
             kernel,
-            CallerId::Principal(owner()),
+            CallerId::Play,
             CommandBody::AdmitPatch {
                 patch: retire_patch(subject),
             },
         )
-    }
-
-    /// Declares a mirror bound to a consumer this test invents, at the yard,
-    /// via the play table in Active. Shared by the retirement and grant tests that
-    /// need a subject `mode()` already excludes.
-    fn declare_mirror(kernel: &mut WorldKernel, clockwork: &Clockwork, name: &str) -> SubjectId {
-        submit_as(
-            kernel,
-            play_caller(),
-            CommandBody::AdmitPatch {
-                patch: WorldPatch {
-                    declarations: vec![Declaration::Subject(SubjectDeclaration {
-                        handle: DraftHandle::new("mirror"),
-                        label: "The Bound Hold".into(),
-                        kind: SubjectKind::Institution,
-                        controller: NewController::External {
-                            consumer: ConsumerId::of_name(name),
-                        },
-                        affordances: BTreeSet::new(),
-                        position: Some(Ref::Existing(clockwork.dead_end)),
-                        import_key: None,
-                    })],
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-            },
-        )
-        .expect("the play table declares a mirror in Active");
-        kernel
-            .snapshot()
-            .unwrap()
-            .subjects
-            .iter()
-            .find(|subject| subject.label == "The Bound Hold")
-            .expect("the declared mirror")
-            .id
     }
 
     /// P4.1, replay half: reopening the journal reproduces a retirement — no
@@ -13088,7 +11489,7 @@ mod clock_tests {
                     .is_empty(),
                 "the reeve holds grants before retirement"
             );
-            owner_retires(&mut kernel, clockwork.reeve).expect("the owner retires the reeve");
+            play_retires(&mut kernel, clockwork.reeve).expect("play retires the reeve");
             (kernel.state.world_id, clockwork.reeve)
         };
         let replayed = WorldKernel::open(&path, world_id).expect("the store replays");
@@ -13108,7 +11509,7 @@ mod clock_tests {
     fn a_retired_subject_cannot_act() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireCannotAct");
-        owner_retires(&mut kernel, clockwork.reeve).expect("the owner retires the reeve");
+        play_retires(&mut kernel, clockwork.reeve).expect("play retires the reeve");
         let error = exercise(
             &mut kernel,
             clockwork.reeve,
@@ -13126,7 +11527,7 @@ mod clock_tests {
     fn a_retired_subject_hears_nothing() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireHearsNothing");
-        owner_retires(&mut kernel, clockwork.reeve).expect("the owner retires the reeve");
+        play_retires(&mut kernel, clockwork.reeve).expect("play retires the reeve");
         let mut patch = ruled_fact_patch("news");
         patch.operations.push(ComponentOp::Witness {
             fact: Ref::Draft(DraftHandle::new("news")),
@@ -13166,7 +11567,7 @@ mod clock_tests {
         let before_commitments = kernel.state.commitments.get(&clockwork.farmer).cloned();
         assert!(before_holdings.is_some());
         assert!(before_commitments.is_some());
-        owner_retires(&mut kernel, clockwork.farmer).expect("the owner retires the farmer");
+        play_retires(&mut kernel, clockwork.farmer).expect("play retires the farmer");
         assert_eq!(
             kernel.state.holdings.get(&clockwork.farmer).cloned(),
             before_holdings
@@ -13183,102 +11584,12 @@ mod clock_tests {
     fn retiring_twice_is_no_effect() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireTwice");
-        owner_retires(&mut kernel, clockwork.reeve).expect("the first retirement commits");
-        let error = owner_retires(&mut kernel, clockwork.reeve).unwrap_err();
+        play_retires(&mut kernel, clockwork.reeve).expect("the first retirement commits");
+        let error = play_retires(&mut kernel, clockwork.reeve).unwrap_err();
         assert!(
             matches!(&error, KernelError::PatchRejected(set)
                 if set.contains(&Mismatch::NoOperationEffect { operation: 0 })),
             "{error:?}"
-        );
-    }
-
-    /// `confine_to_ground` refuses `Retire`, `GrantAffordance` and
-    /// `RevokeAffordance` for a confined author unconditionally, even over a
-    /// subject bound to that author's own ground. The resolver refuses these
-    /// on a mirror before confinement runs, so the arm is probed directly on
-    /// a hand-built resolved patch: only the unconditional arm can refuse it.
-    #[test]
-    fn a_confined_author_cannot_retire_grant_or_revoke_its_own_mirror() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "ConfinedOwn");
-        let mirror = declare_mirror(&mut kernel, &clockwork, "confined-own");
-        let ground = PatchGround::Consumer(ConsumerId::of_name("confined-own"));
-        for operation in [
-            ResolvedOp::Retire { subject: mirror },
-            ResolvedOp::GrantAffordance {
-                subject: mirror,
-                affordance: clockwork.threaten,
-            },
-            ResolvedOp::RevokeAffordance {
-                subject: mirror,
-                affordance: clockwork.threaten,
-            },
-        ] {
-            let resolved = ResolvedPatch {
-                subjects: Vec::new(),
-                entities: Vec::new(),
-                routes: Vec::new(),
-                affordances: Vec::new(),
-                facts: Vec::new(),
-                channels: Vec::new(),
-                operations: vec![operation.clone()],
-                evidence: Vec::new(),
-            };
-            assert_eq!(
-                confine_to_ground(&kernel.state, &resolved, ground),
-                Err(vec![Mismatch::OutsideJurisdiction {
-                    site: Site::Operation(0)
-                }]),
-                "{operation:?}"
-            );
-        }
-    }
-
-    /// P4.3: a mirror is owned by another world; this one cannot retire it.
-    #[test]
-    fn a_mirror_cannot_be_retired() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireMirror");
-        let mirror = declare_mirror(&mut kernel, &clockwork, "cut4-retire-mirror");
-        let error = owner_retires(&mut kernel, mirror).unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::RetiresAMirror { operation: 0 })),
-            "{error:?}"
-        );
-    }
-
-    /// P4.3: the owner and the play authority are the two callers a
-    /// `Retire` admits.
-    #[test]
-    fn the_owner_and_the_play_authority_may_retire() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireOwnerAndPlay");
-        owner_retires(&mut kernel, clockwork.reeve).expect("the owner retires the reeve");
-        submit_as(
-            &mut kernel,
-            play_caller(),
-            CommandBody::AdmitPatch {
-                patch: retire_patch(clockwork.farmer),
-            },
-        )
-        .expect("the play authority retires the farmer");
-        let snapshot = kernel.snapshot().unwrap();
-        assert!(
-            snapshot
-                .subjects
-                .iter()
-                .find(|subject| subject.id == clockwork.reeve)
-                .unwrap()
-                .retired
-        );
-        assert!(
-            snapshot
-                .subjects
-                .iter()
-                .find(|subject| subject.id == clockwork.farmer)
-                .unwrap()
-                .retired
         );
     }
 
@@ -13323,7 +11634,7 @@ mod clock_tests {
         let before = kernel.snapshot().unwrap();
         let commons = before.places[0].id;
         let speak = super::tests::speak_entry(&kernel);
-        submit_owner(
+        submit_play(
             &mut kernel,
             &before,
             CommandBody::AdmitPatch {
@@ -13414,104 +11725,6 @@ mod clock_tests {
         assert!(!reeve.affordances.contains(&clockwork.threaten));
     }
 
-    /// P5.2: the never-mute rule requires at least one grant; a revoke
-    /// that would leave the reeve mute is refused before it ever reaches
-    /// that invariant.
-    #[test]
-    fn a_revoke_cannot_leave_a_subject_mute() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RevokeMute");
-        let speak = super::tests::speak_entry(&kernel);
-        for affordance in [clockwork.deliver, clockwork.threaten] {
-            submit_as(
-                &mut kernel,
-                play_caller(),
-                CommandBody::AdmitPatch {
-                    patch: WorldPatch {
-                        declarations: Vec::new(),
-                        operations: vec![ComponentOp::RevokeAffordance {
-                            subject: Ref::Existing(clockwork.reeve),
-                            affordance: Ref::Existing(affordance),
-                        }],
-                        evidence: Vec::new(),
-                    },
-                },
-            )
-            .expect("the play authority revokes down toward one verb");
-        }
-        let Ref::Existing(speak_id) = speak else {
-            panic!("speak is a standing affordance");
-        };
-        let error = submit_as(
-            &mut kernel,
-            play_caller(),
-            CommandBody::AdmitPatch {
-                patch: WorldPatch {
-                    declarations: Vec::new(),
-                    operations: vec![ComponentOp::RevokeAffordance {
-                        subject: Ref::Existing(clockwork.reeve),
-                        affordance: Ref::Existing(speak_id),
-                    }],
-                    evidence: Vec::new(),
-                },
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::WouldLeaveSubjectMute { operation: 0 })),
-            "{error:?}"
-        );
-    }
-
-    /// PA.f30b: the last-verb refusal for `RevokeAffordance` (P5.2) holds for
-    /// a `Human`-controlled subject exactly as it does for any other
-    /// controller kind. Kills an exemption that only checks non-`Human`
-    /// subjects.
-    #[test]
-    fn a_revoke_cannot_leave_a_human_subject_mute() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _, active) = clock_kernel(directory.path(), "RevokeHumanMute");
-        let human = active
-            .subjects
-            .iter()
-            .find(|subject| subject.controller_mode == Some(ControllerMode::Human))
-            .expect("the fixture world declares a human-controlled subject");
-        let speak_affordance = *human
-            .affordances
-            .iter()
-            .next()
-            .expect("the human subject holds at least the kernel speak grant");
-        let error = submit_as(
-            &mut kernel,
-            play_caller(),
-            CommandBody::AdmitPatch {
-                patch: WorldPatch {
-                    declarations: Vec::new(),
-                    operations: vec![ComponentOp::RevokeAffordance {
-                        subject: Ref::Existing(human.id),
-                        affordance: Ref::Existing(speak_affordance),
-                    }],
-                    evidence: Vec::new(),
-                },
-            },
-        )
-        .unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::WouldLeaveSubjectMute { operation: 0 })),
-            "{error:?}"
-        );
-    }
-
-    /// PA.f30c: `ControllerAssignment::Retired.expected_caller()` is `None`
-    /// — a direct unit pin so an accidental `Some` for `Retired` is caught
-    /// here rather than only transitively through a submission test.
-    #[test]
-    fn retired_expects_no_caller() {
-        assert_eq!(ControllerAssignment::Retired.expected_caller(), None);
-    }
-
     // ---- Retirement fix batch (PA.f31-PA.f35) ------------------------------
 
     fn human_subject(snapshot: &WorldSnapshot) -> SubjectId {
@@ -13541,7 +11754,7 @@ mod clock_tests {
                 vec![binding("target", Target::Subject(clockwork.farmer))],
             )
             .expect("the threat commits");
-            owner_retires(&mut kernel, clockwork.reeve)
+            play_retires(&mut kernel, clockwork.reeve)
                 .expect("a subject with history can be retired");
             kernel.state.world_id
         };
@@ -13575,7 +11788,7 @@ mod clock_tests {
             )
             .expect("the threat commits");
             let before = kernel.snapshot().unwrap();
-            submit_owner(
+            submit_play(
                 &mut kernel,
                 &before,
                 operations(vec![ComponentOp::RevokeAffordance {
@@ -13587,28 +11800,6 @@ mod clock_tests {
         };
         let reopened = WorldKernel::open(&path, world_id).expect("the store replays");
         assert_eq!(reopened.state.events.len(), 1);
-    }
-
-    /// PA.f32(a): the resolver refuses `Retire` for a `Human`-controlled
-    /// subject while the world is Draft, before the owner can retire the
-    /// human, approve alone, and activate without the human's approval.
-    #[test]
-    fn retiring_the_human_in_draft_is_refused() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation(CommandId::new(), "PAf32DraftRefusal"),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let human = human_subject(&kernel.snapshot().unwrap());
-        let error = owner_retires(&mut kernel, human).unwrap_err();
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::RetiresAnApprover { operation: 0 })),
-            "{error:?}"
-        );
     }
 
     /// PA.f32(b, c): once the world is Active, the human's Draft approval is
@@ -13624,7 +11815,7 @@ mod clock_tests {
             let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "PAf32ActiveRetire");
             let _ = &clockwork;
             let human = human_subject(&active);
-            owner_retires(&mut kernel, human).expect("the owner retires the human subject");
+            play_retires(&mut kernel, human).expect("play retires the human subject");
             (kernel.state.world_id, human)
         };
         let reopened = WorldKernel::open(&path, world_id).expect("the store replays");
@@ -13647,7 +11838,7 @@ mod clock_tests {
     fn channel_audience_excludes_a_retired_member() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf33Audience");
-        owner_retires(&mut kernel, clockwork.reeve).expect("retire");
+        play_retires(&mut kernel, clockwork.reeve).expect("retire");
         let mut patch = ruled_fact_patch("news");
         patch.declarations.push(Declaration::Channel(ChannelDeclaration {
             handle: DraftHandle::new("wire"),
@@ -13693,7 +11884,7 @@ mod clock_tests {
         }));
         submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch: declare })
             .expect("declare");
-        owner_retires(&mut kernel, clockwork.reeve).expect("retire");
+        play_retires(&mut kernel, clockwork.reeve).expect("retire");
         let wire = *kernel.state.channels.keys().next().unwrap();
         let mut patch = ruled_fact_patch("news");
         patch.operations.push(ComponentOp::Communicate {
@@ -13724,7 +11915,7 @@ mod clock_tests {
         .expect("a created world")
         .0;
         let (speech, _) = speech_world(&mut kernel);
-        owner_retires(&mut kernel, speech.listener).expect("the owner retires the listener");
+        play_retires(&mut kernel, speech.listener).expect("play retires the listener");
         let invocation = DecisionInvocation {
             affordance: speech.whisper,
             bindings: vec![binding("target", Target::Subject(speech.listener))],
@@ -13753,7 +11944,7 @@ mod clock_tests {
     fn a_retired_subject_cannot_acquire_knowledge() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf34Acquire");
-        owner_retires(&mut kernel, clockwork.reeve).expect("retire");
+        play_retires(&mut kernel, clockwork.reeve).expect("retire");
         let mut patch = ruled_fact_patch("news");
         patch.operations.push(ComponentOp::AcquireKnowledge {
             subject: Ref::Existing(clockwork.reeve),
@@ -13785,9 +11976,9 @@ mod clock_tests {
         submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch: declare })
             .expect("the reeve learns the fact");
         let fact = *kernel.state.knowledge[&clockwork.reeve].keys().next().unwrap();
-        owner_retires(&mut kernel, clockwork.reeve).expect("retire");
+        play_retires(&mut kernel, clockwork.reeve).expect("retire");
         let before = kernel.snapshot().unwrap();
-        let error = reject_owner(
+        let error = reject_play(
             &mut kernel,
             &before,
             operations(vec![ComponentOp::Forget {
@@ -13803,9 +11994,9 @@ mod clock_tests {
     fn a_retired_subject_cannot_take_office() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf34Office");
-        owner_retires(&mut kernel, clockwork.farmer).expect("retire");
+        play_retires(&mut kernel, clockwork.farmer).expect("retire");
         let before = kernel.snapshot().unwrap();
-        let error = reject_owner(
+        let error = reject_play(
             &mut kernel,
             &before,
             operations(vec![
@@ -13830,7 +12021,7 @@ mod clock_tests {
     fn holdings_are_still_transferable_from_a_retired_holder() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf34Loot");
-        owner_retires(&mut kernel, clockwork.farmer).expect("retire");
+        play_retires(&mut kernel, clockwork.farmer).expect("retire");
         let before = kernel.snapshot().unwrap();
         let grain = *kernel
             .state
@@ -13840,7 +12031,7 @@ mod clock_tests {
             .keys()
             .next()
             .expect("at least one resource");
-        submit_owner(
+        submit_play(
             &mut kernel,
             &before,
             operations(vec![ComponentOp::Transfer {
@@ -13873,7 +12064,7 @@ mod clock_tests {
             .unwrap()
             .0;
         let before = kernel.snapshot().unwrap();
-        let error = reject_owner(
+        let error = reject_play(
             &mut kernel,
             &before,
             operations(vec![
@@ -13887,51 +12078,6 @@ mod clock_tests {
         assert_eq!(error, vec![Mismatch::UnplacedSubject { operation: 1 }]);
     }
 
-    /// PA.f35, MuC: `retired` on a subject snapshot row is read from
-    /// `ControllerAssignment::Retired` specifically, not from
-    /// `mode().is_none()` — a mirror's mode is also `None`, and a mirror must
-    /// never be reported retired.
-    #[test]
-    fn a_mirror_is_not_reported_retired() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf35MirrorFlag");
-        let mirror = declare_mirror(&mut kernel, &clockwork, "pa-f35-mirror");
-        let snapshot = kernel.snapshot().unwrap();
-        let row = snapshot.subjects.iter().find(|s| s.id == mirror).unwrap();
-        assert!(!row.retired);
-    }
-
-    /// PA.f35, MuD: the affordance-holdings candidate set is updated after
-    /// every grant and revoke in a patch, not only the first, so three
-    /// revokes in one patch still catch the one that would leave the subject
-    /// mute.
-    #[test]
-    fn three_revokes_in_one_patch_cannot_mute_the_subject() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf35ThreeRevokes");
-        let speak = super::tests::speak_entry(&kernel);
-        let before = kernel.snapshot().unwrap();
-        let error = reject_owner(
-            &mut kernel,
-            &before,
-            operations(vec![
-                ComponentOp::RevokeAffordance {
-                    subject: Ref::Existing(clockwork.reeve),
-                    affordance: Ref::Existing(clockwork.threaten),
-                },
-                ComponentOp::RevokeAffordance {
-                    subject: Ref::Existing(clockwork.reeve),
-                    affordance: Ref::Existing(clockwork.deliver),
-                },
-                ComponentOp::RevokeAffordance {
-                    subject: Ref::Existing(clockwork.reeve),
-                    affordance: speak,
-                },
-            ]),
-        );
-        assert_eq!(error, vec![Mismatch::WouldLeaveSubjectMute { operation: 2 }]);
-    }
-
     /// PA.f35, MuE: the resolver's `Retire` arm inserts the subject into its
     /// own-patch `retired` candidate set, so a second `Retire` of the same
     /// subject in one patch is caught as a no-op rather than silently
@@ -13941,7 +12087,7 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf35DoubleRetire");
         let before = kernel.snapshot().unwrap();
-        let error = reject_owner(
+        let error = reject_play(
             &mut kernel,
             &before,
             operations(vec![
@@ -13954,67 +12100,6 @@ mod clock_tests {
 
     // ---- Retirement fix batch (PA.f36-PA.f38) ------------------------------
 
-    /// PA.f36: the resolver refuses a genesis patch that declares a
-    /// Human-controlled subject and retires it in the same patch. The
-    /// resolver's `humans` candidate set tracks a freshly declared human the
-    /// same way `mirrors` tracks a freshly declared mirror, so this is caught
-    /// before `open_owner` ever commits an empty `world.cc` for a human who
-    /// never approved anything.
-    #[test]
-    fn genesis_cannot_declare_and_retire_the_human_in_one_patch() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut genesis = creation(CommandId::new(), "PAf36GenesisRetire");
-        genesis.patch.operations.push(ComponentOp::Retire {
-            subject: Ref::Draft(DraftHandle::new("human")),
-        });
-        let Err(error) = WorldKernel::create(
-            directory.path().join("world.cc"),
-            genesis,
-            &auth_principal(owner()),
-        ) else {
-            panic!("genesis admitted a patch that declares and retires the human");
-        };
-        assert!(
-            matches!(&error, KernelError::PatchRejected(set)
-                if set.contains(&Mismatch::RetiresAnApprover { operation: 0 })),
-            "{error:?}"
-        );
-    }
-
-    /// PA.f36: pins the apply-time re-check directly, beside the resolver's
-    /// refusal above, since resolution is speculative and this arm is the
-    /// actual commit. If the resolver's `humans` tracking were ever disabled
-    /// or bypassed, this is the arm that must still refuse removing a Draft
-    /// approver.
-    #[test]
-    fn apply_refuses_removing_a_draft_approver_directly() {
-        let directory = tempfile::tempdir().unwrap();
-        let kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation(CommandId::new(), "PAf36ApplyArm"),
-            &auth_principal(owner()),
-        )
-        .expect("a created world")
-        .0;
-        let human = human_subject(&kernel.snapshot().unwrap());
-        let mut state = kernel.state.clone();
-        let resolves_to = state.revision + 1;
-        assert!(
-            matches!(
-                apply_operation(
-                    &mut state,
-                    &ResolvedOp::Retire { subject: human },
-                    &[],
-                    resolves_to
-                )
-                .unwrap_err(),
-                KernelError::Invariant(message)
-                    if message == "retire operation would remove a Draft approver"
-            ),
-            "the apply-time arm no longer refuses removing the Draft human"
-        );
-    }
-
     /// PA.f37: a retired subject cannot become a promisor. `CreateCommitment`
     /// refuses it with `RetiredSubjectActed`, the same mismatch a retired
     /// office incumbent draws.
@@ -14022,9 +12107,9 @@ mod clock_tests {
     fn a_retired_subject_cannot_be_a_promisor() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf37Promisor");
-        owner_retires(&mut kernel, clockwork.farmer).expect("retire");
+        play_retires(&mut kernel, clockwork.farmer).expect("retire");
         let before = kernel.snapshot().unwrap();
-        let error = reject_owner(
+        let error = reject_play(
             &mut kernel,
             &before,
             operations(vec![ComponentOp::CreateCommitment {
@@ -14052,14 +12137,14 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf37Frozen");
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::CloseRoute {
                 route: Ref::Existing(clockwork.gate),
             }]),
         );
-        owner_retires(&mut kernel, clockwork.farmer).expect("retire the farmer");
+        play_retires(&mut kernel, clockwork.farmer).expect("retire the farmer");
         let routine_before = due(&kernel, clockwork.farmer, clockwork.routine);
         let dependency_source = PressureSource::Dependency(DependencyTarget::Route(clockwork.gate));
 
@@ -14121,14 +12206,14 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf37FrozenDep");
         let snapshot = kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut kernel,
             &snapshot,
             operations(vec![ComponentOp::CloseRoute {
                 route: Ref::Existing(clockwork.gate),
             }]),
         );
-        owner_retires(&mut kernel, clockwork.reeve).expect("retire the reeve");
+        play_retires(&mut kernel, clockwork.reeve).expect("retire the reeve");
         let routine_before = due(&kernel, clockwork.farmer, clockwork.routine);
         let dependency_source = PressureSource::Dependency(DependencyTarget::Route(clockwork.gate));
 
@@ -14178,7 +12263,7 @@ mod clock_tests {
         let path = directory.path().join("world.cc");
         let (world_id, farmer, routine, obligation) = {
             let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf37Replay");
-            owner_retires(&mut kernel, clockwork.farmer).expect("retire the farmer");
+            play_retires(&mut kernel, clockwork.farmer).expect("retire the farmer");
             tick(&mut kernel, ROUTINE_DUE as u32 + LATE_DUE as u32).expect("the tick commits");
             (
                 kernel.state.world_id,
@@ -14219,7 +12304,7 @@ mod clock_tests {
     fn a_retired_subject_cannot_acquire_evidenced_knowledge() {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf39Evidenced");
-        owner_retires(&mut kernel, clockwork.farmer).expect("retire");
+        play_retires(&mut kernel, clockwork.farmer).expect("retire");
         let patch = WorldPatch {
             declarations: vec![Declaration::Fact(FactDeclaration {
                 handle: DraftHandle::new("news"),
@@ -14247,49 +12332,6 @@ mod clock_tests {
             matches!(&error, KernelError::PatchRejected(set)
                 if set.contains(&Mismatch::RetiredSubjectActed { operation: 0 })),
             "{error:?}"
-        );
-    }
-
-    /// PA.f39, M6: `is_retired` reads `ControllerAssignment::Retired`
-    /// specifically. If it also matched `ExternallyControlled`, a mirror
-    /// would be silently dropped from `Reach::Subjects` audience derivation —
-    /// the same site PA.f33 fixed for an actually retired member. A mirror is
-    /// not retired, and stays in the audience.
-    #[test]
-    fn a_mirror_in_a_subjects_channel_stays_in_the_audience() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf39MirrorAudience");
-        let mirror = declare_mirror(&mut kernel, &clockwork, "pa-f39-mirror");
-        let mut patch = ruled_fact_patch("news");
-        patch.declarations.push(Declaration::Channel(ChannelDeclaration {
-            handle: DraftHandle::new("wire"),
-            label: "The Wire".into(),
-            reach: ReachRef::Subjects(BTreeSet::from([
-                Ref::Existing(mirror),
-                Ref::Existing(clockwork.farmer),
-            ])),
-            controller: None,
-        }));
-        patch.operations.push(ComponentOp::Communicate {
-            speaker: Ref::Existing(clockwork.farmer),
-            fact: Ref::Draft(DraftHandle::new("news")),
-            to: AudienceRef::Channel(Ref::Draft(DraftHandle::new("wire"))),
-        });
-        submit_as(
-            &mut kernel,
-            play_caller(),
-            CommandBody::AdmitPatch { patch },
-        )
-        .expect("admitted");
-        let mirror_knows = kernel
-            .state
-            .knowledge
-            .get(&mirror)
-            .map(BTreeMap::len)
-            .unwrap_or(0);
-        assert_eq!(
-            mirror_knows, 1,
-            "a mirror was excluded from a Subjects-reach audience"
         );
     }
 
@@ -14393,7 +12435,7 @@ mod clock_tests {
         )
         .expect("the live outcast is reachable through the channel");
 
-        owner_retires(&mut kernel, outcast).expect("retire the outcast");
+        play_retires(&mut kernel, outcast).expect("retire the outcast");
         let error = submit_as(
             &mut kernel,
             play_caller(),

@@ -428,10 +428,9 @@ pub(super) fn verify_history(
         // Authority is re-decided here for free: `apply_committed_command`
         // re-runs `reduce` against the pre-commit state and requires effect
         // equality, then `apply_effect`, and both of those call
-        // `require_patch_author` and `confine_to_ground`. A forged row
-        // claiming a confined caller for a patch outside its ground
-        // fails replay rather than being admitted by a reducer that trusts the
-        // recorded caller. A third statement of the same rule here would be a
+        // `require_play`. A forged row recording the owner as the caller of
+        // a post-genesis command fails replay rather than being admitted by a
+        // reducer that trusts the recorded caller. A third statement of the same rule here would be a
         // third owner of one decision.
         apply_committed_command(&mut replay, commit)?;
         // Two chain checks one state cannot make: the clock never runs
@@ -494,7 +493,6 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
     super::validate_principal(&state.owner).map_err(kernel_error)?;
     if state.subjects.is_empty()
         || state.controller_assignments.len() != state.subjects.len()
-        || state.affordance_grants.is_empty()
     {
         return Err(JournalError::Corrupt(
             "world ontology is empty or has split subject/controller ownership".into(),
@@ -815,7 +813,7 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             .get(&scope)
             .ok_or_else(|| JournalError::Corrupt("decision subject has no controller".into()))?;
         super::validate_assignment(assignment).map_err(kernel_error)?;
-        // A mirror has no controller id, so it joins no uniqueness set.
+        // A retired subject has no controller id, so it joins no uniqueness set.
         if let Some(controller_id) = assignment.id()
             && !controller_ids.insert(controller_id)
         {
@@ -833,30 +831,20 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             "controller assignment references an unknown subject".into(),
         ));
     }
+    // A grant row is a verb list: non-empty, for a live subject, catalog
+    // entries only. A subject holding no verb holds no row.
     for (scope, granted) in &state.affordance_grants {
         if !state.controller_assignments.contains_key(scope)
+            || super::is_retired(state, scope.subject_id)
             || granted.is_empty()
             || granted
                 .iter()
                 .any(|affordance_id| !state.affordance_catalog.contains_key(affordance_id))
         {
             return Err(JournalError::Corrupt(
-                "affordance grant is empty, unscoped, or names no catalog entry".into(),
+                "affordance grant is empty, unscoped, retired, or names no catalog entry".into(),
             ));
         }
-    }
-    // Both ways, the pairing `admit_resolved` decided: a mirror holds no grant,
-    // and every controller-bearing scope holds one.
-    if state
-        .controller_assignments
-        .iter()
-        .any(|(scope, assignment)| {
-            state.affordance_grants.contains_key(scope) != assignment.mode().is_some()
-        })
-    {
-        return Err(JournalError::Corrupt(
-            "controller assignment and affordance grant do not pair".into(),
-        ));
     }
     // Every stored entry still passes the declaration validator, so a forged
     // catalog row cannot install an entry the resolver would have refused.
@@ -864,20 +852,6 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
         if !super::patch::entry_is_admissible(entry) {
             return Err(JournalError::Corrupt(
                 "stored affordance entry is not admissible".into(),
-            ));
-        }
-    }
-    // Approval shape holds only in Draft. Once the world is Active, the
-    // approvals that admitted it are frozen history: they are judged once by
-    // `reduce`'s `ActivateWorld` arm and after that by replay, not re-judged
-    // here against the present-day controller roster. Retiring the human
-    // (PA.f32) or adding a later human-controlled subject must not make a
-    // past activation retroactively corrupt.
-    if state.phase == super::WorldPhase::Draft {
-        let required = super::required_approvers(state);
-        if !state.draft_approvals.is_subset(&required) {
-            return Err(JournalError::Corrupt(
-                "draft approvals do not match canonical controller ownership".into(),
             ));
         }
     }
@@ -1091,10 +1065,12 @@ mod tests {
                     id: command_id,
                     world_id: snapshot.world_id,
                     expected_revision: snapshot.revision,
-                    caller: CallerId::Principal(owner),
-                    body: CommandBody::ApproveDraft,
+                    caller: CallerId::Play,
+                    body: CommandBody::AdvanceTime {
+                        minutes: crate::TickMinutes::new(1).unwrap(),
+                    },
                 },
-                &authenticated,
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap();
 
@@ -1104,7 +1080,9 @@ mod tests {
         let CommittedCommand::WorldCommand(command) = &mut command_forged.command else {
             panic!("expected a world command");
         };
-        command.body = CommandBody::ActivateWorld;
+        command.body = CommandBody::AdvanceTime {
+            minutes: crate::TickMinutes::new(2).unwrap(),
+        };
         command_forged.digest = commit_digest(command_forged).unwrap();
         command_forged_head.last_commit_digest = Some(command_forged.digest.clone());
 
@@ -1131,7 +1109,10 @@ mod tests {
         let mut effect_forged_head = kernel.state.clone();
         let mut effect_forged_commits = kernel.journal.commits.clone();
         let effect_forged = effect_forged_commits.get_mut(&command_id).unwrap();
-        effect_forged.effect = WorldEffect::WorldActivated;
+        let WorldEffect::TimeAdvanced { to, .. } = &mut effect_forged.effect else {
+            panic!("expected a time effect");
+        };
+        *to = crate::FictionalMinutes(99);
         effect_forged.digest = commit_digest(effect_forged).unwrap();
         effect_forged_head.last_commit_digest = Some(effect_forged.digest.clone());
 
@@ -1173,7 +1154,7 @@ mod tests {
                     id: command_id,
                     world_id: snapshot.world_id,
                     expected_revision: snapshot.revision,
-                    caller: CallerId::Principal(owner),
+                    caller: CallerId::Play,
                     body: CommandBody::AdmitPatch {
                         patch: WorldPatch {
                             declarations: vec![
@@ -1198,7 +1179,7 @@ mod tests {
                         },
                     },
                 },
-                &authenticated,
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap();
 
@@ -1270,8 +1251,8 @@ mod tests {
     }
 
     /// A store written under an older schema is refused at open: both
-    /// `consumer.v4` strings and the pre-cut `consumer.v6` ones. No migration,
-    /// no dual read.
+    /// `consumer.v4` strings and the pre-cut `consumer.v6` and `consumer.v8`
+    /// ones. No migration, no dual read.
     #[test]
     fn a_store_written_under_an_older_schema_is_refused() {
         for (row_type, schema) in [
@@ -1279,6 +1260,8 @@ mod tests {
             (COMMIT_ROW, "ghostlight.world_commit.consumer.v4"),
             (STATE_ROW, "ghostlight.world_state.consumer.v6"),
             (COMMIT_ROW, "ghostlight.world_commit.consumer.v6"),
+            (STATE_ROW, "ghostlight.world_state.consumer.v8"),
+            (COMMIT_ROW, "ghostlight.world_commit.consumer.v8"),
         ] {
             let row = CultCacheEnvelope {
                 key: "state".into(),
@@ -1298,10 +1281,10 @@ mod tests {
         }
     }
 
-    /// A world whose history includes an owner's clock advance, reopened from
-    /// its own store rows.
+    /// A world whose history includes a patch and a clock advance, both Play's,
+    /// reopened from its own store rows.
     fn clock_history() -> (tempfile::TempDir, WorldKernel) {
-        use crate::tests::{activate, auth_principal, creation, owner, submit_owner};
+        use crate::tests::{auth_principal, creation, owner, submit_play};
         use crate::TickMinutes;
 
         let directory = tempfile::tempdir().unwrap();
@@ -1311,8 +1294,27 @@ mod tests {
             &auth_principal(owner()),
         )
         .unwrap();
-        let snapshot = activate(&mut kernel);
-        submit_owner(
+        let snapshot = kernel.snapshot().unwrap();
+        submit_play(
+            &mut kernel,
+            &snapshot,
+            CommandBody::AdmitPatch {
+                patch: crate::WorldPatch {
+                    declarations: vec![crate::patch::Declaration::Entity(
+                        crate::patch::EntityDeclaration {
+                            handle: crate::patch::DraftHandle::new("annex"),
+                            label: "The Annex".into(),
+                            kind: crate::patch::EntityKind::Place,
+                            container: None,
+                        },
+                    )],
+                    operations: Vec::new(),
+                    evidence: Vec::new(),
+                },
+            },
+        );
+        let snapshot = kernel.snapshot().unwrap();
+        submit_play(
             &mut kernel,
             &snapshot,
             CommandBody::AdvanceTime {
@@ -1333,10 +1335,10 @@ mod tests {
         rows
     }
 
-    /// Replay re-derives the owner's clock advance: the honest history reopens
-    /// to the same state digest and reading, and the store on disk does too.
+    /// Replay re-derives Play's patch and clock advance: the honest history
+    /// reopens to the same state digest and reading, and the store on disk does too.
     #[test]
-    fn a_history_with_an_owner_clock_advance_replays_exactly() {
+    fn a_history_with_a_patch_and_a_clock_advance_replays_exactly() {
         let (directory, kernel) = clock_history();
         let honest: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
         let (_, replayed, commits) =
@@ -1356,46 +1358,57 @@ mod tests {
     /// A stored command is not believed about who made it. The forgery re-seals
     /// the commit around its rewrite and the head's last commit digest names the
     /// re-sealed commit, so no digest can answer for the check; the control, the
-    /// same re-sealing around the honest caller, replays.
+    /// same re-sealing around the honest caller, replays. Both Play's doors are
+    /// forged: a patch row and a clock row recorded as the owner's.
     #[test]
-    fn a_clock_advance_forged_to_another_caller_fails_replay() {
-        use crate::tests::human_principal;
+    fn a_commit_forged_to_the_owner_fails_replay() {
+        use crate::tests::owner;
 
         let (_directory, kernel) = clock_history();
         let honest: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
-        let forge = |rewrite: &dyn Fn(&mut WorldCommit)| -> (WorldState, Vec<WorldCommit>) {
-            let mut head = kernel.state.clone();
+        // Re-seals the rewritten commit and every later one around it, so the
+        // chain of previous-commit digests agrees and only the caller check is
+        // left to refuse the history.
+        let forge = |is_row: &dyn Fn(&WorldEffect) -> bool,
+                     rewrite: &dyn Fn(&mut WorldCommit)|
+         -> (WorldState, Vec<WorldCommit>) {
             let mut forged: Vec<WorldCommit> = honest.clone();
-            let clock_row = forged
-                .iter_mut()
-                .filter(|commit| matches!(commit.effect, WorldEffect::TimeAdvanced { .. }))
-                .collect::<Vec<_>>();
-            let [commit] = <[&mut WorldCommit; 1]>::try_from(clock_row)
-                .expect("the history holds exactly one clock row");
-            assert_eq!(
-                commit.resulting_revision, head.revision,
-                "the clock row is the head commit"
-            );
-            rewrite(commit);
-            commit.digest = commit_digest(commit).unwrap();
-            head.last_commit_digest = Some(commit.digest.clone());
+            forged.sort_by_key(|commit| commit.resulting_revision);
+            let rows: Vec<usize> = (0..forged.len())
+                .filter(|index| is_row(&forged[*index].effect))
+                .collect();
+            let [at] = <[usize; 1]>::try_from(rows)
+                .expect("the history holds exactly one such row");
+            rewrite(&mut forged[at]);
+            for index in at..forged.len() {
+                if index > at {
+                    forged[index].previous_commit_digest = Some(forged[index - 1].digest.clone());
+                }
+                forged[index].digest = commit_digest(&forged[index]).unwrap();
+            }
+            let mut head = kernel.state.clone();
+            head.last_commit_digest = forged.last().map(|commit| commit.digest.clone());
             (head, forged)
         };
+        let patch_row = |effect: &WorldEffect| matches!(effect, WorldEffect::PatchAdmitted { .. });
+        let clock_row = |effect: &WorldEffect| matches!(effect, WorldEffect::TimeAdvanced { .. });
 
-        let (head, control) = forge(&|_| {});
-        recover(rows_of(&head, &control), None).expect("a consistent re-sealed store replays");
+        for is_row in [&patch_row as &dyn Fn(&WorldEffect) -> bool, &clock_row] {
+            let (head, control) = forge(is_row, &|_| {});
+            recover(rows_of(&head, &control), None)
+                .expect("a consistent re-sealed store replays");
 
-        let (head, forged) = forge(&|commit| {
-            if let CommittedCommand::WorldCommand(command) = &mut commit.command {
-                command.caller = CallerId::Principal(human_principal());
-            }
-        });
-        let error = recover(rows_of(&head, &forged), None)
-            .expect_err("a clock advance forged to a non-owner replayed");
-        let JournalError::Corrupt(detail) = error else {
-            panic!("unexpected refusal: {error:?}");
-        };
-        assert!(detail.contains("Unauthorized") || detail.contains("does not own"), "{detail}");
+            let (head, forged) = forge(is_row, &|commit| {
+                if let CommittedCommand::WorldCommand(command) = &mut commit.command {
+                    command.caller = CallerId::Principal(owner());
+                }
+            });
+            let error = recover(rows_of(&head, &forged), None)
+                .expect_err("a commit forged to the owner replayed");
+            let JournalError::Corrupt(_) = error else {
+                panic!("unexpected refusal: {error:?}");
+            };
+        }
     }
 
     /// The tick is re-derived at replay by the same function that produced it,
@@ -1403,9 +1416,9 @@ mod tests {
     /// its command. The clock chain refuses a rewritten reading the same way.
     #[test]
     fn a_forged_motion_does_not_replay() {
-        use crate::tests::{activate, auth_principal, command, owner};
+        use crate::tests::{auth_principal, command, owner};
         use crate::{
-            AuthenticatedCaller, CallerId, CommandBody, FictionalMinutes, SystemCapability,
+            AuthenticatedCaller, CallerId, CommandBody, FictionalMinutes, 
             TickMinutes,
         };
 
@@ -1418,9 +1431,9 @@ mod tests {
             &authenticated,
         )
         .unwrap();
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let command_id = CommandId::new();
-        let caller = CallerId::System(SystemCapability::Clock);
+        let caller = CallerId::Play;
         kernel
             .submit(
                 command(
@@ -1455,7 +1468,7 @@ mod tests {
     /// to move a different subject no longer reduces from its command.
     #[test]
     fn a_forged_relocate_effect_does_not_apply() {
-        use crate::tests::{activate, admit_topology, auth_principal, command, owner};
+        use crate::tests::{admit_topology, auth_principal, command, owner};
 
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
@@ -1467,14 +1480,14 @@ mod tests {
         )
         .unwrap();
         let topology = admit_topology(&mut kernel);
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let command_id = CommandId::new();
         kernel
             .submit(
                 command(
                     &active,
                     command_id,
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     CommandBody::AdmitPatch {
                         patch: WorldPatch {
                             declarations: Vec::new(),
@@ -1486,7 +1499,7 @@ mod tests {
                         },
                     },
                 ),
-                &authenticated,
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap();
 
@@ -1519,7 +1532,7 @@ mod tests {
     #[test]
     fn soul_a_forged_band_or_effect_in_the_journal_dies_at_replay() {
         use crate::tests::{
-            activate, admit_custody, admit_topology, affordance_named, auth_principal, command,
+            admit_custody, admit_topology, affordance_named, auth_principal, command,
             owner, play_caller,
         };
         use crate::{
@@ -1539,7 +1552,7 @@ mod tests {
             .unwrap();
             let topology = admit_topology(&mut kernel);
             let custody = admit_custody(&mut kernel, &topology);
-            let active = activate(&mut kernel);
+            let active = kernel.snapshot().unwrap();
             let entry = affordance_named(&active, kind);
             let caller = play_caller();
             let command_id = CommandId::new();
@@ -2048,8 +2061,8 @@ mod tests {
     #[test]
     fn a_relocation_never_corrupts_a_civic_store() {
         use crate::tests::{
-            LEVY_KIND, auth_principal, civic_world, operations, over_subject, owner, reject_owner,
-            submit_owner,
+            LEVY_KIND, auth_principal, civic_world, operations, over_subject, owner, reject_play,
+            submit_play,
         };
         use crate::{ComponentOp, Mismatch, SubmitReceipt};
 
@@ -2066,7 +2079,7 @@ mod tests {
         let admit = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
             assert!(matches!(
-                submit_owner(kernel, &before, operations(ops)),
+                submit_play(kernel, &before, operations(ops)),
                 SubmitReceipt::Applied(_)
             ));
             verify_state_shape(&kernel.state).expect("the committed store keeps its shape");
@@ -2097,7 +2110,7 @@ mod tests {
         assert!(place_covers(&kernel));
         let before = kernel.snapshot().unwrap();
         assert_eq!(
-            reject_owner(&mut kernel, &before, operations(name_farmer())),
+            reject_play(&mut kernel, &before, operations(name_farmer())),
             vec![Mismatch::OverlappingJurisdiction { operation: 0 }]
         );
 
@@ -2150,12 +2163,12 @@ mod custody_tests {
                 .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
-        let active = crate::tests::activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
 
         let envelope = command(
             &active,
             CommandId::new(),
-            CallerId::Principal(owner()),
+            CallerId::Play,
             CommandBody::AdmitPatch {
                 patch: WorldPatch {
                     declarations: Vec::new(),
@@ -2170,7 +2183,7 @@ mod custody_tests {
             },
         );
         let SubmitReceipt::Applied(receipt) =
-            kernel.submit(envelope.clone(), &authenticated).unwrap()
+            kernel.submit(envelope.clone(), &crate::AuthenticatedCaller::verified_play()).unwrap()
         else {
             panic!("expected an applied transfer");
         };
@@ -2181,7 +2194,7 @@ mod custody_tests {
         let mut reopened = WorldKernel::open(&path, world_id).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
         assert_eq!(
-            reopened.submit(envelope, &authenticated).unwrap(),
+            reopened.submit(envelope, &crate::AuthenticatedCaller::verified_play()).unwrap(),
             SubmitReceipt::AlreadyApplied(receipt)
         );
     }
@@ -2205,7 +2218,7 @@ mod custody_tests {
         .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
-        let active = crate::tests::activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let carry = affordance_named(&active, "carry");
         let caller = play_caller();
 
@@ -2289,34 +2302,57 @@ mod custody_tests {
         );
     }
 
-    /// PA.f39, M9: the Draft-only approval shape clause is defence in depth,
-    /// so it is pinned directly on `verify_state_shape` rather than only
-    /// through a full submit path. A fresh Draft world's approvals pass; a
-    /// forged principal outside `required_approvers` does not.
+    /// A grant row is a verb list for a live subject: each clause of the shape
+    /// check is pinned on `verify_state_shape` directly, one forged state per
+    /// clause, so deleting any one of them fails a case.
     #[test]
-    fn draft_approvals_outside_required_approvers_is_corrupt() {
+    fn a_malformed_grant_row_is_corrupt() {
         use crate::tests::{auth_principal, creation, owner};
+        use crate::{AffordanceId, ControllerAssignment, DecisionScope, SubjectId};
 
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
         let (kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "PAf39ApprovalShape"),
+            creation(CommandId::new(), "GrantRows"),
             &auth_principal(owner()),
         )
         .unwrap();
-        assert_eq!(kernel.state.phase, crate::WorldPhase::Draft);
-        verify_state_shape(&kernel.state)
-            .expect("a fresh Draft world has a canonical approval shape");
+        verify_state_shape(&kernel.state).expect("a fresh world has canonical grant rows");
+        let held = *kernel.state.affordance_grants.keys().next().unwrap();
 
-        let mut forged = kernel.state.clone();
-        forged
-            .draft_approvals
-            .insert(crate::PrincipalId::new("interloper@example.test"));
-        assert!(
-            matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
-            "an approval outside the required set passed the shape check"
-        );
+        let corrupt = |name: &str, forge: &dyn Fn(&mut WorldState)| {
+            let mut forged = kernel.state.clone();
+            forge(&mut forged);
+            assert!(
+                matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
+                "{name} passed the shape check"
+            );
+        };
+        corrupt("a grant row for a retired subject", &|state| {
+            state
+                .controller_assignments
+                .insert(held, ControllerAssignment::Retired);
+        });
+        corrupt("an empty grant row", &|state| {
+            state.affordance_grants.get_mut(&held).unwrap().clear();
+        });
+        corrupt("a grant row for no subject", &|state| {
+            let verbs = state.affordance_grants[&held].clone();
+            state.affordance_grants.insert(
+                DecisionScope {
+                    subject_id: SubjectId::issue(),
+                },
+                verbs,
+            );
+        });
+        corrupt("a grant row naming an uncataloged verb", &|state| {
+            state
+                .affordance_grants
+                .get_mut(&held)
+                .unwrap()
+                .insert(AffordanceId::issue());
+        });
     }
 
     /// A chain holding `Acted` commits recovers and verifies on reopen, and an
@@ -2324,7 +2360,7 @@ mod custody_tests {
     #[test]
     fn an_acted_chain_reopens_and_a_foreign_actor_is_corrupt() {
         use crate::tests::{
-            act, activate, auth_principal, creation, first_grant, owner, speak,
+            act, auth_principal, creation, first_grant, owner, speak,
         };
 
         let directory = tempfile::tempdir().unwrap();
@@ -2335,7 +2371,7 @@ mod custody_tests {
             &auth_principal(owner()),
         )
         .unwrap();
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let actor = *active.subjects.first().map(|subject| &subject.id).unwrap();
         act(
             &mut kernel,
@@ -2371,21 +2407,21 @@ mod custody_tests {
         );
     }
 
-    /// Stores written at the previous schema ids (v7) are refused outright,
+    /// Stores written at the previous schema ids (v8) are refused outright,
     /// state row and commit row each on their own: reverting either constant
-    /// to v7 would let its half of the store in.
+    /// to v8 would let its half of the store in.
     #[test]
-    fn v7_state_and_commit_rows_are_refused() {
-        use crate::tests::{act, activate, auth_principal, creation, first_grant, owner, speak};
+    fn v8_state_and_commit_rows_are_refused() {
+        use crate::tests::{act, auth_principal, creation, first_grant, owner, speak};
 
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "SchemaV7"),
+            creation(CommandId::new(), "SchemaV8"),
             &auth_principal(owner()),
         )
         .unwrap();
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let actor = active.subjects[0].id;
         act(&mut kernel, actor, speak(first_grant(&active, actor), "Counted.")).unwrap();
         let commits: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
@@ -2398,8 +2434,8 @@ mod custody_tests {
         let state_row = |schema: &str| {
             envelope(STATE_ROW, schema, kernel.state.world_id.key(), &kernel.state).unwrap()
         };
-        assert_eq!(STATE_SCHEMA, "ghostlight.world_state.consumer.v8");
-        assert_eq!(COMMIT_SCHEMA, "ghostlight.world_commit.consumer.v8");
+        assert_eq!(STATE_SCHEMA, "ghostlight.world_state.consumer.v9");
+        assert_eq!(COMMIT_SCHEMA, "ghostlight.world_commit.consumer.v9");
         recover(
             [commit_rows(COMMIT_SCHEMA), vec![state_row(STATE_SCHEMA)]].concat(),
             None,
@@ -2408,17 +2444,17 @@ mod custody_tests {
 
         for (what, rows) in [
             (
-                "v7 state row",
+                "v8 state row",
                 [
                     commit_rows(COMMIT_SCHEMA),
-                    vec![state_row("ghostlight.world_state.consumer.v7")],
+                    vec![state_row("ghostlight.world_state.consumer.v8")],
                 ]
                 .concat(),
             ),
             (
-                "v7 commit rows",
+                "v8 commit rows",
                 [
-                    commit_rows("ghostlight.world_commit.consumer.v7"),
+                    commit_rows("ghostlight.world_commit.consumer.v8"),
                     vec![state_row(STATE_SCHEMA)],
                 ]
                 .concat(),
@@ -2437,7 +2473,7 @@ mod custody_tests {
     #[test]
     fn a_non_speech_event_with_a_foreign_actor_is_corrupt() {
         use crate::tests::{
-            act, activate, admit_custody, admit_topology, affordance_named, auth_principal,
+            act, admit_custody, admit_topology, affordance_named, auth_principal,
             creation, owner,
         };
         use crate::{DecisionInvocation, Magnitude, ProposedEffect, Quantity, Role, RoleBinding, Target};
@@ -2451,7 +2487,7 @@ mod custody_tests {
         .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let role = |name: &str, target| RoleBinding {
             role: Role(name.into()),
             target,
@@ -2507,7 +2543,6 @@ mod custody_tests {
                 .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
-        crate::tests::activate(&mut kernel);
         verify_state_shape(&kernel.state).expect("the admitted world has a canonical shape");
 
         let mut zero = kernel.state.clone();
@@ -2571,12 +2606,12 @@ mod custody_tests {
         // `Admit` and its evidence are Draft-only, so the opening balance is
         // already on the log before activation.
         let custody = admit_custody(&mut kernel, &topology);
-        let active = crate::tests::activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
 
         let envelope = command(
             &active,
             CommandId::new(),
-            CallerId::Principal(owner()),
+            CallerId::Play,
             CommandBody::AdmitPatch {
                 patch: WorldPatch {
                     declarations: Vec::new(),
@@ -2612,7 +2647,7 @@ mod custody_tests {
             },
         );
         let SubmitReceipt::Applied(receipt) =
-            kernel.submit(envelope.clone(), &authenticated).unwrap()
+            kernel.submit(envelope.clone(), &crate::AuthenticatedCaller::verified_play()).unwrap()
         else {
             panic!("expected an applied custody patch");
         };
@@ -2629,7 +2664,7 @@ mod custody_tests {
         assert_eq!(reopened.state.dependencies, dependencies);
         assert_eq!(reopened.state.state_digest, digest);
         assert_eq!(
-            reopened.submit(envelope, &authenticated).unwrap(),
+            reopened.submit(envelope, &crate::AuthenticatedCaller::verified_play()).unwrap(),
             SubmitReceipt::AlreadyApplied(receipt)
         );
     }
@@ -2650,7 +2685,6 @@ mod custody_tests {
         .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
-        crate::tests::activate(&mut kernel);
         verify_state_shape(&kernel.state).expect("the admitted world has a canonical shape");
 
         // A place is not a resource, so a resource dependency naming one dangles.
@@ -2690,10 +2724,10 @@ mod custody_tests {
     /// A world with one routine, one past-due goal, and a commit chain that
     /// reaches them: the fixture the two clock-forgery checks below need.
     fn ticking_world(path: &std::path::Path) -> (WorldKernel, super::super::SubjectId, CommandId) {
-        use crate::tests::{activate, auth_principal, command, operations, owner};
+        use crate::tests::{auth_principal, command, operations, owner};
         use crate::{
             AuthenticatedCaller, CallerId, CommandBody, CommitmentKind, ComponentOp,
-            FictionalMinutes, Ref, SystemCapability, TickMinutes,
+            FictionalMinutes, Ref, TickMinutes,
         };
 
         let authenticated = auth_principal(owner());
@@ -2703,7 +2737,7 @@ mod custody_tests {
             &authenticated,
         )
         .unwrap();
-        let active = activate(&mut kernel);
+        let active = kernel.snapshot().unwrap();
         let subject = active.subjects.first().expect("a seeded subject").id;
         let snapshot = kernel.snapshot().unwrap();
         kernel
@@ -2711,7 +2745,7 @@ mod custody_tests {
                 command(
                     &snapshot,
                     CommandId::new(),
-                    CallerId::Principal(owner()),
+                    CallerId::Play,
                     operations(vec![
                         ComponentOp::CreateCommitment {
                             subject: Ref::Existing(subject),
@@ -2733,12 +2767,12 @@ mod custody_tests {
                         },
                     ]),
                 ),
-                &authenticated,
+                &AuthenticatedCaller::verified_play(),
             )
             .unwrap();
 
         let tick_id = CommandId::new();
-        let caller = CallerId::System(SystemCapability::Clock);
+        let caller = CallerId::Play;
         let snapshot = kernel.snapshot().unwrap();
         kernel
             .submit(

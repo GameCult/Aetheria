@@ -102,12 +102,12 @@ fn admit(kernel: &mut WorldKernel, patch: WorldPatch) -> Result<SubmitReceipt, K
         command(
             &snapshot,
             CommandId::new(),
-            CallerId::Principal(owner()),
+            CallerId::Play,
             CommandBody::AdmitPatch {
                 patch,
             },
         ),
-        &auth_principal(owner()),
+        &crate::AuthenticatedCaller::verified_play(),
     )
 }
 
@@ -500,7 +500,7 @@ fn submit_as(
     )
 }
 
-/// A bound Draft world whose revision has moved past genesis: one owner patch
+/// A bound world whose revision has moved past genesis: one Play patch
 /// that adds a dead-end place.
 fn advanced_grammar_world() -> (tempfile::TempDir, WorldKernel, crate::EntityId) {
     let extra = [("hail", verb(RenderPath::Conversation, &[]))];
@@ -540,8 +540,7 @@ fn advanced_grammar_world() -> (tempfile::TempDir, WorldKernel, crate::EntityId)
 type Door = (&'static str, CallerId);
 
 /// Each door refuses an outside kind and a wrong role signature, typed, and the
-/// refusal leaves the revision where it was. The owner and the consumer declare
-/// in Draft only; Play declares in Active.
+/// refusal leaves the revision where it was.
 fn refuse_at_each_door(kernel: &mut WorldKernel, doors: Vec<Door>) {
     for (door, caller) in doors {
         let revision = kernel.state.revision;
@@ -565,33 +564,15 @@ fn refuse_at_each_door(kernel: &mut WorldKernel, doors: Vec<Door>) {
 }
 
 #[test]
-fn every_admission_door_refuses_outside_the_grammar_after_the_revision_has_moved() {
+fn play_refuses_outside_the_grammar_after_the_revision_has_moved() {
     let (_dir, mut kernel, _) = advanced_grammar_world();
     assert_eq!(kernel.state.revision, 1);
-    let draft_doors = vec![
-        ("owner", CallerId::Principal(owner())),
-        (
-            "consumer",
-            CallerId::System(crate::SystemCapability::Consumer {
-                consumer: crate::ConsumerId::of_name("grammar-door"),
-            }),
-        ),
-    ];
-    refuse_at_each_door(&mut kernel, draft_doors);
-    crate::tests::activate(&mut kernel);
-    assert!(
-        kernel.state.revision > 1,
-        "the world has moved past genesis"
-    );
-    let active_doors = vec![
-        ("play", CallerId::System(crate::SystemCapability::Play)),
-    ];
-    refuse_at_each_door(&mut kernel, active_doors);
+    refuse_at_each_door(&mut kernel, vec![("play", CallerId::Play)]);
     // The same path admits what the grammar carries, so the refusals above are
     // the grammar's and not a closed door.
     let receipt = submit_as(
         &mut kernel,
-        CallerId::System(crate::SystemCapability::Play),
+        CallerId::Play,
         patch_of(vec![declare("hail", "hail", &[])]),
     )
     .unwrap();
@@ -670,7 +651,7 @@ fn an_effect_resolved_elsewhere_cannot_install_an_entry_outside_the_grammar() {
         let result = crate::apply_effect(
             &mut state,
             CommandId::new(),
-            &CallerId::Principal(owner()),
+            &CallerId::Play,
             &crate::WorldEffect::PatchAdmitted {
                 resolved,
             },

@@ -251,8 +251,8 @@ pub(super) fn exercise(
 }
 
 /// The synthetic handle every minted claim allocates under. It is synthesized
-/// only in Active and declarations are Draft-only, so no world-declared handle
-/// can collide with it.
+/// in an act, which declares nothing, so no world-declared handle can collide
+/// with it.
 const SPEECH_HANDLE: &str = "ghostlight.speech";
 
 /// The speech index, passed as `derive_id`'s discriminator. It is `0` for every
@@ -1015,9 +1015,9 @@ mod tests {
     };
     use crate::tests::{
         ADMIT_KIND, COMMAND_KIND, Civic, LEVY_KIND, OPENING_BALANCE, SEIZURE_GRIEVANCE, Topology,
-        WARDEN_OFFICE, act, act_command, activate, affordance_named, authority_kind, civic_world,
+        WARDEN_OFFICE, act, act_command, affordance_named, authority_kind, civic_world,
         command, custody_world, grant_to, grievance, office, operations, over_place,
-        over_subject, play_caller, reject_owner, submit_owner,
+        over_subject, play_caller, reject_play, submit_play,
     };
     use crate::{
         AffordanceKindName, AuthenticatedCaller, AuthoredSource, CommandBody, Confidence,
@@ -1230,7 +1230,7 @@ mod tests {
         // restores the two-hop cost: the check reads the live graph rather than
         // anything the proposal was bound against.
         let before = bench.kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut bench.kernel,
             &before,
             operations(vec![ComponentOp::OpenRoute {
@@ -1241,7 +1241,7 @@ mod tests {
         assert!(bench.try_exercise(&near).is_ok());
 
         let before = bench.kernel.snapshot().unwrap();
-        submit_owner(
+        submit_play(
             &mut bench.kernel,
             &before,
             operations(vec![ComponentOp::CloseRoute {
@@ -1721,7 +1721,7 @@ mod tests {
     fn the_kernel_speak_entry_commits_its_utterance_and_no_operation() {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = custody_kernel(directory.path(), "SpeakEntry");
-        let _topology = activate(&mut kernel);
+        let _topology = kernel.snapshot().unwrap();
         let active = kernel.snapshot().unwrap();
         let speak = affordance_named(&active, "speak");
         let human = active
@@ -1898,14 +1898,14 @@ mod tests {
 
         fn admit(&mut self, ops: Vec<ComponentOp>) {
             let before = self.kernel.snapshot().unwrap();
-            let receipt = submit_owner(&mut self.kernel, &before, operations(ops));
+            let receipt = submit_play(&mut self.kernel, &before, operations(ops));
             assert!(matches!(receipt, SubmitReceipt::Applied(_)));
             self.refresh();
         }
 
         fn refuse(&mut self, ops: Vec<ComponentOp>) -> Vec<crate::Mismatch> {
             let before = self.kernel.snapshot().unwrap();
-            reject_owner(&mut self.kernel, &before, operations(ops))
+            reject_play(&mut self.kernel, &before, operations(ops))
         }
     }
 
@@ -2024,7 +2024,7 @@ mod tests {
         let mut draft = custody_kernel(draft_directory.path(), "ReservedRole");
         let before = draft.snapshot().unwrap();
         let handle = DraftHandle::new("thief");
-        let rejected = reject_owner(
+        let rejected = reject_play(
             &mut draft,
             &before,
             CommandBody::AdmitPatch {

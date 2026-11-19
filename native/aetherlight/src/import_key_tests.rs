@@ -6,11 +6,11 @@ use crate::patch::{
     AccessKind, ComponentOp, Cost, Declaration, DraftHandle, EntityDeclaration, EntityKind,
     ImportKey, Mismatch, Ref, RouteDeclaration,
 };
-use crate::tests::{activate, auth_principal, command, creation, owner};
+use crate::tests::{auth_principal, command, creation, owner};
 use crate::{
-    CallerId, CommandBody, CommandId, ConsumerId, CreateWorld, EntityId, KernelError,
+    CallerId, CommandBody, CommandId, CreateWorld, EntityId, KernelError,
     NewController, SubjectDeclaration, SubjectKind, SubmitReceipt,
-    SystemCapability, WorldKernel, WorldPatch,
+    WorldKernel, WorldPatch,
 };
 use std::collections::BTreeSet;
 
@@ -88,16 +88,14 @@ fn commons(kernel: &WorldKernel) -> EntityId {
     *kernel.state.entities.keys().next().unwrap()
 }
 
-/// A mirror subject: the one shape every door may declare, since it needs no
-/// catalog grant.
-fn mirror(handle: &str, import_key: Option<ImportKey>, place: EntityId) -> Declaration {
+/// A keyed subject that holds no verbs: legal, since a subject may be declared
+/// with none, and the lightest declaration an import can make.
+fn keyed(handle: &str, import_key: Option<ImportKey>, place: EntityId) -> Declaration {
     Declaration::Subject(SubjectDeclaration {
         handle: DraftHandle::new(handle),
         label: format!("The {handle}"),
         kind: SubjectKind::Person,
-        controller: NewController::External {
-            consumer: ConsumerId::of_name("import-key"),
-        },
+        controller: NewController::OperationalAgent,
         affordances: BTreeSet::new(),
         position: Some(Ref::Existing(place)),
         import_key,
@@ -154,24 +152,23 @@ fn one_patch_cannot_declare_two_subjects_with_one_import_key() {
     let beta = Some(key("aetheria.ship", "Beta"));
     let error = submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
+        CallerId::Play,
         patch_of(vec![
-            mirror("first", beta.clone(), place),
-            mirror("second", beta, place),
+            keyed("first", beta.clone(), place),
+            keyed("second", beta, place),
         ]),
     );
     assert_eq!(rejected(error), vec![duplicate("second")]);
     assert_eq!(kernel.state.revision, revision, "a refusal moved the world");
 }
 
-/// The fixture world past genesis but still in Draft: the owner has added an
-/// unwalked place.
+/// The fixture world past genesis: Play has added an unwalked place.
 fn advanced_keyed_world() -> (tempfile::TempDir, WorldKernel, EntityId) {
     let (dir, mut kernel) = keyed_world();
     let place = commons(&kernel);
     submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
+        CallerId::Play,
         patch_of(vec![
             Declaration::Entity(EntityDeclaration {
                 handle: DraftHandle::new("dead-end"),
@@ -201,8 +198,7 @@ fn advanced_keyed_world() -> (tempfile::TempDir, WorldKernel, EntityId) {
 }
 
 /// Each door names the held key, typed, and the refusal leaves the revision
-/// where it was. The owner and the consumer declare in Draft only; Play
-/// declares in Active.
+/// where it was.
 fn refuse_held_key_at_each_door(
     kernel: &mut WorldKernel,
     place: EntityId,
@@ -213,7 +209,7 @@ fn refuse_held_key_at_each_door(
         let result = submit_as(
             kernel,
             caller,
-            patch_of(vec![mirror("copy", Some(alpha()), place)]),
+            patch_of(vec![keyed("copy", Some(alpha()), place)]),
         );
         assert_eq!(rejected(result), vec![held("copy")], "{door}");
         assert_eq!(
@@ -223,12 +219,6 @@ fn refuse_held_key_at_each_door(
     }
 }
 
-fn consumer() -> CallerId {
-    CallerId::System(SystemCapability::Consumer {
-        consumer: ConsumerId::of_name("import-key"),
-    })
-}
-
 #[test]
 fn a_held_import_key_is_refused_at_every_door_after_the_revision_has_moved() {
     let (_dir, mut kernel, dead_end) = advanced_keyed_world();
@@ -236,33 +226,22 @@ fn a_held_import_key_is_refused_at_every_door_after_the_revision_has_moved() {
     refuse_held_key_at_each_door(
         &mut kernel,
         dead_end,
-        vec![
-            ("owner", CallerId::Principal(owner())),
-            ("consumer", consumer()),
-        ],
-    );
-    activate(&mut kernel);
-    refuse_held_key_at_each_door(
-        &mut kernel,
-        dead_end,
-        vec![
-            ("play", CallerId::System(SystemCapability::Play)),
-        ],
+        vec![("play", CallerId::Play)],
     );
     // The same doors admit an unheld key, so the refusals are the key's; and
     // what a door admitted is held against every later door.
     let fresh = key("aetheria.ship", "Gamma");
     let receipt = submit_as(
         &mut kernel,
-        CallerId::System(SystemCapability::Play),
-        patch_of(vec![mirror("fresh", Some(fresh.clone()), dead_end)]),
+        CallerId::Play,
+        patch_of(vec![keyed("fresh", Some(fresh.clone()), dead_end)]),
     )
     .unwrap();
     assert!(matches!(receipt, SubmitReceipt::Applied(_)));
     let again = submit_as(
         &mut kernel,
-        CallerId::System(SystemCapability::Play),
-        patch_of(vec![mirror("fresh-again", Some(fresh), dead_end)]),
+        CallerId::Play,
+        patch_of(vec![keyed("fresh-again", Some(fresh), dead_end)]),
     );
     assert_eq!(rejected(again), vec![held("fresh-again")]);
 }
@@ -274,8 +253,8 @@ fn a_held_import_key_is_refused_in_a_later_patch() {
     let revision = kernel.state.revision;
     let error = submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
-        patch_of(vec![mirror("again", Some(alpha()), place)]),
+        CallerId::Play,
+        patch_of(vec![keyed("again", Some(alpha()), place)]),
     );
     assert_eq!(rejected(error), vec![held("again")]);
     assert_eq!(kernel.state.revision, revision);
@@ -296,7 +275,7 @@ fn a_retired_subjects_import_key_is_never_reissued() {
         .id;
     submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
+        CallerId::Play,
         WorldPatch {
             declarations: Vec::new(),
             operations: vec![ComponentOp::Retire {
@@ -321,8 +300,8 @@ fn a_retired_subjects_import_key_is_never_reissued() {
     );
     let error = submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
-        patch_of(vec![mirror("reborn", Some(alpha()), place)]),
+        CallerId::Play,
+        patch_of(vec![keyed("reborn", Some(alpha()), place)]),
     );
     assert_eq!(rejected(error), vec![held("reborn")]);
 }
@@ -347,11 +326,11 @@ fn keys_that_differ_in_any_way_are_distinct_records() {
     let declarations = forgeries
         .iter()
         .enumerate()
-        .map(|(index, forged)| mirror(&format!("forged-{index}"), Some(forged.clone()), place))
+        .map(|(index, forged)| keyed(&format!("forged-{index}"), Some(forged.clone()), place))
         .collect();
     submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
+        CallerId::Play,
         patch_of(declarations),
     )
     .expect("nine distinct keys beside the held one are admitted together");
@@ -361,8 +340,8 @@ fn keys_that_differ_in_any_way_are_distinct_records() {
     for (index, forged) in forgeries.iter().enumerate() {
         let again = submit_as(
             &mut kernel,
-            CallerId::Principal(owner()),
-            patch_of(vec![mirror("repeat", Some(forged.clone()), place)]),
+            CallerId::Play,
+            patch_of(vec![keyed("repeat", Some(forged.clone()), place)]),
         );
         assert_eq!(rejected(again), vec![held("repeat")], "forgery {index}");
     }
@@ -390,8 +369,8 @@ fn a_malformed_import_key_is_refused_without_echoing_it() {
     for (index, bad) in cases.iter().enumerate() {
         let set = rejected(submit_as(
             &mut kernel,
-            CallerId::Principal(owner()),
-            patch_of(vec![mirror("bad", Some(bad.clone()), place)]),
+            CallerId::Play,
+            patch_of(vec![keyed("bad", Some(bad.clone()), place)]),
         ));
         assert_eq!(set, vec![malformed("bad")], "case {index}");
         let spelled = format!("{set:?}");
@@ -409,11 +388,11 @@ fn a_malformed_import_key_is_refused_without_echoing_it() {
     let declarations = at_limit
         .iter()
         .enumerate()
-        .map(|(index, limit)| mirror(&format!("edge-{index}"), Some(limit.clone()), place))
+        .map(|(index, limit)| keyed(&format!("edge-{index}"), Some(limit.clone()), place))
         .collect();
     submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
+        CallerId::Play,
         patch_of(declarations),
     )
     .expect("keys of exactly 200 bytes per part are admitted");
@@ -427,7 +406,7 @@ fn the_subjects_map_refuses_a_second_subject_for_one_key_even_when_resolved_else
         crate::patch::resolve_patch(
             &kernel.state,
             CommandId::new(),
-            &patch_of(vec![mirror(
+            &patch_of(vec![keyed(
                 handle,
                 Some(key("aetheria.ship", "Omega")),
                 place,
@@ -444,7 +423,7 @@ fn the_subjects_map_refuses_a_second_subject_for_one_key_even_when_resolved_else
     crate::apply_effect(
         &mut state,
         CommandId::new(),
-        &CallerId::Principal(owner()),
+        &CallerId::Play,
         &effect(first),
     )
     .unwrap();
@@ -452,7 +431,7 @@ fn the_subjects_map_refuses_a_second_subject_for_one_key_even_when_resolved_else
     let result = crate::apply_effect(
         &mut state,
         CommandId::new(),
-        &CallerId::Principal(owner()),
+        &CallerId::Play,
         &effect(second),
     );
     assert!(
@@ -525,8 +504,8 @@ fn a_record_key_is_one_canonical_spelling() {
     let submit = |kernel: &mut WorldKernel, handle: &str, record: &str| {
         submit_as(
             kernel,
-            CallerId::Principal(owner()),
-            patch_of(vec![mirror(
+            CallerId::Play,
+            patch_of(vec![keyed(
                 handle,
                 Some(key("aetheria.ship", record)),
                 place,
@@ -573,8 +552,8 @@ fn a_lore_page_path_with_spaces_is_a_record_key() {
     let declare = |kernel: &mut WorldKernel, handle: &str| {
         submit_as(
             kernel,
-            CallerId::Principal(owner()),
-            patch_of(vec![mirror(
+            CallerId::Play,
+            patch_of(vec![keyed(
                 handle,
                 Some(key("aetheria.lore", record)),
                 place,
@@ -591,8 +570,8 @@ fn a_loaded_state_with_a_bad_import_key_is_refused() {
     let place = commons(&kernel);
     submit_as(
         &mut kernel,
-        CallerId::Principal(owner()),
-        patch_of(vec![mirror(
+        CallerId::Play,
+        patch_of(vec![keyed(
             "beta",
             Some(key("aetheria.ship", "Beta")),
             place,
@@ -640,8 +619,8 @@ fn admitting_a_resolved_effect_refuses_two_subjects_with_one_key() {
             &kernel.state,
             CommandId::new(),
             &patch_of(vec![
-                mirror("first", Some(key("aetheria.ship", "Beta")), place),
-                mirror("second", Some(key("aetheria.ship", "Gamma")), place),
+                keyed("first", Some(key("aetheria.ship", "Beta")), place),
+                keyed("second", Some(key("aetheria.ship", "Gamma")), place),
             ]),
         )
         .expect("two distinct keys resolve")
@@ -677,8 +656,8 @@ fn a_decomposable_character_is_refused_in_nfd_at_every_position() {
     let submit = |kernel: &mut WorldKernel, handle: &str, record: String| {
         submit_as(
             kernel,
-            CallerId::Principal(owner()),
-            patch_of(vec![mirror(
+            CallerId::Play,
+            patch_of(vec![keyed(
                 handle,
                 Some(key("aetheria.lore", &record)),
                 place,
@@ -710,4 +689,19 @@ fn a_decomposable_character_is_refused_in_nfd_at_every_position() {
         1 + template.len() + 1,
         "the genesis key and one NFC key per position are held, no NFD key"
     );
+}
+
+#[test]
+fn the_owner_door_is_closed_to_a_keyed_declaration() {
+    let (_dir, mut kernel) = keyed_world();
+    let place = commons(&kernel);
+    let revision = kernel.state.revision;
+    let error = submit_as(
+        &mut kernel,
+        CallerId::Principal(owner()),
+        patch_of(vec![keyed("fresh", Some(key("aetheria.ship", "Gamma")), place)]),
+    )
+    .unwrap_err();
+    assert!(matches!(error, KernelError::Unauthorized), "{error:?}");
+    assert_eq!(kernel.state.revision, revision);
 }
