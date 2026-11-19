@@ -216,7 +216,12 @@ a radiator, `weapon-mount` for an energy, ballistic or launcher hardpoint. An
 internal hardpoint (reactor, sensors, shield and the rest) has no anchor, and
 an anchor taking its id is refused. A thruster's or radiator's anchor node is a
 mesh: the thruster's is not rendered and is the surface its exhaust emits from,
-the radiator's is rendered. A weapon mount is a point, and each one needs at
+the radiator's is rendered. A directional thruster's emitter is one-sided: the
+exhaust is born along each triangle's normal, so every normal must face the way
+the hardpoint's Rotation faces (opposite the push), and a closed box, which also
+fires along the push, is refused by Compose and `validate` naming the anchor. In
+the Blender kit's frame a hull source's emit mesh is cut to the side facing its
+anchor's yaw. A ring thruster would be its own class with its own rule. A weapon mount is a point, and each one needs at
 least one `weapon-muzzle` anchor whose `ParentId` is the weapon's mount id.
 `articulation` is reserved for pivots and is never a mount; no pivot is
 planned until pivots move onto `HullData`. `ShipModPlan` then maps the

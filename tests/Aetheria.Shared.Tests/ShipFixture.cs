@@ -22,22 +22,33 @@ internal static class ShipFixture
         1, 0, 0, 0, 1, 0, 0, 0, 1
     };
 
-    public static byte[] MeshBytes() => Tetrahedron.SelectMany(BitConverter.GetBytes).ToArray();
+    // One-sided quad in the z = 0 plane, wound counter-clockwise seen from +Z, so its normal is +Z (glTF's nose): the emitter
+    // of a thruster whose Rotation is None, which faces its exhaust ahead. Four vertices and six 16-bit indices follow the
+    // tetrahedron in the BIN chunk.
+    private static readonly float[] Quad = { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 };
+    private static readonly ushort[] QuadIndices = { 0, 1, 2, 0, 2, 3 };
+
+    public static byte[] MeshBytes() =>
+        Tetrahedron.SelectMany(BitConverter.GetBytes).Concat(Quad.SelectMany(BitConverter.GetBytes)).Concat(QuadIndices.SelectMany(BitConverter.GetBytes)).ToArray();
+
+    // The model's geometry as glTF JSON members (meshes, accessors, bufferViews, buffers) over MeshBytes: mesh 0 is the
+    // tetrahedron, mesh 1 the quad.
+    public static string Geometry =>
+        @"""meshes"":[{""primitives"":[{""attributes"":{""POSITION"":0}}]},{""primitives"":[{""attributes"":{""POSITION"":1},""indices"":2}]}]," +
+        @"""accessors"":[{""bufferView"":0,""componentType"":5126,""count"":12,""type"":""VEC3"",""min"":[0,0,0],""max"":[1,1,1]}," +
+        @"{""bufferView"":1,""componentType"":5126,""count"":4,""type"":""VEC3"",""min"":[0,0,0],""max"":[1,1,0]}," +
+        @"{""bufferView"":2,""componentType"":5123,""count"":6,""type"":""SCALAR""}]," +
+        $@"""bufferViews"":[{{""buffer"":0,""byteLength"":144}},{{""buffer"":0,""byteOffset"":144,""byteLength"":48}},{{""buffer"":0,""byteOffset"":192,""byteLength"":12}}],""buffers"":[{{""byteLength"":{MeshBytes().Length}}}]";
 
     // The GLB carries a glTF scene naming every node: glTFast instantiates a scene, and a scene-less file has none.
     // Nodes in meshNodes (default MeshNodes) get the shared tetrahedron mesh, whose vertices live in the BIN chunk (MeshBytes).
     public static string GlbJson(string[] nodes, string[] meshNodes = null)
     {
         meshNodes ??= MeshNodes;
-        var length = MeshBytes().Length;
-        var mesh = nodes.Any(meshNodes.Contains)
-            ? @",""meshes"":[{""primitives"":[{""attributes"":{""POSITION"":0}}]}]," +
-              @"""accessors"":[{""bufferView"":0,""componentType"":5126,""count"":12,""type"":""VEC3"",""min"":[0,0,0],""max"":[1,1,1]}]," +
-              $@"""bufferViews"":[{{""buffer"":0,""byteLength"":{length}}}],""buffers"":[{{""byteLength"":{length}}}]"
-            : "";
+        var mesh = nodes.Any(meshNodes.Contains) ? "," + Geometry : "";
         return @"{""asset"":{""version"":""2.0""},""scene"":0,""scenes"":[{""nodes"":[" + string.Join(",", nodes.Select((_, index) => index)) + @"]}]" + mesh + @",""nodes"":[" +
             string.Join(",", nodes.Select(node =>
-                $@"{{""name"":""{node}""{(meshNodes.Contains(node) ? @",""mesh"":0" : "")},""extras"":{{""aetheria.id"":""{node}""}}}}")) + "]}";
+                $@"{{""name"":""{node}""{(meshNodes.Contains(node) ? node.StartsWith("thruster") ? @",""mesh"":1" : @",""mesh"":0" : "")},""extras"":{{""aetheria.id"":""{node}""}}}}")) + "]}";
     }
 
     public static byte[] Glb(string json, byte[] bin = null)

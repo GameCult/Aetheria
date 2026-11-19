@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using GameCult.Caching;
 using Newtonsoft.Json.Linq;
+using System.Numerics;
 using System.Text;
 
 // Builds the one catalog snapshot CultCache needs. Sources remain the shipped catalog and each
@@ -284,6 +285,7 @@ public static class ShipModCatalog
         foreach (var anchor in ship.Anchors)
             if (anchor.Role == "shield" && !modelNodes[anchor.ModelNodeId].PositiveScale)
                 throw new InvalidOperationException($"{ship.Id}: shield anchor {anchor.Id} needs three positive scale radii on model node {anchor.ModelNodeId}, with no matrix.");
+        BindExhaust(hull, ship, modelNodes, modelPath);
         BindRig(ship, modelNodes);
         CultRecordRefs.Validate(hull);
         return new Package
@@ -291,6 +293,156 @@ public static class ShipModCatalog
             Hull = hull, Visual = ship, Products = products, ModelPath = modelPath,
             NodeIndices = modelNodes.ToDictionary(node => node.Key, node => node.Value.Index, StringComparer.Ordinal)
         };
+    }
+
+    // A thruster emitter's mesh is the surface its exhaust is born from, along each triangle's normal, so the mesh has to face
+    // the way the exhaust goes. Every thruster is a directional thruster today: its Rotation faces its exhaust, the push
+    // is the opposite way, and an emitter triangle whose normal has a non-negative dot with the push would fire exhaust
+    // along it (a closed box fires both ways). A thruster of another class, a ring thruster whose exhaust leaves radially,
+    // is not this rule's to judge: it would come with its own class on the hardpoint and its own rule beside this one.
+    private static void BindExhaust(HullData hull, ShipAuthoring ship, Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)> nodes, string modelPath)
+    {
+        var emitters = ship.Anchors.Where(anchor => anchor.Role == "thruster-emitter").ToArray();
+        if (emitters.Length == 0) return;
+        var model = GlbGeometry.Read(modelPath);
+        foreach (var anchor in emitters)
+        {
+            var hardpoint = hull.Hardpoints.FirstOrDefault(candidate => candidate.Type == HardpointType.Thruster && candidate.Transform == anchor.Id);
+            if (hardpoint == null) continue;
+            var facing = hardpoint.Rotation.Direction();
+            // The model's frame is glTF's, nose toward +Z and port toward +X (the Blender kit's nose at -Y and port at +X,
+            // through the exporter's Y-up conversion): a hardpoint facing (x, y) in the grid faces (-x, 0, y) in the model.
+            var push = -new Vector3(-facing.x, 0f, facing.y);
+            var wrong = model.Normals((int)nodes[anchor.ModelNodeId].Index).Count(normal => Vector3.Dot(normal, push) >= 0f);
+            if (wrong > 0)
+                throw new InvalidOperationException($"{ship.Id}: thruster emitter {anchor.Id} has {wrong} face or vertex normal(s) that do not face its exhaust " +
+                                                    $"({hardpoint.Rotation}); a directional thruster's emitter fires only along its exhaust, so it must be one-sided, not a closed box.");
+        }
+    }
+
+    // The triangles of a GLB as the node tree places them, read for the one question the emitter rule asks: which way each
+    // face points. Float positions and normals, indices of 1, 2 or 4 bytes or none, no sparse, no compression: a model the
+    // exporter writes. Anything else is refused as unreadable rather than guessed at.
+    private sealed class GlbGeometry
+    {
+        private readonly JObject _json;
+        private readonly byte[] _bin;
+        private readonly string _path;
+
+        private GlbGeometry(JObject json, byte[] bin, string path) { _json = json; _bin = bin; _path = path; }
+
+        public static GlbGeometry Read(string path)
+        {
+            var bytes = File.ReadAllBytes(path);
+            var jsonLength = (int)BitConverter.ToUInt32(bytes, 12);
+            var json = JObject.Parse(Encoding.UTF8.GetString(bytes, 20, jsonLength));
+            var at = 20 + jsonLength;
+            var bin = at + 8 <= bytes.Length && BitConverter.ToUInt32(bytes, at + 4) == 0x004E4942u
+                ? bytes.Skip(at + 8).Take((int)BitConverter.ToUInt32(bytes, at)).ToArray() : Array.Empty<byte>();
+            return new GlbGeometry(json, bin, path);
+        }
+
+        // Unit normals in the model frame: each triangle's face normal (its winding, flipped when the node's world transform
+        // mirrors, as glTF says) and each vertex normal the primitive carries.
+        public IEnumerable<Vector3> Normals(int node)
+        {
+            var world = World(node);
+            var mirrored = world.GetDeterminant() < 0f;
+            var meshIndex = (int?)_json["nodes"][node]["mesh"];
+            if (meshIndex == null) yield break;
+            foreach (var primitive in (JArray)_json["meshes"][meshIndex.Value]["primitives"])
+            {
+                var attributes = (JObject)primitive["attributes"];
+                if (primitive["extensions"] != null) throw Unreadable($"mesh {meshIndex} uses a primitive extension");
+                var positions = Vectors((int)attributes["POSITION"]).Select(point => Vector3.Transform(point, world)).ToArray();
+                var indices = primitive["indices"] == null ? Enumerable.Range(0, positions.Length).ToArray() : Indices((int)primitive["indices"]);
+                for (var i = 0; i + 2 < indices.Length; i += 3)
+                {
+                    var face = Vector3.Cross(positions[indices[i + 1]] - positions[indices[i]], positions[indices[i + 2]] - positions[indices[i]]);
+                    if (face.LengthSquared() < 1e-12f) continue;
+                    yield return Vector3.Normalize(mirrored ? -face : face);
+                }
+                if (attributes["NORMAL"] != null)
+                    foreach (var normal in Vectors((int)attributes["NORMAL"]))
+                        if (normal.LengthSquared() > 1e-12f) yield return Vector3.Normalize(Vector3.TransformNormal(normal, world));
+            }
+        }
+
+        // Row-vector matrices, so a child's world is its local times its parent's world.
+        private Matrix4x4 World(int node)
+        {
+            var parents = new Dictionary<int, int>();
+            var nodes = (JArray)_json["nodes"];
+            for (var parent = 0; parent < nodes.Count; parent++)
+                foreach (var child in nodes[parent]["children"]?.Select(token => (int)token) ?? Enumerable.Empty<int>()) parents[child] = parent;
+            var world = Matrix4x4.Identity;
+            for (int at = node, steps = 0; steps <= nodes.Count; steps++)
+            {
+                world *= Local((JObject)nodes[at]);
+                if (!parents.TryGetValue(at, out at)) break;
+            }
+            return world;
+        }
+
+        private static Matrix4x4 Local(JObject node)
+        {
+            if (node["matrix"] is JArray m)
+            {
+                var v = m.Select(token => (float)token).ToArray();
+                return new Matrix4x4(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12], v[13], v[14], v[15]);
+            }
+            float[] Of(string key, float[] fallback) => node[key] is JArray a ? a.Select(token => (float)token).ToArray() : fallback;
+            var scale = Of("scale", new[] { 1f, 1f, 1f });
+            var rotation = Of("rotation", new[] { 0f, 0f, 0f, 1f });
+            var translation = Of("translation", new[] { 0f, 0f, 0f });
+            return Matrix4x4.CreateScale(scale[0], scale[1], scale[2]) *
+                   Matrix4x4.CreateFromQuaternion(new Quaternion(rotation[0], rotation[1], rotation[2], rotation[3])) *
+                   Matrix4x4.CreateTranslation(translation[0], translation[1], translation[2]);
+        }
+
+        // The bytes an accessor reads from: its view's slice of the BIN chunk, at the view's stride.
+        private (int Offset, int Stride, int Count, int Component, string Type) Locate(int accessor)
+        {
+            var a = (JObject)_json["accessors"][accessor];
+            if (a["sparse"] != null || a["bufferView"] == null) throw Unreadable($"accessor {accessor} is sparse or has no buffer view");
+            var view = (JObject)_json["bufferViews"][(int)a["bufferView"]];
+            var component = (int)a["componentType"];
+            var type = (string)a["type"];
+            var width = (component == 5126 || component == 5125 ? 4 : component == 5123 ? 2 : 1) * (type == "VEC3" ? 3 : 1);
+            var offset = ((int?)view["byteOffset"] ?? 0) + ((int?)a["byteOffset"] ?? 0);
+            var stride = (int?)view["byteStride"] ?? width;
+            var count = (int)a["count"];
+            if (offset < 0 || count < 0 || (count > 0 && offset + (long)(count - 1) * stride + width > _bin.Length)) throw Unreadable($"accessor {accessor} reaches past the BIN chunk");
+            return (offset, stride, count, component, type);
+        }
+
+        private Vector3[] Vectors(int accessor)
+        {
+            var (offset, stride, count, component, type) = Locate(accessor);
+            if (component != 5126 || type != "VEC3") throw Unreadable($"accessor {accessor} is not float VEC3");
+            var result = new Vector3[count];
+            for (var i = 0; i < count; i++)
+            {
+                var at = offset + i * stride;
+                result[i] = new Vector3(BitConverter.ToSingle(_bin, at), BitConverter.ToSingle(_bin, at + 4), BitConverter.ToSingle(_bin, at + 8));
+            }
+            return result;
+        }
+
+        private int[] Indices(int accessor)
+        {
+            var (offset, stride, count, component, type) = Locate(accessor);
+            if (type != "SCALAR" || component != 5121 && component != 5123 && component != 5125) throw Unreadable($"accessor {accessor} is not an index accessor");
+            var result = new int[count];
+            for (var i = 0; i < count; i++)
+            {
+                var at = offset + i * stride;
+                result[i] = component == 5121 ? _bin[at] : component == 5123 ? BitConverter.ToUInt16(_bin, at) : (int)BitConverter.ToUInt32(_bin, at);
+            }
+            return result;
+        }
+
+        private InvalidOperationException Unreadable(string reason) => new InvalidOperationException($"{_path}: emitter geometry is unreadable: {reason}.");
     }
 
     // The rig the record states must be the rig the model has: every joint is a node, each joint's Parent and each mount's

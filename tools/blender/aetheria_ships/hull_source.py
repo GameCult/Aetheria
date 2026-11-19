@@ -14,7 +14,8 @@ with it (a hull that redefines or shadows an included language fails a check):
     lines    ECHO line = [layer, cyclic, [[x, y, z], ...]]    one line per kit part that draws one, points in the Ship Root
              frame (lowpoly.scad lp_line under lp_at frames); layer is one of KIT_LAYERS
     <zone>   the zone's geometry, OFF; a donor's zone is named "<donor>:<zone>"
-    emit:<id>, rad:<id>   the mesh of a thruster-emitter or radiator-mesh anchor
+    emit:<id>, rad:<id>   the mesh of a thruster-emitter or radiator-mesh anchor; build() keeps of an emitter only the triangles
+                          that face its exhaust (exhaust_face), so a closed box an author draws becomes its one exhaust-facing side
     marks    OFF, a tiny cube at the first point of each kit line, drawn through the frame the geometry is drawn in (lp_line)
 
 Frame: Ship Root, metres, nose -Y, starboard -X, up +Z. build() also takes the hull's HullData.HullType ("Ship",
@@ -181,6 +182,28 @@ def parse_off(text):
     except (ValueError, IndexError):
         raise HullSourceError("The hull source made geometry that is not a readable OFF file") from None
     return Mesh(vertices, tuple(triangles))
+
+
+def exhaust_face(mesh, yaw):
+    """The part of a thruster emitter's mesh that faces its exhaust, which leaves the way the anchor faces (its yaw: 0 the nose,
+    -Y; 90 port, +X): the triangles whose outward normal lies within 60 degrees of it, with the vertices they use. The
+    exhaust of a thruster is born along each triangle's normal of this mesh, so an emitter with a triangle facing the
+    other way fires along the push too: a directional thruster's emitter is one-sided. The hull source draws the surface
+    in whatever solid is convenient (a thin box); the closed sides drop here, and a mesh with no side facing the exhaust
+    is left empty, which the emitter-has-a-mesh check refuses. A future ring thruster, whose exhaust leaves radially, is a
+    different emitter with its own rule and does not come through here."""
+    facing = (math.sin(math.radians(yaw)), -math.cos(math.radians(yaw)))
+    kept = []
+    for a, b, c in mesh.triangles:
+        pa, pb, pc = mesh.vertices[a], mesh.vertices[b], mesh.vertices[c]
+        u, v = [pb[i] - pa[i] for i in range(3)], [pc[i] - pa[i] for i in range(3)]
+        normal = (u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
+        length = math.sqrt(sum(n * n for n in normal))
+        if length > 0 and (normal[0] * facing[0] + normal[1] * facing[1]) / length > 0.5:
+            kept.append((a, b, c))
+    used = sorted({i for tri in kept for i in tri})
+    renumber = {old: new for new, old in enumerate(used)}
+    return Mesh(tuple(mesh.vertices[i] for i in used), tuple(tuple(renumber[i] for i in tri) for tri in kept))
 
 
 def parse_echoes(text, name):
@@ -439,6 +462,9 @@ def build(runner, library, hull_type, projector):
     if len(set(ids)) != len(ids) or any(a.role not in ANCHOR_ROLES for a in anchors):
         raise HullSourceError("The hull source's anchors repeat an id or name a role a hull source does not make")
     anchor_meshes = {a.id: parse_off(runner(MESH_ROLES[a.role] + a.id)[0]) for a in anchors if a.role in MESH_ROLES}
+    for a in anchors:
+        if a.role == "thruster-emitter":
+            anchor_meshes[a.id] = exhaust_face(anchor_meshes[a.id], a.yaw)
     kit_lines = read_lines(runner("lines")[1])
     judge = donor or own
     body_zone = f"{donor.faction}:{donor.body}" if donor else own.body

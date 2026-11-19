@@ -209,13 +209,13 @@ public sealed class ShipRigTests : IDisposable
 
     private static string GlbJson(Node[] nodes)
     {
-        var text = new StringBuilder(@"{""asset"":{""version"":""2.0""},""meshes"":[{""primitives"":[{""attributes"":{""POSITION"":0}}]}],""nodes"":[");
+        var text = new StringBuilder(@"{""asset"":{""version"":""2.0""}," + ShipFixture.Geometry + @",""nodes"":[");
         for (var index = 0; index < nodes.Length; index++)
         {
             var node = nodes[index];
             var kids = Enumerable.Range(0, nodes.Length).Where(child => nodes[child].Parent == node.Name).ToArray();
             text.Append(index > 0 ? "," : "").Append($@"{{""name"":""{node.Name}""");
-            if (node.Mesh) text.Append(@",""mesh"":0");
+            if (node.Mesh) text.Append(node.Name.StartsWith("thruster") ? @",""mesh"":1" : @",""mesh"":0");
             if (node.Id != null) text.Append($@",""extras"":{{""aetheria.id"":""{node.Id}""}}");
             if (kids.Length > 0) text.Append(@",""children"":[" + string.Join(",", kids) + "]");
             text.Append('}');
@@ -238,7 +238,7 @@ public sealed class ShipRigTests : IDisposable
             ship.Visual.Anchors.Single(anchor => anchor.Id == "gun").Joint = "wrist";
             tweak?.Invoke(ship);
         });
-        File.WriteAllBytes(Path.Combine(directory, "skiff.glb"), ShipFixture.Glb(GlbJson(nodes ?? RigNodes)));
+        File.WriteAllBytes(Path.Combine(directory, "skiff.glb"), ShipFixture.Glb(GlbJson(nodes ?? RigNodes), ShipFixture.MeshBytes()));
         return Path.Combine(directory, "ship.cc");
     }
 
@@ -348,7 +348,7 @@ public sealed class ShipRigTests : IDisposable
     public void NodeParentsAreTheNearestTaggedAncestorAndRootsHaveNone()
     {
         var path = Path.Combine(_directory.Path, "rig.glb");
-        File.WriteAllBytes(path, ShipFixture.Glb(GlbJson(RigNodes)));
+        File.WriteAllBytes(path, ShipFixture.Glb(GlbJson(RigNodes), ShipFixture.MeshBytes()));
         var nodes = ShipModCatalog.ReadNodeIds(path);
         Assert.Equal(-1, nodes["arm"].Parent);
         Assert.Equal((int)nodes["arm"].Index, nodes["elbow"].Parent);

@@ -167,6 +167,8 @@ def make_ship(scene, fixture, ship_id, extent, length, rows):
         bpy.ops.aetheria.add_ship_hardpoint()
         hp = state.hardpoints[len(state.hardpoints) - 1]
         hp.mount_id, hp.kind, hp.x, hp.y, hp.footprint = mount_id, kind, x, y, "#"
+        if kind == THRUSTER:
+            hp.rotation = "2"  # Reversed: the hull sources' drives sit at the stern, their emitters yawed 180 so the exhaust leaves aft
     result, message = run(bpy.ops.aetheria.save_ship_layout)
     require(result == {"FINISHED"}, f"Save was refused: {message}")
     package = MODS / ship_id
@@ -586,7 +588,7 @@ def shared_ids_refused(scene, box, collection, ship_id, package, objects, number
 
 def check_poses(collection, root, runner):
     """Every built anchor stands where the hull source says in Ship Root's frame, turned as it says, and the emitter and
-    radiator meshes are the source's meshes in that frame."""
+    radiator meshes are the source's meshes in that frame (an emitter's cut to the side that faces its exhaust)."""
     inverse = root.matrix_world.inverted()
     for anchor in hull_source.read_anchors(runner("anchors")[1]):
         obj = bpy.data.objects[anchor.id]
@@ -599,7 +601,10 @@ def check_poses(collection, root, runner):
                     f"{anchor.id} is turned {math.degrees(turn):.1f} degrees, not {anchor.yaw}")
         if anchor.role in hull_source.MESH_ROLES:
             made = sorted(tuple(round(c, 3) for c in (inverse @ obj.matrix_world @ v.co)) for v in obj.data.vertices)
-            wanted = sorted(tuple(round(c, 3) for c in v) for v in hull_source.parse_off(runner(hull_source.MESH_ROLES[anchor.role] + anchor.id)[0]).vertices)
+            source = hull_source.parse_off(runner(hull_source.MESH_ROLES[anchor.role] + anchor.id)[0])
+            if anchor.role == "thruster-emitter":  # Build keeps of an emitter only the side facing its exhaust
+                source = hull_source.exhaust_face(source, anchor.yaw)
+            wanted = sorted(tuple(round(c, 3) for c in v) for v in source.vertices)
             require(len(made) == len(wanted) and all(approx(a, b, 2e-3) for a, b in zip(made, wanted)),
                     f"The mesh of {anchor.id} is not the source's mesh in Ship Root's frame")
 

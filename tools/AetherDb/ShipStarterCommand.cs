@@ -25,6 +25,9 @@ public static class ShipStarterCommand
         public float3 Position;
         // Box half-extents; null for an empty node. Scale is the node scale, used by the shield envelope.
         public float3? Half;
+        // A directional thruster emitter has one face, the (axis, sign) its exhaust leaves by in the Blender frame; a box with all six
+        // would fire exhaust both ways along the push. These drives push toward the bow (Reversed), so the exhaust leaves aft, +Y.
+        public (int Axis, int Sign)? Face;
         public float3? Scale;
     }
 
@@ -43,8 +46,8 @@ public static class ShipStarterCommand
             new Part { Id = "collider", Role = "hull-collider", Half = new float3(3f, 5f, 1f) },
             new Part { Id = "shield", Role = "shield", Scale = new float3(4f, 6f, 2.5f) },
             new Part { Id = "tractor", Role = "tractor", Position = new float3(0f, -5f, 0f) },
-            new Part { Id = "thruster.port", Role = "thruster-emitter", Mount = HardpointType.Thruster, Cell = new int2(0, 0), Size = new int2(2, 1), Position = new float3(2.2f, 5.4f, 0f), Half = new float3(.4f, .6f, .4f) },
-            new Part { Id = "thruster.starboard", Role = "thruster-emitter", Mount = HardpointType.Thruster, Cell = new int2(2, 0), Size = new int2(2, 1), Position = new float3(-2.2f, 5.4f, 0f), Half = new float3(.4f, .6f, .4f) },
+            new Part { Id = "thruster.port", Role = "thruster-emitter", Mount = HardpointType.Thruster, Cell = new int2(0, 0), Size = new int2(2, 1), Position = new float3(2.2f, 5.4f, 0f), Half = new float3(.4f, .6f, .4f), Face = (1, 1) },
+            new Part { Id = "thruster.starboard", Role = "thruster-emitter", Mount = HardpointType.Thruster, Cell = new int2(2, 0), Size = new int2(2, 1), Position = new float3(-2.2f, 5.4f, 0f), Half = new float3(.4f, .6f, .4f), Face = (1, 1) },
             new Part { Id = "radiator", Role = "radiator-mesh", Mount = HardpointType.Radiator, Cell = new int2(1, 1), Size = new int2(2, 1), Position = new float3(0f, 2f, 1.1f), Half = new float3(1.5f, .8f, .08f) },
             new Part { Id = "gun.port", Role = "weapon-mount", Mount = HardpointType.Energy, Cell = new int2(0, 5), Position = new float3(1.8f, -3f, 1.1f) },
             new Part { Id = "gun.port.muzzle", Role = "weapon-muzzle", Parent = "gun.port", Position = new float3(1.8f, -4f, 1.1f) },
@@ -125,8 +128,8 @@ public static class ShipStarterCommand
             var positions = new List<float>();
             var normals = new List<float>();
             var indices = new List<ushort>();
-            // Six faces, outward normals, in the Blender frame; Gltf() turns each into glTF's.
-            foreach (var (axis, sign) in new[] { (0, 1), (0, -1), (1, 1), (1, -1), (2, 1), (2, -1) })
+            // Six faces (one for a thruster emitter), outward normals, in the Blender frame; Gltf() turns each into glTF's.
+            foreach (var (axis, sign) in part.Face != null ? new[] { part.Face.Value } : new[] { (0, 1), (0, -1), (1, 1), (1, -1), (2, 1), (2, -1) })
             {
                 var u = (axis + 1) % 3;
                 var v = (axis + 2) % 3;

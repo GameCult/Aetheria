@@ -53,6 +53,14 @@ def quad(name, size=1.0):
     return mesh
 
 
+def exhaust_quad(name, size):
+    """A thruster emitter for a hardpoint of Rotation None: an upright quad whose one side faces the nose (-Y), the way its exhaust leaves."""
+    mesh = bpy.data.meshes.new(name)
+    half = size / 2
+    mesh.from_pydata([(-half, 0, -half), (half, 0, -half), (half, 0, half), (-half, 0, half)], [], [(0, 1, 2, 3)])
+    return mesh
+
+
 def tagged(collection, name, data, role=None, anchor_id=None, location=(0, 0, 0), parent=None):
     obj = bpy.data.objects.new(name, data)
     obj.location = location
@@ -345,7 +353,7 @@ def main():
     tagged(ship, "Hull Collider", tetrahedron("Hull Collider"), "hull-collider", "collider")
     tagged(ship, "Shield", None, "shield", "shield")
     tagged(ship, "Tractor", None, "tractor", "tractor", (0, 2, 0))
-    disc = tagged(ship, "Thruster", quad("Thruster", 0.4), "thruster-emitter", "thruster", (0, -1, 0))
+    disc = tagged(ship, "Thruster", exhaust_quad("Thruster", 0.4), "thruster-emitter", "thruster", (0, -1, 0))
     gun = tagged(ship, "Gun", None, "weapon-mount", "gun", (1, 0, 0))
     tagged(ship, "Gun Muzzle", None, "weapon-muzzle", "gun.muzzle", (0, 0.5, 0), parent=gun)
     tagged(ship, "Radiator", quad("Radiator", 0.5), "radiator-mesh", "radiator", (-1, 0, 0))

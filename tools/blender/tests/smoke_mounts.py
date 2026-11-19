@@ -69,6 +69,14 @@ def quad(name, size):
     return mesh
 
 
+def exhaust_quad(name, size):
+    """A thruster emitter for a hardpoint of Rotation None: an upright quad whose one side faces the nose (-Y), the way its exhaust leaves."""
+    mesh = bpy.data.meshes.new(name)
+    half = size / 2
+    mesh.from_pydata([(-half, 0, -half), (half, 0, -half), (half, 0, half), (-half, 0, half)], [], [(0, 1, 2, 3)])
+    return mesh
+
+
 def tetrahedron(name):
     mesh = bpy.data.meshes.new(name)
     mesh.from_pydata([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], [], [(0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3)])
@@ -294,7 +302,7 @@ def main():
     tag(new_object(collection, "Hull Collider", tetrahedron("Hull Collider"), parent=root), "hull-collider", "collider")
     tag(new_object(collection, "Shield", None, parent=root), "shield", "shield")
     tag(new_object(collection, "Tractor", None, (0, 2, 0), root), "tractor", "tractor")
-    disc = new_object(collection, "Thruster", quad("Thruster", 0.4), (0, 8, 0), root)
+    disc = new_object(collection, "Thruster", exhaust_quad("Thruster", 0.4), (0, 8, 0), root)
     tag(disc, "thruster-emitter", "thruster")
     for mount, kind, x, y in (("thruster", "3", 2, 0), ("reactor.a", "5", 2, 2)):
         bpy.ops.aetheria.add_ship_hardpoint()

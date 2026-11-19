@@ -28,7 +28,7 @@ SECRET = "SECRET-NAME-7"  # a value a hull source supplies and no refusal may ec
 def box(x0, x1, y0, y1, z0, z1):
     """An OFF text for an axis-aligned box: 8 vertices, 6 quads (12 triangles once fanned)."""
     v = [(x, y, z) for z in (z0, z1) for y in (y0, y1) for x in (x0, x1)]
-    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    quads = [(0, 2, 3, 1), (4, 5, 7, 6), (0, 1, 5, 4), (2, 6, 7, 3), (0, 4, 6, 2), (1, 3, 7, 5)]  # outward, counter-clockwise from outside
     rows = ["OFF", "8 6 0"] + [f"{x} {y} {z}" for x, y, z in v] + [f"4 {a} {b} {c} {d}" for a, b, c, d in quads]
     return "\n".join(rows)
 
@@ -339,9 +339,9 @@ class JudgementTests(unittest.TestCase):
             self.assertEqual(fixture.failed(), ["the triangle count lies inside the brief's budget"], budget)
 
     def test_the_budget_counts_the_triangles_of_the_emitter_meshes_too(self):
-        # 12 + 12 triangles of zones, 12 of the emitter: a budget of 30 holds without the emitter and not with it
+        # 12 + 12 triangles of zones, 2 of the emitter (its exhaust-facing side): a budget of 25 holds without it and not with it
         fixture = Fixture()
-        fixture.parts["brief"] = ("", brief(triangles=(10, 30)))
+        fixture.parts["brief"] = ("", brief(triangles=(10, 25)))
         self.assertEqual(fixture.failed(), ["the triangle count lies inside the brief's budget"])
 
     def test_the_length_is_a_range_with_two_ends(self):
@@ -383,6 +383,38 @@ class JudgementTests(unittest.TestCase):
     def test_an_emitter_with_no_mesh_is_refused(self):
         fixture = Fixture()
         fixture.parts["emit:Th.A"] = ("", "")
+        self.assertEqual(fixture.failed(), ["every emitter and radiator anchor has a mesh"])
+
+    @staticmethod
+    def _normals(mesh):
+        """The unit outward normal of each triangle."""
+        out = []
+        for a, b, c in mesh.triangles:
+            pa, pb, pc = (mesh.vertices[i] for i in (a, b, c))
+            u, v = [pb[i] - pa[i] for i in range(3)], [pc[i] - pa[i] for i in range(3)]
+            n = (u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
+            length = sum(x * x for x in n) ** 0.5
+            out.append(tuple(round(x / length) for x in n))
+        return out
+
+    def test_an_emitter_keeps_only_the_side_that_faces_its_exhaust(self):
+        # The thin box the hull source draws is closed; its exhaust leaves the way the anchor faces (yaw 180 aft, +Y; yaw 90
+        # port, +X; yaw 0 the nose, -Y), and only the triangles facing that way are the emitter.
+        for yaw, thin, facing in ((180, (5, 5.1, "y"), (0, 1, 0)), (0, (5, 5.1, "y"), (0, -1, 0)), (90, (5, 5.1, "x"), (1, 0, 0))):
+            fixture = Fixture()
+            fixture.parts["anchors"] = ("", echo("anchor", ["Gun.A", "weapon-mount", [0, 0, 3], 0, ""])
+                                        + echo("anchor", ["Gun.A.muzzle", "weapon-muzzle", [0, -3, 3], 0, "Gun.A"])
+                                        + echo("anchor", ["Th.A", "thruster-emitter", [1, 5, 1], yaw, ""]))
+            fixture.parts["emit:Th.A"] = (box(5, 5.1, 1, 2, 0.5, 1.5) if thin[2] == "x" else box(0.5, 1.5, 5, 5.1, 0.5, 1.5), "")
+            mesh = fixture.build().anchor_meshes["Th.A"]
+            self.assertEqual(len(mesh.triangles), 2, yaw)
+            self.assertEqual(set(self._normals(mesh)), {facing}, yaw)
+
+    def test_an_emitter_with_no_side_facing_its_exhaust_is_refused(self):
+        # A single quad that faces the push, not the exhaust, has nothing left once the wrong side is dropped.
+        fixture = Fixture()
+        quad_toward_push = "OFF\n4 1 0\n0.5 5 0.5\n1.5 5 0.5\n1.5 5 1.5\n0.5 5 1.5\n4 0 1 2 3"  # normal -Y, anchor exhaust +Y
+        fixture.parts["emit:Th.A"] = (quad_toward_push, "")
         self.assertEqual(fixture.failed(), ["every emitter and radiator anchor has a mesh"])
 
     def test_the_collider_zone_is_the_languages_body(self):
