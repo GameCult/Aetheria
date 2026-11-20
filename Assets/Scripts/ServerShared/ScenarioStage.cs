@@ -108,9 +108,18 @@ public class ZoneStage
     public ScenarioFit Preset(string name)
     {
         var preset = _items.ItemData.GetAll<Loadout>().FirstOrDefault(loadout => loadout.Name == name);
-        if (preset != null) return new ScenarioFit(preset);
-        _failures.Add($"preset {name}: no such preset");
-        return null;
+        if (preset == null)
+        {
+            _failures.Add($"preset {name}: no such preset");
+            return null;
+        }
+        // A faction's boss is the zone generator's to place (boss-hulls-exclusive): Loadouts.BossOf owns which loadout it is.
+        if (_items.ItemData.GetAll<Faction>().Any(faction => Loadouts.BossOf(_items.ItemData, faction, out _)?.Name == preset.Name))
+        {
+            _failures.Add($"preset {name}: a faction's boss loadout is placed only by the zone generator");
+            return null;
+        }
+        return new ScenarioFit(preset);
     }
 
     // Anything else in the arena. A stance holds both ways between it and the player. A piloted ship gets the zone's
@@ -192,19 +201,30 @@ public class ZoneStage
 
     // Places ships into a running zone through the admission a run start uses: the script places with the stage's verbs,
     // and the entities join with their stance toward the player, a pilot when piloted and the knowledge the script stated.
-    // Returns the placed entities in order, or null with every failure listed and the zone unchanged. It draws from the
-    // live item stream and does not reseed (a reseed would give every summon the same fits).
+    // Returns the placed entities in order, or null with every failure listed and the zone and the item stream unchanged.
+    // It draws from the live item stream and does not reseed (a reseed would give every summon the same fits). The anchor
+    // is the player's ship: the stance is written against it.
     public static IReadOnlyList<Entity> Summon(ItemManager items, Zone zone, Ship player, Action<ZoneStage> script, List<string> failures)
     {
+        if (player == null || !player.IsPlayerShip)
+        {
+            failures.Add("summon: the anchor is not the player's ship");
+            return null;
+        }
         if (!zone.Entities.Contains(player))
         {
             failures.Add("summon: the player is not in this zone");
             return null;
         }
+        var stream = items.Random;
         var stage = new ZoneStage(items, zone);
         script(stage);
         failures.AddRange(stage._failures);
-        if (stage._failures.Count > 0) return null;
+        if (stage._failures.Count > 0)
+        {
+            items.Random = stream; // a refusal draws nothing: the fits it built are discarded with it
+            return null;
+        }
         stage.StockUnauthoredAmmunition();
         stage.AdmitPlaced(player);
         return stage._placed.Select(placed => placed.Entity).ToList();
@@ -284,8 +304,9 @@ public sealed class ScenarioStage : ZoneStage
         return null;
     }
 
-    // Run start's admission, in this order: stock unauthored ammunition (Activate reads cargo-driven behaviours, so it
-    // comes before admission), the player, then everything placed.
+    // Run start's admission: stock unauthored ammunition, the player, then everything placed. Nothing at admission or
+    // activation reads cargo (ammunition is read when a weapon fires), so stocking is not ordered by admission; it keeps
+    // the run start's order.
     internal void Admit()
     {
         StockUnauthoredAmmunition();

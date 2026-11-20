@@ -469,6 +469,68 @@ public sealed partial class RunStartTests
         SafeAssert.Unchanged(zone, entities, agents);
     }
 
+    // A refused summon leaves the item stream where it was, so a refusal is not a draw: the next fit is the one it would have been.
+    // Kills: a summon that keeps the draws of the fits it built before refusing.
+    [Fact]
+    public void ARefusedSummonLeavesTheItemStream()
+    {
+        var zone = Arena(true);
+        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
+        var before = _items.Random;
+        var failures = new List<string>();
+
+        Assert.Null(ZoneStage.Summon(_items, zone, player, stage =>
+        {
+            stage.Place(stage.Generated("Longinus"), float2(400, 0));
+            stage.Place(stage.Bare("No Such Hull"), float2(-400, 0));
+        }, failures));
+
+        var after = _items.Random;
+        Assert.Equal(before.NextUInt(), after.NextUInt());
+    }
+
+    // The anchor of a summon is the player's ship, not any ship in the zone. Kills: a summon that takes any zone member as the player.
+    [Fact]
+    public void ASummonNeedsThePlayersShipAsItsAnchor()
+    {
+        var zone = Arena(true);
+        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
+        var other = zone.Entities.OfType<Ship>().First(ship => !ship.IsPlayerShip);
+        var entities = zone.Entities.ToList();
+        var agents = zone.Agents.ToList();
+        var failures = new List<string>();
+
+        Assert.Null(ZoneStage.Summon(_items, zone, other, stage => stage.Place(stage.Bare("Longinus"), float2(400, 0), stance: ScenarioStance.Hostile), failures));
+
+        Assert.Equal(new[] { "summon: the anchor is not the player's ship" }, failures);
+        SafeAssert.Unchanged(zone, entities, agents);
+    }
+
+    // A faction's boss is the zone generator's to place (boss-hulls-exclusive): a preset naming the loadout Loadouts.BossOf
+    // returns is refused, through a summon as through a run start. Kills: a Preset that places any catalog loadout.
+    [Fact]
+    public void APresetCannotPlaceAFactionsBoss()
+    {
+        var zone = Arena(true);
+        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
+        var boss = _cache.GetAll<Faction>().Select(faction => Loadouts.BossOf(_cache, faction, out _)).First(loadout => loadout != null);
+        var entities = zone.Entities.ToList();
+        var agents = zone.Agents.ToList();
+        var failures = new List<string>();
+
+        Assert.Null(ZoneStage.Summon(_items, zone, player, stage =>
+            stage.Place(stage.Preset(boss.Name), float2(400, 0), stance: ScenarioStance.Hostile, piloted: true), failures));
+
+        Assert.Contains(failures, failure => failure.Contains(boss.Name) && failure.Contains("boss"));
+        SafeAssert.Unchanged(zone, entities, agents);
+        var started = Refused(Arena(true), new Scripted(true, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(0, 0));
+            stage.Place(stage.Preset(boss.Name), float2(400, 0));
+        }));
+        Assert.Contains(started, failure => failure.Contains("boss"));
+    }
+
     // A stance lasts the sitting: the player docking and undocking leaves it standing both ways. It goes with an entity
     // gone for good: once an entity is destroyed, the player holds no stance toward it.
     [Fact]
