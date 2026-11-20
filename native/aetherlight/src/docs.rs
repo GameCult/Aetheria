@@ -266,6 +266,9 @@ impl<K: Ord + Clone, V: Clone + PartialEq, P: Projection<V>> Docs<K, V, P> {
             .map(|(point, key)| (point.clone(), key.clone()))
             .collect();
         if !self.touched.is_empty() {
+            // Every logged key is walked whatever the range, so each is a row read.
+            #[cfg(test)]
+            count_rows(self.touched.len() as u64);
             let mut points = Vec::new();
             for key in self.touched.keys() {
                 if let Some(value) = self.map.get(key) {
@@ -538,6 +541,16 @@ mod tests {
         let before = rows_read();
         assert_eq!(docs.indexed(1..=1).len(), 2);
         assert_eq!(rows_read() - before, 2);
+    }
+
+    #[test]
+    fn walking_the_open_log_is_counted_even_when_nothing_matches() {
+        let mut docs = spread(&[(1, 10), (2, 21), (3, 33)]);
+        docs.insert(1, 11);
+        docs.insert(9, 99);
+        let before = rows_read();
+        assert!(docs.indexed(5..=5).is_empty());
+        assert_eq!(rows_read() - before, 2, "two logged keys were walked");
     }
 
     #[test]
