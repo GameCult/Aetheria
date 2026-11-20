@@ -27,8 +27,9 @@ pub(crate) fn rows_read() -> u64 {
     ROWS_READ.with(|rows| rows.get())
 }
 
+/// Counts rows a view read, where the view is owned (test builds).
 #[cfg(test)]
-fn count_rows(rows: u64) {
+pub(crate) fn count_rows(rows: u64) {
     ROWS_READ.with(|count| count.set(count.get() + rows));
 }
 

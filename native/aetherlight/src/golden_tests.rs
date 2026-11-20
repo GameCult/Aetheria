@@ -593,6 +593,10 @@ fn a_failed_apply_rolls_back() {
                 "{label}: the accumulator no longer matches the documents"
             );
             assert_indexes_derived(&kernel.state, &format!("{label}, after the failure"));
+            assert!(
+                kernel.state.views.same_as(&crate::views::Views::rebuild(&kernel.state)),
+                "{label}: the failure left the views behind"
+            );
 
             let envelope = clockwork_envelope(&kernel, body);
             kernel
@@ -600,6 +604,10 @@ fn a_failed_apply_rolls_back() {
                 .unwrap_or_else(|error| panic!("{label}: the next honest command: {error:?}"));
             assert_eq!(kernel.state.full_state_digest().unwrap(), kernel.state.state_digest);
             assert_indexes_derived(&kernel.state, &format!("{label}, after the honest command"));
+            assert!(
+                kernel.state.views.same_as(&crate::views::Views::rebuild(&kernel.state)),
+                "{label}: the views left their documents"
+            );
         }
     }
 }
@@ -1056,7 +1064,95 @@ fn walked_states() -> Vec<(String, crate::WorldState)> {
         kernel.submit(envelope, &AuthenticatedCaller::verified_play()).unwrap();
         states.push((format!("clockwork commit {step}"), kernel.state.clone()));
     }
+    let reopened = WorldKernel::open(&kernel.export().unwrap()).unwrap();
+    states.push(("clockwork reopened".into(), reopened.state));
     states.push(("multivalue world".into(), multivalue_world()));
+    states.extend(view_scenario());
+    states
+}
+
+/// The commands that move what the views join, one at a time, each state kept:
+/// dependencies bound on a route, a resource and a subject; the route closed
+/// and reopened; the resource's holding emptied and refilled; a depended-on
+/// subject loses its position; a dependent released; and a subject that holds
+/// past-due routines and a failing dependency retires.
+fn view_scenario() -> Vec<(String, crate::WorldState)> {
+    use crate::patch::{DependencyRef, EvidenceRef, Quantity};
+    use crate::tests::TITHE_RECEIPT;
+    let (mut kernel, people, _) = clockwork_world(20);
+    let route = *kernel.state.edges.keys().next().expect("a route");
+    let grain = |label: &str| {
+        *kernel
+            .state
+            .entities
+            .iter()
+            .find(|(_, record)| record.label == label)
+            .expect("a declared resource")
+            .0
+    };
+    let (grain_0, grain_1) = (grain("Grain 0"), grain("Grain 1"));
+    let bind = |subject: usize, target: DependencyRef| ComponentOp::Bind {
+        subject: Ref::Existing(people[subject]),
+        target,
+    };
+    let steps: Vec<(&str, CommandBody)> = vec![
+        (
+            "binds",
+            operations(vec![
+                bind(5, DependencyRef::Route(Ref::Existing(route))),
+                bind(6, DependencyRef::Resource(Ref::Existing(grain_1))),
+                bind(7, DependencyRef::Subject(Ref::Existing(people[8]))),
+                bind(7, DependencyRef::Resource(Ref::Existing(grain_0))),
+                bind(3, DependencyRef::Subject(Ref::Existing(people[4]))),
+            ]),
+        ),
+        ("the route closes", operations(vec![ComponentOp::CloseRoute { route: Ref::Existing(route) }])),
+        ("the route reopens", operations(vec![ComponentOp::OpenRoute { route: Ref::Existing(route) }])),
+        (
+            "a holding empties",
+            operations(vec![ComponentOp::Consume {
+                holder: Ref::Existing(people[7]),
+                resource: Ref::Existing(grain_0),
+                qty: Quantity(1),
+            }]),
+        ),
+        (
+            "the holding refills",
+            CommandBody::AdmitPatch {
+                patch: WorldPatch {
+                    declarations: Vec::new(),
+                    operations: vec![ComponentOp::Admit {
+                        holder: Ref::Existing(people[7]),
+                        resource: Ref::Existing(grain_0),
+                        qty: Quantity(1),
+                        evidence: EvidenceRef::new(TITHE_RECEIPT),
+                    }],
+                    evidence: vec![EvidenceRef::new(TITHE_RECEIPT)],
+                },
+            },
+        ),
+        ("the route closes again", operations(vec![ComponentOp::CloseRoute { route: Ref::Existing(route) }])),
+        ("a long tick", tick_body(30)),
+        ("a depended-on subject retires", operations(vec![ComponentOp::Retire { subject: Ref::Existing(people[8]) }])),
+        (
+            "a dependent is released",
+            operations(vec![ComponentOp::Release {
+                subject: Ref::Existing(people[3]),
+                target: DependencyRef::Subject(Ref::Existing(people[4])),
+            }]),
+        ),
+        ("a failing, past-due subject retires", operations(vec![ComponentOp::Retire { subject: Ref::Existing(people[6]) }])),
+        ("the route reopens after the retirement", operations(vec![ComponentOp::OpenRoute { route: Ref::Existing(route) }])),
+        ("a last tick", tick_body(30)),
+    ];
+    let mut states = vec![("scenario created".to_owned(), kernel.state.clone())];
+    for (name, body) in steps {
+        let envelope = clockwork_envelope(&kernel, body);
+        kernel
+            .submit(envelope, &AuthenticatedCaller::verified_play())
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        states.push((format!("scenario: {name}"), kernel.state.clone()));
+    }
     states
 }
 
@@ -1107,13 +1203,6 @@ fn indexes_are_derived() {
 /// The first place an index read and the scan it replaced disagree, if any.
 fn reference_scan_disagreement(state: &crate::WorldState) -> Option<String> {
     use crate::{Audience, Cost, PressureSource};
-    let now = state.header.now;
-    for minutes in [1, 30] {
-        let to = FictionalMinutes(now.0 + minutes);
-        if crate::clock::derive_motion(state, to) != crate::clock::derive_motion_by_scan(state, to) {
-            return Some(format!("derive_motion over {minutes} minutes"));
-        }
-    }
     let subjects: Vec<_> = state.subjects.keys().copied().collect();
     let places: Vec<_> = state
         .entities
@@ -1144,6 +1233,15 @@ fn reference_scan_disagreement(state: &crate::WorldState) -> Option<String> {
             {
                 return Some(format!("reachable {place:?} from {subject:?}"));
             }
+        }
+    }
+    let targets: std::collections::BTreeSet<_> =
+        state.dependencies.values().flat_map(|held| held.iter().copied()).collect();
+    for target in targets {
+        let mut by_index = crate::views::Views::dependents_of(state, target);
+        by_index.sort();
+        if by_index != crate::views::Views::dependents_by_scan(state, target) {
+            return Some(format!("dependents of {target:?}"));
         }
     }
     for place in &places {
@@ -1271,10 +1369,84 @@ fn a_corrupted_index_is_detected() {
         "aetherlight.position.v1",
         "aetherlight.channel.v1",
         "aetherlight.selection.v1",
-        "aetherlight.commitments.v1",
+        "aetherlight.dependencies.v1",
         "aetherlight.pressures.v1",
     ]
     .into();
     assert_eq!(reported, indexed, "exactly the indexed partitions can be damaged");
     assert_eq!(misread, indexed, "a damaged index must change what a reader answers");
+}
+
+/// A view is derived from the documents and nothing else: after every commit of
+/// the walked worlds, however each was reached, it is what a scan of the
+/// committed documents builds.
+#[test]
+fn views_are_derived() {
+    for (label, state) in walked_states() {
+        assert!(
+            state.views.same_as(&crate::views::Views::rebuild(&state)),
+            "{label}: the views left their documents"
+        );
+    }
+}
+
+/// The motion the views derive is the motion the scans derive: every live
+/// subject's due commitments and failing dependencies, over short and long
+/// spans, in every walked state (which holds routes that close and reopen,
+/// holdings that empty, subjects that lose a position, and subjects that retire
+/// holding past-due routines and failing dependencies).
+#[test]
+fn view_reads_equal_reference_scans() {
+    let mut pressed_dependency = false;
+    for (label, state) in walked_states() {
+        for minutes in [1, 30, 5_000] {
+            let to = FictionalMinutes(state.header.now.0 + minutes);
+            let motion = crate::clock::derive_motion(&state, to);
+            assert_eq!(motion, crate::clock::derive_motion_by_scan(&state, to), "{label}, {minutes} minutes");
+            pressed_dependency |= motion
+                .pressed
+                .iter()
+                .any(|written| matches!(written.source, crate::PressureSource::Dependency(_)));
+        }
+    }
+    assert!(pressed_dependency, "no walked state had a failing dependency to compare");
+}
+
+/// A damaged view is seen by the oracle and changes what the clock derives: a
+/// stray failing row presses a dependency nobody holds, and a missing due
+/// point leaves its subjects unmoved.
+#[test]
+fn a_corrupted_view_is_detected() {
+    let (mut kernel, _, _) = clockwork_world(20);
+    kernel
+        .submit(clockwork_envelope(&kernel, tick_body(1)), &AuthenticatedCaller::verified_play())
+        .unwrap();
+    let state = kernel.state;
+    let to = FictionalMinutes(state.header.now.0 + 30);
+    assert!(state.views.same_as(&crate::views::Views::rebuild(&state)));
+    for stray in [true, false] {
+        let mut damaged = state.clone();
+        assert!(damaged.views.corrupt_for_test(stray), "stray {stray}");
+        assert!(
+            !damaged.views.same_as(&crate::views::Views::rebuild(&damaged)),
+            "stray {stray}: the oracle did not see the damage"
+        );
+        assert_ne!(
+            crate::clock::derive_motion(&damaged, to),
+            crate::clock::derive_motion_by_scan(&damaged, to),
+            "stray {stray}: the damage changed no read"
+        );
+    }
+}
+
+/// A view is read only with clean logs: reading one while a partition it joins
+/// has an open write is refused, not answered from a stale fold.
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "open log")]
+fn a_view_read_with_an_open_log_is_refused() {
+    let (mut kernel, people, _) = clockwork_world(20);
+    kernel.state.begin();
+    kernel.state.positions.remove(&people[3]);
+    crate::clock::derive_motion(&kernel.state, FictionalMinutes(1));
 }
