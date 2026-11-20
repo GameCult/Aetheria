@@ -96,10 +96,12 @@ use patch::{
 };
 #[cfg(test)]
 pub(crate) use patch::{
-    AffordanceKindName, AuthorityGrantRef, AuthorityKindName, AuthorityTargetRef, ComponentOpKind,
+    AuthorityGrantRef, AuthorityKindName, AuthorityTargetRef, ComponentOpKind,
     EffectSlot, OutcomeBand, Precondition, RoleSpec,
 };
-use patch::{EdgeRecord, EntityRecord, LedgerDelta, ResolvedOp, ResolvedPatch};
+use patch::{
+    AffordanceKindName, EdgeRecord, EntityRecord, LedgerDelta, ResolvedOp, ResolvedPatch,
+};
 
 use digest::{LtHash16, Partition};
 use docs::{Changed, DocKey, Docs, Tracked};
@@ -606,8 +608,32 @@ impl docs::Projection<BTreeMap<OfficeName, Office>> for ByIncumbent {
     }
 }
 
+/// `ByImportKey`: the subject that holds an import key. Retired subjects keep
+/// theirs, so a key is never reissued.
+#[derive(Clone, Debug)]
+struct ByImportKey;
+
+impl docs::Projection<SubjectState> for ByImportKey {
+    type Point = ImportKey;
+    fn points(value: &SubjectState, out: &mut Vec<ImportKey>) {
+        out.extend(value.import_key.clone());
+    }
+}
+
+/// `ByKind`: the catalog entry that names an affordance kind, so a kind is
+/// taken exactly when a point holds an entry.
+#[derive(Clone, Debug)]
+struct ByKind;
+
+impl docs::Projection<Affordance> for ByKind {
+    type Point = AffordanceKindName;
+    fn points(value: &Affordance, out: &mut Vec<AffordanceKindName>) {
+        out.push(value.kind.clone());
+    }
+}
+
 world_state! {
-    subjects: Docs<SubjectId, SubjectState> = "aetherlight.subject.v1";
+    subjects: Docs<SubjectId, SubjectState, ByImportKey> = "aetherlight.subject.v1";
     entities: Docs<EntityId, EntityRecord, ChildOf> = "aetherlight.entity.v1";
     edges: Docs<EdgeId, EdgeRecord, ByEndpoint> = "aetherlight.edge.v1";
     positions: Docs<SubjectId, Position, StandsAt> = "aetherlight.position.v1";
@@ -649,7 +675,7 @@ world_state! {
     pressures: Docs<SubjectId, BTreeMap<PressureSource, PressureMagnitude>, BySource> = "aetherlight.pressures.v1";
     /// What an affordance *is*. World-authored and written by `admit_resolved`
     /// alone.
-    affordance_catalog: Docs<AffordanceId, Affordance> = "aetherlight.affordance.v1";
+    affordance_catalog: Docs<AffordanceId, Affordance, ByKind> = "aetherlight.affordance.v1";
     /// Who may exercise which entry: a row exists if and only if the subject
     /// holds at least one verb. A grant carries no payload, so a duplicate
     /// grant is unrepresentable rather than checked.
@@ -1271,7 +1297,7 @@ fn require_play(caller: &CallerId) -> Result<(), KernelError> {
 /// `WorldState` so the genesis lane, which resolves declarations before any
 /// `WorldState` exists, can call the same owner instead of hand-copying the
 /// literal it would otherwise always evaluate to.
-fn is_genesis(revision: u64, subjects: &Docs<SubjectId, SubjectState>) -> bool {
+fn is_genesis(revision: u64, subjects: &Docs<SubjectId, SubjectState, ByImportKey>) -> bool {
     revision == 0 && subjects.is_empty()
 }
 
@@ -1542,11 +1568,11 @@ fn admit_resolved(
     // The subjects map's only writer holds the same injectivity the resolver
     // checks, decided by the same function.
     {
-        let held = patch::held_import_keys(state.subjects.values());
         let mut declared = BTreeSet::new();
         for subject in &resolved.subjects {
             if let Some(key) = &subject.subject.import_key
-                && patch::import_key_fault(key, &held, &mut declared).is_some()
+                && patch::import_key_fault(key, |key| state.import_key_held(key), &mut declared)
+                    .is_some()
             {
                 return Err(KernelError::Invariant(
                     "admitted subject's import key is malformed, held or repeated".into(),
@@ -2666,6 +2692,31 @@ fn channel_referents_exist(state: &WorldState, record: &ChannelRecord) -> bool {
         && record
             .controller
             .is_none_or(|subject_id| state.subjects.contains_key(&subject_id))
+}
+
+impl WorldState {
+    /// Whether a subject, retired or not, holds this import key. One point read
+    /// of `ByImportKey`.
+    fn import_key_held(&self, key: &ImportKey) -> bool {
+        !self.subjects.indexed(key.clone()..=key.clone()).is_empty()
+    }
+
+    /// Whether a catalog entry already names this affordance kind.
+    fn kind_taken(&self, kind: &AffordanceKindName) -> bool {
+        !self.affordance_catalog.indexed(kind.clone()..=kind.clone()).is_empty()
+    }
+}
+
+/// What `import_key_held` and `kind_taken` were before their indexes: every
+/// subject, every catalog entry. The index reads must equal them.
+#[cfg(test)]
+fn import_key_held_by_scan(state: &WorldState, key: &ImportKey) -> bool {
+    state.subjects.values().any(|subject| subject.import_key.as_ref() == Some(key))
+}
+
+#[cfg(test)]
+fn kind_taken_by_scan(state: &WorldState, kind: &AffordanceKindName) -> bool {
+    state.affordance_catalog.values().any(|entry| &entry.kind == kind)
 }
 
 /// Whether a subject is retired: the one statement of retirement, read by
