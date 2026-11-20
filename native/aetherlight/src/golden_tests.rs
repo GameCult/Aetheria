@@ -934,16 +934,224 @@ fn read_work_is_equal_at_100_and_1600() {
     assert_eq!(worked[0], worked[1], "read work grew with the world");
 }
 
-/// The reads a clockwork submit does not reach, inside one open transaction
-/// each: who stands under a two-level subtree, discharging a commitment while
-/// the world holds N pressure rows from other sources, one incumbent's
-/// delegated authority, and a path of three routes. (An `AdmitPatch` resolves
-/// against the whole world until follow-up `aetherlight-resolver-reads-world`,
-/// so no submit shape reaches these.)
+/// What a patch reads is what it touches, not what the world holds: ten patch
+/// shapes, each submitted through `AdmitPatch` (resolution against the
+/// candidate graph, the reducer, and the commit's own checks), read the same
+/// number of rows at 100, 400 and 1600 persons (some read none: point reads are
+/// not rows). The count is taken where reads
+/// are owned (`Docs`), so a resolver arm that copies a partition, collects keys
+/// from every subject, sums a resource over every holder, or judges every holder
+/// for overlap cannot hide from it. The shapes run in order on one world, so
+/// each leaves the world the next one reads.
+#[test]
+fn patch_read_work_is_equal_at_100_and_1600() {
+    use crate::patch::{
+        AuthorityGrantRef, AuthorityTargetRef, AuthoredSource, DependencyRef, FactDeclaration,
+        FactStandingRef, PressureMagnitude, PressureSourceRef, Quantity, SubjectDeclaration,
+    };
+    use crate::tests::{LEVY_KIND, WARDEN_OFFICE, authority_kind, office};
+    use crate::{Confidence, ImportKey, SubjectKind};
+    use std::collections::BTreeSet;
+
+    let mut shapes: Vec<&'static str> = Vec::new();
+    let mut worked: Vec<Vec<u64>> = Vec::new();
+    for persons in [100usize, 400, 1600] {
+        let (mut kernel, people, _) = clockwork_world(persons);
+        let label = |kernel: &WorldKernel, label: &str| {
+            *kernel
+                .state
+                .entities
+                .iter()
+                .find(|(_, record)| record.label == label)
+                .unwrap_or_else(|| panic!("{label} is declared"))
+                .0
+        };
+        let (place_zero, grain, fact_one) = (
+            label(&kernel, "Place 0"),
+            label(&kernel, "Grain 0"),
+            label(&kernel, "Fact 1"),
+        );
+        let route = *kernel
+            .state
+            .edges
+            .iter()
+            .find(|(_, record)| record.label() == "Route 0")
+            .expect("the first route is declared")
+            .0;
+        let institution = subject_by_label(&kernel.state, "Institution 0");
+
+        // The tick presses the two obligations; then every other person is
+        // pressed by one source, so the pressure partition holds a row for each.
+        kernel
+            .submit(clockwork_envelope(&kernel, tick_body(1)), &AuthenticatedCaller::verified_play())
+            .expect("the tick presses the obligations");
+        let pressing: Vec<ComponentOp> = people[1..]
+            .iter()
+            .map(|person| ComponentOp::AdvancePressure {
+                source: PressureSourceRef::Subject(Ref::Existing(people[0])),
+                target: Ref::Existing(*person),
+                by: PressureMagnitude(1),
+            })
+            .collect();
+        kernel
+            .submit(
+                clockwork_envelope(&kernel, operations(pressing)),
+                &AuthenticatedCaller::verified_play(),
+            )
+            .expect("the pressure rows land");
+        assert!(kernel.state.pressures.len() >= persons, "the pressure partition is at scale");
+        let obligation = kernel.state.commitments[&people[0]]
+            .iter()
+            .find(|(_, commitment)| commitment.kind == CommitmentKind::Obligation)
+            .map(|(key, _)| *key)
+            .expect("the first person owes an obligation");
+
+        let patch = |declarations: Vec<Declaration>, operations: Vec<ComponentOp>| {
+            CommandBody::AdmitPatch {
+                patch: WorldPatch { declarations, operations, evidence: Vec::new() },
+            }
+        };
+        let bodies: Vec<(&'static str, CommandBody)> = vec![
+            (
+                "discharge a past-due obligation",
+                patch(
+                    Vec::new(),
+                    vec![ComponentOp::DischargeCommitment {
+                        subject: Ref::Existing(people[0]),
+                        key: obligation,
+                    }],
+                ),
+            ),
+            (
+                "relocate along a route",
+                patch(
+                    Vec::new(),
+                    vec![ComponentOp::Relocate { subject: Ref::Existing(people[5]), via: Ref::Existing(route) }],
+                ),
+            ),
+            (
+                "declare a subject with an import key",
+                patch(
+                    vec![Declaration::Subject(SubjectDeclaration {
+                        handle: DraftHandle::new("newcomer"),
+                        label: "The Newcomer".into(),
+                        kind: SubjectKind::Person,
+                        affordances: BTreeSet::new(),
+                        position: Some(Ref::Existing(place_zero)),
+                        import_key: Some(ImportKey::new("aetherlight.gate", "newcomer")),
+                    })],
+                    Vec::new(),
+                ),
+            ),
+            (
+                "transfer grain",
+                patch(
+                    Vec::new(),
+                    vec![ComponentOp::Transfer {
+                        from: Ref::Existing(people[0]),
+                        to: Ref::Existing(people[1]),
+                        resource: Ref::Existing(grain),
+                        qty: Quantity(1),
+                    }],
+                ),
+            ),
+            (
+                "witness a fact declared in the same patch",
+                patch(
+                    vec![Declaration::Fact(FactDeclaration {
+                        handle: DraftHandle::new("omen"),
+                        label: "The Omen".into(),
+                        statement: Statement::new("The lamp gutters.").unwrap(),
+                        standing: FactStandingRef::Ruled,
+                    })],
+                    vec![ComponentOp::Witness {
+                        fact: Ref::Draft(DraftHandle::new("omen")),
+                        place: Ref::Existing(place_zero),
+                        confidence: Confidence::Believed,
+                    }],
+                ),
+            ),
+            (
+                "grant authority",
+                patch(
+                    Vec::new(),
+                    vec![ComponentOp::GrantAuthority {
+                        holder: Ref::Existing(people[7]),
+                        grant: AuthorityGrantRef {
+                            kind: authority_kind(LEVY_KIND),
+                            over: AuthorityTargetRef::Subject(Ref::Existing(people[8])),
+                        },
+                    }],
+                ),
+            ),
+            (
+                "install an incumbent",
+                patch(
+                    Vec::new(),
+                    vec![ComponentOp::InstallIncumbent {
+                        institution: Ref::Existing(institution),
+                        office: office(WARDEN_OFFICE),
+                        incumbent: Ref::Existing(people[3]),
+                    }],
+                ),
+            ),
+            (
+                "acquire knowledge",
+                patch(
+                    Vec::new(),
+                    vec![ComponentOp::AcquireKnowledge {
+                        subject: Ref::Existing(people[2]),
+                        fact: Ref::Existing(fact_one),
+                        source: AuthoredSource::Witnessed,
+                        confidence: Confidence::Believed,
+                    }],
+                ),
+            ),
+            (
+                "bind a dependency",
+                patch(
+                    Vec::new(),
+                    vec![ComponentOp::Bind {
+                        subject: Ref::Existing(people[4]),
+                        target: DependencyRef::Subject(Ref::Existing(people[2])),
+                    }],
+                ),
+            ),
+            (
+                "retire a subject",
+                patch(Vec::new(), vec![ComponentOp::Retire { subject: Ref::Existing(people[9]) }]),
+            ),
+        ];
+        let mut counts = Vec::new();
+        for (shape, body) in bodies {
+            let rows = submit_counting_rows(&mut kernel, body);
+            if persons == 100 {
+                shapes.push(shape);
+            }
+            counts.push(rows);
+        }
+        eprintln!("{persons:>5} persons, rows per shape: {counts:?}");
+        worked.push(counts);
+    }
+    for (index, shape) in shapes.iter().enumerate() {
+        let rows: Vec<u64> = worked.iter().map(|counts| counts[index]).collect();
+        assert!(
+            rows.windows(2).all(|pair| pair[0] == pair[1]),
+            "{shape}: rows read grew with the world (100, 400, 1600): {rows:?}"
+        );
+    }
+    // A shape that is point reads all the way down reads no rows at all; the
+    // counter must still be live, or equality proves nothing.
+    assert!(worked[0].iter().sum::<u64>() > 0, "no shape read a row: the counter is dead");
+}
+
+/// The pure reads no submit shape isolates, inside one open transaction each:
+/// who stands under a two-level subtree, one incumbent's delegated authority, and
+/// a path of three routes. (What a patch reads is gated through `AdmitPatch` by
+/// `patch_read_work_is_equal_at_100_and_1600`.)
 #[test]
 fn operation_reads_are_equal_at_100_and_1600() {
-    use crate::patch::ResolvedOp;
-    use crate::{Cost, PressureSource};
+    use crate::Cost;
     use std::collections::BTreeSet;
 
     let mut worked = Vec::new();
@@ -964,24 +1172,7 @@ fn operation_reads_are_equal_at_100_and_1600() {
         let (zero, one, two, three) =
             (place("Place 0"), place("Place 1"), place("Place 2"), place("Place 3"));
 
-        // N pressure rows from other sources, committed before the measured transaction.
-        kernel.state.begin();
-        for person in &people {
-            kernel.state.pressures.entry(*person).or_default().insert(
-                PressureSource::Subject(people[0]),
-                crate::patch::PressureMagnitude(1),
-            );
-        }
-        let folded = kernel.state.folded().unwrap();
-        kernel.state.finish(folded);
-
         let state = &mut kernel.state;
-        let obligation = state.commitments[&people[0]]
-            .iter()
-            .find(|(_, commitment)| commitment.kind == CommitmentKind::Obligation)
-            .map(|(key, _)| *key)
-            .expect("the first person owes an obligation");
-
         state.begin();
         // Place 1 inside place 0, place 2 inside place 1.
         state.entities.get_mut(&one).unwrap().container = Some(zero);
@@ -1005,23 +1196,6 @@ fn operation_reads_are_equal_at_100_and_1600() {
         let mut reached = false;
         measure(&mut || reached = crate::action::reachable(state, people[0], &authority, three, Cost(3)));
         assert!(reached, "three routes of cost one reach place 3");
-        let mut applied = Ok(());
-        let revision = state.revision + 1;
-        measure(&mut || {
-            applied = crate::apply_operation(
-                state,
-                &ResolvedOp::DischargeCommitment { subject: people[0], key: obligation },
-                &[],
-                revision,
-            );
-        });
-        applied.expect("the obligation is discharged");
-        assert!(
-            state.pressures[&people[0]]
-                .keys()
-                .all(|source| !matches!(source, PressureSource::Commitment { key, .. } if *key == obligation)),
-            "the pressure the obligation sourced is gone"
-        );
         state.rollback();
         worked.push(counts);
     }
