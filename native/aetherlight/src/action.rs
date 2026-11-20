@@ -1727,7 +1727,7 @@ mod tests {
         let human = active
             .subjects
             .iter()
-            .find(|subject| subject.human_controller.is_some())
+            .find(|subject| subject.label == "The Human")
             .expect("the human subject")
             .id;
         let holdings = kernel.state.holdings.clone();

@@ -9,7 +9,7 @@ use crate::patch::{
 use crate::tests::{auth_principal, command, creation, owner};
 use crate::{
     CallerId, CommandBody, CommandId, CreateWorld, EntityId, KernelError,
-    NewController, SubjectDeclaration, SubjectKind, SubmitReceipt,
+    SubjectDeclaration, SubjectKind, SubmitReceipt,
     WorldKernel, WorldPatch,
 };
 use std::collections::BTreeSet;
@@ -95,7 +95,6 @@ fn keyed(handle: &str, import_key: Option<ImportKey>, place: EntityId) -> Declar
         handle: DraftHandle::new(handle),
         label: format!("The {handle}"),
         kind: SubjectKind::Person,
-        controller: NewController::OperationalAgent,
         affordances: BTreeSet::new(),
         position: Some(Ref::Existing(place)),
         import_key,

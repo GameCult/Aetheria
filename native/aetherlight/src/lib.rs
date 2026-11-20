@@ -138,7 +138,6 @@ opaque_uuid!(CommandId, pub);
 opaque_uuid!(SubjectId, pub);
 opaque_uuid!(EntityId, pub);
 opaque_uuid!(EdgeId, pub);
-opaque_uuid!(ControllerId);
 opaque_uuid!(AffordanceId, pub);
 opaque_uuid!(EventId);
 
@@ -204,13 +203,6 @@ impl EntityId {
 }
 
 #[cfg(test)]
-impl ControllerId {
-    fn issue() -> Self {
-        Self(Uuid::new_v4())
-    }
-}
-
-#[cfg(test)]
 impl AffordanceId {
     fn issue() -> Self {
         Self(Uuid::new_v4())
@@ -239,24 +231,6 @@ pub enum SubjectKind {
     Person,
     Institution,
     Population,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "snake_case")]
-pub enum ControllerMode {
-    Human,
-    NarrativePersona,
-    OperationalAgent,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub(crate) enum NewController {
-    Human {
-        principal: PrincipalId,
-    },
-    NarrativePersona,
-    OperationalAgent,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -304,12 +278,6 @@ impl AuthenticatedCaller {
     fn fixture(caller: CallerId) -> Self {
         Self { caller }
     }
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(deny_unknown_fields)]
-pub struct DecisionScope {
-    pub subject_id: SubjectId,
 }
 
 /// The referent a role is bound to. Canonical IDs only: an invocation happens
@@ -412,53 +380,6 @@ fn is_false(value: &bool) -> bool {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum ControllerAssignment {
-    Human {
-        controller_id: ControllerId,
-        principal: PrincipalId,
-    },
-    NarrativePersona {
-        controller_id: ControllerId,
-    },
-    OperationalAgent {
-        controller_id: ControllerId,
-    },
-    /// A subject `Retire` ended for good. It has no controller id and no mode,
-    /// so it holds no grants and is never an audience.
-    Retired,
-}
-
-impl ControllerAssignment {
-    fn id(&self) -> Option<ControllerId> {
-        match self {
-            Self::Human { controller_id, .. }
-            | Self::NarrativePersona { controller_id }
-            | Self::OperationalAgent { controller_id } => Some(*controller_id),
-            Self::Retired => None,
-        }
-    }
-
-    fn mode(&self) -> Option<ControllerMode> {
-        match self {
-            Self::Human { .. } => Some(ControllerMode::Human),
-            Self::NarrativePersona { .. } => Some(ControllerMode::NarrativePersona),
-            Self::OperationalAgent { .. } => Some(ControllerMode::OperationalAgent),
-            Self::Retired => None,
-        }
-    }
-
-    fn human_principal(&self) -> Option<&PrincipalId> {
-        match self {
-            Self::Human { principal, .. } => Some(principal),
-            Self::NarrativePersona { .. }
-            | Self::OperationalAgent { .. }
-            | Self::Retired => None,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct DecisionEvent {
     pub(crate) id: EventId,
     pub(crate) revision: u64,
@@ -537,7 +458,6 @@ struct WorldState {
     /// command body and read by no wall clock. It enters `state_digest` and no
     /// scope: it is world truth, and it is read by no precondition.
     now: FictionalMinutes,
-    controller_assignments: BTreeMap<DecisionScope, ControllerAssignment>,
     /// What an affordance *is*. World-authored and written by `admit_resolved`
     /// alone.
     affordance_catalog: BTreeMap<AffordanceId, Affordance>,
@@ -628,11 +548,6 @@ pub struct SubjectSnapshot {
     pub kind: SubjectKind,
     /// The Aetheria record this subject was imported from, if it was.
     pub import_key: Option<ImportKey>,
-    /// Absent for a retired subject, which has no controller and no turn.
-    /// Every reader fails closed on `None`; none gets a default.
-    pub(crate) controller_id: Option<ControllerId>,
-    pub controller_mode: Option<ControllerMode>,
-    pub human_controller: Option<PrincipalId>,
     pub affordances: BTreeSet<AffordanceId>,
     pub(crate) position: Option<EntityId>,
     /// Set for a subject `Retire` ended: no grants, no position, no
@@ -1210,12 +1125,12 @@ fn require_play(caller: &CallerId) -> Result<(), KernelError> {
 }
 
 /// The genesis predicate: the world is being built from nothing, so the one
-/// lane that builds revision 0 may bind a human controller. It reads state,
-/// never the caller. It takes the two fields it inspects rather than a whole
+/// lane that builds revision 0 may build the kernel Speak entry and the first
+/// subjects. It reads state, never the caller. It takes the two fields it inspects rather than a whole
 /// `WorldState` so the genesis lane, which resolves declarations before any
 /// `WorldState` exists, can call the same owner instead of hand-copying the
 /// literal it would otherwise always evaluate to.
-fn admits_human(revision: u64, subjects: &BTreeMap<SubjectId, SubjectState>) -> bool {
+fn is_genesis(revision: u64, subjects: &BTreeMap<SubjectId, SubjectState>) -> bool {
     revision == 0 && subjects.is_empty()
 }
 
@@ -1251,7 +1166,6 @@ impl WorldState {
             commitments: BTreeMap::new(),
             pressures: BTreeMap::new(),
             now: FictionalMinutes::default(),
-            controller_assignments: BTreeMap::new(),
             affordance_catalog: BTreeMap::new(),
             affordance_grants: BTreeMap::new(),
             events: Vec::new(),
@@ -1324,7 +1238,6 @@ fn admit_resolved(
             "admitted patch carries no canonical change".into(),
         ));
     }
-    let humans_admitted = admits_human(state.revision, &state.subjects);
     for entity in &resolved.entities {
         if !patch::is_canonical_text(&entity.entity.label) {
             return Err(KernelError::Invariant(
@@ -1383,11 +1296,6 @@ fn admit_resolved(
             return Err(KernelError::Invariant("admitted route ID collision".into()));
         }
     }
-    let mut controller_ids: BTreeSet<ControllerId> = state
-        .controller_assignments
-        .values()
-        .filter_map(ControllerAssignment::id)
-        .collect();
     for entry in &resolved.affordances {
         // The catalog's only writer holds the same grammar check the resolver
         // runs, so an effect resolved elsewhere cannot install an entry the
@@ -1427,18 +1335,9 @@ fn admit_resolved(
         }
     }
     for subject in &resolved.subjects {
-        let scope = DecisionScope {
-            subject_id: subject.subject_id,
-        };
         if !patch::is_canonical_text(&subject.subject.label) {
             return Err(KernelError::Invariant(
                 "admitted subject label is not canonical".into(),
-            ));
-        }
-        validate_assignment(&subject.controller)?;
-        if matches!(subject.controller, ControllerAssignment::Human { .. }) && !humans_admitted {
-            return Err(KernelError::Invariant(
-                "only world genesis may bind a human controller".into(),
             ));
         }
         if let Some(position) = subject.position
@@ -1451,24 +1350,13 @@ fn admit_resolved(
                 "admitted position does not name a canonical place".into(),
             ));
         }
-        if let Some(controller_id) = subject.controller.id()
-            && !controller_ids.insert(controller_id)
-        {
-            return Err(KernelError::Invariant(
-                "admitted controller ID collision".into(),
-            ));
-        }
         if state
             .subjects
             .insert(subject.subject_id, subject.subject.clone())
             .is_some()
-            || state
-                .controller_assignments
-                .insert(scope, subject.controller.clone())
-                .is_some()
         {
             return Err(KernelError::Invariant(
-                "admitted subject or scope ID collision".into(),
+                "admitted subject ID collision".into(),
             ));
         }
         if let Some(position) = subject.position
@@ -2402,9 +2290,6 @@ fn apply_operation(
             set_pressure(state, *target, *source, 0);
         }
         ResolvedOp::Retire { subject } => {
-            let scope = DecisionScope {
-                subject_id: *subject,
-            };
             let held = state.subjects.get_mut(subject).ok_or_else(unknown)?;
             if held.retired {
                 return Err(KernelError::Invariant(
@@ -2412,9 +2297,6 @@ fn apply_operation(
                 ));
             }
             held.retired = true;
-            state
-                .controller_assignments
-                .insert(scope, ControllerAssignment::Retired);
             state.positions.remove(subject);
             state.affordance_grants.remove(subject);
         }
@@ -2981,12 +2863,6 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
         .subjects
         .iter()
         .map(|(subject_id, subject)| {
-            let scope = DecisionScope {
-                subject_id: *subject_id,
-            };
-            let controller = state.controller_assignments.get(&scope).ok_or_else(|| {
-                KernelError::Invariant("subject has no controller assignment".into())
-            })?;
             let affordances = state
                 .affordance_grants
                 .get(subject_id)
@@ -3068,9 +2944,6 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
                 label: subject.label.clone(),
                 kind: subject.kind,
                 import_key: subject.import_key.clone(),
-                controller_id: controller.id(),
-                controller_mode: controller.mode(),
-                human_controller: controller.human_principal().cloned(),
                 affordances,
                 position: components.position.map(|position| position.place),
                 retired: subject.retired,
@@ -3285,13 +3158,6 @@ fn validate_principal(value: &PrincipalId) -> Result<(), KernelError> {
     }
 }
 
-fn validate_assignment(value: &ControllerAssignment) -> Result<(), KernelError> {
-    if let ControllerAssignment::Human { principal, .. } = value {
-        validate_principal(principal)?;
-    }
-    Ok(())
-}
-
 /// The revision a non-genesis commit resolves to: one past `state.revision`,
 /// which still holds the *previous* revision here, since `submit` only bumps
 /// it after `apply_effect` returns. Genesis is not a caller: it resolves to
@@ -3436,13 +3302,11 @@ mod tests {
         handle: &str,
         label: &str,
         kind: SubjectKind,
-        controller: NewController,
     ) -> Declaration {
         Declaration::Subject(SubjectDeclaration {
             handle: DraftHandle::new(handle),
             label: label.into(),
             kind,
-            controller,
             affordances: kernel_speak_grant(),
             // The fixture world is one room. Co-located speech needs a place to
             // fill, so every fixture subject stands in the commons.
@@ -3524,21 +3388,16 @@ mod tests {
                         "human",
                         "The Human",
                         SubjectKind::Person,
-                        NewController::Human {
-                            principal: human_principal(),
-                        },
                     ),
                     subject(
                         "persona",
                         "The Witness",
                         SubjectKind::Person,
-                        NewController::NarrativePersona,
                     ),
                     Declaration::Subject(SubjectDeclaration {
                         handle: DraftHandle::new("operator"),
                         label: "The Council".into(),
                         kind: SubjectKind::Institution,
-                        controller: NewController::OperationalAgent,
                         affordances: kernel_speak_grant()
                             .into_iter()
                             .chain(std::iter::once(Ref::Draft(DraftHandle::new("convene"))))
@@ -3681,7 +3540,6 @@ mod tests {
                     handle: DraftHandle::new("walker"),
                     label: "The Walker".into(),
                     kind: SubjectKind::Person,
-                    controller: NewController::OperationalAgent,
                     affordances: BTreeSet::from([speak]),
                     position: Some(Ref::Draft(DraftHandle::new("yard"))),
                     import_key: None,
@@ -3779,7 +3637,6 @@ mod tests {
             handle: DraftHandle::new(handle),
             label: label.into(),
             kind: SubjectKind::Institution,
-            controller: NewController::OperationalAgent,
             affordances: std::iter::once(speak)
                 .chain(carry_affordances().into_iter().map(|declaration| {
                     let Declaration::Affordance(entry) = declaration else {
@@ -4306,7 +4163,6 @@ mod tests {
                 handle: DraftHandle::new(handle),
                 label: label.into(),
                 kind: SubjectKind::Person,
-                controller: NewController::OperationalAgent,
                 affordances: civic_grants(handles, &speak),
                 position: Some(place),
                 import_key: None,
@@ -4358,7 +4214,6 @@ mod tests {
                     handle: DraftHandle::new("treasury"),
                     label: "The Tithe Treasury".into(),
                     kind: SubjectKind::Institution,
-                    controller: NewController::OperationalAgent,
                     affordances: civic_grants(
                         &[
                             "levy", "delegate", "deploy", "sanction", "appoint", "revoke",
@@ -4372,7 +4227,6 @@ mod tests {
                     handle: DraftHandle::new("reeve"),
                     label: "The Hall Reeve".into(),
                     kind: SubjectKind::Person,
-                    controller: NewController::NarrativePersona,
                     affordances: civic_grants(
                         &["levy", "delegate", "petition", "sanction"],
                         &speak,
@@ -4399,7 +4253,6 @@ mod tests {
                     handle: DraftHandle::new("nowhere"),
                     label: "The Unhoused".into(),
                     kind: SubjectKind::Person,
-                    controller: NewController::NarrativePersona,
                     affordances: civic_grants(&["levy", "petition"], &speak),
                     position: None,
                     import_key: None,
@@ -4557,7 +4410,6 @@ mod tests {
                 handle: DraftHandle::new(handle),
                 label: label.into(),
                 kind: SubjectKind::Person,
-                controller: NewController::NarrativePersona,
                 affordances: BTreeSet::from([
                     speak.clone(),
                     Ref::Draft(DraftHandle::new("whisper")),
@@ -4773,14 +4625,15 @@ mod tests {
             .expect("the subject holds an affordance")
     }
 
-    /// The first subject whose controller has this mode.
-    pub(crate) fn subject_by_mode(state: &WorldState, mode: ControllerMode) -> SubjectId {
+    /// The one subject with this label; the fixture's three are The Human,
+    /// The Witness and The Council.
+    pub(crate) fn subject_by_label(state: &WorldState, label: &str) -> SubjectId {
         state
-            .controller_assignments
+            .subjects
             .iter()
-            .find(|(_, assignment)| assignment.mode() == Some(mode))
-            .map(|(scope, _)| scope.subject_id)
-            .expect("a subject has this controller mode")
+            .find(|(_, subject)| subject.label == label)
+            .map(|(subject_id, _)| *subject_id)
+            .expect("a subject has this label")
     }
 
     pub(crate) fn speak(affordance: AffordanceId, text: &str) -> DecisionInvocation {
@@ -4847,7 +4700,7 @@ mod tests {
         let (mut kernel, creation_receipt) =
             WorldKernel::create(&path, creation.clone(), &auth_principal(owner())).unwrap();
         let active = kernel.snapshot().unwrap();
-        let operator = subject_by_mode(&kernel.state, ControllerMode::OperationalAgent);
+        let operator = subject_by_label(&kernel.state, "The Council");
         let caller = play_caller();
         let command = command(
             &active,
@@ -5156,10 +5009,8 @@ mod tests {
         )
         .unwrap();
         let topology = admit_topology(&mut kernel);
-        let scope = DecisionScope {
-            subject_id: topology.walker,
-        };
-        let base = scope_components(&kernel.state, scope.subject_id);
+        let scope = topology.walker;
+        let base = scope_components(&kernel.state, scope);
         let start_revision = kernel.state.revision;
 
         // A new place elsewhere, a route that touches neither the walker's
@@ -5190,7 +5041,6 @@ mod tests {
                             handle: DraftHandle::new("runner"),
                             label: "The Runner".into(),
                             kind: SubjectKind::Person,
-                            controller: NewController::OperationalAgent,
                             affordances: BTreeSet::from([speak.clone()]),
                             position: Some(Ref::Existing(topology.road)),
                             import_key: None,
@@ -5202,7 +5052,7 @@ mod tests {
             },
         );
         assert_ne!(kernel.state.revision, start_revision);
-        assert_eq!(scope_components(&kernel.state, scope.subject_id), base);
+        assert_eq!(scope_components(&kernel.state, scope), base);
 
         // Another subject's Position moving is not this scope's business.
         let annexway = *kernel
@@ -5246,7 +5096,7 @@ mod tests {
                     .unwrap()
             })
         );
-        assert_eq!(scope_components(&kernel.state, scope.subject_id), base);
+        assert_eq!(scope_components(&kernel.state, scope), base);
 
         // A route incident to the walker's own place is inside the scope.
         let moved = kernel.snapshot().unwrap();
@@ -5263,7 +5113,7 @@ mod tests {
                 },
             },
         );
-        assert_ne!(scope_components(&kernel.state, scope.subject_id), base);
+        assert_ne!(scope_components(&kernel.state, scope), base);
     }
 
     /// Soul: an `AffordanceId` now names a catalog entry, not a subject's copy
@@ -5389,17 +5239,8 @@ mod tests {
     fn an_institution_and_its_voice_are_two_subjects_joined_by_an_office() {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Two");
-        let (_, civic, active) = civic_world(&mut kernel);
+        let (_, civic, _) = civic_world(&mut kernel);
 
-        let controller_of = |subject_id: SubjectId| {
-            active
-                .subjects
-                .iter()
-                .find(|subject| subject.id == subject_id)
-                .unwrap()
-                .controller_id
-        };
-        assert_ne!(controller_of(civic.treasury), controller_of(civic.reeve));
 
         // Both are authorized over the hall — one directly, one by delegation —
         // and neither appears in the other's components.
@@ -6093,7 +5934,6 @@ mod custody_tests {
                             handle: DraftHandle::new("clerk"),
                             label: "The Ledger Clerk".into(),
                             kind: SubjectKind::Institution,
-                            controller: NewController::OperationalAgent,
                             affordances: BTreeSet::from([speak.clone()]),
                             position: Some(Ref::Existing(topology.yard)),
                             import_key: None,
@@ -6446,18 +6286,16 @@ mod custody_tests {
         let mut kernel = custody_kernel(directory.path(), "ScopeCustody");
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
-        let scope = DecisionScope {
-            subject_id: custody.holder,
-        };
-        let base = scope_components(&kernel.state, scope.subject_id);
+        let scope = custody.holder;
+        let base = scope_components(&kernel.state, scope);
 
         let mut spent = kernel.state.clone();
         set_held(&mut spent, custody.holder, custody.tithe, 1);
-        assert_ne!(scope_components(&spent, scope.subject_id), base);
+        assert_ne!(scope_components(&spent, scope), base);
 
         let mut gained = kernel.state.clone();
         set_held(&mut gained, custody.holder, custody.ingot, 1);
-        assert_ne!(scope_components(&gained, scope.subject_id), base);
+        assert_ne!(scope_components(&gained, scope), base);
 
         let mut bound = kernel.state.clone();
         bound
@@ -6465,7 +6303,7 @@ mod custody_tests {
             .entry(custody.holder)
             .or_default()
             .insert(DependencyTarget::Resource(custody.tithe));
-        assert_ne!(scope_components(&bound, scope.subject_id), base);
+        assert_ne!(scope_components(&bound, scope), base);
 
         let mut elsewhere = kernel.state.clone();
         set_held(&mut elsewhere, custody.counterparty, custody.tithe, 9);
@@ -6474,7 +6312,7 @@ mod custody_tests {
             .entry(custody.counterparty)
             .or_default()
             .insert(DependencyTarget::Resource(custody.ingot));
-        assert_eq!(scope_components(&elsewhere, scope.subject_id), base);
+        assert_eq!(scope_components(&elsewhere, scope), base);
     }
 
     /// Soul, proof 4: the ledger equation stated as arithmetic over the
@@ -6698,7 +6536,6 @@ mod custody_tests {
                             handle: DraftHandle::new("clerk"),
                             label: "The Ledger Clerk".into(),
                             kind: SubjectKind::Institution,
-                            controller: NewController::OperationalAgent,
                             affordances: BTreeSet::from([speak.clone()]),
                             position: Some(Ref::Existing(topology.yard)),
                             import_key: None,
@@ -8543,7 +8380,6 @@ mod witness_tests {
             handle: DraftHandle::new(handle),
             label: label.into(),
             kind: SubjectKind::Person,
-            controller: NewController::NarrativePersona,
             affordances: BTreeSet::from([speak.clone(), Ref::Draft(DraftHandle::new("beacon"))]),
             position: Some(Ref::Draft(DraftHandle::new(place))),
             import_key: None,
@@ -9437,7 +9273,6 @@ mod witness_tests {
                                         handle: DraftHandle::new(handle),
                                         label: label.into(),
                                         kind: SubjectKind::Person,
-                                        controller: NewController::NarrativePersona,
                                         affordances: BTreeSet::from([Ref::Existing(beacon)]),
                                         position: position.map(Ref::Existing),
                                         import_key: None,
@@ -9666,7 +9501,6 @@ mod clock_tests {
                 handle: DraftHandle::new(handle),
                 label: label.into(),
                 kind,
-                controller: NewController::NarrativePersona,
                 affordances: BTreeSet::from([
                     speak.clone(),
                     Ref::Draft(DraftHandle::new("deliver")),
@@ -11629,7 +11463,6 @@ mod clock_tests {
                             handle: DraftHandle::new("player"),
                             label: "The Player".into(),
                             kind: SubjectKind::Person,
-                            controller: NewController::NarrativePersona,
                             affordances: BTreeSet::from([speak]),
                             position: Some(Ref::Existing(commons)),
                             import_key: None,
@@ -11715,7 +11548,7 @@ mod clock_tests {
         snapshot
             .subjects
             .iter()
-            .find(|subject| subject.controller_mode == Some(ControllerMode::Human))
+            .find(|subject| subject.label == "The Human")
             .expect("the genesis human")
             .id
     }
@@ -12340,7 +12173,6 @@ mod clock_tests {
                             handle: DraftHandle::new("outcast"),
                             label: "The Placeless Outcast".into(),
                             kind: SubjectKind::Person,
-                            controller: NewController::NarrativePersona,
                             affordances: BTreeSet::from([speak.clone()]),
                             position: None,
                             import_key: None,
@@ -12444,7 +12276,7 @@ mod clock_tests {
 mod agency_tests {
     use super::tests::{
         act, affordance_named, auth_principal, command, creation, first_grant, human_principal,
-        operations, owner, play_command, reject_play, speak, subject_by_mode, submit_play,
+        operations, owner, play_command, reject_play, speak, subject_by_label, submit_play,
         tick_body,
     };
     use super::*;
@@ -12478,9 +12310,9 @@ mod agency_tests {
     fn after_genesis_only_play_writes() {
         let (_directory, _path, mut kernel) = world("PlayOnly");
         let snapshot = kernel.snapshot().unwrap();
-        let human = subject_by_mode(&kernel.state, ControllerMode::Human);
-        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
-        let operator = subject_by_mode(&kernel.state, ControllerMode::OperationalAgent);
+        let human = subject_by_label(&kernel.state, "The Human");
+        let persona = subject_by_label(&kernel.state, "The Witness");
+        let operator = subject_by_label(&kernel.state, "The Council");
         let convene = affordance_named(&snapshot, "convene");
         let bodies = vec![
             (
@@ -12556,7 +12388,7 @@ mod agency_tests {
         let (_directory, _path, kernel) = world("ReDecide");
         let state = &kernel.state;
         let command_id = CommandId::issue();
-        let human = subject_by_mode(state, ControllerMode::Human);
+        let human = subject_by_label(state, "The Human");
         let affordance = first_grant(&kernel.snapshot().unwrap(), human);
         let invocation = speak(affordance, "Spoken.");
         let granted = require_granted(state, human, affordance).unwrap();
@@ -12610,7 +12442,7 @@ mod agency_tests {
     fn a_non_play_caller_is_refused_before_the_world_is_read() {
         let (_directory, _path, mut kernel) = world("Blind");
         let snapshot = kernel.snapshot().unwrap();
-        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let persona = subject_by_label(&kernel.state, "The Witness");
         let ungranted = affordance_named(&snapshot, "convene");
         let broken = operations(vec![ComponentOp::Retire {
             subject: Ref::Existing(SubjectId::issue()),
@@ -12645,7 +12477,7 @@ mod agency_tests {
         let (_directory, path, mut kernel) = world("BornActive");
         let snapshot = kernel.snapshot().unwrap();
         assert_eq!(snapshot.revision, 0);
-        let human = subject_by_mode(&kernel.state, ControllerMode::Human);
+        let human = subject_by_label(&kernel.state, "The Human");
         act(&mut kernel, human, speak(first_grant(&snapshot, human), "At once.")).unwrap();
         let accepted = kernel.snapshot().unwrap();
         assert_eq!(accepted.revision, 1);
@@ -12673,7 +12505,6 @@ mod agency_tests {
         refused::<CallerId>(&format!(
             r#"{{"type":"system","id":{{"capability":"consumer","consumer":{id}}}}}"#
         ));
-        refused::<NewController>(&format!(r#"{{"type":"external","consumer":{id}}}"#));
         refused::<WorldEffect>(r#"{"type":"draft_approved","principal":"p"}"#);
         refused::<WorldEffect>(r#"{"type":"world_activated"}"#);
         assert_eq!(
@@ -12686,7 +12517,7 @@ mod agency_tests {
     fn a_revoke_may_leave_a_subject_with_no_verbs() {
         let (_directory, path, mut kernel) = world("Mute");
         let snapshot = kernel.snapshot().unwrap();
-        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let persona = subject_by_label(&kernel.state, "The Witness");
         let only = first_grant(&snapshot, persona);
         submit_play(
             &mut kernel,
@@ -12724,7 +12555,6 @@ mod agency_tests {
                 handle: DraftHandle::new(handle),
                 label: format!("The {handle}"),
                 kind: SubjectKind::Person,
-                controller: NewController::OperationalAgent,
                 affordances: BTreeSet::new(),
                 position: Some(Ref::Draft(DraftHandle::new(super::tests::COMMONS))),
                 import_key: None,
@@ -12740,7 +12570,7 @@ mod agency_tests {
         )
         .unwrap();
         let snapshot = kernel.snapshot().unwrap();
-        let speaking = first_grant(&snapshot, subject_by_mode(&kernel.state, ControllerMode::Human));
+        let speaking = first_grant(&snapshot, subject_by_label(&kernel.state, "The Human"));
         submit_play(
             &mut kernel,
             &snapshot,
@@ -12782,7 +12612,7 @@ mod agency_tests {
     fn a_retired_subject_takes_no_grant() {
         let (_directory, _path, mut kernel) = world("RetiredGrants");
         let snapshot = kernel.snapshot().unwrap();
-        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let persona = subject_by_label(&kernel.state, "The Witness");
         let convene = affordance_named(&snapshot, "convene");
         let grant = ComponentOp::GrantAffordance {
             subject: Ref::Existing(persona),
@@ -12819,12 +12649,8 @@ mod agency_tests {
     fn retire_applies_to_every_subject() {
         let (_directory, path, mut kernel) = world("RetireAll");
         let snapshot = kernel.snapshot().unwrap();
-        let everyone = [
-            ControllerMode::Human,
-            ControllerMode::NarrativePersona,
-            ControllerMode::OperationalAgent,
-        ]
-        .map(|mode| subject_by_mode(&kernel.state, mode));
+        let everyone = ["The Human", "The Witness", "The Council"]
+            .map(|label| subject_by_label(&kernel.state, label));
         submit_play(
             &mut kernel,
             &snapshot,
@@ -12862,7 +12688,7 @@ mod agency_tests {
     fn apply_refuses_a_grant_to_a_retired_subject() {
         let (_directory, _path, mut kernel) = world("ForgedGrant");
         let snapshot = kernel.snapshot().unwrap();
-        let persona = subject_by_mode(&kernel.state, ControllerMode::NarrativePersona);
+        let persona = subject_by_label(&kernel.state, "The Witness");
         let convene = affordance_named(&snapshot, "convene");
         submit_play(
             &mut kernel,

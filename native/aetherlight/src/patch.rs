@@ -14,8 +14,7 @@
 use super::clock::{FictionalMinutes, TickMinutes};
 use super::grammar::GrammarRefusal;
 use super::{
-    AffordanceId, CommandId, ControllerAssignment, ControllerId, EdgeId, EntityId,
-    NewController, SubjectId, SubjectKind, SubjectState, WorldId,
+    AffordanceId, CommandId, EdgeId, EntityId, SubjectId, SubjectKind, SubjectState, WorldId,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -59,7 +58,7 @@ pub(crate) enum AccessKind {
 #[serde(transparent)]
 pub(crate) struct AuthorityKindName(pub(crate) String);
 
-/// What an authority covers. Distinct from `DecisionScope`, which says *whose*
+/// What an authority covers. Distinct from a subject, which says *whose*
 /// authority it is and stays one field.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(tag = "over", content = "id", rename_all = "snake_case")]
@@ -988,7 +987,6 @@ pub(crate) struct SubjectDeclaration {
     pub(crate) handle: DraftHandle,
     pub(crate) label: String,
     pub(crate) kind: SubjectKind,
-    pub(crate) controller: NewController,
     /// The catalog entries this subject may exercise. Every entry is a
     /// reference, so a genesis patch declares a catalog and grants from it
     /// atomically.
@@ -1389,9 +1387,6 @@ pub enum Mismatch {
         site: Site,
         expected: RefKind,
     },
-    UnadmittedController {
-        handle: DraftHandle,
-    },
     EmptyEvidence {
         position: usize,
     },
@@ -1399,7 +1394,7 @@ pub enum Mismatch {
         handle: DraftHandle,
     },
     NoCanonicalChange,
-    /// A genesis-lane resolution (the same empty-state case `admits_human`
+    /// A genesis-lane resolution (the same empty-state case `is_genesis`
     /// tests) declared no subject, so the world would have nobody to act. This
     /// is a rejected patch, not a corrupt journal: the kernel must survive it.
     NoDecisionSubject,
@@ -1713,7 +1708,6 @@ pub(super) struct ResolvedSubject {
     pub(super) handle: DraftHandle,
     pub(super) subject_id: SubjectId,
     pub(super) subject: SubjectState,
-    pub(super) controller: ControllerAssignment,
     pub(super) affordances: BTreeSet<AffordanceId>,
     pub(super) position: Option<Position>,
 }
@@ -2006,7 +2000,6 @@ impl ResolvedPatch {
 const SUBJECT_NAMESPACE: &str = "ghostlight.id.subject.v1";
 pub(super) const ENTITY_NAMESPACE: &str = "ghostlight.id.entity.v1";
 const EDGE_NAMESPACE: &str = "ghostlight.id.edge.v1";
-const CONTROLLER_NAMESPACE: &str = "ghostlight.id.controller.v1";
 const AFFORDANCE_NAMESPACE: &str = "ghostlight.id.affordance.v1";
 
 const PLACE: RefKind = RefKind::Entity(EntityKind::Place);
@@ -3065,7 +3058,7 @@ pub(super) fn resolve_patch(
     patch: &WorldPatch,
 ) -> Result<ResolvedPatch, Vec<Mismatch>> {
     let world_id = state.world_id;
-    let admits_human = super::admits_human(state.revision, &state.subjects);
+    let genesis = super::is_genesis(state.revision, &state.subjects);
     let mut mismatches = Vec::new();
     let mut index: BTreeMap<DraftHandle, RefKind> = BTreeMap::new();
 
@@ -3073,10 +3066,10 @@ pub(super) fn resolve_patch(
     // one, before the declaration loop, so a world reusing its handle collides
     // as a duplicate handle rather than through a reserved-name check.
     let speak_handle = DraftHandle::new(KERNEL_SPEAK_HANDLE);
-    if admits_human {
+    if genesis {
         index.insert(speak_handle.clone(), RefKind::Affordance);
     }
-    if admits_human {
+    if genesis {
         // The kernel-built entry is held to the grammar like any declaration.
         let speak = kernel_speak_entry();
         check_against_grammar(state, &speak_handle, &speak.kind, &speak.roles, &mut mismatches);
@@ -3086,7 +3079,7 @@ pub(super) fn resolve_patch(
         .values()
         .map(|entry| entry.kind.clone())
         .collect();
-    if admits_human {
+    if genesis {
         kind_names.insert(kernel_speak_entry().kind);
     }
 
@@ -3189,15 +3182,6 @@ pub(super) fn resolve_patch(
                 && !(is_canonical_text(&evidence.0) && patch.evidence.contains(evidence))
             {
                 mismatches.push(Mismatch::FactWithoutEvidence {
-                    handle: handle.clone(),
-                });
-            }
-        }
-        if let Declaration::Subject(subject) = declaration {
-            if let NewController::Human { principal } = &subject.controller
-                && (!admits_human || super::validate_principal(principal).is_err())
-            {
-                mismatches.push(Mismatch::UnadmittedController {
                     handle: handle.clone(),
                 });
             }
@@ -4852,7 +4836,7 @@ pub(super) fn resolve_patch(
         mismatches.push(Mismatch::NoCanonicalChange);
     }
 
-    if admits_human
+    if genesis
         && !patch
             .declarations
             .iter()
@@ -5006,7 +4990,7 @@ pub(super) fn resolve_patch(
             affordance: entry,
         });
     };
-    if admits_human {
+    if genesis {
         allocate_affordance(
             &speak_handle,
             kernel_speak_entry(),
@@ -5062,27 +5046,6 @@ pub(super) fn resolve_patch(
             });
         }
         allocated_subjects.insert(input.handle.clone(), subject_id);
-        let controller_id = || {
-            ControllerId(derive_id(
-                CONTROLLER_NAMESPACE,
-                world_id,
-                command_id,
-                &input.handle,
-                None,
-            ))
-        };
-        let controller = match input.controller.clone() {
-            NewController::Human { principal } => ControllerAssignment::Human {
-                controller_id: controller_id(),
-                principal,
-            },
-            NewController::NarrativePersona => ControllerAssignment::NarrativePersona {
-                controller_id: controller_id(),
-            },
-            NewController::OperationalAgent => ControllerAssignment::OperationalAgent {
-                controller_id: controller_id(),
-            },
-        };
         let granted = input
             .affordances
             .iter()
@@ -5097,7 +5060,6 @@ pub(super) fn resolve_patch(
                 import_key: input.import_key.clone(),
                 retired: false,
             },
-            controller,
             affordances: granted,
             position: input.position.as_ref().map(|reference| Position {
                 place: entity_id_of(&key_of(reference)),
@@ -5763,7 +5725,6 @@ mod tests {
             handle: DraftHandle::new(handle),
             label: label.into(),
             kind: SubjectKind::Institution,
-            controller: NewController::OperationalAgent,
             affordances: BTreeSet::from([speak_entry(kernel)]),
             position,
             import_key: None,
@@ -6030,7 +5991,6 @@ mod tests {
                 handle: DraftHandle::new("late-arrival"),
                 label: "A Late Arrival".into(),
                 kind: SubjectKind::Person,
-                controller: NewController::NarrativePersona,
                 affordances: BTreeSet::from([Ref::Draft(DraftHandle::new(handle))]),
                 position: None,
                 import_key: None,
@@ -6325,17 +6285,6 @@ mod tests {
                 "The Rhythm Authority",
                 Some(Ref::Draft(DraftHandle::new("cavity-yard"))),
             ),
-            Declaration::Subject(SubjectDeclaration {
-                handle: DraftHandle::new("late-arrival"),
-                label: "A Late Arrival".into(),
-                kind: SubjectKind::Person,
-                controller: NewController::Human {
-                    principal: human_principal(),
-                },
-                affordances: BTreeSet::from([speak_entry(&kernel)]),
-                position: None,
-                import_key: None,
-            }),
         ]);
         let error = kernel
             .submit(
@@ -6363,9 +6312,6 @@ mod tests {
                 referent: draft("cavity-yard"),
                 expected: PLACE,
             },
-            Mismatch::UnadmittedController {
-                handle: DraftHandle::new("late-arrival"),
-            },
         ];
         expected.sort();
         assert_eq!(mismatches, expected);
@@ -6384,7 +6330,6 @@ mod tests {
                 handle: DraftHandle::new("late-arrival"),
                 label: "A Late Arrival".into(),
                 kind: SubjectKind::Person,
-                controller: NewController::NarrativePersona,
                 affordances: BTreeSet::from([speak_entry(&kernel)]),
                 position: None,
                 import_key: None,
@@ -6872,7 +6817,6 @@ mod tests {
             handle: DraftHandle::new("human"),
             label: "Another Human".into(),
             kind: SubjectKind::Person,
-            controller: NewController::NarrativePersona,
             affordances: BTreeSet::from([speak_entry(&kernel)]),
             position: None,
             import_key: None,
@@ -6932,13 +6876,6 @@ mod tests {
         let would_be = [
             derive_id(
                 SUBJECT_NAMESPACE,
-                before.world_id,
-                command_id,
-                &handle,
-                None,
-            ),
-            derive_id(
-                CONTROLLER_NAMESPACE,
                 before.world_id,
                 command_id,
                 &handle,
@@ -7131,7 +7068,6 @@ mod tests {
                 handle: draft("nowhere"),
                 label: "The Unplaced".into(),
                 kind: SubjectKind::Person,
-                controller: NewController::NarrativePersona,
                 affordances: BTreeSet::from([speak]),
                 position: None,
                 import_key: None,

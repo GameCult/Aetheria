@@ -491,12 +491,8 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
         ));
     }
     super::validate_principal(&state.owner).map_err(kernel_error)?;
-    if state.subjects.is_empty()
-        || state.controller_assignments.len() != state.subjects.len()
-    {
-        return Err(JournalError::Corrupt(
-            "world ontology is empty or has split subject/controller ownership".into(),
-        ));
+    if state.subjects.is_empty() {
+        return Err(JournalError::Corrupt("world ontology is empty".into()));
     }
     let is_place = |entity_id: &super::EntityId| {
         state
@@ -798,38 +794,12 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             ));
         }
     }
-    let mut controller_ids = BTreeSet::new();
-    for (subject_id, subject) in &state.subjects {
+    for subject in state.subjects.values() {
         if !super::patch::is_canonical_text(&subject.label) {
             return Err(JournalError::Corrupt(
                 "subject label is empty or noncanonical".into(),
             ));
         }
-        let scope = super::DecisionScope {
-            subject_id: *subject_id,
-        };
-        let assignment = state
-            .controller_assignments
-            .get(&scope)
-            .ok_or_else(|| JournalError::Corrupt("decision subject has no controller".into()))?;
-        super::validate_assignment(assignment).map_err(kernel_error)?;
-        // A retired subject has no controller id, so it joins no uniqueness set.
-        if let Some(controller_id) = assignment.id()
-            && !controller_ids.insert(controller_id)
-        {
-            return Err(JournalError::Corrupt(
-                "controller ID owns more than one canonical scope".into(),
-            ));
-        }
-    }
-    if state
-        .controller_assignments
-        .keys()
-        .any(|scope| !state.subjects.contains_key(&scope.subject_id))
-    {
-        return Err(JournalError::Corrupt(
-            "controller assignment references an unknown subject".into(),
-        ));
     }
     // A grant row is a verb list: non-empty, for a live subject, catalog
     // entries only. A subject holding no verb holds no row.
@@ -1004,7 +974,7 @@ mod tests {
     use crate::tests::speak_entry;
     use crate::{
         AuthenticatedCaller, CallerId, CommandBody, CommandEnvelope, CreateWorld, Declaration,
-        DraftHandle, EntityDeclaration, EntityId, EntityKind, NewController, Position, PrincipalId,
+        DraftHandle, EntityDeclaration, EntityId, EntityKind, Position, PrincipalId,
         Ref, SubjectDeclaration, SubjectKind, WorldKernel, WorldPatch,
     };
 
@@ -1047,9 +1017,6 @@ mod tests {
                 handle: DraftHandle::new("owner"),
                 label: "Owner".into(),
                 kind: SubjectKind::Person,
-                controller: NewController::Human {
-                    principal: owner.clone(),
-                },
                 affordances: kernel_speak_grant(),
                 position: None,
                 import_key: None,
@@ -1136,9 +1103,6 @@ mod tests {
                 handle: DraftHandle::new("owner"),
                 label: "Owner".into(),
                 kind: SubjectKind::Person,
-                controller: NewController::Human {
-                    principal: owner.clone(),
-                },
                 affordances: kernel_speak_grant(),
                 position: None,
                 import_key: None,
@@ -1168,7 +1132,6 @@ mod tests {
                                     handle: DraftHandle::new("rhythm-authority"),
                                     label: "The Rhythm Authority".into(),
                                     kind: SubjectKind::Institution,
-                                    controller: NewController::OperationalAgent,
                                     affordances: BTreeSet::from([speak_entry(&kernel)]),
                                     position: Some(Ref::Draft(DraftHandle::new("rhythm-road"))),
                                     import_key: None,
@@ -1646,7 +1609,6 @@ mod tests {
                 handle: DraftHandle::new("owner"),
                 label: "Owner".into(),
                 kind: SubjectKind::Person,
-                controller: NewController::Human { principal: owner },
                 affordances: kernel_speak_grant(),
                 position: None,
                 import_key: None,
