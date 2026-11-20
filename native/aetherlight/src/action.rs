@@ -113,10 +113,14 @@ pub enum ActionMismatch {
     },
 }
 
-/// The band draw's whole preimage. Five fields, none of them from the
-/// invocation's payload: the proposer varies the attempt and cannot vary the
-/// draw. `affordance` is the id carried by the kernel-verified grant, so the
-/// draw cannot be steered by an affordance the actor does not hold.
+/// The band draw's whole preimage. Five fields. `command_id` is derived from
+/// the world, the expected revision, the caller and the whole body, so the
+/// payload does reach the draw through it: changing the speech or display text,
+/// a magnitude or the revision re-rolls the band, and a proposer who can vary
+/// those can grind for a band. That is not an authority hole: only Play submits
+/// an act after genesis, and Play is trusted. `affordance` is the id carried by
+/// the kernel-verified grant, so the draw cannot be steered by an affordance the
+/// actor does not hold.
 #[derive(Serialize)]
 struct BandPreimage {
     world_id: WorldId,

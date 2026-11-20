@@ -245,6 +245,9 @@ struct CreateWorld {
 
 impl CreateWorld {
     /// The creation is named by its own bytes: equal creations are one command.
+    /// Host contract: two byte-equal creations share a `WorldId` and every id
+    /// derived under it, so a host that wants distinct worlds salts each run or
+    /// profile into the creation (for example a run seed in the patch).
     fn id(&self) -> CommandId {
         let mut hasher = Sha256::new();
         hasher.update(CREATE_DOMAIN);

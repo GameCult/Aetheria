@@ -55,6 +55,11 @@ impl WorldJournal {
 
     /// Decode canonically, then replay: the head state is whatever the chain
     /// derives, and a chain that does not verify is not a world.
+    ///
+    /// A chain verifies as a prefix, so an export with its tail dropped, or an
+    /// older export, opens as a valid shorter world. The holder of the bytes
+    /// owns the head: it keeps the revision and state digest from `snapshot()`
+    /// at export time and compares them after `open` (AL5's C# store).
     pub(super) fn open(bytes: &[u8]) -> Result<(Self, WorldState), JournalError> {
         let export: Export = decode(bytes)?;
         if export.schema != JOURNAL_SCHEMA {
@@ -956,6 +961,61 @@ mod tests {
             WorldJournal::open(&[0xc1]),
             Err(JournalError::Corrupt(_))
         ));
+    }
+
+    /// A stored digest is checked against the commit it seals, on its own:
+    /// flipping one character of any commit's digest, with nothing re-sealed,
+    /// leaves only the digest clause to refuse it (the last commit and a lone
+    /// genesis have no successor whose previous-digest could).
+    #[test]
+    fn a_stored_digest_flipped_without_resealing_is_refused() {
+        let kernel = clock_history();
+        let honest = kernel.journal.commits.clone();
+        let flip = |digest: &str| {
+            let mut flipped = digest.to_owned();
+            let last = flipped.pop().unwrap();
+            flipped.push(if last == '0' { '1' } else { '0' });
+            flipped
+        };
+        for upto in 1..=honest.len() {
+            let mut chain = honest[..upto].to_vec();
+            let tail = chain.last_mut().unwrap();
+            tail.digest = flip(&tail.digest);
+            assert!(
+                matches!(reopen(&chain), Err(JournalError::Corrupt(_))),
+                "a flipped digest on commit {} of {upto} was admitted",
+                upto - 1
+            );
+        }
+    }
+
+    /// Each clause of the genesis condition refuses alone: a lone genesis,
+    /// re-sealed after one field is rewritten, so nothing else can object.
+    #[test]
+    fn each_genesis_clause_refuses_on_its_own() {
+        let kernel = clock_history();
+        let genesis = kernel.journal.commits[0].clone();
+        let forgeries: [(&str, &dyn Fn(&mut WorldCommit)); 5] = [
+            ("schema", &|commit| commit.schema = "ghostlight.world_commit.consumer.v10".into()),
+            ("a previous revision", &|commit| commit.previous_revision = Some(0)),
+            ("a nonzero revision", &|commit| commit.resulting_revision = 1),
+            ("a previous state digest", &|commit| {
+                commit.previous_state_digest = Some("sha256:00".into())
+            }),
+            ("a previous commit digest", &|commit| {
+                commit.previous_commit_digest = Some("sha256:00".into())
+            }),
+        ];
+        reopen(std::slice::from_ref(&genesis)).expect("a lone honest genesis opens");
+        for (what, forge) in forgeries {
+            let mut forged = genesis.clone();
+            forge(&mut forged);
+            forged.digest = commit_digest(&forged).unwrap();
+            assert!(
+                matches!(reopen(&[forged]), Err(JournalError::Corrupt(_))),
+                "a genesis with {what} was admitted"
+            );
+        }
     }
 
     /// Position `i` holds resulting revision `i`: a commit that names a later

@@ -9,16 +9,21 @@ use crate::tests::{
     affordance_named, auth_principal, command, creation, first_grant, operations, owner,
     play_caller, play_command, speak, subject_by_label, submit_play, tick_body,
 };
+use crate::patch::{
+    AffordanceDeclaration, AffordanceKindName, AudienceSpec, Declaration, DraftHandle,
+    OutcomeBand, Precondition,
+};
 use crate::{
     AuthenticatedCaller, CommandBody, CommitmentKind, ComponentOp, DecisionInvocation,
     FictionalMinutes, KernelError, KnowledgeSource, Ref, Statement, TickMinutes, WorldEffect,
-    WorldKernel,
+    WorldKernel, WorldPatch,
 };
 use sha2::{Digest, Sha256};
 use std::time::Instant;
 
 /// The script: The Human speaks to The Witness, The Human shows a gesture, a
-/// Routine is placed on The Witness, thirty minutes roll it, and The Human
+/// two-band `toss` is declared, granted to The Human and used three times (so
+/// the band draw is recorded), a Routine is placed on The Witness, thirty minutes roll it, and The Human
 /// invokes `convene`, which it does not hold.
 fn golden_session() -> (WorldKernel, String) {
     let (mut kernel, _) = WorldKernel::create(creation("Golden"), &auth_principal(owner()))
@@ -66,6 +71,54 @@ fn golden_session() -> (WorldKernel, String) {
         },
     );
 
+    // A two-band entry: the one place the golden records a band draw.
+    let snapshot = kernel.snapshot().unwrap();
+    submit_play(
+        &mut kernel,
+        &snapshot,
+        CommandBody::AdmitPatch {
+            patch: WorldPatch {
+                declarations: vec![Declaration::Affordance(AffordanceDeclaration {
+                    handle: DraftHandle::new("toss"),
+                    kind: AffordanceKindName("toss".into()),
+                    roles: Vec::new(),
+                    preconditions: vec![Precondition::CanBroadcast {
+                        via: AudienceSpec::Colocated,
+                    }],
+                    effect_slots: Vec::new(),
+                    outcome_bands: vec![
+                        OutcomeBand { weight: 1, effects: Vec::new() },
+                        OutcomeBand { weight: 1, effects: Vec::new() },
+                    ],
+                    carries_speech: true,
+                })],
+                operations: vec![ComponentOp::GrantAffordance {
+                    subject: Ref::Existing(human),
+                    affordance: Ref::Draft(DraftHandle::new("toss")),
+                }],
+                evidence: Vec::new(),
+            },
+        },
+    );
+    for _ in 0..3 {
+        let snapshot = kernel.snapshot().unwrap();
+        let toss = affordance_named(&snapshot, "toss");
+        submit_play(
+            &mut kernel,
+            &snapshot,
+            CommandBody::Act {
+                actor: human,
+                invocation: DecisionInvocation {
+                    affordance: toss,
+                    bindings: Vec::new(),
+                    proposed: Vec::new(),
+                    speech: Some(Statement::new("Heads or tails.").unwrap()),
+                    display: None,
+                },
+            },
+        );
+    }
+
     let snapshot = kernel.snapshot().unwrap();
     submit_play(
         &mut kernel,
@@ -107,7 +160,7 @@ fn golden_session() -> (WorldKernel, String) {
     );
     assert!(matches!(refused, Err(KernelError::AffordanceDenied)), "{refused:?}");
     assert_eq!(kernel.snapshot().unwrap(), before);
-    assert_eq!(kernel.journal.commit_count(), 5);
+    assert_eq!(kernel.journal.commit_count(), 9);
 
     let mut file = String::new();
     for commit in kernel.journal.commits_for_test() {

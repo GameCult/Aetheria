@@ -351,3 +351,16 @@ Not taken from the spec's text: the spec's negative pattern `id: CommandId`
 matches the `command_id: CommandId` parameters of the band draw and derivation
 (the per-command term the spec keeps); the doc comment said `synchronous`, which
 `chrono` matches, and now says `single-threaded`.
+
+Host contracts (AL3a, from Soul's pass):
+
+- Two byte-equal creations share a `WorldId` and every id under it. A host that
+  wants distinct worlds salts each run or profile into the creation, for example
+  a run seed in the patch.
+- Truncation and rollback open: a chain verifies as a prefix, so an export with
+  its tail dropped, or an older export, opens as a valid shorter world. The
+  holder of the bytes keeps the head (revision and state digest from `snapshot()`
+  at export time) and compares after `open`. AL5's C# store owns this.
+- The band draw is grindable through the command id (it hashes the body, so the
+  text, a magnitude or the revision re-roll it). Only Play submits acts after
+  genesis and Play is trusted, so it is not an authority hole.
