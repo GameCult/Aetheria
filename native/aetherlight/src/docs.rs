@@ -95,6 +95,14 @@ impl<K: Ord + Clone, V: Clone + PartialEq> Docs<K, V> {
         self.map.entry(key)
     }
 
+    /// The open transaction's changed keys as (key, old, new), without closing it.
+    pub(crate) fn changes(&self) -> impl Iterator<Item = (&K, Option<&V>, Option<&V>)> + '_ {
+        self.touched.iter().filter_map(|(key, old)| {
+            let new = self.map.get(key);
+            (new != old.as_ref()).then_some((key, old.as_ref(), new))
+        })
+    }
+
     /// The keys whose value differs from the start of the transaction, with the
     /// value they had then. A key written back to what it was is not reported.
     /// The log is empty afterwards.
@@ -173,6 +181,14 @@ impl<T: Clone + PartialEq> Tracked<T> {
         }
     }
 
+    /// (old, new) when the value changed in the open transaction.
+    pub(crate) fn change(&self) -> Option<(Option<&T>, &T)> {
+        match &self.old {
+            Some(old) if old.as_ref() != Some(&self.value) => Some((old.as_ref(), &self.value)),
+            _ => None,
+        }
+    }
+
     pub(crate) fn rollback(&mut self) {
         if let Some(Some(old)) = self.old.take() {
             self.value = old;
@@ -181,5 +197,17 @@ impl<T: Clone + PartialEq> Tracked<T> {
 
     pub(crate) fn is_clean(&self) -> bool {
         self.old.is_none()
+    }
+}
+
+/// The text a document is keyed by in its digest: stable, canonical, one per
+/// key. An id is its uuid as `Display` prints it.
+pub(crate) trait DocKey {
+    fn key_text(&self) -> String;
+}
+
+impl<A: DocKey, B: DocKey> DocKey for (A, B) {
+    fn key_text(&self) -> String {
+        format!("{}/{}", self.0.key_text(), self.1.key_text())
     }
 }

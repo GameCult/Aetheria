@@ -129,6 +129,13 @@ pub(crate) struct Office {
 #[serde(transparent)]
 pub(crate) struct GrievanceKindName(pub(crate) String);
 
+
+impl crate::docs::DocKey for GrievanceKindName {
+    fn key_text(&self) -> String {
+        self.0.clone()
+    }
+}
+
 /// Where one kind of grievance goes, and who may bring it. One forum per
 /// grievance kind, world-wide; per-jurisdiction forums would key this on
 /// `(GrievanceKindName, AuthorityTarget)`, and that key has no consumer yet.
@@ -3371,9 +3378,8 @@ pub(super) fn resolve_patch(
     let mut knowledge: BTreeMap<(Key<SubjectId>, Key<EntityId>), KnowledgeCandidate> = state
         .knowledge
         .iter()
-        .flat_map(|(subject_id, held)| {
-            held.iter().map(move |(fact, entry)| {
-                (
+        .map(|((subject_id, fact), entry)| {
+            (
                     (Key::Existing(*subject_id), Key::Existing(*fact)),
                     KnowledgeCandidate {
                         confidence: entry.confidence,
@@ -3389,8 +3395,7 @@ pub(super) fn resolve_patch(
                             },
                         },
                     },
-                )
-            })
+            )
         })
         .collect();
     // Presence is all a discharge asks, and a create cannot collide: the key is

@@ -58,6 +58,7 @@
 
 mod action;
 mod clock;
+mod digest;
 mod docs;
 #[cfg(test)]
 mod golden_tests;
@@ -99,15 +100,16 @@ pub(crate) use patch::{
 };
 use patch::{EdgeRecord, EntityRecord, LedgerDelta, ResolvedOp, ResolvedPatch};
 
-use docs::{Changed, Docs, Tracked};
+use digest::{LtHash16, Partition};
+use docs::{Changed, DocKey, Docs, Tracked};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 use uuid::Uuid;
 
-pub const STATE_SCHEMA: &str = "aetherlight.world_state.v1";
-pub(crate) const COMMIT_SCHEMA: &str = "aetherlight.world_commit.v1";
+pub const STATE_SCHEMA: &str = "aetherlight.world_state.v2";
+pub(crate) const COMMIT_SCHEMA: &str = "aetherlight.world_commit.v2";
 
 /// Domain strings of the three content-derived identities. A command is named
 /// by what it says, so no caller draws an id and no retry needs one.
@@ -132,6 +134,12 @@ macro_rules! opaque_uuid {
         )]
         #[serde(transparent)]
         $vis struct $name(Uuid);
+
+        impl DocKey for $name {
+            fn key_text(&self) -> String {
+                self.0.to_string()
+            }
+        }
     };
     ($name:ident) => {
         opaque_uuid!($name, pub(crate));
@@ -430,7 +438,7 @@ pub(crate) struct DecisionEvent {
 
 /// The world's own fields: the one document that is not a map row. Tracked like
 /// a partition key, so a tick that advances the clock is one changed document.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 struct WorldHeader {
     world_id: WorldId,
     owner: PrincipalId,
@@ -438,6 +446,7 @@ struct WorldHeader {
     /// Bound by genesis and never written again; absent from a world with no
     /// grammar, so such a world's state and digests are what they were before
     /// grammars existed.
+    #[serde(skip_serializing_if = "Option::is_none")]
     grammar: Option<GrammarBinding>,
     /// Minutes since genesis. The world's only clock, advanced by exactly one
     /// command body and read by no wall clock. It is world truth, and it is
@@ -469,9 +478,9 @@ struct WorldState {
     channels: Docs<EntityId, ChannelRecord>,
     /// What each subject knows. The sole owner of who-heard-what: `events`
     /// records what was done, and this decides what a subject may act on and
-    /// what its projection may contain. Never empty for a present key, and
+    /// what its projection may contain. One document per (subject, fact), and
     /// absence is "knows nothing of it" — forgetting removes the key.
-    knowledge: Docs<SubjectId, BTreeMap<EntityId, Knowledge>>,
+    knowledge: Docs<(SubjectId, EntityId), Knowledge>,
     /// What ground each subject has jurisdiction over, and under which
     /// world-declared kind. Never empty for a present key. No subject holds two
     /// grants of one kind over overlapping ground, so nothing ever arbitrates
@@ -498,7 +507,8 @@ struct WorldState {
     /// holds at least one verb. A grant carries no payload, so a duplicate
     /// grant is unrepresentable rather than checked.
     affordance_grants: Docs<SubjectId, BTreeSet<AffordanceId>>,
-    events: Vec<DecisionEvent>,
+    // The chain head: outside every document.
+    accumulator: LtHash16,
     state_digest: String,
     last_commit_digest: Option<String>,
 }
@@ -622,7 +632,7 @@ pub struct SubjectSnapshot {
     /// itself. View-only: it is already carried by `components`.
     pub(crate) dependencies: Vec<DependencyTarget>,
     /// The greatest `DecisionEvent.revision` whose actor is this subject, or
-    /// `None` if the subject never acted. Derived from `state.events` alone:
+    /// `None` if the subject never acted. Derived from the journal's acted events alone:
     /// no new state, no schema change. The recency marker `projector_knowledge`
     /// stamps onto each knowledge row is `acquired_at > last_acted_at`.
     pub(crate) last_acted_at: Option<u64>,
@@ -971,7 +981,13 @@ impl WorldKernel {
     }
 
     fn snapshot(&self) -> Result<WorldSnapshot, KernelError> {
-        snapshot(&self.state)
+        snapshot(&self.state, &self.journal)
+    }
+
+    /// The decisions the world has acted on, for the tests that read them.
+    #[cfg(test)]
+    fn events(&self) -> Vec<DecisionEvent> {
+        self.journal.acted_events().cloned().collect()
     }
 
     fn submit(
@@ -1000,12 +1016,13 @@ impl WorldKernel {
         // Applied in place under the partitions' undo logs: the world is never
         // cloned, and any failure up to the sealed commit puts it back.
         self.state.begin();
-        let sealed = (|| -> Result<WorldCommit, KernelError> {
+        let sealed = (|| -> Result<(WorldCommit, LtHash16), KernelError> {
             apply_effect(&mut self.state, command_id, &command.caller, &effect)?;
             self.state.revision = previous_revision
                 .checked_add(1)
                 .ok_or_else(|| KernelError::Serialization("world revision overflow".into()))?;
-            self.state.state_digest = state_digest(&self.state)?;
+            let accumulator = self.state.folded()?;
+            self.state.state_digest = accumulator.state_digest(self.state.revision);
             let mut commit = WorldCommit {
                 schema: COMMIT_SCHEMA.into(),
                 world_id: self.state.header.world_id,
@@ -1019,10 +1036,10 @@ impl WorldKernel {
                 digest: String::new(),
             };
             commit.digest = commit_digest(&commit)?;
-            Ok(commit)
+            Ok((commit, accumulator))
         })();
-        let commit = match sealed {
-            Ok(commit) => commit,
+        let (commit, accumulator) = match sealed {
+            Ok(sealed) => sealed,
             Err(error) => {
                 self.state.rollback();
                 self.state.revision = previous_revision;
@@ -1030,7 +1047,7 @@ impl WorldKernel {
                 return Err(error);
             }
         };
-        self.state.finish();
+        self.state.finish(accumulator);
         self.state.last_commit_digest = Some(commit.digest.clone());
 
         let receipt = CommitReceipt::from(&commit);
@@ -1096,126 +1113,126 @@ fn is_genesis(revision: u64, subjects: &BTreeMap<SubjectId, SubjectState>) -> bo
     revision == 0 && subjects.is_empty()
 }
 
-impl WorldState {
-    /// The encoding the state digest has always hashed: every partition as its
-    /// map, in this order. `sealed` false writes the chain head (the two digest
-    /// fields) as blank, the form the state digest is taken over.
-    fn write_encoded<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        sealed: bool,
-    ) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeStruct;
-        let header = &*self.header;
-        let fields = if header.grammar.is_some() { 26 } else { 25 };
-        let mut out = serializer.serialize_struct("WorldState", fields)?;
-        out.serialize_field("schema", STATE_SCHEMA)?;
-        out.serialize_field("world_id", &header.world_id)?;
-        out.serialize_field("revision", &self.revision)?;
-        out.serialize_field("owner", &header.owner)?;
-        out.serialize_field("title", &header.title)?;
-        if header.grammar.is_some() {
-            out.serialize_field("grammar", &header.grammar)?;
-        }
-        out.serialize_field("subjects", &self.subjects)?;
-        out.serialize_field("entities", &self.entities)?;
-        out.serialize_field("edges", &self.edges)?;
-        out.serialize_field("positions", &self.positions)?;
-        out.serialize_field("holdings", &self.holdings)?;
-        out.serialize_field("dependencies", &self.dependencies)?;
-        out.serialize_field("facts", &self.facts)?;
-        out.serialize_field("channels", &self.channels)?;
-        out.serialize_field("knowledge", &self.knowledge)?;
-        out.serialize_field("authority", &self.authority)?;
-        out.serialize_field("selection", &self.selection)?;
-        out.serialize_field("redress", &self.redress)?;
-        out.serialize_field("commitments", &self.commitments)?;
-        out.serialize_field("pressures", &self.pressures)?;
-        out.serialize_field("now", &header.now)?;
-        out.serialize_field("affordance_catalog", &self.affordance_catalog)?;
-        out.serialize_field("affordance_grants", &self.affordance_grants)?;
-        out.serialize_field("events", &self.events)?;
-        if sealed {
-            out.serialize_field("state_digest", &self.state_digest)?;
-            out.serialize_field("last_commit_digest", &self.last_commit_digest)?;
-        } else {
-            out.serialize_field("state_digest", "")?;
-            out.serialize_field("last_commit_digest", &None::<String>)?;
-        }
-        out.end()
-    }
+/// The partition table: each partition under the schema its documents are
+/// digested with. The one list `begin`, `folded`, `finish`, `rollback` and the
+/// test oracle all walk.
+macro_rules! partitions {
+    ($state:expr, $($borrow:tt)+) => {
+        [
+            ("aetherlight.subject.v1", $($borrow)+ $state.subjects as $($borrow)+ dyn Partition),
+            ("aetherlight.entity.v1", $($borrow)+ $state.entities as $($borrow)+ dyn Partition),
+            ("aetherlight.edge.v1", $($borrow)+ $state.edges as $($borrow)+ dyn Partition),
+            ("aetherlight.position.v1", $($borrow)+ $state.positions as $($borrow)+ dyn Partition),
+            ("aetherlight.holdings.v1", $($borrow)+ $state.holdings as $($borrow)+ dyn Partition),
+            ("aetherlight.dependencies.v1", $($borrow)+ $state.dependencies as $($borrow)+ dyn Partition),
+            ("aetherlight.fact.v1", $($borrow)+ $state.facts as $($borrow)+ dyn Partition),
+            ("aetherlight.channel.v1", $($borrow)+ $state.channels as $($borrow)+ dyn Partition),
+            ("aetherlight.knowledge.v1", $($borrow)+ $state.knowledge as $($borrow)+ dyn Partition),
+            ("aetherlight.authority.v1", $($borrow)+ $state.authority as $($borrow)+ dyn Partition),
+            ("aetherlight.selection.v1", $($borrow)+ $state.selection as $($borrow)+ dyn Partition),
+            ("aetherlight.redress.v1", $($borrow)+ $state.redress as $($borrow)+ dyn Partition),
+            ("aetherlight.commitments.v1", $($borrow)+ $state.commitments as $($borrow)+ dyn Partition),
+            ("aetherlight.pressures.v1", $($borrow)+ $state.pressures as $($borrow)+ dyn Partition),
+            ("aetherlight.affordance.v1", $($borrow)+ $state.affordance_catalog as $($borrow)+ dyn Partition),
+            (
+                "aetherlight.affordance_grants.v1",
+                $($borrow)+ $state.affordance_grants as $($borrow)+ dyn Partition,
+            ),
+        ]
+    };
+}
 
+const WORLD_DOC_SCHEMA: &str = "aetherlight.world.v1";
+
+impl WorldState {
     /// Opens a transaction. Every log must be empty: a write outside a
     /// transaction, or a transaction left open, is a bug here and not state.
     fn begin(&self) {
         debug_assert!(self.header.is_clean(), "a transaction is open");
-        debug_assert!(self.subjects.is_clean() && self.entities.is_clean());
-        debug_assert!(self.edges.is_clean() && self.positions.is_clean());
-        debug_assert!(self.holdings.is_clean() && self.dependencies.is_clean());
-        debug_assert!(self.facts.is_clean() && self.channels.is_clean());
-        debug_assert!(self.knowledge.is_clean() && self.authority.is_clean());
-        debug_assert!(self.selection.is_clean() && self.redress.is_clean());
-        debug_assert!(self.commitments.is_clean() && self.pressures.is_clean());
-        debug_assert!(self.affordance_catalog.is_clean() && self.affordance_grants.is_clean());
+        debug_assert!(partitions!(self, &).iter().all(|(_, docs)| docs.is_clean()));
     }
 
-    /// Closes the transaction, keeping its writes. Returns the commitments
-    /// subjects that changed, with their old promises, for replay's check that
-    /// every commitment stays in the future.
-    fn finish(&mut self) -> Vec<Changed<SubjectId, BTreeMap<CommitmentKey, Commitment>>> {
+    /// What `subject` knows: its rows of the flat knowledge partition, by fact.
+    fn knowledge_of(&self, subject: SubjectId) -> impl Iterator<Item = (&EntityId, &Knowledge)> {
+        self.knowledge
+            .range((subject, EntityId(Uuid::nil()))..=(subject, EntityId(Uuid::max())))
+            .map(|((_, fact), held)| (fact, held))
+    }
+
+    /// The accumulator the open transaction's writes lead to. Reads the logs and
+    /// changes nothing, so a failure after it can still roll back.
+    fn folded(&self) -> Result<LtHash16, KernelError> {
+        let mut acc = self.accumulator.clone();
+        digest::fold_header(&mut acc, WORLD_DOC_SCHEMA, &self.header.world_id.key(), &self.header)?;
+        for (schema, docs) in partitions!(self, &) {
+            docs.fold_changes(schema, &mut acc)?;
+        }
+        Ok(acc)
+    }
+
+    /// Closes the transaction, keeping its writes and the accumulator `folded`
+    /// computed for them. Returns the commitments subjects that changed, with
+    /// their old promises, for replay's check that every commitment stays in the
+    /// future.
+    fn finish(
+        &mut self,
+        accumulator: LtHash16,
+    ) -> Vec<Changed<SubjectId, BTreeMap<CommitmentKey, Commitment>>> {
+        self.accumulator = accumulator;
         self.header.finish();
-        self.subjects.finish();
-        self.entities.finish();
-        self.edges.finish();
-        self.positions.finish();
-        self.holdings.finish();
-        self.dependencies.finish();
-        self.facts.finish();
-        self.channels.finish();
-        self.knowledge.finish();
-        self.authority.finish();
-        self.selection.finish();
-        self.redress.finish();
-        self.pressures.finish();
-        self.affordance_catalog.finish();
-        self.affordance_grants.finish();
-        self.commitments.finish()
+        let commitments = self.commitments.finish();
+        for (_, docs) in partitions!(self, &mut) {
+            docs.finish_log();
+        }
+        commitments
     }
 
     /// Closes the transaction, undoing every write in it.
     fn rollback(&mut self) {
         self.header.rollback();
-        self.subjects.rollback();
-        self.entities.rollback();
-        self.edges.rollback();
-        self.positions.rollback();
-        self.holdings.rollback();
-        self.dependencies.rollback();
-        self.facts.rollback();
-        self.channels.rollback();
-        self.knowledge.rollback();
-        self.authority.rollback();
-        self.selection.rollback();
-        self.redress.rollback();
-        self.commitments.rollback();
-        self.pressures.rollback();
-        self.affordance_catalog.rollback();
-        self.affordance_grants.rollback();
+        for (_, docs) in partitions!(self, &mut) {
+            docs.rollback();
+        }
     }
-}
 
-impl Serialize for WorldState {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.write_encoded(serializer, true)
+    /// Every document's digest by (schema, key), enumerated from the maps and
+    /// ignoring the logs.
+    #[cfg(test)]
+    fn documents(
+        &self,
+    ) -> Result<std::collections::BTreeMap<(String, String), digest::DocDigest>, KernelError> {
+        let mut out = std::collections::BTreeMap::new();
+        let header = &*self.header;
+        let key = header.world_id.key();
+        out.insert(
+            (WORLD_DOC_SCHEMA.to_owned(), key.clone()),
+            digest::doc_digest(WORLD_DOC_SCHEMA, &key, header)?,
+        );
+        for (schema, docs) in partitions!(self, &) {
+            docs.documents(schema, &mut out)?;
+        }
+        Ok(out)
     }
-}
 
-/// The state with its chain head blanked: what `state_digest` hashes.
-struct Unsealed<'a>(&'a WorldState);
+    /// The accumulator recomputed from every document: the oracle the
+    /// incremental digest is checked against.
+    #[cfg(test)]
+    fn full_state_digest(&self) -> Result<String, KernelError> {
+        let mut acc = LtHash16::default();
+        for doc in self.documents()?.values() {
+            acc.add(doc);
+        }
+        Ok(acc.state_digest(self.revision))
+    }
 
-impl Serialize for Unsealed<'_> {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.write_encoded(serializer, false)
+    /// Every document as encoded, header first: the bytes a test scans.
+    #[cfg(test)]
+    fn encoded_documents(&self) -> Vec<u8> {
+        let mut bytes = rmp_serde::to_vec_named(&*self.header).expect("the header encodes");
+        for (_, docs) in partitions!(self, &) {
+            bytes.extend(docs.encoded());
+        }
+        bytes
     }
 }
 
@@ -1254,7 +1271,7 @@ impl WorldState {
             pressures: Docs::default(),
             affordance_catalog: Docs::default(),
             affordance_grants: Docs::default(),
-            events: Vec::new(),
+            accumulator: LtHash16::default(),
             state_digest: String::new(),
             last_commit_digest: None,
         }
@@ -1305,8 +1322,9 @@ impl WorldState {
         // unlike every later commit, which resolves to `state.revision + 1`.
         let genesis_revision = state.revision;
         admit_resolved(&mut state, resolved, genesis_revision)?;
-        state.finish();
-        state.state_digest = state_digest(&state)?;
+        let accumulator = state.folded()?;
+        state.state_digest = accumulator.state_digest(state.revision);
+        state.finish(accumulator);
         Ok(state)
     }
 }
@@ -2102,8 +2120,7 @@ fn apply_operation(
             // `acquired_at`.
             if state
                 .knowledge
-                .get(subject)
-                .and_then(|held| held.get(fact))
+                .get(&(*subject, *fact))
                 .is_some_and(|held| held.confidence == *confidence && held.source == source)
             {
                 return Err(KernelError::Invariant(
@@ -2124,28 +2141,13 @@ fn apply_operation(
                 source,
                 acquired_at,
             };
-            state
-                .knowledge
-                .entry(*subject)
-                .or_default()
-                .insert(*fact, entry);
+            state.knowledge.insert((*subject, *fact), entry);
         }
         ResolvedOp::Forget { subject, fact } => {
-            let (removed, emptied) = state
-                .knowledge
-                .get_mut(subject)
-                .map(|held| {
-                    let removed = held.remove(fact).is_some();
-                    (removed, held.is_empty())
-                })
-                .unwrap_or((false, false));
-            if !removed {
+            if state.knowledge.remove(&(*subject, *fact)).is_none() {
                 return Err(KernelError::Invariant(
                     "knowledge operation changes nothing".into(),
                 ));
-            }
-            if emptied {
-                state.knowledge.remove(subject);
             }
         }
         ResolvedOp::Communicate { speaker, fact, to } => {
@@ -2168,8 +2170,8 @@ fn apply_operation(
             // otherwise.
             let acquired_at = resolves_to;
             for listener in fan_out(state, *speaker, *fact, to) {
-                state.knowledge.entry(listener).or_default().insert(
-                    *fact,
+                state.knowledge.insert(
+                    (listener, *fact),
                     Knowledge {
                         confidence: Confidence::Believed,
                         source: KnowledgeSource::Told {
@@ -2207,8 +2209,8 @@ fn apply_operation(
             // revision ahead of the state it was written into.
             let acquired_at = resolves_to;
             for viewer in fan_out(state, *actor, *fact, &room) {
-                state.knowledge.entry(viewer).or_default().insert(
-                    *fact,
+                state.knowledge.insert(
+                    (viewer, *fact),
                     Knowledge {
                         confidence: Confidence::Believed,
                         source: KnowledgeSource::Seen { by: *actor },
@@ -2251,8 +2253,8 @@ fn apply_operation(
             // revision ahead of the state it was written into.
             let acquired_at = resolves_to;
             for witness in recipients {
-                state.knowledge.entry(witness).or_default().insert(
-                    *fact,
+                state.knowledge.insert(
+                    (witness, *fact),
                     Knowledge {
                         confidence: *confidence,
                         source: KnowledgeSource::Witnessed,
@@ -2653,10 +2655,7 @@ fn unheld(
     listeners
         .into_iter()
         .filter(|listener| {
-            !state
-                .knowledge
-                .get(listener)
-                .is_some_and(|held| held.contains_key(&fact))
+            !state.knowledge.contains_key(&(*listener, fact))
         })
         .collect()
 }
@@ -2909,11 +2908,8 @@ fn scope_components(state: &WorldState, subject_id: SubjectId) -> ScopeComponent
             .unwrap_or_default(),
         delegated: delegated_authority(state, subject_id),
         knows: state
-            .knowledge
-            .get(&subject_id)
-            .into_iter()
-            .flat_map(BTreeMap::keys)
-            .copied()
+            .knowledge_of(subject_id)
+            .map(|(fact, _)| *fact)
             .collect(),
         controls: state
             .channels
@@ -2929,12 +2925,14 @@ fn scope_components(state: &WorldState, subject_id: SubjectId) -> ScopeComponent
     }
 }
 
-fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
+fn snapshot(
+    state: &WorldState,
+    journal: &journal::WorldJournal,
+) -> Result<WorldSnapshot, KernelError> {
     // One pass over the causal record so each subject's own knowledge map can be
     // stamped with the revision that minted each claim it holds.
-    let minted_at: BTreeMap<EntityId, u64> = state
-        .events
-        .iter()
+    let minted_at: BTreeMap<EntityId, u64> = journal
+        .acted_events()
         .flat_map(|event| {
             event
                 .speech
@@ -2947,9 +2945,8 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
     // revision of its own last exercised decision. `None` for a subject that
     // never acted.
     let last_acted_at: BTreeMap<SubjectId, u64> =
-        state
-            .events
-            .iter()
+        journal
+            .acted_events()
             .fold(BTreeMap::new(), |mut acc, event| {
                 let entry = acc.entry(event.actor).or_insert(event.revision);
                 if event.revision > *entry {
@@ -3013,10 +3010,7 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
             // controller: a controller that recomputed perception would be a
             // second answer to who heard what.
             let mut knowledge: Vec<KnowledgeSnapshot> = state
-                .knowledge
-                .get(subject_id)
-                .into_iter()
-                .flatten()
+                .knowledge_of(*subject_id)
                 .map(|(fact, held)| {
                     let record = state.facts.get(fact).ok_or_else(|| {
                         KernelError::Invariant("knowledge names no canonical fact".into())
@@ -3139,8 +3133,8 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
             },
             known_by: state
                 .knowledge
-                .iter()
-                .filter(|(_, held)| held.contains_key(fact_id))
+                .keys()
+                .filter(|(_, fact)| fact == fact_id)
                 .map(|(subject_id, _)| *subject_id)
                 .collect(),
         })
@@ -3305,8 +3299,6 @@ fn apply_effect(
                 // now; read it back rather than computing it a second time.
                 apply_operations(state, &event.effects, &[], event.revision)?;
             }
-            // After the writes, so a failed apply leaves nothing to undo here.
-            state.events.push(event.clone());
         }
         WorldEffect::TimeAdvanced {
             minutes,
@@ -3354,10 +3346,6 @@ fn digest<T: Serialize>(value: &T) -> Result<String, KernelError> {
     let bytes = rmp_serde::to_vec_named(value)
         .map_err(|error| KernelError::Serialization(error.to_string()))?;
     Ok(format!("sha256:{:x}", Sha256::digest(bytes)))
-}
-
-fn state_digest(state: &WorldState) -> Result<String, KernelError> {
-    digest(&Unsealed(state))
 }
 
 fn commit_digest(commit: &WorldCommit) -> Result<String, KernelError> {
@@ -5251,7 +5239,7 @@ mod tests {
             .sum();
         assert_eq!(before_total, after_total);
         assert_eq!(
-            kernel.state.events.last().unwrap().effects,
+            kernel.events().last().unwrap().effects,
             vec![ResolvedOp::Transfer {
                 from: civic.farmer,
                 to: civic.treasury,
@@ -6537,8 +6525,7 @@ mod knowledge_tests {
         kernel
             .state
             .knowledge
-            .get(&subject)
-            .and_then(|held| held.get(&fact))
+            .get(&(subject, fact))
             .copied()
     }
 
@@ -6553,8 +6540,7 @@ mod knowledge_tests {
 
     fn minted_claim(kernel: &WorldKernel) -> EntityId {
         kernel
-            .state
-            .events
+            .events()
             .last()
             .expect("the committed event")
             .speech
@@ -6755,7 +6741,8 @@ mod knowledge_tests {
         )
         .expect("the whisper commits");
 
-        let event = kernel.state.events.last().expect("the committed event");
+        let events = kernel.events();
+        let event = events.last().expect("the committed event");
         let claim = event.speech.expect("a speech act names its claim");
         assert_eq!(spoken(&kernel.state, event), Some("Mind the hinge."));
         assert_eq!(
@@ -6852,9 +6839,9 @@ mod knowledge_tests {
         .expect("speech into an empty room commits");
 
         assert_eq!(kernel.state.knowledge, knowledge_before);
-        assert_eq!(kernel.state.events.len(), 1);
+        assert_eq!(kernel.events().len(), 1);
         assert_eq!(
-            spoken(&kernel.state, kernel.state.events.last().unwrap()),
+            spoken(&kernel.state, kernel.events().last().unwrap()),
             Some("Nobody is here.")
         );
         assert_eq!(
@@ -6902,7 +6889,8 @@ mod knowledge_tests {
         )
         .expect("the proclamation with a display commits");
 
-        let event = kernel.state.events.last().expect("the committed event");
+        let events = kernel.events();
+        let event = events.last().expect("the committed event");
         let said = event.speech.expect("the utterance names its claim");
         let seen = event.display.expect("the display names its claim");
         assert_ne!(said, seen);
@@ -6952,7 +6940,8 @@ mod knowledge_tests {
             show(speak, Vec::new(), None, "I nod toward the stair."),
         )
         .expect("a silent act commits");
-        let event = kernel.state.events.last().unwrap();
+        let events = kernel.events();
+        let event = events.last().unwrap();
         assert!(event.speech.is_none());
         let seen = event.display.expect("the display names its claim");
         assert_eq!(
@@ -6967,7 +6956,7 @@ mod knowledge_tests {
         )
         .expect("a display into an empty room commits");
         assert_eq!(kernel.state.knowledge, knowledge_before);
-        assert_eq!(kernel.state.events.len(), 2);
+        assert_eq!(kernel.events().len(), 2);
         assert_eq!(claimed(&kernel), 2);
     }
 
@@ -7002,7 +6991,7 @@ mod knowledge_tests {
             )),
             vec![ActionMismatch::NoAudience { precondition: 0 }]
         );
-        assert!(kernel.state.events.is_empty());
+        assert!(kernel.events().is_empty());
         assert_eq!(claimed(&kernel), 0);
     }
 
@@ -7030,12 +7019,14 @@ mod knowledge_tests {
         };
         let reopened = WorldKernel::open(&exported).expect("the export replays");
         assert_eq!(reopened.state, expected);
-        assert!(reopened.state.knowledge[&speech.listener]
-            .values()
-            .any(|held| held.source == KnowledgeSource::Seen { by: speech.speaker }));
-        assert!(reopened.state.knowledge[&speech.speaker]
-            .values()
-            .any(|held| held.source == KnowledgeSource::Seen { by: speech.listener }));
+        assert!(reopened
+            .state
+            .knowledge_of(speech.listener)
+            .any(|(_, held)| held.source == KnowledgeSource::Seen { by: speech.speaker }));
+        assert!(reopened
+            .state
+            .knowledge_of(speech.speaker)
+            .any(|(_, held)| held.source == KnowledgeSource::Seen { by: speech.listener }));
     }
 
     fn claimed(kernel: &WorldKernel) -> usize {
@@ -7170,8 +7161,8 @@ mod knowledge_tests {
         );
         utter(&mut kernel, speech.listener, recant())
             .expect("certainty admits the recant");
-        // Absence is the one shape of knowing nothing: no empty inner map.
-        assert!(!kernel.state.knowledge.contains_key(&speech.listener));
+        // Absence is the one shape of knowing nothing: no row.
+        assert!(kernel.state.knowledge_of(speech.listener).next().is_none());
 
         let active = kernel.snapshot().unwrap();
         assert_eq!(
@@ -7310,7 +7301,7 @@ mod knowledge_tests {
     /// state.
     #[test]
     fn restart_replay_after_speech_is_exact() {
-        let (speech, exported, expected) = {
+        let (speech, exported, expected, expected_events) = {
             let mut kernel = WorldKernel::create(creation("ReplaySpeech"),
                 &auth_principal(owner()),
             )
@@ -7344,16 +7335,16 @@ mod knowledge_tests {
                 }]),
             );
             let exported = kernel.export().unwrap();
-            (speech, exported, kernel.state.clone())
+            (speech, exported, kernel.state.clone(), kernel.events())
         };
 
         let reopened = WorldKernel::open(&exported).expect("the export replays");
         assert_eq!(reopened.state.facts, expected.facts);
         assert_eq!(reopened.state.channels, expected.channels);
         assert_eq!(reopened.state.knowledge, expected.knowledge);
-        assert_eq!(reopened.state.events, expected.events);
+        assert_eq!(reopened.events(), expected_events);
         assert_eq!(reopened.state, expected);
-        assert!(!reopened.state.knowledge[&speech.bystander].is_empty());
+        assert!(reopened.state.knowledge_of(speech.bystander).next().is_some());
     }
 
     /// A forged claim does not apply, and a forged recipient list is
@@ -7429,7 +7420,7 @@ mod knowledge_tests {
             },
         )
         .expect("the honest event applies");
-        assert!(candidate.knowledge.contains_key(&speech.listener));
+        assert!(candidate.knowledge_of(speech.listener).next().is_some());
     }
 
     /// The scope table: a telling moves its listener's scope and leaves a bystander
@@ -7542,7 +7533,8 @@ mod knowledge_tests {
             )
             .expect("both statements commit identically");
             assert!(receipt.resulting_revision > 0);
-            let event = kernel.state.events.last().unwrap().clone();
+            let events = kernel.events();
+        let event = events.last().unwrap().clone();
             (kernel, speech, event)
         };
         let (agreeing, agreeing_speech, agreeing_event) = run("agree", FLOOD_STATEMENT);
@@ -7617,8 +7609,7 @@ mod soul_knowledge_tests {
         kernel
             .state
             .knowledge
-            .get(&subject)
-            .and_then(|held| held.get(&fact))
+            .get(&(subject, fact))
             .copied()
     }
 
@@ -7628,8 +7619,7 @@ mod soul_knowledge_tests {
 
     fn minted_claim(kernel: &WorldKernel) -> EntityId {
         kernel
-            .state
-            .events
+            .events()
             .last()
             .expect("the committed event")
             .speech
@@ -7906,7 +7896,7 @@ mod soul_knowledge_tests {
         .expect("speaking into an empty room commits");
 
         assert_eq!(kernel.state.facts.len(), facts_before + 1);
-        assert_eq!(kernel.state.events.len(), 1);
+        assert_eq!(kernel.events().len(), 1);
         assert!(kernel.state.knowledge.is_empty());
         for (subject, digest) in everyone.iter().zip(before) {
             assert_eq!(
@@ -7996,8 +7986,7 @@ mod soul_knowledge_tests {
         assert!(kernel.state.facts.contains_key(&speech.flood));
         assert!(
             kernel
-                .state
-                .events
+                .events()
                 .iter()
                 .all(|event| event.speech.is_none())
         );
@@ -8041,7 +8030,7 @@ mod soul_knowledge_tests {
     /// from the journal, and reopening again reproduces the same state.
     #[test]
     fn soul_replay_is_exact_across_every_new_arm() {
-        let (exported, expected) = {
+        let (exported, expected, expected_events) = {
             let (mut kernel, speech, _) = speech_kernel("ReplayArms");
             utter(&mut kernel, speech.speaker,
                 say(
@@ -8088,7 +8077,7 @@ mod soul_knowledge_tests {
             );
             assert!(!kernel.state.knowledge.is_empty());
             assert!(!kernel.state.facts.is_empty());
-            (kernel.export().unwrap(), kernel.state.clone())
+            (kernel.export().unwrap(), kernel.state.clone(), kernel.events())
         };
 
         for _ in 0..2 {
@@ -8097,7 +8086,7 @@ mod soul_knowledge_tests {
             assert_eq!(replayed.state.channels, expected.channels);
             assert_eq!(replayed.state.knowledge, expected.knowledge);
             assert_eq!(replayed.state.entities, expected.entities);
-            assert_eq!(replayed.state.events, expected.events);
+            assert_eq!(replayed.events(), expected_events);
             assert_eq!(replayed.state, expected);
         }
     }
@@ -8129,7 +8118,8 @@ mod soul_knowledge_tests {
         // The event no longer embeds the invocation, and its `speech` field is
         // the fact id. The bytes still appear in the event, inside the committed
         // `AssertClaim` effect.
-        let event = kernel.state.events.last().unwrap();
+        let events = kernel.events();
+        let event = events.last().unwrap();
         assert_eq!(event.speech, Some(claim));
         assert_eq!(
             event.effects[0],
@@ -8140,15 +8130,14 @@ mod soul_knowledge_tests {
             },
             "the event carries the statement as a replay witness, not a second read surface"
         );
-        // Those two are the whole of it: strip `facts` and `events` and the
+        // The facts are the whole of it: strip them and the
         // rest of the state is silent.
         let mut stripped = kernel.state.clone();
         let facts: Vec<_> = stripped.facts.keys().copied().collect();
         for fact in facts {
             stripped.facts.remove(&fact);
         }
-        stripped.events.clear();
-        let encoded = rmp_serde::to_vec_named(&stripped).unwrap();
+        let encoded = stripped.encoded_documents();
         assert!(
             !encoded
                 .windows(text.len())
@@ -8367,8 +8356,7 @@ mod witness_tests {
         kernel
             .state
             .knowledge
-            .get(&subject)
-            .and_then(|held| held.get(&fact))
+            .get(&(subject, fact))
             .copied()
     }
 
@@ -8433,7 +8421,6 @@ mod witness_tests {
                 .state
                 .knowledge
                 .values()
-                .flat_map(|held| held.values())
                 .all(|entry| !matches!(entry.source, KnowledgeSource::Told { .. })),
             "a witness wrote a told row"
         );
@@ -8457,11 +8444,7 @@ mod witness_tests {
         };
         let mut state = kernel.state.clone();
         let state_revision = state.revision;
-        state
-            .knowledge
-            .entry(world.villager)
-            .or_default()
-            .insert(world.asteroid, held);
+        state.knowledge.insert((world.villager, world.asteroid), held);
         apply_operation(
             &mut state,
             &ResolvedOp::Witness {
@@ -8473,9 +8456,9 @@ mod witness_tests {
             state_revision + 1,
         )
         .expect("the witness lands");
-        assert_eq!(state.knowledge[&world.villager][&world.asteroid], held);
+        assert_eq!(state.knowledge[&(world.villager, world.asteroid)], held);
         assert_eq!(
-            state.knowledge[&world.neighbour][&world.asteroid],
+            state.knowledge[&(world.neighbour, world.asteroid)],
             Knowledge {
                 confidence: Confidence::Certain,
                 source: KnowledgeSource::Witnessed,
@@ -8735,8 +8718,7 @@ mod witness_tests {
             .expect("the beacon lands");
         assert_eq!(
             kernel
-                .state
-                .events
+                .events()
                 .last()
                 .expect("a committed event")
                 .effects,
@@ -8841,7 +8823,7 @@ mod witness_tests {
             .expect("genesis admits the declared fact")
             .0;
         assert_eq!(
-            kernel.state.knowledge[&human][&fact].acquired_at,
+            kernel.state.knowledge[&(human, fact)].acquired_at,
             0,
             "a genesis-seeded row landed one revision ahead of the state it was written into"
         );
@@ -8865,7 +8847,7 @@ mod witness_tests {
         );
         assert_eq!(kernel.state.revision, active.revision + 1);
         assert_eq!(
-            kernel.state.knowledge[&world.villager][&world.asteroid].acquired_at,
+            kernel.state.knowledge[&(world.villager, world.asteroid)].acquired_at,
             active.revision + 1
         );
     }
@@ -8890,8 +8872,7 @@ mod witness_tests {
         let mut forged = kernel.state.clone();
         let entry = forged
             .knowledge
-            .get_mut(&world.villager)
-            .and_then(|held| held.get_mut(&world.asteroid))
+            .get_mut(&(world.villager, world.asteroid))
             .expect("the witness landed on the villager");
         entry.acquired_at = forged.revision + 1;
         assert!(journal::verify_state_shape(&forged).is_err());
@@ -8909,8 +8890,8 @@ mod witness_tests {
         let mut state = kernel.state.clone();
         // One holder, so the already-holds half of the selection is exercised
         // and not merely the subtree half.
-        state.knowledge.entry(world.neighbour).or_default().insert(
-            world.asteroid,
+        state.knowledge.insert(
+            (world.neighbour, world.asteroid),
             Knowledge {
                 confidence: Confidence::Doubted,
                 source: KnowledgeSource::Witnessed,
@@ -9017,13 +8998,12 @@ mod witness_tests {
         assert!(
             !adrift
                 .knowledge
-                .get(&world.drifter)
-                .is_some_and(|held| held.contains_key(&world.moon)),
+                .contains_key(&(world.drifter, world.moon)),
             "a placeless subject witnessed the widest event in the world"
         );
         for subject in [world.villager, world.neighbour, world.coaster] {
             assert_eq!(
-                adrift.knowledge[&subject][&world.moon],
+                adrift.knowledge[&(subject, world.moon)],
                 Knowledge {
                     confidence: Confidence::Certain,
                     source: KnowledgeSource::Witnessed,
@@ -9685,6 +9665,7 @@ mod clock_tests {
     fn a_tick_with_nothing_due_moves_only_the_clock() {
         let (mut kernel, _, _) = clock_kernel("Quiet");
         let before = kernel.state.clone();
+        let before_events = kernel.events();
 
         tick(&mut kernel, 1).expect("the tick commits");
         assert_eq!(kernel.state.header.now, FictionalMinutes(1));
@@ -9693,7 +9674,7 @@ mod clock_tests {
         assert_eq!(kernel.state.commitments, before.commitments);
         assert_eq!(kernel.state.holdings, before.holdings);
         assert_eq!(kernel.state.positions, before.positions);
-        assert_eq!(kernel.state.events, before.events);
+        assert_eq!(kernel.events(), before_events);
 
         tick(&mut kernel, 2).expect("the tick commits");
         assert_eq!(kernel.state.header.now, FictionalMinutes(3));
@@ -10159,7 +10140,7 @@ mod clock_tests {
                 key: clockwork.obligation,
             }]),
         );
-        let events = kernel.state.events.len();
+        let events = kernel.events().len();
         let error = exercise(
             &mut kernel,
             clockwork.farmer,
@@ -10175,7 +10156,7 @@ mod clock_tests {
             ),
             "{error:?}"
         );
-        assert_eq!(kernel.state.events.len(), events);
+        assert_eq!(kernel.events().len(), events);
     }
 
     /// `Committed` is a conjunction: the actor holds a commitment to this very
@@ -10748,7 +10729,7 @@ mod clock_tests {
         )
         .expect("the play table's patch commits");
 
-        let bytes = rmp_serde::to_vec_named(&kernel.state).expect("state encodes");
+        let bytes = kernel.state.encoded_documents();
         let text = String::from_utf8_lossy(&bytes);
         for tag in [
             "outside_jurisdiction",
@@ -11359,7 +11340,7 @@ mod clock_tests {
             kernel.export().unwrap()
         };
         let reopened = WorldKernel::open(&exported).expect("the export replays");
-        assert_eq!(reopened.state.events.len(), 1);
+        assert_eq!(reopened.events().len(), 1);
     }
 
     /// PA.f32(b, c): once the world is Active, the human's Draft approval is
@@ -11413,12 +11394,7 @@ mod clock_tests {
         });
         submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch })
             .expect("admitted");
-        let reeve_knows = kernel
-            .state
-            .knowledge
-            .get(&clockwork.reeve)
-            .map(BTreeMap::len)
-            .unwrap_or(0);
+        let reeve_knows = kernel.state.knowledge_of(clockwork.reeve).count();
         assert_eq!(reeve_knows, 0, "a retired subject was an audience");
     }
 
@@ -11526,7 +11502,7 @@ mod clock_tests {
         });
         submit_as(&mut kernel, play_caller(), CommandBody::AdmitPatch { patch: declare })
             .expect("the reeve learns the fact");
-        let fact = *kernel.state.knowledge[&clockwork.reeve].keys().next().unwrap();
+        let fact = *kernel.state.knowledge_of(clockwork.reeve).next().unwrap().0;
         play_retires(&mut kernel, clockwork.reeve).expect("retire");
         let before = kernel.snapshot().unwrap();
         let error = reject_play(

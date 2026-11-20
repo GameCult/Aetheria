@@ -519,8 +519,7 @@ fn evaluate(
         BoundPrecondition::Knows { fact, at_least } => {
             return (!state
                 .knowledge
-                .get(&actor)
-                .and_then(|held| held.get(fact))
+                .get(&(actor, *fact))
                 .is_some_and(|held| held.confidence >= *at_least))
             .then_some(ActionMismatch::FactUnknown {
                 precondition: index,
@@ -1190,6 +1189,7 @@ mod tests {
     fn a_missing_present_precondition_names_itself() {
         let bench = bench("Present");
         let before = bench.kernel.state.clone();
+        let before_events = bench.kernel.events();
 
         // The clerk stands in the yard, so a Carry bound to the gate fails the
         // first precondition and nothing else.
@@ -1199,7 +1199,7 @@ mod tests {
         );
         assert_eq!(bench.kernel.state.revision, before.revision);
         assert_eq!(bench.kernel.state.holdings, before.holdings);
-        assert_eq!(bench.kernel.state.events, before.events);
+        assert_eq!(bench.kernel.events(), before_events);
     }
 
     #[test]
@@ -1500,7 +1500,7 @@ mod tests {
         assert_eq!(bench.kernel.state.holdings, holdings);
         assert_eq!(bench.kernel.state.positions, positions);
         assert_eq!(bench.kernel.state.edges, edges);
-        assert_eq!(bench.kernel.state.events.len(), 1);
+        assert_eq!(bench.kernel.events().len(), 1);
         assert_eq!(bench.kernel.state.revision, revision + 1);
     }
 
@@ -1509,12 +1509,8 @@ mod tests {
         let mut bench = bench("Lowering");
         let receipt = bench.commit(bench.carry(2, bench.yard));
         assert!(receipt.resulting_revision > 0);
-        let event = bench
-            .kernel
-            .state
-            .events
-            .last()
-            .expect("the committed event");
+        let events = bench.kernel.events();
+        let event = events.last().expect("the committed event");
         assert_eq!(
             event.effects,
             vec![ResolvedOp::Transfer {
@@ -1572,8 +1568,7 @@ mod tests {
             bench.refresh();
             let event = bench
                 .kernel
-                .state
-                .events
+                .events()
                 .last()
                 .expect("the committed event")
                 .clone();
@@ -1644,7 +1639,7 @@ mod tests {
         let decoded: std::collections::BTreeMap<_, crate::Affordance> =
             rmp_serde::from_slice(&catalog).expect("the affordance document decodes");
         assert_eq!(decoded, *bench.kernel.state.affordance_catalog);
-        assert!(digest(&bench.kernel.state).is_ok());
+        assert!(bench.kernel.state.full_state_digest().is_ok());
     }
 
     #[test]
@@ -1746,7 +1741,8 @@ mod tests {
         )
         .expect("the Speak entry commits");
         assert!(receipt.resulting_revision > 0);
-        let event = kernel.state.events.last().unwrap();
+        let events = kernel.events();
+        let event = events.last().unwrap();
         assert_eq!(event.band, 0);
         // The two the speech lowering prepends, and nothing from a slot.
         assert_eq!(event.effects.len(), 2);
@@ -1917,13 +1913,14 @@ mod tests {
     fn an_unauthorized_actor_names_the_failed_precondition() {
         let bench = civics("Unauthorized");
         let before = bench.kernel.state.clone();
+        let before_events = bench.kernel.events();
         assert_eq!(
             bench.rejected_as(bench.civic.farmer, &bench.levy(bench.civic.reeve, 1)),
             vec![ActionMismatch::NotAuthorized { precondition: 0 }]
         );
         assert_eq!(bench.kernel.state.revision, before.revision);
         assert_eq!(bench.kernel.state.holdings, before.holdings);
-        assert_eq!(bench.kernel.state.events, before.events);
+        assert_eq!(bench.kernel.events(), before_events);
     }
 
     /// A place jurisdiction reaches everything under it and nothing else, and
@@ -2219,12 +2216,8 @@ mod tests {
 
         let farmer = bench.civic.farmer;
         assert!(bench.commit_as(farmer, petition.clone()).resulting_revision > 0);
-        let event = bench
-            .kernel
-            .state
-            .events
-            .last()
-            .expect("the committed event");
+        let events = bench.kernel.events();
+        let event = events.last().expect("the committed event");
         assert_eq!(event.effects.len(), 2);
         assert_eq!(
             crate::tests::spoken(&bench.kernel.state, event),
@@ -2378,6 +2371,7 @@ mod tests {
         bench.admit(vec![grant_to(treasury, COMMAND_KIND, over_place(road))]);
         let invocation = bench.delegate(outsider, road);
         let before = bench.kernel.state.clone();
+        let before_events = bench.kernel.events();
         let error = soul_submit(&mut bench, treasury, invocation).unwrap_err();
         let KernelError::ActionRejected(rejected) = error else {
             panic!("an over-wide delegation is an action rejection");
@@ -2388,7 +2382,7 @@ mod tests {
         );
         assert_eq!(bench.kernel.state.revision, before.revision);
         assert_eq!(bench.kernel.state.authority, before.authority);
-        assert_eq!(bench.kernel.state.events.len(), before.events.len());
+        assert_eq!(bench.kernel.events().len(), before_events.len());
     }
 
     /// The `Restricted` rule is enforced by the component writer, not only by
@@ -2449,13 +2443,13 @@ mod tests {
             holder: PatchRef::Existing(treasury),
             grant: crate::tests::grant_of(LEVY_KIND, over_place(hall)),
         }]);
-        let events = bench.kernel.state.events.len();
+        let events = bench.kernel.events().len();
         let error = act(&mut bench.kernel, reeve, invocation).unwrap_err();
         assert!(
             matches!(error, KernelError::ActionRejected(_)),
             "a revoked lend is a rejection: {error:?}"
         );
-        assert_eq!(bench.kernel.state.events.len(), events);
+        assert_eq!(bench.kernel.events().len(), events);
     }
 
     /// Structural overlap alone does not see a `Subject` grant sitting inside
@@ -2560,7 +2554,7 @@ mod tests {
                 panic!("an acted effect");
             };
             assert_eq!(
-                bench.kernel.state.events.last().expect("a committed event"),
+                bench.kernel.events().last().expect("a committed event"),
                 &event,
                 "the committed event is not what reduce produced"
             );

@@ -1,6 +1,6 @@
 use super::{
     COMMIT_SCHEMA, CommittedCommand, KernelError, WorldCommit, WorldEffect,
-    WorldId, WorldState, apply_effect, commit_digest, reduce, state_digest,
+    WorldId, WorldState, apply_effect, commit_digest, reduce,
 };
 use crate::docs::Changed;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -44,6 +44,15 @@ impl WorldJournal {
 
     pub(super) fn append(&mut self, commit: WorldCommit) {
         self.commits.push(commit);
+    }
+
+    /// Every decision the world has acted on, oldest first: the one place an
+    /// event lives, in the commit that applied it.
+    pub(super) fn acted_events(&self) -> impl Iterator<Item = &super::DecisionEvent> {
+        self.commits.iter().filter_map(|commit| match &commit.effect {
+            WorldEffect::Acted { event, .. } => Some(event),
+            _ => None,
+        })
     }
 
     pub(super) fn export(&self) -> Result<Vec<u8>, KernelError> {
@@ -162,15 +171,16 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
                 "the world clock moved without a time-advanced commit, or ran backwards".into(),
             ));
         }
-        let touched = replay.finish();
-        verify_commitments_are_future(&replay, &touched)?;
         replay.revision = commit.resulting_revision;
-        replay.state_digest = state_digest(&replay).map_err(kernel_error)?;
+        let accumulator = replay.folded().map_err(kernel_error)?;
+        replay.state_digest = accumulator.state_digest(replay.revision);
         if replay.state_digest != commit.resulting_state_digest {
             return Err(JournalError::Corrupt(
                 "commit resulting state digest is invalid".into(),
             ));
         }
+        let touched = replay.finish(accumulator);
+        verify_commitments_are_future(&replay, &touched)?;
         replay.last_commit_digest = Some(commit.digest.clone());
     }
     verify_state_shape(&replay)?;
@@ -351,7 +361,7 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
             ));
         }
     }
-    for (subject_id, held) in &state.knowledge {
+    for ((subject_id, fact), entry) in &state.knowledge {
         let entry_is_live = |entry: &super::Knowledge| {
             entry.acquired_at <= state.revision
                 && match entry.source {
@@ -364,10 +374,8 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
                 }
         };
         if !state.subjects.contains_key(subject_id)
-            || held.is_empty()
-            || held
-                .iter()
-                .any(|(fact, entry)| !state.facts.contains_key(fact) || !entry_is_live(entry))
+            || !state.facts.contains_key(fact)
+            || !entry_is_live(entry)
         {
             return Err(JournalError::Corrupt(
                 "knowledge does not name a canonical subject, fact, and source, or was acquired ahead of the world's revision"
@@ -543,67 +551,6 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
                 "stored affordance entry is not admissible".into(),
             ));
         }
-    }
-    let mut event_ids = BTreeSet::new();
-    let mut claimed = BTreeSet::new();
-    let mut previous_event_revision = 0;
-    for event in &state.events {
-        if !state.subjects.contains_key(&event.actor) {
-            return Err(JournalError::Corrupt(
-                "event references an unknown actor".into(),
-            ));
-        }
-        let entry = state
-            .affordance_catalog
-            .get(&event.affordance)
-            .ok_or_else(|| JournalError::Corrupt("event uses an unknown affordance".into()))?;
-        // A speech or display event names the claim it minted, and that claim
-        // is asserted by the acting subject and by no other event.
-        let mut minted_is_canonical = |fact: Option<super::EntityId>| {
-            fact.is_none_or(|fact| {
-                claimed.insert(fact)
-                    && state.facts.get(&fact).is_some_and(|record| {
-                        record.standing
-                            == super::FactStanding::Claimed {
-                                by: event.actor,
-                            }
-                    })
-            })
-        };
-        let speech_is_canonical = minted_is_canonical(event.speech);
-        let display_is_canonical = minted_is_canonical(event.display);
-        if !event_ids.insert(event.id)
-            || event.revision == 0
-            || event.revision > state.revision
-            || event.revision <= previous_event_revision
-            // Present-tense affordance grants are not judged here: retiring a
-            // subject or revoking a verb it once used must not corrupt the
-            // history of that use. Authority at commit time is judged once, by
-            // `reduce`, and after that by replay (`verify_history` re-runs
-            // `reduce` for every commit) and by the digest chain. This shape
-            // check only holds time-invariant facts: the event's actor is a
-            // subject (checked above) and its affordance is a catalog entry
-            // (checked above).
-            || event.band >= entry.outcome_bands.len()
-            // Speech rides only a speech-carrying entry; such an entry always
-            // addresses someone, by words or by a visible act; a display may
-            // accompany any entry.
-            || (event.speech.is_some() && !entry.carries_speech)
-            || (entry.carries_speech && event.speech.is_none() && event.display.is_none())
-            // One lowered operation per band effect, plus the two the speech
-            // lowering prepends and the two the display lowering adds.
-            || entry.outcome_bands[event.band].effects.len()
-                + if event.speech.is_some() { 2 } else { 0 }
-                + if event.display.is_some() { 2 } else { 0 }
-                != event.effects.len()
-            || !speech_is_canonical
-            || !display_is_canonical
-        {
-            return Err(JournalError::Corrupt(
-                "decision event is noncanonical".into(),
-            ));
-        }
-        previous_event_revision = event.revision;
     }
     Ok(())
 }
@@ -1033,7 +980,7 @@ mod tests {
         state.revision = 7;
         let mut forged = vec![honest[0].clone(), honest[1].clone()];
         forged[1].resulting_revision = 7;
-        forged[1].resulting_state_digest = crate::state_digest(&state).unwrap();
+        forged[1].resulting_state_digest = state.full_state_digest().unwrap();
         forged[1].digest = commit_digest(&forged[1]).unwrap();
         assert!(matches!(reopen(&forged), Err(JournalError::Corrupt(_))));
     }
@@ -1476,13 +1423,15 @@ mod tests {
             )
             .unwrap();
         let committed = kernel.snapshot().unwrap();
-        let event = kernel.state.events.last().expect("the levy event").clone();
+        let events = kernel.events();
+        let event = events.last().expect("the levy event").clone();
         let exported = kernel.export().unwrap();
         drop(kernel);
 
         let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), committed);
-        let replayed = reopened.state.events.last().expect("the replayed event");
+        let events = reopened.events();
+        let replayed = events.last().expect("the replayed event");
         assert_eq!(replayed.band, event.band);
         assert_eq!(replayed.effects, event.effects);
         assert!(matches!(
@@ -1776,8 +1725,7 @@ mod custody_tests {
             .unwrap();
         let accepted = kernel.snapshot().unwrap();
         let committed = kernel
-            .state
-            .events
+            .events()
             .last()
             .expect("the committed event")
             .clone();
@@ -1788,7 +1736,7 @@ mod custody_tests {
         let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
         assert_eq!(
-            reopened.state.events.last().expect("the replayed event"),
+            reopened.events().last().expect("the replayed event"),
             &committed
         );
         assert!(matches!(
@@ -1860,10 +1808,9 @@ mod custody_tests {
         });
     }
 
-    /// A chain holding `Acted` commits recovers and verifies on reopen, and an
-    /// event whose actor is no subject is corrupt at the shape check.
+    /// A chain holding `Acted` commits recovers and verifies on reopen.
     #[test]
-    fn an_acted_chain_reopens_and_a_foreign_actor_is_corrupt() {
+    fn an_acted_chain_reopens() {
         use crate::tests::{
             act, auth_principal, creation, first_grant, owner, speak,
         };
@@ -1892,73 +1839,6 @@ mod custody_tests {
         let reopened = WorldKernel::open(&exported).expect("the acted chain recovers");
         assert_eq!(reopened.snapshot().unwrap(), accepted);
         verify_state_shape(&reopened.state).expect("an honest event passes the shape check");
-
-        let mut forged = reopened.state.clone();
-        forged.events[0].actor = crate::SubjectId::issue();
-        assert!(
-            matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
-            "an event naming no subject passed the shape check"
-        );
-
-        let mut reordered = reopened.state.clone();
-        reordered.events.swap(0, 1);
-        assert!(
-            matches!(verify_state_shape(&reordered), Err(JournalError::Corrupt(_))),
-            "events out of revision order passed the shape check"
-        );
-    }
-
-    /// The event shape check holds for a silent act too: a non-speech event
-    /// whose actor is no subject is corrupt, with no minted claim to catch it.
-    #[test]
-    fn a_non_speech_event_with_a_foreign_actor_is_corrupt() {
-        use crate::tests::{
-            act, admit_custody, admit_topology, affordance_named, auth_principal,
-            creation, owner,
-        };
-        use crate::{DecisionInvocation, Magnitude, ProposedEffect, Quantity, Role, RoleBinding, Target};
-
-        let (mut kernel, _) = WorldKernel::create(creation("SilentForgery"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let topology = admit_topology(&mut kernel);
-        let custody = admit_custody(&mut kernel, &topology);
-        let active = kernel.snapshot().unwrap();
-        let role = |name: &str, target| RoleBinding {
-            role: Role(name.into()),
-            target,
-        };
-        act(
-            &mut kernel,
-            custody.holder,
-            DecisionInvocation {
-                affordance: affordance_named(&active, "carry"),
-                bindings: vec![
-                    role("from", Target::Subject(custody.holder)),
-                    role("recipient", Target::Subject(custody.counterparty)),
-                    role("place", Target::Entity(topology.yard)),
-                    role("resource", Target::Entity(custody.tithe)),
-                ],
-                proposed: vec![ProposedEffect {
-                    slot: 0,
-                    magnitude: Magnitude::Quantity(Quantity(1)),
-                }],
-                speech: None,
-                display: None,
-            },
-        )
-        .unwrap();
-        let event = kernel.state.events.last().unwrap();
-        assert!(event.speech.is_none() && event.display.is_none());
-        verify_state_shape(&kernel.state).expect("the honest silent event passes");
-
-        let mut forged = kernel.state.clone();
-        forged.events.last_mut().unwrap().actor = crate::SubjectId::issue();
-        assert!(
-            matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
-            "a silent event naming no subject passed the shape check"
-        );
     }
 
     /// Absence is zero and one slot holds one pair, so a stored zero, an empty

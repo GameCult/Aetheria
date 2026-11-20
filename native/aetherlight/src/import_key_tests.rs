@@ -445,18 +445,18 @@ fn keyless_world_digests_unchanged() {
     // digest written before keys existed is the digest of the same bytes.
     let kernel = create(creation("Keyless"));
     let kernel = kernel.unwrap();
-    let state = rmp_serde::to_vec_named(&kernel.state).unwrap();
+    let state = kernel.state.encoded_documents();
     assert!(
         !contains(&state, b"import_key"),
         "a keyless world grew a field"
     );
     // A keyed world carries it and digests differently.
     let keyed = keyed_world();
-    let keyed_state = rmp_serde::to_vec_named(&keyed.state).unwrap();
+    let keyed_state = keyed.state.encoded_documents();
     assert!(contains(&keyed_state, b"import_key"));
     assert_ne!(
-        crate::state_digest(&keyed.state).unwrap(),
-        crate::state_digest(&kernel.state).unwrap()
+        keyed.state.full_state_digest().unwrap(),
+        kernel.state.full_state_digest().unwrap()
     );
     // And a world nobody imported into holds every key absent.
     assert!(kernel.state.subjects.values().all(|s| s.import_key.is_none()));

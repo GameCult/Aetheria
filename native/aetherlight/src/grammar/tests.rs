@@ -297,7 +297,7 @@ fn unbound_world_keeps_the_open_catalog() {
 
     // The state row of a world with no grammar carries no grammar key, so its
     // bytes and digests are those of a world written before grammars existed.
-    let encoded = rmp_serde::to_vec_named(&kernel.state).unwrap();
+    let encoded = rmp_serde::to_vec_named(&*kernel.state.header).unwrap();
     let keys: std::collections::BTreeMap<String, serde::de::IgnoredAny> =
         rmp_serde::from_slice(&encoded).unwrap();
     assert!(!keys.contains_key("grammar"));
@@ -350,12 +350,12 @@ fn a_reopened_grammar_world_still_holds_its_grammar() {
 fn the_bound_grammar_is_part_of_the_world_state_digest() {
     let kernel = create(bound(Some(grammar_with(&[])), "Digested"));
     let kernel = kernel.unwrap();
-    let bound_digest = crate::state_digest(&kernel.state).unwrap();
+    let bound_digest = kernel.state.full_state_digest().unwrap();
     let mut state = kernel.state.clone();
     state.header.get_mut().grammar = None;
-    let open_digest = crate::state_digest(&state).unwrap();
+    let open_digest = state.full_state_digest().unwrap();
     state.header.get_mut().grammar = Some(grammar_with(&[("dock", verb(RenderPath::ShipAction, &[]))]));
-    let other_digest = crate::state_digest(&state).unwrap();
+    let other_digest = state.full_state_digest().unwrap();
     assert_ne!(bound_digest, open_digest);
     assert_ne!(bound_digest, other_digest);
 }
