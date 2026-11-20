@@ -24,6 +24,9 @@ use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 use uuid::Uuid;
 
+mod candidate;
+use candidate::{Candidate, Overlay};
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum EntityKind {
@@ -2064,25 +2067,6 @@ struct OfficeCandidate {
     delegated: BTreeSet<AuthorityKindName>,
 }
 
-/// Whether two jurisdictions of one kind cover common ground. Structural on
-/// purpose: identity for named subordinates, containment for territory, and
-/// never across the two, so the answer cannot decay when a subject walks
-/// somewhere. Containment is fixed at declaration, so every way of creating an
-/// overlap is a checked operation.
-fn candidate_targets_overlap(
-    left: &AuthorityTargetKey,
-    right: &AuthorityTargetKey,
-    containers: &BTreeMap<Key<EntityId>, Key<EntityId>>,
-) -> bool {
-    match (left, right) {
-        (AuthorityTargetKey::Subject(one), AuthorityTargetKey::Subject(other)) => one == other,
-        (AuthorityTargetKey::PlaceSubtree(one), AuthorityTargetKey::PlaceSubtree(other)) => {
-            key_covers_place(one, other, containers) || key_covers_place(other, one, containers)
-        }
-        _ => false,
-    }
-}
-
 /// Whether a candidate `Subject` grant target and a candidate `PlaceSubtree`
 /// grant target of one kind name overlapping ground: a `PlaceSubtree` grant
 /// covers a `Subject` grant's target when the subject's committed position
@@ -2090,7 +2074,7 @@ fn candidate_targets_overlap(
 /// candidate graph, because `covers` reads committed position and
 /// containment, not anything a patch declares; a target still in this
 /// patch's drafts has no committed position and so cannot overlap here. This
-/// is the one cross-shape case `candidate_targets_overlap` leaves alone by
+/// is the one cross-shape case `Candidate::targets_overlap` leaves alone by
 /// construction — same-shape overlap is its job, not this one's.
 fn grant_targets_nest(
     state: &super::WorldState,
@@ -2158,36 +2142,6 @@ fn canonical_grants(grants: &BTreeSet<GrantKey>) -> BTreeSet<AuthorityGrant> {
         .collect()
 }
 
-/// Own grants plus what every held office lends, over the candidate graph. The
-/// canonical twin is `scope_components` plus `effective_authority`; this one
-/// answers the same question before any ID is minted.
-fn candidate_effective_authority(
-    holder: &Key<SubjectId>,
-    authority: &BTreeMap<Key<SubjectId>, BTreeSet<GrantKey>>,
-    selection: &BTreeMap<(Key<SubjectId>, OfficeName), OfficeCandidate>,
-    retired: &BTreeSet<Key<SubjectId>>,
-) -> BTreeSet<GrantKey> {
-    let mut effective = authority.get(holder).cloned().unwrap_or_default();
-    for ((institution, _), office) in selection {
-        if office.incumbent.as_ref() != Some(holder) {
-            continue;
-        }
-        // A retired institution lends nothing, the same predicate
-        // `delegated_authority` reads canonically: `Retire` does not vacate
-        // offices, so the resolver and the kernel must not disagree about
-        // whether a dead institution's grants still reach its office-holders.
-        if retired.contains(institution) {
-            continue;
-        }
-        for grant in authority.get(institution).into_iter().flatten() {
-            if office.delegated.contains(&grant.kind) {
-                effective.insert(grant.clone());
-            }
-        }
-    }
-    effective
-}
-
 /// A fact in the candidate graph. Only its standing matters to resolution: the
 /// statement is never read and never compared.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2232,40 +2186,6 @@ struct KnowledgeCandidate {
 enum AudienceKey {
     Colocated,
     Channel(Key<EntityId>),
-}
-
-/// Whether a subject is inside an audience over the candidate graph: the same
-/// question `audience()` answers over committed state, asked before any ID is
-/// minted. A controller is inside its own channel's audience for the purpose of
-/// speaking on it — the horn belongs to the temple.
-fn candidate_in_audience(
-    subject: &Key<SubjectId>,
-    audience: &AudienceKey,
-    speaker: &Key<SubjectId>,
-    positions: &BTreeMap<Key<SubjectId>, Key<EntityId>>,
-    channels: &BTreeMap<Key<EntityId>, ChannelCandidate>,
-    containers: &BTreeMap<Key<EntityId>, Key<EntityId>>,
-) -> bool {
-    match audience {
-        AudienceKey::Colocated => match (positions.get(speaker), positions.get(subject)) {
-            (Some(here), Some(there)) => here == there,
-            _ => false,
-        },
-        AudienceKey::Channel(channel) => {
-            let Some(record) = channels.get(channel) else {
-                return false;
-            };
-            if record.controller.as_ref() == Some(subject) {
-                return true;
-            }
-            match &record.reach {
-                ReachKey::Subjects(members) => members.contains(subject),
-                ReachKey::Place(root) => positions
-                    .get(subject)
-                    .is_some_and(|place| key_covers_place(root, place, containers)),
-            }
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -2824,37 +2744,6 @@ fn resolve_dependency_target(
     }
 }
 
-/// Whether any subject in the candidate graph holds two grants of one kind over
-/// overlapping ground, from any combination of direct grant and office
-/// delegation.
-fn graph_overlaps(
-    authority: &BTreeMap<Key<SubjectId>, BTreeSet<GrantKey>>,
-    selection: &BTreeMap<(Key<SubjectId>, OfficeName), OfficeCandidate>,
-    containers: &BTreeMap<Key<EntityId>, Key<EntityId>>,
-    retired: &BTreeSet<Key<SubjectId>>,
-) -> bool {
-    let holders: BTreeSet<&Key<SubjectId>> = authority
-        .keys()
-        .chain(
-            selection
-                .values()
-                .filter_map(|office| office.incumbent.as_ref()),
-        )
-        .collect();
-    holders.into_iter().any(|holder| {
-        let effective: Vec<GrantKey> =
-            candidate_effective_authority(holder, authority, selection, retired)
-                .into_iter()
-            .collect();
-        effective.iter().enumerate().any(|(index, one)| {
-            effective[index + 1..].iter().any(|other| {
-                one.kind == other.kind
-                    && candidate_targets_overlap(&one.over, &other.over, containers)
-            })
-        })
-    })
-}
-
 /// The candidate kind of a subject reference: the declared kind for a handle
 /// this patch introduces, the committed kind otherwise.
 fn subject_kind_of(
@@ -3002,7 +2891,7 @@ fn resolve_authority_target(
 
 /// What a holder holds in the candidate map. Absence is zero, at both levels.
 fn candidate_held(
-    holdings: &BTreeMap<(Key<SubjectId>, Key<EntityId>), Quantity>,
+    holdings: &Overlay<'_, (Key<SubjectId>, Key<EntityId>), Quantity>,
     holder: &Key<SubjectId>,
     resource: &Key<EntityId>,
 ) -> u64 {
@@ -3013,7 +2902,7 @@ fn candidate_held(
 
 /// Zero removes the slot, so one representation of nothing survives the patch.
 fn candidate_set(
-    holdings: &mut BTreeMap<(Key<SubjectId>, Key<EntityId>), Quantity>,
+    holdings: &mut Overlay<'_, (Key<SubjectId>, Key<EntityId>), Quantity>,
     holder: &Key<SubjectId>,
     resource: &Key<EntityId>,
     value: u64,
@@ -3074,11 +2963,9 @@ pub(super) fn resolve_patch(
         let speak = kernel_speak_entry();
         check_against_grammar(state, &speak_handle, &speak.kind, &speak.roles, &mut mismatches);
     }
-    // The kinds this patch declares; a kind the catalog already names is asked
-    // of its `ByKind` index.
-    let mut declared_kinds: BTreeSet<AffordanceKindName> = BTreeSet::new();
+    let mut graph = Candidate::new(state);
     if genesis {
-        declared_kinds.insert(kernel_speak_entry().kind);
+        graph.declare_kind(kernel_speak_entry().kind);
     }
 
     let mut declared_keys: BTreeSet<&ImportKey> = BTreeSet::new();
@@ -3125,7 +3012,7 @@ pub(super) fn resolve_patch(
             && let Some(key) = &subject.import_key
         {
             let handle = subject.handle.clone();
-            match import_key_fault(key, |key| state.import_key_held(key), &mut declared_keys) {
+            match import_key_fault(key, |key| graph.import_key_held(key), &mut declared_keys) {
                 Some(ImportKeyFault::Malformed) => {
                     mismatches.push(Mismatch::MalformedImportKey { handle });
                 }
@@ -3154,8 +3041,7 @@ pub(super) fn resolve_patch(
                 &affordance.roles,
                 &mut mismatches,
             );
-            let taken = state.kind_taken(&affordance.kind);
-            if !declared_kinds.insert(affordance.kind.clone()) || taken {
+            if graph.declare_kind(affordance.kind.clone()) {
                 mismatches.push(Mismatch::DuplicateAffordanceKind {
                     handle: affordance.handle.clone(),
                 });
@@ -3192,253 +3078,6 @@ pub(super) fn resolve_patch(
         }
     }
 
-    // The candidate graph: canonical topology plus everything this patch
-    // declares. Containment, endpoints, and preconditions all read it.
-    let mut containers: BTreeMap<Key<EntityId>, Key<EntityId>> = state
-        .entities
-        .iter()
-        .filter_map(|(entity_id, record)| {
-            record
-                .container
-                .map(|container| (Key::Existing(*entity_id), Key::Existing(container)))
-        })
-        .collect();
-    let mut routes: BTreeMap<Key<EdgeId>, RouteCandidate> = state
-        .edges
-        .iter()
-        .map(|(edge_id, record)| {
-            let (from, to) = record.endpoints();
-            (
-                Key::Existing(*edge_id),
-                RouteCandidate {
-                    from: Key::Existing(from),
-                    to: Key::Existing(to),
-                    access: record.access().clone(),
-                    cost: record.cost(),
-                    open: record.is_open(),
-                },
-            )
-        })
-        .collect();
-    let mut positions: BTreeMap<Key<SubjectId>, Key<EntityId>> = state
-        .positions
-        .iter()
-        .map(|(subject_id, position)| (Key::Existing(*subject_id), Key::Existing(position.place)))
-        .collect();
-    let mut holdings: BTreeMap<(Key<SubjectId>, Key<EntityId>), Quantity> = state
-        .holdings
-        .iter()
-        .flat_map(|(subject_id, held)| {
-            held.iter().map(move |(entity_id, quantity)| {
-                (
-                    (Key::Existing(*subject_id), Key::Existing(*entity_id)),
-                    *quantity,
-                )
-            })
-        })
-        .collect();
-    let seeded_holdings = holdings.clone();
-    let mut dependencies: BTreeSet<(Key<SubjectId>, TargetKey)> = state
-        .dependencies
-        .iter()
-        .flat_map(|(subject_id, bound)| {
-            bound.iter().map(move |target| {
-                (
-                    Key::Existing(*subject_id),
-                    match target {
-                        DependencyTarget::Resource(id) => TargetKey::Resource(Key::Existing(*id)),
-                        DependencyTarget::Route(id) => TargetKey::Route(Key::Existing(*id)),
-                        DependencyTarget::Subject(id) => TargetKey::Subject(Key::Existing(*id)),
-                    },
-                )
-            })
-        })
-        .collect();
-    let mut authority: BTreeMap<Key<SubjectId>, BTreeSet<GrantKey>> = state
-        .authority
-        .iter()
-        .map(|(subject_id, grants)| {
-            (
-                Key::Existing(*subject_id),
-                grants.iter().map(grant_key_of).collect(),
-            )
-        })
-        .collect();
-    let mut selection: BTreeMap<(Key<SubjectId>, OfficeName), OfficeCandidate> = state
-        .selection
-        .iter()
-        .flat_map(|(institution, offices)| {
-            offices.iter().map(move |(name, office)| {
-                (
-                    (Key::Existing(*institution), name.clone()),
-                    OfficeCandidate {
-                        incumbent: office.incumbent.map(Key::Existing),
-                        delegated: office.delegated.clone(),
-                    },
-                )
-            })
-        })
-        .collect();
-    let mut redress: BTreeMap<GrievanceKindName, (Key<SubjectId>, AuthorityTargetKey)> = state
-        .redress
-        .iter()
-        .map(|(grievance, forum)| {
-            (
-                grievance.clone(),
-                (Key::Existing(forum.forum), target_key_of(forum.standing)),
-            )
-        })
-        .collect();
-    let mut facts: BTreeMap<Key<EntityId>, FactCandidate> = state
-        .facts
-        .iter()
-        .map(|(entity_id, record)| {
-            (
-                Key::Existing(*entity_id),
-                match &record.standing {
-                    FactStanding::Canonical { .. } => FactCandidate::Canonical,
-                    FactStanding::Claimed { by } => FactCandidate::Claimed(Key::Existing(*by)),
-                    FactStanding::Ruled => FactCandidate::Ruled,
-                },
-            )
-        })
-        .collect();
-    // `Retire` and the affordance grant operations read and write these
-    // candidates. `retired` seeds from the committed subject rows: a declared subject is always
-    // fresh and unretired, so drafts start out of the set. `affordance_holdings`
-    // seeds from committed `affordance_grants` and is extended below for a
-    // subject this same patch declares.
-    let mut retired: BTreeSet<Key<SubjectId>> = state
-        .subjects
-        .keys()
-        .filter(|subject_id| super::is_retired(state, **subject_id))
-        .map(|subject_id| Key::Existing(*subject_id))
-        .collect();
-    let mut affordance_holdings: BTreeMap<Key<SubjectId>, BTreeSet<Key<AffordanceId>>> = state
-        .affordance_grants
-        .iter()
-        .map(|(subject_id, granted)| {
-            (
-                Key::Existing(*subject_id),
-                granted.iter().map(|id| Key::Existing(*id)).collect(),
-            )
-        })
-        .collect();
-    let mut channels: BTreeMap<Key<EntityId>, ChannelCandidate> = state
-        .channels
-        .iter()
-        .map(|(entity_id, record)| {
-            (
-                Key::Existing(*entity_id),
-                ChannelCandidate {
-                    reach: match &record.reach {
-                        Reach::Subjects(members) => {
-                            ReachKey::Subjects(members.iter().copied().map(Key::Existing).collect())
-                        }
-                        Reach::Place(place) => ReachKey::Place(Key::Existing(*place)),
-                    },
-                    controller: record.controller.map(Key::Existing),
-                },
-            )
-        })
-        .collect();
-    // Keys and payload, so an `AcquireKnowledge` that changes nothing is
-    // `NoOperationEffect` before any ID is minted. `Witness` is modelled here
-    // too: its landing is a subtree of `positions`, both maps are candidate
-    // maps, and so the fan-out it will perform at apply is derivable now — a
-    // subject this patch relocated into the subtree counts, and a witness that
-    // reaches nobody is refused at resolve exactly as `apply_operation`
-    // refuses it.
-    //
-    // `Communicate` never enters, and the difference is not scale. A telling is
-    // an act whose occurrence does not depend on its reception: its empty
-    // fan-out is legal, so there is nothing for this map to refuse and no
-    // refusal for it to predict. A witnessed event is only its reception, so
-    // its landing is its legality.
-    //
-    // Neither operation can write `Told`. This map can represent a `Told`
-    // entry, but no `ComponentOp` can construct one: `AcquireKnowledge` takes
-    // an `AuthoredSource`, `Witness` takes no source at all, and neither type
-    // has a `Told` variant —
-    // `action::no_component_op_kind_lowers_to_a_told_knowledge_write` pins both
-    // lowering sites that could otherwise drift. If a future operation is ever
-    // given the power to write `Told` directly — bypassing `Communicate`'s own
-    // apply-time fan-out — it must model that fan-out into this candidate graph
-    // first, or `resolve_patch` will silently reason about a knowledge state
-    // the apply pass will not produce.
-    let mut knowledge: BTreeMap<(Key<SubjectId>, Key<EntityId>), KnowledgeCandidate> = state
-        .knowledge
-        .iter()
-        .map(|((subject_id, fact), entry)| {
-            (
-                    (Key::Existing(*subject_id), Key::Existing(*fact)),
-                    KnowledgeCandidate {
-                        confidence: entry.confidence,
-                        source: match entry.source {
-                            KnowledgeSource::Witnessed => KnowledgeSourceKey::Witnessed,
-                            KnowledgeSource::Evidenced => KnowledgeSourceKey::Evidenced,
-                            KnowledgeSource::Told { by, via } => KnowledgeSourceKey::Told {
-                                by: Key::Existing(by),
-                                via: via.map(Key::Existing),
-                            },
-                            KnowledgeSource::Seen { by } => KnowledgeSourceKey::Seen {
-                                by: Key::Existing(by),
-                            },
-                        },
-                    },
-            )
-        })
-        .collect();
-    // Presence is all a discharge asks, and a create cannot collide: the key is
-    // command-derived and the index is unique within one patch.
-    let mut commitments: BTreeSet<(Key<SubjectId>, CommitmentKey)> = state
-        .commitments
-        .iter()
-        .flat_map(|(subject_id, held)| {
-            held.keys()
-                .map(move |key| (Key::Existing(*subject_id), *key))
-        })
-        .collect();
-    let mut pressures: BTreeMap<(Key<SubjectId>, PressureSourceKey), u32> = state
-        .pressures
-        .iter()
-        .flat_map(|(target, held)| {
-            held.iter().map(move |(source, magnitude)| {
-                (
-                    (
-                        Key::Existing(*target),
-                        match source {
-                            PressureSource::Commitment { subject, key } => {
-                                PressureSourceKey::Commitment {
-                                    subject: Key::Existing(*subject),
-                                    key: *key,
-                                }
-                            }
-                            PressureSource::Dependency(DependencyTarget::Resource(entity_id)) => {
-                                PressureSourceKey::Dependency(TargetKey::Resource(Key::Existing(
-                                    *entity_id,
-                                )))
-                            }
-                            PressureSource::Dependency(DependencyTarget::Route(edge_id)) => {
-                                PressureSourceKey::Dependency(TargetKey::Route(Key::Existing(
-                                    *edge_id,
-                                )))
-                            }
-                            PressureSource::Dependency(DependencyTarget::Subject(subject_id)) => {
-                                PressureSourceKey::Dependency(TargetKey::Subject(Key::Existing(
-                                    *subject_id,
-                                )))
-                            }
-                            PressureSource::Subject(subject_id) => {
-                                PressureSourceKey::Subject(Key::Existing(*subject_id))
-                            }
-                        },
-                    ),
-                    magnitude.0,
-                )
-            })
-        })
-        .collect();
     let mut deltas: BTreeMap<Key<EntityId>, LedgerDelta> = BTreeMap::new();
     let mut declared_places: Vec<(DraftHandle, Key<EntityId>)> = Vec::new();
 
@@ -3465,7 +3104,7 @@ pub(super) fn resolve_patch(
                         &state.entities,
                         &mut mismatches,
                     ) {
-                        containers.insert(Key::Draft(entity.handle.clone()), parent);
+                        graph.containers.insert(Key::Draft(entity.handle.clone()), parent);
                     }
                 }
             }
@@ -3484,7 +3123,7 @@ pub(super) fn resolve_patch(
                     FactStandingRef::Ruled => Some(FactCandidate::Ruled),
                 };
                 if let Some(standing) = standing {
-                    facts.insert(Key::Draft(fact.handle.clone()), standing);
+                    graph.facts.insert(Key::Draft(fact.handle.clone()), standing);
                 }
             }
             Declaration::Channel(channel) => {
@@ -3503,7 +3142,7 @@ pub(super) fn resolve_patch(
                     &mut mismatches,
                 );
                 if let (Some(reach), Some(controller)) = (reach, controller) {
-                    channels.insert(
+                    graph.channels.insert(
                         Key::Draft(channel.handle.clone()),
                         ChannelCandidate { reach, controller },
                     );
@@ -3523,7 +3162,7 @@ pub(super) fn resolve_patch(
                     }
                 }
                 if !granted.is_empty() {
-                    affordance_holdings.insert(Key::Draft(subject.handle.clone()), granted);
+                    graph.affordance_holdings.insert(Key::Draft(subject.handle.clone()), granted);
                 }
                 if let Some(reference) = &subject.position
                     && let Some(place) = resolve_entity(
@@ -3535,7 +3174,7 @@ pub(super) fn resolve_patch(
                         &mut mismatches,
                     )
                 {
-                    positions.insert(Key::Draft(subject.handle.clone()), place);
+                    graph.positions.insert(Key::Draft(subject.handle.clone()), place);
                 }
             }
             Declaration::Route(route) => {
@@ -3566,7 +3205,7 @@ pub(super) fn resolve_patch(
                             referent: route.handle.clone(),
                         });
                     }
-                    routes.insert(
+                    graph.routes.insert(
                         Key::Draft(route.handle.clone()),
                         RouteCandidate {
                             from,
@@ -3585,7 +3224,7 @@ pub(super) fn resolve_patch(
     // admission already refused cycles, so every cycle contains a declared
     // place; walking from each declared place names them all.
     for (handle, start) in &declared_places {
-        if contains_itself(start, &containers) {
+        if graph.contains_itself(start) {
             mismatches.push(Mismatch::ContainmentCycle {
                 referent: handle.clone(),
             });
@@ -3663,7 +3302,7 @@ pub(super) fn resolve_patch(
                 // A retired subject cannot act, and making a promise is
                 // acting: refused here the same way `RetiredSubjectActed`
                 // refuses a retired office incumbent below.
-                if retired.contains(&subject_key) {
+                if graph.is_retired(&subject_key) {
                     mismatches.push(Mismatch::RetiredSubjectActed {
                         operation: position,
                     });
@@ -3684,13 +3323,16 @@ pub(super) fn resolve_patch(
                 if !checks_resolve {
                     continue;
                 }
-                commitments.insert((
-                    subject_key,
-                    CommitmentKey {
-                        command: command_id,
-                        index: position as u32,
-                    },
-                ));
+                graph.commitments.insert(
+                    (
+                        subject_key,
+                        CommitmentKey {
+                            command: command_id,
+                            index: position as u32,
+                        },
+                    ),
+                    (),
+                );
             }
             ComponentOp::DischargeCommitment { subject, key } => {
                 let Some(subject_key) = resolve_subject(
@@ -3702,7 +3344,7 @@ pub(super) fn resolve_patch(
                 ) else {
                     continue;
                 };
-                if !commitments.remove(&(subject_key, *key)) {
+                if graph.commitments.remove(&(subject_key, *key)).is_none() {
                     mismatches.push(Mismatch::UnknownCommitment {
                         operation: position,
                     });
@@ -3724,7 +3366,7 @@ pub(super) fn resolve_patch(
                     continue;
                 };
                 let slot = (target_key, source_key);
-                let current = pressures.get(&slot).copied().unwrap_or_default();
+                let current = graph.pressures.get(&slot).unwrap_or_default();
                 let next = if advancing {
                     current.saturating_add(by.0)
                 } else {
@@ -3737,9 +3379,9 @@ pub(super) fn resolve_patch(
                         operation: position,
                     });
                 } else if next == 0 {
-                    pressures.remove(&slot);
+                    graph.pressures.remove(&slot);
                 } else {
-                    pressures.insert(slot, next);
+                    graph.pressures.insert(slot, next);
                 }
             }
             ComponentOp::ResolvePressure { source, target } => {
@@ -3755,7 +3397,7 @@ pub(super) fn resolve_patch(
                 let (Some(target_key), Some(source_key)) = (target_key, source_key) else {
                     continue;
                 };
-                if pressures.remove(&(target_key, source_key)).is_none() {
+                if graph.pressures.remove(&(target_key, source_key)).is_none() {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
@@ -3779,18 +3421,18 @@ pub(super) fn resolve_patch(
                 let (Some(subject_key), Some(route_key)) = (subject_key, route_key) else {
                     continue;
                 };
-                let Some(route) = routes.get(&route_key).cloned() else {
+                let Some(route) = graph.routes.get(&route_key) else {
                     continue;
                 };
                 let mut admitted = true;
-                match positions.get(&subject_key) {
+                match graph.positions.get(&subject_key) {
                     None => {
                         mismatches.push(Mismatch::UnplacedSubject {
                             operation: position,
                         });
                         admitted = false;
                     }
-                    Some(place) if *place != route.from => {
+                    Some(place) if place != route.from => {
                         mismatches.push(Mismatch::SubjectNotAtOrigin {
                             operation: position,
                         });
@@ -3813,12 +3455,7 @@ pub(super) fn resolve_patch(
                 let opened = match &route.to {
                     Key::Existing(destination) => route_admits(
                         state,
-                        &canonical_grants(&candidate_effective_authority(
-                            &subject_key,
-                            &authority,
-                            &selection,
-                            &retired,
-                        )),
+                        &canonical_grants(&graph.effective_authority(&subject_key)),
                         &route.access,
                         *destination,
                     ),
@@ -3831,7 +3468,7 @@ pub(super) fn resolve_patch(
                     admitted = false;
                 }
                 if admitted {
-                    positions.insert(subject_key, route.to);
+                    graph.positions.insert(subject_key, route.to);
                 }
             }
             ComponentOp::Retire { subject } => {
@@ -3844,15 +3481,15 @@ pub(super) fn resolve_patch(
                 ) else {
                     continue;
                 };
-                if retired.contains(&subject_key) {
+                if graph.is_retired(&subject_key) {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
                     continue;
                 }
-                retired.insert(subject_key.clone());
-                positions.remove(&subject_key);
-                affordance_holdings.remove(&subject_key);
+                graph.retire(subject_key.clone());
+                graph.positions.remove(&subject_key);
+                graph.affordance_holdings.remove(&subject_key);
             }
             ComponentOp::OpenRoute { route } | ComponentOp::CloseRoute { route } => {
                 let open = matches!(operation, ComponentOp::OpenRoute { .. });
@@ -3865,7 +3502,7 @@ pub(super) fn resolve_patch(
                 ) else {
                     continue;
                 };
-                let Some(candidate) = routes.get_mut(&route_key) else {
+                let Some(candidate) = graph.routes.get_mut(&route_key) else {
                     continue;
                 };
                 if candidate.open == open {
@@ -3891,7 +3528,7 @@ pub(super) fn resolve_patch(
                     continue;
                 }
                 let Some(route_key) = route_key else { continue };
-                let Some(candidate) = routes.get_mut(&route_key) else {
+                let Some(candidate) = graph.routes.get_mut(&route_key) else {
                     continue;
                 };
                 if candidate.cost == *cost {
@@ -3949,7 +3586,7 @@ pub(super) fn resolve_patch(
                 if qty.0 == 0 {
                     continue;
                 }
-                let held = candidate_held(&holdings, &from_key, &resource_key);
+                let held = candidate_held(&graph.holdings, &from_key, &resource_key);
                 let Some(remaining) = held.checked_sub(qty.0) else {
                     mismatches.push(Mismatch::InsufficientCustody {
                         operation: position,
@@ -3957,15 +3594,15 @@ pub(super) fn resolve_patch(
                     continue;
                 };
                 let Some(credited) =
-                    candidate_held(&holdings, &to_key, &resource_key).checked_add(qty.0)
+                    candidate_held(&graph.holdings, &to_key, &resource_key).checked_add(qty.0)
                 else {
                     mismatches.push(Mismatch::QuantityOverflow {
                         operation: position,
                     });
                     continue;
                 };
-                candidate_set(&mut holdings, &from_key, &resource_key, remaining);
-                candidate_set(&mut holdings, &to_key, &resource_key, credited);
+                candidate_set(&mut graph.holdings, &from_key, &resource_key, remaining);
+                candidate_set(&mut graph.holdings, &to_key, &resource_key, credited);
                 // A transfer contributes to no ledger term: the equation proves
                 // it, because moving a different amount out than in breaks the
                 // resource's total.
@@ -4020,7 +3657,7 @@ pub(super) fn resolve_patch(
                     continue;
                 }
                 let Some(remaining) =
-                    candidate_held(&holdings, &holder_key, &from_key).checked_sub(qty.0)
+                    candidate_held(&graph.holdings, &holder_key, &from_key).checked_sub(qty.0)
                 else {
                     mismatches.push(Mismatch::InsufficientCustody {
                         operation: position,
@@ -4028,15 +3665,15 @@ pub(super) fn resolve_patch(
                     continue;
                 };
                 let Some(gained) =
-                    candidate_held(&holdings, &holder_key, &into_key).checked_add(qty.0)
+                    candidate_held(&graph.holdings, &holder_key, &into_key).checked_add(qty.0)
                 else {
                     mismatches.push(Mismatch::QuantityOverflow {
                         operation: position,
                     });
                     continue;
                 };
-                candidate_set(&mut holdings, &holder_key, &from_key, remaining);
-                candidate_set(&mut holdings, &holder_key, &into_key, gained);
+                candidate_set(&mut graph.holdings, &holder_key, &from_key, remaining);
+                candidate_set(&mut graph.holdings, &holder_key, &into_key, gained);
                 deltas.entry(from_key).or_default().spent += u128::from(qty.0);
                 deltas.entry(into_key).or_default().gained += u128::from(qty.0);
             }
@@ -4072,14 +3709,14 @@ pub(super) fn resolve_patch(
                     continue;
                 }
                 let Some(remaining) =
-                    candidate_held(&holdings, &holder_key, &resource_key).checked_sub(qty.0)
+                    candidate_held(&graph.holdings, &holder_key, &resource_key).checked_sub(qty.0)
                 else {
                     mismatches.push(Mismatch::InsufficientCustody {
                         operation: position,
                     });
                     continue;
                 };
-                candidate_set(&mut holdings, &holder_key, &resource_key, remaining);
+                candidate_set(&mut graph.holdings, &holder_key, &resource_key, remaining);
                 deltas.entry(resource_key).or_default().consumed += u128::from(qty.0);
             }
             ComponentOp::Admit {
@@ -4121,14 +3758,14 @@ pub(super) fn resolve_patch(
                     continue;
                 }
                 let Some(admitted) =
-                    candidate_held(&holdings, &holder_key, &resource_key).checked_add(qty.0)
+                    candidate_held(&graph.holdings, &holder_key, &resource_key).checked_add(qty.0)
                 else {
                     mismatches.push(Mismatch::QuantityOverflow {
                         operation: position,
                     });
                     continue;
                 };
-                candidate_set(&mut holdings, &holder_key, &resource_key, admitted);
+                candidate_set(&mut graph.holdings, &holder_key, &resource_key, admitted);
                 deltas.entry(resource_key).or_default().admitted += u128::from(qty.0);
             }
             ComponentOp::Mint {
@@ -4163,14 +3800,14 @@ pub(super) fn resolve_patch(
                     continue;
                 }
                 let Some(minted) =
-                    candidate_held(&holdings, &holder_key, &resource_key).checked_add(qty.0)
+                    candidate_held(&graph.holdings, &holder_key, &resource_key).checked_add(qty.0)
                 else {
                     mismatches.push(Mismatch::QuantityOverflow {
                         operation: position,
                     });
                     continue;
                 };
-                candidate_set(&mut holdings, &holder_key, &resource_key, minted);
+                candidate_set(&mut graph.holdings, &holder_key, &resource_key, minted);
                 deltas.entry(resource_key).or_default().admitted += u128::from(qty.0);
             }
             ComponentOp::Bind { subject, target } | ComponentOp::Release { subject, target } => {
@@ -4199,14 +3836,14 @@ pub(super) fn resolve_patch(
                     continue;
                 }
                 let slot = (subject_key, target_key);
-                if dependencies.contains(&slot) == bind {
+                if graph.dependencies.contains_key(&slot) == bind {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
                 } else if bind {
-                    dependencies.insert(slot);
+                    graph.dependencies.insert(slot, ());
                 } else {
-                    dependencies.remove(&slot);
+                    graph.dependencies.remove(&slot);
                 }
             }
             ComponentOp::GrantAuthority { holder, grant }
@@ -4244,12 +3881,11 @@ pub(super) fn resolve_patch(
                 // reach `targets_overlap`/`verify_state_shape`, which stay
                 // structural and position-independent; a later `Relocate`
                 // that creates this shape is not re-derived as a violation.
+                let mut grants = graph.grants_of(&holder_key);
                 if granting
-                    && authority.get(&holder_key).is_some_and(|grants| {
-                        grants.iter().any(|other| {
-                            other.kind == entry.kind
-                                && grant_targets_nest(state, &entry.over, &other.over)
-                        })
+                    && grants.iter().any(|other| {
+                        other.kind == entry.kind
+                            && grant_targets_nest(state, &entry.over, &other.over)
                     })
                 {
                     mismatches.push(Mismatch::OverlappingJurisdiction {
@@ -4257,25 +3893,17 @@ pub(super) fn resolve_patch(
                     });
                     continue;
                 }
-                let held = authority
-                    .get(&holder_key)
-                    .is_some_and(|grants| grants.contains(&entry));
-                if held == granting {
+                if grants.contains(&entry) == granting {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
-                } else if granting {
-                    authority.entry(holder_key).or_default().insert(entry);
                 } else {
-                    let empty = if let Some(grants) = authority.get_mut(&holder_key) {
-                        grants.remove(&entry);
-                        grants.is_empty()
+                    if granting {
+                        grants.insert(entry);
                     } else {
-                        false
-                    };
-                    if empty {
-                        authority.remove(&holder_key);
+                        grants.remove(&entry);
                     }
+                    graph.set_grants(holder_key, grants);
                 }
             }
             ComponentOp::GrantAffordance { subject, affordance }
@@ -4300,32 +3928,28 @@ pub(super) fn resolve_patch(
                     continue;
                 };
                 // A retired subject holds no grant a patch may touch.
-                if retired.contains(&subject_key) {
+                if graph.is_retired(&subject_key) {
                     mismatches.push(Mismatch::GrantsToRetired {
                         operation: position,
                     });
                     continue;
                 }
-                let held = affordance_holdings
-                    .get(&subject_key)
-                    .is_some_and(|granted| granted.contains(&affordance_key));
-                if held == granting {
+                let mut granted = graph.affordance_holdings.get(&subject_key).unwrap_or_default();
+                if granted.contains(&affordance_key) == granting {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
                     continue;
                 }
                 if granting {
-                    affordance_holdings
-                        .entry(subject_key)
-                        .or_default()
-                        .insert(affordance_key);
+                    granted.insert(affordance_key);
                 } else {
-                    let granted = affordance_holdings.entry(subject_key.clone()).or_default();
                     granted.remove(&affordance_key);
-                    if granted.is_empty() {
-                        affordance_holdings.remove(&subject_key);
-                    }
+                }
+                if granted.is_empty() {
+                    graph.affordance_holdings.remove(&subject_key);
+                } else {
+                    graph.affordance_holdings.insert(subject_key, granted);
                 }
             }
             ComponentOp::OpenOffice {
@@ -4358,23 +3982,21 @@ pub(super) fn resolve_patch(
                     continue;
                 }
                 let slot = (institution_key, office.clone());
-                let incumbent = selection
-                    .get(&slot)
-                    .and_then(|current| current.incumbent.clone());
-                if selection
-                    .get(&slot)
+                let current = graph.office(&slot);
+                if current
+                    .as_ref()
                     .is_some_and(|current| &current.delegated == delegated)
                 {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
                 } else {
-                    selection.insert(
+                    graph.set_office(
                         slot,
-                        OfficeCandidate {
-                            incumbent,
+                        Some(OfficeCandidate {
+                            incumbent: current.and_then(|current| current.incumbent),
                             delegated: delegated.clone(),
-                        },
+                        }),
                     );
                 }
             }
@@ -4398,25 +4020,25 @@ pub(super) fn resolve_patch(
                     continue;
                 };
                 let slot = (institution_key, office.clone());
-                let Some(current) = selection.get(&slot).cloned() else {
+                let Some(current) = graph.office(&slot) else {
                     mismatches.push(Mismatch::UnknownOffice {
                         operation: position,
                     });
                     continue;
                 };
                 if closing {
-                    selection.remove(&slot);
+                    graph.set_office(slot, None);
                 } else if current.incumbent.is_none() {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
                 } else {
-                    selection.insert(
+                    graph.set_office(
                         slot,
-                        OfficeCandidate {
+                        Some(OfficeCandidate {
                             incumbent: None,
                             ..current
-                        },
+                        }),
                     );
                 }
             }
@@ -4452,23 +4074,21 @@ pub(super) fn resolve_patch(
                 else {
                     continue;
                 };
-                if retired.contains(&incumbent_key) {
+                if graph.is_retired(&incumbent_key) {
                     mismatches.push(Mismatch::RetiredSubjectActed {
                         operation: position,
                     });
                     continue;
                 }
                 let slot = (institution_key.clone(), office.clone());
-                let Some(current) = selection.get(&slot).cloned() else {
+                let Some(current) = graph.office(&slot) else {
                     mismatches.push(Mismatch::UnknownOffice {
                         operation: position,
                     });
                     continue;
                 };
-                if selection.iter().any(|((held_by, name), other)| {
-                    *held_by == institution_key
-                        && name != office
-                        && other.incumbent.as_ref() == Some(&incumbent_key)
+                if graph.offices_of(&institution_key).iter().any(|(name, other)| {
+                    name != office && other.incumbent.as_ref() == Some(&incumbent_key)
                 }) {
                     mismatches.push(Mismatch::DuplicateIncumbency {
                         operation: position,
@@ -4480,12 +4100,12 @@ pub(super) fn resolve_patch(
                         operation: position,
                     });
                 } else {
-                    selection.insert(
+                    graph.set_office(
                         slot,
-                        OfficeCandidate {
+                        Some(OfficeCandidate {
                             incumbent: Some(incumbent_key),
                             ..current
-                        },
+                        }),
                     );
                 }
             }
@@ -4516,16 +4136,16 @@ pub(super) fn resolve_patch(
                 let (Some(forum_key), Some(standing_key)) = (forum_key, standing_key) else {
                     continue;
                 };
-                if redress.get(grievance) == Some(&(forum_key.clone(), standing_key.clone())) {
+                if graph.redress.get(grievance) == Some((forum_key.clone(), standing_key.clone())) {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
                 } else {
-                    redress.insert(grievance.clone(), (forum_key, standing_key));
+                    graph.redress.insert(grievance.clone(), (forum_key, standing_key));
                 }
             }
             ComponentOp::CloseForum { grievance } => {
-                if redress.remove(grievance).is_none() {
+                if graph.redress.remove(grievance).is_none() {
                     mismatches.push(Mismatch::UnknownForum {
                         operation: position,
                     });
@@ -4555,7 +4175,7 @@ pub(super) fn resolve_patch(
                 let (Some(subject_key), Some(fact_key)) = (subject_key, fact_key) else {
                     continue;
                 };
-                if retired.contains(&subject_key) {
+                if graph.is_retired(&subject_key) {
                     mismatches.push(Mismatch::RetiredSubjectActed {
                         operation: position,
                     });
@@ -4564,7 +4184,7 @@ pub(super) fn resolve_patch(
                 // Evidenced knowledge is knowledge of canon. A receipt cannot
                 // vouch for an assertion the kernel never evaluated.
                 if *source == AuthoredSource::Evidenced
-                    && facts.get(&fact_key) != Some(&FactCandidate::Canonical)
+                    && graph.facts.get(&fact_key) != Some(FactCandidate::Canonical)
                 {
                     mismatches.push(Mismatch::EvidencedKnowledgeOfClaim {
                         operation: position,
@@ -4579,12 +4199,12 @@ pub(super) fn resolve_patch(
                     },
                 };
                 let slot = (subject_key, fact_key);
-                if knowledge.get(&slot) == Some(&entry) {
+                if graph.knowledge.get(&slot) == Some(entry.clone()) {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
                 } else {
-                    knowledge.insert(slot, entry);
+                    graph.knowledge.insert(slot, entry);
                 }
             }
             ComponentOp::Forget { subject, fact } => {
@@ -4606,13 +4226,13 @@ pub(super) fn resolve_patch(
                 let (Some(subject_key), Some(fact_key)) = (subject_key, fact_key) else {
                     continue;
                 };
-                if retired.contains(&subject_key) {
+                if graph.is_retired(&subject_key) {
                     mismatches.push(Mismatch::RetiredSubjectActed {
                         operation: position,
                     });
                     continue;
                 }
-                if knowledge.remove(&(subject_key, fact_key)).is_none() {
+                if graph.knowledge.remove(&(subject_key, fact_key)).is_none() {
                     mismatches.push(Mismatch::NoOperationEffect {
                         operation: position,
                     });
@@ -4646,7 +4266,7 @@ pub(super) fn resolve_patch(
                 else {
                     continue;
                 };
-                if retired.contains(&speaker_key) {
+                if graph.is_retired(&speaker_key) {
                     mismatches.push(Mismatch::RetiredSubjectActed {
                         operation: position,
                     });
@@ -4654,14 +4274,7 @@ pub(super) fn resolve_patch(
                 }
                 // Ontology admission: communication reaches only subjects inside
                 // the channel's reach, and a speaker outside it is not speaking.
-                if !candidate_in_audience(
-                    &speaker_key,
-                    &audience,
-                    &speaker_key,
-                    &positions,
-                    &channels,
-                    &containers,
-                ) {
+                if !graph.in_audience(&speaker_key, &audience, &speaker_key) {
                     mismatches.push(Mismatch::SpeakerOutsideAudience {
                         operation: position,
                     });
@@ -4702,13 +4315,12 @@ pub(super) fn resolve_patch(
                     confidence: *confidence,
                     source: KnowledgeSourceKey::Witnessed,
                 };
-                let recipients: Vec<Key<SubjectId>> = positions
-                    .iter()
-                    .filter(|(subject_key, standing)| {
-                        key_covers_place(&place_key, standing, &containers)
-                            && !knowledge.contains_key(&((*subject_key).clone(), fact_key.clone()))
+                let recipients: Vec<Key<SubjectId>> = graph
+                    .occupants_under(&place_key)
+                    .into_iter()
+                    .filter(|subject_key| {
+                        !graph.knowledge.contains_key(&(subject_key.clone(), fact_key.clone()))
                     })
-                    .map(|(subject_key, _)| (*subject_key).clone())
                     .collect();
                 if recipients.is_empty() {
                     mismatches.push(Mismatch::NoOperationEffect {
@@ -4716,7 +4328,7 @@ pub(super) fn resolve_patch(
                     });
                 } else {
                     for subject_key in recipients {
-                        knowledge.insert((subject_key, fact_key.clone()), entry.clone());
+                        graph.knowledge.insert((subject_key, fact_key.clone()), entry.clone());
                     }
                 }
             }
@@ -4739,7 +4351,7 @@ pub(super) fn resolve_patch(
                 let (Some(channel_key), Some(reach_key)) = (channel_key, reach_key) else {
                     continue;
                 };
-                let Some(candidate) = channels.get_mut(&channel_key) else {
+                let Some(candidate) = graph.channels.get_mut(&channel_key) else {
                     continue;
                 };
                 if candidate.reach == reach_key {
@@ -4773,7 +4385,7 @@ pub(super) fn resolve_patch(
                 else {
                     continue;
                 };
-                let Some(candidate) = channels.get_mut(&channel_key) else {
+                let Some(candidate) = graph.channels.get_mut(&channel_key) else {
                     continue;
                 };
                 if candidate.controller == controller_key {
@@ -4795,7 +4407,7 @@ pub(super) fn resolve_patch(
             ComponentOp::GrantAuthority { .. }
                 | ComponentOp::OpenOffice { .. }
                 | ComponentOp::InstallIncumbent { .. }
-        ) && graph_overlaps(&authority, &selection, &containers, &retired)
+        ) && graph.overlapping()
         {
             mismatches.push(Mismatch::OverlappingJurisdiction {
                 operation: position,
@@ -4808,16 +4420,7 @@ pub(super) fn resolve_patch(
     // individually balance but whose net does not is impossible, and an
     // intermediate negative was already caught above as `InsufficientCustody`.
     for (resource_key, delta) in &mut deltas {
-        delta.before = seeded_holdings
-            .iter()
-            .filter(|((_, resource), _)| resource == resource_key)
-            .map(|(_, quantity)| u128::from(quantity.0))
-            .sum();
-        delta.after = holdings
-            .iter()
-            .filter(|((_, resource), _)| resource == resource_key)
-            .map(|(_, quantity)| u128::from(quantity.0))
-            .sum();
+        (delta.before, delta.after) = graph.custody(resource_key);
     }
     if let Some(resource) = check_ledger(&deltas) {
         mismatches.push(Mismatch::CustodyNotConserved {
@@ -5560,36 +5163,6 @@ fn resolve_pressure_source(
     }
 }
 
-/// Whether `place` is `root`, or reaches it through the candidate container
-/// chain. The walk is bounded by the graph size, so a cycle that does not
-/// include either end still terminates.
-fn key_covers_place(
-    root: &Key<EntityId>,
-    place: &Key<EntityId>,
-    containers: &BTreeMap<Key<EntityId>, Key<EntityId>>,
-) -> bool {
-    let mut current = Some(place);
-    for _ in 0..=containers.len() {
-        match current {
-            None => return false,
-            Some(node) if node == root => return true,
-            Some(node) => current = containers.get(node),
-        }
-    }
-    false
-}
-
-/// Whether a place reaches itself through its container chain: the same walk,
-/// started one link up so a place is not its own ancestor by definition.
-fn contains_itself(
-    start: &Key<EntityId>,
-    containers: &BTreeMap<Key<EntityId>, Key<EntityId>>,
-) -> bool {
-    containers
-        .get(start)
-        .is_some_and(|parent| key_covers_place(start, parent, containers))
-}
-
 /// Whether `place` is `root` or is contained in it, over canonical state: one
 /// upward walk in the shape of [`containment_terminates`], bounded by the graph
 /// size. It is total because `admit_resolved` refuses a non-terminating chain,
@@ -5613,7 +5186,7 @@ pub(super) fn covers_place(
     false
 }
 
-/// The canonical twin of the candidate graph's `candidate_targets_overlap`: whether two
+/// The canonical twin of the candidate graph's `Candidate::targets_overlap`: whether two
 /// jurisdictions of one kind cover common ground.
 pub(super) fn targets_overlap(
     entities: &Docs<EntityId, EntityRecord, ChildOf>,
@@ -6520,7 +6093,7 @@ mod tests {
         );
     }
 
-    /// PA.f48: `candidate_effective_authority` is the resolver's twin of
+    /// PA.f48: `Candidate::effective_authority` is the resolver's twin of
     /// `delegated_authority`, and must share its predicate for "is this
     /// institution live". Retiring the lending institution and granting the
     /// same ground directly to its former office-holder, in one patch, must
