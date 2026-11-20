@@ -544,3 +544,73 @@ cost is inherent to pressing and is not a read of the world. `open` of a large
 world is superlinear in rows from readers outside this cut (the resolver's reads
 of the whole world at genesis, owner `aetherlight-resolver-reads-world`);
 `open_cost` reports it.
+
+## Cut AL3d-1: the patch lane reads what the patch touches
+
+Authority: cut `aetherlight-resolver-reads-world` r1 of campaign
+`aetheria-release`; rulings `cultnet-scale-is-not-negotiable`,
+`aetherlight-narrative-state-owner`, `terminus-clockwork-world`,
+`dialogue-is-world-action`. Base `609b3ba5e`. No digested byte moves:
+`fixtures/golden.digests` is identical at every commit of the cut.
+
+`resolve_patch` used to seed fifteen candidate maps by copying every partition,
+collect every catalog kind and every subject's import key into sets, and re-judge
+every holder for overlap after each widening operation. Its reads grew with the
+world: 936, 3696 and 14736 rows for one `DischargeCommitment` at 100, 400 and 1600
+persons, and 14,000 or more for every other shape. It now reads what the patch
+touches.
+
+`patch/candidate.rs` owns the candidate graph of one resolution. Each candidate map
+is an `Overlay`: the committed partition read through a base function (a point get;
+a `Key::Draft` key has none), and the patch's writes in a local map. `Candidate`
+holds the fifteen overlays and the named reads, each bounded by what the patch
+wrote plus what it returns: `occupants_under` (`under_place` over `ChildOf` and
+`StandsAt`, corrected by the written positions), `offices_of` and `offices_held_by`
+(the committed row or `ByIncumbent`, corrected by the written offices), `kind_taken`
+(`ByKind` on the catalog) and `import_key_held` (`ByImportKey` on the subjects),
+`custody` (the sums over the written holders only: every other holder is on both
+sides of the equation and cancels). `authority`, `selection` and `retired` are
+private to the module: a write goes through `set_grants`, `set_office` or `retire`,
+which re-judge the holders whose effective authority it can change (the holder and
+an institution's incumbents; an office's old and new incumbent) and keep
+`overlapping`, the set of holders with two grants of one kind over overlapping
+ground. A widening operation is `OverlappingJurisdiction` exactly when the set is
+non-empty. That is what `graph_overlaps` answered, because the committed world is
+disjoint (every commit checks it and opening a world verifies it), so only a holder
+the patch touched can enter the set. The mismatch list is unchanged, including the
+later widening operations after a first overlap and a revoke that clears it
+(`overlap_mismatches_are_unchanged`). The candidate lives for one `resolve_patch`
+call and is never written back; `admit_resolved` stays the only writer of the
+ontology partitions.
+
+`apply_operations` derives its two checks from the transaction's log. Conservation
+sums the holders `holdings` logged as changed, each from its value when the
+operations began (so a holder already written by the declarations above it is
+measured from there). Disjointness judges only the holders whose grants, offices or
+institution the transaction touched, through `holder_overlaps`, which
+`overlapping_holder` also calls for the open-time whole-world check
+(`verify_state_shape`, whole-world on purpose). `resource_total` survives only as
+the test reference `resource_total_by_scan`.
+
+Two partitions gained read indexes, `subjects` by `ByImportKey` and
+`affordance_catalog` by `ByKind`, so `held_import_keys` and the per-patch kind set
+are gone and `import_key_fault` asks a predicate.
+
+The seeding block, `graph_overlaps`, the old effective-authority walk and
+`key_covers_place` live on only as `cfg(test)` references (`Materialized`, whose
+`seeded` is the old block verbatim). `candidate_reads_equal_materialized_scans`
+walks a civic world through the shapes that move each read (a subject leaving and
+entering a subtree, a declared place and subject, a retirement, a vacated and
+refilled office, an overlapping grant and its revocation, the retirement of the
+lending institution, a declared institution, custody written both ways) and holds
+every named read and the overlap set to the scan after every step;
+`an_untouched_overlay_reads_what_the_seeding_copied` holds every base function to
+the copy in each populated world. The gate is
+`golden_tests::patch_read_work_is_equal_at_100_and_1600`: ten patch shapes through
+`AdmitPatch` read the same rows at 100, 400 and 1600 persons (at most 21 each),
+and `apply_checks_read_the_log` pins the commit lane's two checks. The
+`DischargeCommitment` case of `operation_reads_are_equal_at_100_and_1600`, which
+called `apply_operation` directly, moved into the gate.
+
+Reads that still scan: `snapshot` (follow-up `aetherlight-snapshot-history-fold`)
+and `verify_state_shape` at open, by design.
