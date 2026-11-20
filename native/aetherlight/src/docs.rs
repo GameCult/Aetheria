@@ -46,9 +46,6 @@ impl<I: Iterator> Iterator for Counted<I> {
         }
         item
     }
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
-    }
 }
 
 impl<I: DoubleEndedIterator> DoubleEndedIterator for Counted<I> {
