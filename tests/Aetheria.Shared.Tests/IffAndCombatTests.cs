@@ -462,7 +462,7 @@ public sealed class IffAndCombatTests : IDisposable
     }
 
     // Hated is kill on sight in any zone, owned or not, once the claim is received with the track; it is directed, so B's stance
-    // toward A reads B's map. Kills: no Hated branch; reading the regarded side's map; reading other.Faction instead of the claim.
+    // toward A reads B's map. Kills: no Hated branch; reading the regarded side's map.
     [Fact]
     public void HatedIsKillOnSightInAnOwnerlessZone()
     {
@@ -527,5 +527,29 @@ public sealed class IffAndCombatTests : IDisposable
         Detect(ship, stranger);
 
         Assert.False(ship.IsHostileTo(stranger));
+    }
+
+    // Stance follows the faction the contact claimed when it was tracked, not the faction it flies now. Kills: reading other.Faction
+    // instead of the telemetry claim.
+    [Fact]
+    public void StanceFollowsTheClaimNotTheLiveFaction()
+    {
+        var (items, zone) = BuildWorld();
+        var (a, b) = Rivals(items, zone, FactionRelationship.Hated);
+        var other = new Faction { Name = "C" };
+        items.ItemData.Upsert(other);
+        var neutral = NewShip(items, zone, other);
+
+        Detect(a, b);
+        Detect(a, neutral);
+        Assert.True(a.IsHostileTo(b));
+        Assert.False(a.IsHostileTo(neutral));
+
+        var hated = b.Faction;
+        b.Faction = other; // each keeps what it claimed when tracked, until it is claimed again
+        neutral.Faction = hated;
+
+        Assert.True(a.IsHostileTo(b));
+        Assert.False(a.IsHostileTo(neutral));
     }
 }
