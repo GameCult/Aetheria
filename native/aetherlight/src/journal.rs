@@ -170,7 +170,6 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
                 "commit chain is not contiguous or verifiable".into(),
             ));
         }
-        let previous_now = replay.header.now;
         // Authority is re-decided here for free: `apply_committed_command`
         // re-runs `reduce` against the pre-commit state and requires effect
         // equality, then `apply_effect`, and both of those call
@@ -180,14 +179,10 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
         // third owner of one decision.
         replay.begin();
         apply_committed_command(&mut replay, commit)?;
-        // Two chain checks one state cannot make: the clock never runs
-        // backwards, and it advances only on a tick.
-        let advanced = matches!(commit.effect, WorldEffect::TimeAdvanced { .. });
-        if replay.header.now < previous_now || (replay.header.now > previous_now) != advanced {
-            return Err(JournalError::Corrupt(
-                "the world clock moved without a time-advanced commit, or ran backwards".into(),
-            ));
-        }
+        // The clock needs no chain check of its own: only `TimeAdvanced` writes
+        // it, `apply_effect` re-derives `to` from a `TickMinutes` that cannot
+        // be read outside `1..=MAX_ROUTE_COST`, so every tick moves it forward
+        // and nothing else moves it.
         replay.revision = commit.resulting_revision;
         let accumulator = replay.folded().map_err(kernel_error)?;
         replay.state_digest = accumulator.state_digest(replay.revision);
@@ -407,9 +402,6 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
     for (subject_id, held) in &state.commitments {
         let commitment_is_canonical = |commitment: &super::Commitment| {
             (commitment.kind == super::CommitmentKind::Routine) == commitment.period.is_some()
-                && commitment.period.is_none_or(|period| {
-                    (1..=super::patch::MAX_ROUTE_COST).contains(&period.minutes())
-                })
                 && (commitment.kind == super::CommitmentKind::Routine
                     || commitment.checks.is_empty())
                 && match commitment.counterparty {
@@ -959,6 +951,38 @@ mod tests {
             reopen(&mixed),
             Err(JournalError::UnsupportedSchema { .. })
         ));
+    }
+
+    /// A stored tick whose span is zero or above the bound is not a world: the
+    /// export does not decode. This is the door the clock needs no check behind:
+    /// a zero-minute tick would be a commit that moves nothing, and an oversize
+    /// one a commit no `submit` could have built.
+    #[test]
+    fn a_stored_tick_with_a_span_outside_the_bound_does_not_open() {
+        let kernel = clock_history();
+        let honest = export_of(&kernel.journal.commits);
+        // MessagePack names the span `minutes` and encodes the honest ones
+        // (1, 2, 30) as a single positive fixint byte, so each is rewritten in
+        // place, in the command and again in the effect.
+        let key = b"\xa7minutes";
+        let at: Vec<usize> = (0..honest.len() - key.len())
+            .filter(|&at| &honest[at..at + key.len()] == key)
+            .collect();
+        assert!(at.len() >= 2, "a tick carries its span in the command and its effect");
+        for forged_span in [vec![0x00], [&[0xce][..], &(crate::patch::MAX_ROUTE_COST + 1).to_be_bytes()].concat()] {
+            let mut bytes = honest.clone();
+            for &start in at.iter().rev() {
+                let value = start + key.len();
+                assert!(honest[value] < 0x80, "an honest span is a fixint");
+                bytes.splice(value..=value, forged_span.iter().copied());
+            }
+            let error = WorldJournal::open(&bytes).err().expect("a forged span opened");
+            assert!(
+                error.to_string().contains("could not decode the export")
+                    && error.to_string().contains("tick span"),
+                "{forged_span:?}: {error}"
+            );
+        }
     }
 
     /// The replay-side future check reads only the subjects the transaction
@@ -2243,40 +2267,26 @@ mod custody_tests {
         let _ = subject;
     }
 
-    /// `TickMinutes` is `#[serde(transparent)]`, so a hand-written store row
-    /// can carry a period of zero — a routine that re-arms on the same minute
-    /// forever — without ever passing through `TickMinutes::new`. The shape
-    /// check now enforces the same `1..=MAX_ROUTE_COST` span bound the
-    /// constructor enforces, so the forged row is refused directly.
+    /// `TickMinutes` owns its bound at decode, so a span outside
+    /// `1..=MAX_ROUTE_COST` cannot be read in any position: a routine's period,
+    /// a command, or a tick's own effect.
     #[test]
-    fn soul_a_zero_period_is_refused_by_the_shape_check() {
-        let (kernel, subject) = ticking_world();
-
-        // The forgery an in-crate caller cannot write: `TickMinutes::new`
-        // refuses zero, and the field is private, so the only door is serde.
-        assert!(crate::TickMinutes::new(0).is_none());
-        let zero: crate::TickMinutes =
-            rmp_serde::from_slice(&rmp_serde::to_vec(&0u32).unwrap()).expect("a transparent span");
-
-        let mut forged = kernel.state.clone();
-        let key = *forged.commitments[&subject]
-            .iter()
-            .find(|(_, commitment)| commitment.period.is_some())
-            .expect("the routine")
-            .0;
-        forged
-            .commitments
-            .get_mut(&subject)
-            .unwrap()
-            .get_mut(&key)
-            .unwrap()
-            .period = Some(zero);
-
-        // The shape check refuses the forged span bound directly.
-        assert!(
-            matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
-            "verify_state_shape admitted a period outside 1..=MAX_ROUTE_COST"
-        );
+    fn a_span_outside_the_bound_cannot_be_decoded() {
+        for minutes in [0u32, crate::patch::MAX_ROUTE_COST + 1, u32::MAX] {
+            let raw = rmp_serde::to_vec(&minutes).unwrap();
+            assert!(
+                rmp_serde::from_slice::<crate::TickMinutes>(&raw).is_err(),
+                "{minutes} decoded as a span"
+            );
+            assert!(serde_json::from_value::<crate::TickMinutes>(minutes.into()).is_err());
+        }
+        for minutes in [1u32, crate::patch::MAX_ROUTE_COST] {
+            let raw = rmp_serde::to_vec(&minutes).unwrap();
+            assert_eq!(
+                rmp_serde::from_slice::<crate::TickMinutes>(&raw).unwrap().minutes(),
+                minutes
+            );
+        }
     }
 
 }

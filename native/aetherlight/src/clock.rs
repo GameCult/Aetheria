@@ -26,13 +26,32 @@ impl FictionalMinutes {
     }
 }
 
-/// The span one `AdvanceTime` names. Constructor-checked `1..=MAX_ROUTE_COST`
-/// (one year of minutes), reusing pass 2's constant as a span bound rather than
-/// an edge bound: an unbounded span lets one command jump the clock past every
-/// due date in the world and makes the size of a commit a caller-chosen number.
+/// The span one `AdvanceTime` names, `1..=MAX_ROUTE_COST` (one year of
+/// minutes), reusing pass 2's constant as a span bound rather than an edge
+/// bound: an unbounded span lets one command jump the clock past every due date
+/// in the world and makes the size of a commit a caller-chosen number.
+///
+/// The type owns its bound at every door: `new` and decoding both go through
+/// it, so a command, a routine's period or a stored commit that names a span
+/// outside the bound cannot be read at all, and no reducer or replay clause
+/// re-checks it.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[serde(transparent)]
+#[serde(try_from = "u32", into = "u32")]
 pub struct TickMinutes(u32);
+
+impl TryFrom<u32> for TickMinutes {
+    type Error = &'static str;
+
+    fn try_from(minutes: u32) -> Result<Self, Self::Error> {
+        Self::new(minutes).ok_or("a tick span is 1..=525600 minutes")
+    }
+}
+
+impl From<TickMinutes> for u32 {
+    fn from(span: TickMinutes) -> u32 {
+        span.0
+    }
+}
 
 impl TickMinutes {
     pub fn new(minutes: u32) -> Option<Self> {
