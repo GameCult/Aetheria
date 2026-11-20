@@ -454,63 +454,104 @@ struct WorldHeader {
     now: FictionalMinutes,
 }
 
+/// The world's partitions, declared once. Each row names a partition, its
+/// key and value types and the schema its documents are digested with; the
+/// struct, the table `begin`, `folded`, `finish`, `rollback` and the test
+/// oracle walk, and the empty world are all generated from these rows, so a
+/// partition is in the digest and under the undo log because it exists, and
+/// there is no second list to forget it from.
+///
 /// Every partition is a `Docs`: reads see the map, every write is logged, and
 /// `submit` applies in place and either finishes or rolls the log back.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct WorldState {
-    header: Tracked<WorldHeader>,
-    revision: u64,
-    subjects: Docs<SubjectId, SubjectState>,
-    entities: Docs<EntityId, EntityRecord>,
-    edges: Docs<EdgeId, EdgeRecord>,
-    positions: Docs<SubjectId, Position>,
+macro_rules! world_state {
+    ($($(#[$meta:meta])* $field:ident: Docs<$key:ty, $value:ty> = $schema:literal;)*) => {
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        struct WorldState {
+            header: Tracked<WorldHeader>,
+            revision: u64,
+            $($(#[$meta])* $field: Docs<$key, $value>,)*
+            // The chain head: outside every document.
+            accumulator: LtHash16,
+            state_digest: String,
+            last_commit_digest: Option<String>,
+        }
+
+        impl WorldState {
+            /// The number of partitions.
+            const PARTITIONS: usize = [$($schema),*].len();
+
+            /// Every partition under the schema its documents are digested with.
+            fn partitions(&self) -> [(&'static str, &dyn Partition); Self::PARTITIONS] {
+                [$(($schema, &self.$field as &dyn Partition)),*]
+            }
+
+            fn partitions_mut(&mut self) -> [(&'static str, &mut dyn Partition); Self::PARTITIONS] {
+                [$(($schema, &mut self.$field as &mut dyn Partition)),*]
+            }
+
+            /// A world with this header, revision 0 and no documents.
+            fn with_header(header: Tracked<WorldHeader>) -> Self {
+                Self {
+                    header,
+                    revision: 0,
+                    $($field: Docs::default(),)*
+                    accumulator: LtHash16::default(),
+                    state_digest: String::new(),
+                    last_commit_digest: None,
+                }
+            }
+        }
+    };
+}
+
+world_state! {
+    subjects: Docs<SubjectId, SubjectState> = "aetherlight.subject.v1";
+    entities: Docs<EntityId, EntityRecord> = "aetherlight.entity.v1";
+    edges: Docs<EdgeId, EdgeRecord> = "aetherlight.edge.v1";
+    positions: Docs<SubjectId, Position> = "aetherlight.position.v1";
     /// What each subject holds. Absence is zero at both levels: no stored
     /// `Quantity(0)` and no empty inner map, so a duplicate holding is
     /// unrepresentable and "nothing" has one shape.
-    holdings: Docs<SubjectId, BTreeMap<EntityId, Quantity>>,
+    holdings: Docs<SubjectId, BTreeMap<EntityId, Quantity>> = "aetherlight.holdings.v1";
     /// What each subject depends on. Never empty for a present key.
-    dependencies: Docs<SubjectId, BTreeSet<DependencyTarget>>,
+    dependencies: Docs<SubjectId, BTreeSet<DependencyTarget>> = "aetherlight.dependencies.v1";
     /// One row per `EntityKind::Fact` entity, and no orphan either way. Facts
     /// are write-once: declaration and `AssertClaim` are the only writers, and
     /// standing never changes after admission.
-    facts: Docs<EntityId, FactRecord>,
+    facts: Docs<EntityId, FactRecord> = "aetherlight.fact.v1";
     /// One row per `EntityKind::Channel` entity, and no orphan either way.
-    channels: Docs<EntityId, ChannelRecord>,
+    channels: Docs<EntityId, ChannelRecord> = "aetherlight.channel.v1";
     /// What each subject knows. The sole owner of who-heard-what: `events`
     /// records what was done, and this decides what a subject may act on and
     /// what its projection may contain. One document per (subject, fact), and
     /// absence is "knows nothing of it" — forgetting removes the key.
-    knowledge: Docs<(SubjectId, EntityId), Knowledge>,
+    knowledge: Docs<(SubjectId, EntityId), Knowledge> = "aetherlight.knowledge.v1";
     /// What ground each subject has jurisdiction over, and under which
     /// world-declared kind. Never empty for a present key. No subject holds two
     /// grants of one kind over overlapping ground, so nothing ever arbitrates
     /// between two sources of one permission.
-    authority: Docs<SubjectId, BTreeSet<AuthorityGrant>>,
+    authority: Docs<SubjectId, BTreeSet<AuthorityGrant>> = "aetherlight.authority.v1";
     /// The offices each institution constitutes, and who sits in them. An
     /// incumbent never acts as its institution: an office answers what its
     /// incumbent has jurisdiction over, not who the actor is.
-    selection: Docs<SubjectId, BTreeMap<OfficeName, Office>>,
+    selection: Docs<SubjectId, BTreeMap<OfficeName, Office>> = "aetherlight.selection.v1";
     /// Where each kind of grievance goes, and who may bring it. Keyed by
     /// neither a subject nor a referent, so it enters no scope components and
     /// is admission-only state.
-    redress: Docs<GrievanceKindName, Forum>,
+    redress: Docs<GrievanceKindName, Forum> = "aetherlight.redress.v1";
     /// What each subject has promised. Never empty for a present key.
-    commitments: Docs<SubjectId, BTreeMap<CommitmentKey, Commitment>>,
+    commitments: Docs<SubjectId, BTreeMap<CommitmentKey, Commitment>> = "aetherlight.commitments.v1";
     /// Pressure *on* each subject, keyed target-major then source. Never empty
     /// for a present key; no stored zero magnitude. Lived meaning: read by
     /// projection and by nothing that decides.
-    pressures: Docs<SubjectId, BTreeMap<PressureSource, PressureMagnitude>>,
+    pressures: Docs<SubjectId, BTreeMap<PressureSource, PressureMagnitude>> = "aetherlight.pressures.v1";
     /// What an affordance *is*. World-authored and written by `admit_resolved`
     /// alone.
-    affordance_catalog: Docs<AffordanceId, Affordance>,
+    affordance_catalog: Docs<AffordanceId, Affordance> = "aetherlight.affordance.v1";
     /// Who may exercise which entry: a row exists if and only if the subject
     /// holds at least one verb. A grant carries no payload, so a duplicate
     /// grant is unrepresentable rather than checked.
-    affordance_grants: Docs<SubjectId, BTreeSet<AffordanceId>>,
-    // The chain head: outside every document.
-    accumulator: LtHash16,
-    state_digest: String,
-    last_commit_digest: Option<String>,
+    affordance_grants: Docs<SubjectId, BTreeSet<AffordanceId>> = "aetherlight.affordance_grants.v1";
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -1113,35 +1154,6 @@ fn is_genesis(revision: u64, subjects: &BTreeMap<SubjectId, SubjectState>) -> bo
     revision == 0 && subjects.is_empty()
 }
 
-/// The partition table: each partition under the schema its documents are
-/// digested with. The one list `begin`, `folded`, `finish`, `rollback` and the
-/// test oracle all walk.
-macro_rules! partitions {
-    ($state:expr, $($borrow:tt)+) => {
-        [
-            ("aetherlight.subject.v1", $($borrow)+ $state.subjects as $($borrow)+ dyn Partition),
-            ("aetherlight.entity.v1", $($borrow)+ $state.entities as $($borrow)+ dyn Partition),
-            ("aetherlight.edge.v1", $($borrow)+ $state.edges as $($borrow)+ dyn Partition),
-            ("aetherlight.position.v1", $($borrow)+ $state.positions as $($borrow)+ dyn Partition),
-            ("aetherlight.holdings.v1", $($borrow)+ $state.holdings as $($borrow)+ dyn Partition),
-            ("aetherlight.dependencies.v1", $($borrow)+ $state.dependencies as $($borrow)+ dyn Partition),
-            ("aetherlight.fact.v1", $($borrow)+ $state.facts as $($borrow)+ dyn Partition),
-            ("aetherlight.channel.v1", $($borrow)+ $state.channels as $($borrow)+ dyn Partition),
-            ("aetherlight.knowledge.v1", $($borrow)+ $state.knowledge as $($borrow)+ dyn Partition),
-            ("aetherlight.authority.v1", $($borrow)+ $state.authority as $($borrow)+ dyn Partition),
-            ("aetherlight.selection.v1", $($borrow)+ $state.selection as $($borrow)+ dyn Partition),
-            ("aetherlight.redress.v1", $($borrow)+ $state.redress as $($borrow)+ dyn Partition),
-            ("aetherlight.commitments.v1", $($borrow)+ $state.commitments as $($borrow)+ dyn Partition),
-            ("aetherlight.pressures.v1", $($borrow)+ $state.pressures as $($borrow)+ dyn Partition),
-            ("aetherlight.affordance.v1", $($borrow)+ $state.affordance_catalog as $($borrow)+ dyn Partition),
-            (
-                "aetherlight.affordance_grants.v1",
-                $($borrow)+ $state.affordance_grants as $($borrow)+ dyn Partition,
-            ),
-        ]
-    };
-}
-
 const WORLD_DOC_SCHEMA: &str = "aetherlight.world.v1";
 
 impl WorldState {
@@ -1149,7 +1161,7 @@ impl WorldState {
     /// transaction, or a transaction left open, is a bug here and not state.
     fn begin(&self) {
         debug_assert!(self.header.is_clean(), "a transaction is open");
-        debug_assert!(partitions!(self, &).iter().all(|(_, docs)| docs.is_clean()));
+        debug_assert!(self.partitions().iter().all(|(_, docs)| docs.is_clean()));
     }
 
     /// What `subject` knows: its rows of the flat knowledge partition, by fact.
@@ -1164,7 +1176,7 @@ impl WorldState {
     fn folded(&self) -> Result<LtHash16, KernelError> {
         let mut acc = self.accumulator.clone();
         digest::fold_header(&mut acc, WORLD_DOC_SCHEMA, &self.header.world_id.key(), &self.header)?;
-        for (schema, docs) in partitions!(self, &) {
+        for (schema, docs) in self.partitions() {
             docs.fold_changes(schema, &mut acc)?;
         }
         Ok(acc)
@@ -1181,7 +1193,7 @@ impl WorldState {
         self.accumulator = accumulator;
         self.header.finish();
         let commitments = self.commitments.finish();
-        for (_, docs) in partitions!(self, &mut) {
+        for (_, docs) in self.partitions_mut() {
             docs.finish_log();
         }
         commitments
@@ -1190,7 +1202,7 @@ impl WorldState {
     /// Closes the transaction, undoing every write in it.
     fn rollback(&mut self) {
         self.header.rollback();
-        for (_, docs) in partitions!(self, &mut) {
+        for (_, docs) in self.partitions_mut() {
             docs.rollback();
         }
     }
@@ -1208,7 +1220,7 @@ impl WorldState {
             (WORLD_DOC_SCHEMA.to_owned(), key.clone()),
             digest::doc_digest(WORLD_DOC_SCHEMA, &key, header)?,
         );
-        for (schema, docs) in partitions!(self, &) {
+        for (schema, docs) in self.partitions() {
             docs.documents(schema, &mut out)?;
         }
         Ok(out)
@@ -1229,7 +1241,7 @@ impl WorldState {
     #[cfg(test)]
     fn encoded_documents(&self) -> Vec<u8> {
         let mut bytes = rmp_serde::to_vec_named(&*self.header).expect("the header encodes");
-        for (_, docs) in partitions!(self, &) {
+        for (_, docs) in self.partitions() {
             bytes.extend(docs.encoded());
         }
         bytes
@@ -1246,35 +1258,13 @@ impl WorldState {
         title: String,
         grammar: Option<GrammarBinding>,
     ) -> Self {
-        Self {
-            header: Tracked::absent(WorldHeader {
-                world_id,
-                owner,
-                title,
-                grammar,
-                now: FictionalMinutes::default(),
-            }),
-            revision: 0,
-            subjects: Docs::default(),
-            entities: Docs::default(),
-            edges: Docs::default(),
-            positions: Docs::default(),
-            holdings: Docs::default(),
-            dependencies: Docs::default(),
-            facts: Docs::default(),
-            channels: Docs::default(),
-            knowledge: Docs::default(),
-            authority: Docs::default(),
-            selection: Docs::default(),
-            redress: Docs::default(),
-            commitments: Docs::default(),
-            pressures: Docs::default(),
-            affordance_catalog: Docs::default(),
-            affordance_grants: Docs::default(),
-            accumulator: LtHash16::default(),
-            state_digest: String::new(),
-            last_commit_digest: None,
-        }
+        Self::with_header(Tracked::absent(WorldHeader {
+            world_id,
+            owner,
+            title,
+            grammar,
+            now: FictionalMinutes::default(),
+        }))
     }
 
     fn genesis(
