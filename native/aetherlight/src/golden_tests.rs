@@ -2224,3 +2224,182 @@ mod within_one_patch {
         .expect("revoke then grant is a change");
     }
 }
+
+/// Seeded random patch sequences through the real kernel. The resolver judges
+/// each patch against its overlay, `apply_operations` re-derives conservation
+/// and disjointness from the transaction log, and the full-scan references
+/// judge the committed world: the three must agree after every step.
+///
+/// Per step, in a world of grain holders, institutions with a warden office,
+/// pressures and a speak affordance:
+/// - the outcome is an accepted commit or a `PatchRejected` mismatch set, never
+///   a kernel `Invariant` error (the resolver admitted what apply refuses);
+/// - a refused patch changes no document, and the same patch refused again
+///   gives the same mismatches;
+/// - after an accepted one every index equals its scan, no subject holds two
+///   overlapping jurisdictions of one kind, and the grain total is unchanged
+///   (the generator transfers and never mints).
+#[test]
+fn random_patch_sequences_agree_with_the_scan_references() {
+    use crate::patch::{
+        AuthorityGrantRef, AuthorityTargetRef, PressureMagnitude, PressureSourceRef, Quantity,
+    };
+    use crate::tests::{LEVY_KIND, WARDEN_OFFICE, authority_kind, office};
+    use crate::{EntityKind, SubjectKind};
+
+    struct Rng(u64);
+    impl Rng {
+        fn below(&mut self, n: usize) -> usize {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 % n as u64) as usize
+        }
+    }
+
+    let (mut accepted, mut refused, mut multi) = (0usize, 0usize, 0usize);
+    for seed in 1..=10u64 {
+        let (mut kernel, people, speak) = clockwork_world(30);
+        let labelled = |kernel: &WorldKernel, kind: EntityKind| -> Vec<crate::EntityId> {
+            let mut found: Vec<_> = kernel
+                .state
+                .entities
+                .iter()
+                .filter(|(_, record)| record.kind == kind)
+                .map(|(id, record)| (record.label.clone(), *id))
+                .collect();
+            found.sort();
+            found.into_iter().map(|(_, id)| id).collect()
+        };
+        let places = labelled(&kernel, EntityKind::Place);
+        let grains = labelled(&kernel, EntityKind::Resource);
+        let institutions: Vec<_> = (0..places.len())
+            .map(|place| subject_by_label(&kernel.state, &format!("Institution {place}")))
+            .collect();
+        let grain_total = |kernel: &WorldKernel| -> u128 {
+            grains.iter().map(|grain| crate::resource_total_by_scan(&kernel.state, *grain)).sum()
+        };
+        let total = grain_total(&kernel);
+        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
+
+        for step in 0..30 {
+            // A small pool of subjects, so patches collide often.
+            let person = |rng: &mut Rng| Ref::Existing(people[rng.below(6)]);
+            let levy_target = |rng: &mut Rng| {
+                if rng.below(2) == 0 {
+                    AuthorityTargetRef::Subject(Ref::Existing(people[rng.below(6)]))
+                } else {
+                    AuthorityTargetRef::PlaceSubtree(Ref::Existing(places[rng.below(3)]))
+                }
+            };
+            let mut declarations = Vec::new();
+            let mut operations = Vec::new();
+            for index in 0..1 + rng.below(4) {
+                let op = match rng.below(14) {
+                    0..=2 => {
+                        let holder = if rng.below(4) == 0 {
+                            Ref::Existing(institutions[rng.below(3)])
+                        } else {
+                            person(&mut rng)
+                        };
+                        ComponentOp::GrantAuthority {
+                            holder,
+                            grant: AuthorityGrantRef { kind: authority_kind(LEVY_KIND), over: levy_target(&mut rng) },
+                        }
+                    }
+                    3 => ComponentOp::RevokeAuthority {
+                        holder: person(&mut rng),
+                        grant: AuthorityGrantRef { kind: authority_kind(LEVY_KIND), over: levy_target(&mut rng) },
+                    },
+                    4 => ComponentOp::InstallIncumbent {
+                        institution: Ref::Existing(institutions[rng.below(3)]),
+                        office: office(WARDEN_OFFICE),
+                        incumbent: person(&mut rng),
+                    },
+                    5 => ComponentOp::VacateOffice {
+                        institution: Ref::Existing(institutions[rng.below(3)]),
+                        office: office(WARDEN_OFFICE),
+                    },
+                    6 => ComponentOp::AdvancePressure {
+                        source: PressureSourceRef::Subject(person(&mut rng)),
+                        target: person(&mut rng),
+                        by: PressureMagnitude(1 + rng.below(3) as u32),
+                    },
+                    7 => ComponentOp::ReducePressure {
+                        source: PressureSourceRef::Subject(person(&mut rng)),
+                        target: person(&mut rng),
+                        by: PressureMagnitude(1 + rng.below(3) as u32),
+                    },
+                    8 => ComponentOp::ResolvePressure {
+                        source: PressureSourceRef::Subject(person(&mut rng)),
+                        target: person(&mut rng),
+                    },
+                    9 => ComponentOp::GrantAffordance { subject: person(&mut rng), affordance: Ref::Existing(speak) },
+                    10 => ComponentOp::RevokeAffordance { subject: person(&mut rng), affordance: Ref::Existing(speak) },
+                    11 => ComponentOp::Transfer {
+                        from: person(&mut rng),
+                        to: person(&mut rng),
+                        resource: Ref::Existing(grains[rng.below(3)]),
+                        qty: Quantity(1),
+                    },
+                    12 => {
+                        let name = format!("s{step}-{index}");
+                        declarations.push(Declaration::Subject(crate::patch::SubjectDeclaration {
+                            handle: DraftHandle::new(&name),
+                            label: format!("Drafted {seed}-{name}"),
+                            kind: SubjectKind::Person,
+                            affordances: std::collections::BTreeSet::from([Ref::Existing(speak)]),
+                            position: None,
+                            import_key: None,
+                        }));
+                        ComponentOp::GrantAffordance {
+                            subject: Ref::Draft(DraftHandle::new(&name)),
+                            affordance: Ref::Existing(speak),
+                        }
+                    }
+                    _ if rng.below(8) == 0 => ComponentOp::Retire { subject: person(&mut rng) },
+                    _ => ComponentOp::ResolvePressure {
+                        source: PressureSourceRef::Subject(person(&mut rng)),
+                        target: person(&mut rng),
+                    },
+                };
+                operations.push(op);
+            }
+            let patch = WorldPatch { declarations, operations, evidence: vec![] };
+            let documents = kernel.state.documents().unwrap();
+            let again = clockwork_envelope(&kernel, CommandBody::AdmitPatch { patch: patch.clone() });
+            let outcome = kernel.submit(
+                clockwork_envelope(&kernel, CommandBody::AdmitPatch { patch }),
+                &AuthenticatedCaller::verified_play(),
+            );
+            match outcome {
+                Ok(_) => {
+                    accepted += 1;
+                    assert_eq!(reference_scan_disagreement(&kernel.state), None, "seed {seed} step {step}");
+                    assert_indexes_derived(&kernel.state, &format!("seed {seed} step {step}"));
+                    for subject in kernel.state.subjects.keys() {
+                        assert!(
+                            !crate::holder_overlaps(&kernel.state, *subject),
+                            "seed {seed} step {step}: {subject:?} holds overlapping jurisdictions"
+                        );
+                    }
+                    assert_eq!(grain_total(&kernel), total, "seed {seed} step {step}: custody");
+                }
+                Err(KernelError::PatchRejected(mismatches)) => {
+                    refused += 1;
+                    multi += usize::from(mismatches.len() > 1);
+                    assert_eq!(kernel.state.documents().unwrap(), documents, "seed {seed} step {step}: a refusal wrote");
+                    // The same patch against the same world: the same refusal.
+                    let repeat = kernel.submit(again, &AuthenticatedCaller::verified_play());
+                    assert!(
+                        matches!(&repeat, Err(KernelError::PatchRejected(m)) if *m == mismatches),
+                        "seed {seed} step {step}: {repeat:?}"
+                    );
+                }
+                Err(other) => panic!("seed {seed} step {step}: resolver and apply disagree: {other:?}"),
+            }
+        }
+    }
+    // The generator must reach both sides, or the loop proves nothing.
+    assert!(accepted >= 40 && refused >= 40 && multi >= 1, "{accepted} accepted, {refused} refused, {multi} multi");
+}
