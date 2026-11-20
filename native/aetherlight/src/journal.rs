@@ -833,9 +833,9 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
     }
     // A grant row is a verb list: non-empty, for a live subject, catalog
     // entries only. A subject holding no verb holds no row.
-    for (scope, granted) in &state.affordance_grants {
-        if !state.controller_assignments.contains_key(scope)
-            || super::is_retired(state, scope.subject_id)
+    for (subject_id, granted) in &state.affordance_grants {
+        if !state.subjects.contains_key(subject_id)
+            || super::is_retired(state, *subject_id)
             || granted.is_empty()
             || granted
                 .iter()
@@ -2332,7 +2332,7 @@ mod custody_tests {
     #[test]
     fn a_malformed_grant_row_is_corrupt() {
         use crate::tests::{auth_principal, creation, owner};
-        use crate::{AffordanceId, ControllerAssignment, DecisionScope, SubjectId};
+        use crate::{AffordanceId, SubjectId};
 
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
@@ -2354,21 +2354,14 @@ mod custody_tests {
             );
         };
         corrupt("a grant row for a retired subject", &|state| {
-            state
-                .controller_assignments
-                .insert(held, ControllerAssignment::Retired);
+            state.subjects.get_mut(&held).unwrap().retired = true;
         });
         corrupt("an empty grant row", &|state| {
             state.affordance_grants.get_mut(&held).unwrap().clear();
         });
         corrupt("a grant row for no subject", &|state| {
             let verbs = state.affordance_grants[&held].clone();
-            state.affordance_grants.insert(
-                DecisionScope {
-                    subject_id: SubjectId::issue(),
-                },
-                verbs,
-            );
+            state.affordance_grants.insert(SubjectId::issue(), verbs);
         });
         corrupt("a grant row naming an uncataloged verb", &|state| {
             state

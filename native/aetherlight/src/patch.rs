@@ -3322,23 +3322,22 @@ pub(super) fn resolve_patch(
         })
         .collect();
     // `Retire` and the affordance grant operations read and write these
-    // candidates. `retired` seeds from the committed `ControllerAssignment`,
-    // which the resolver otherwise never reads: a declared subject is always
+    // candidates. `retired` seeds from the committed subject rows: a declared subject is always
     // fresh and unretired, so drafts start out of the set. `affordance_holdings`
     // seeds from committed `affordance_grants` and is extended below for a
     // subject this same patch declares.
     let mut retired: BTreeSet<Key<SubjectId>> = state
-        .controller_assignments
+        .subjects
         .keys()
-        .filter(|scope| super::is_retired(state, scope.subject_id))
-        .map(|scope| Key::Existing(scope.subject_id))
+        .filter(|subject_id| super::is_retired(state, **subject_id))
+        .map(|subject_id| Key::Existing(*subject_id))
         .collect();
     let mut affordance_holdings: BTreeMap<Key<SubjectId>, BTreeSet<Key<AffordanceId>>> = state
         .affordance_grants
         .iter()
-        .map(|(scope, granted)| {
+        .map(|(subject_id, granted)| {
             (
-                Key::Existing(scope.subject_id),
+                Key::Existing(*subject_id),
                 granted.iter().map(|id| Key::Existing(*id)).collect(),
             )
         })
@@ -5096,6 +5095,7 @@ pub(super) fn resolve_patch(
                 label: input.label.clone(),
                 kind: input.kind,
                 import_key: input.import_key.clone(),
+                retired: false,
             },
             controller,
             affordances: granted,

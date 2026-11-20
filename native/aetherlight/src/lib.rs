@@ -401,6 +401,14 @@ struct SubjectState {
     /// subject nobody imported, so its digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     import_key: Option<ImportKey>,
+    /// Set once by `Retire`; the one place retirement is stored. A live
+    /// subject's row serializes without it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    retired: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -536,7 +544,7 @@ struct WorldState {
     /// Who may exercise which entry: a row exists if and only if the subject
     /// holds at least one verb. A grant carries no payload, so a duplicate
     /// grant is unrepresentable rather than checked.
-    affordance_grants: BTreeMap<DecisionScope, BTreeSet<AffordanceId>>,
+    affordance_grants: BTreeMap<SubjectId, BTreeSet<AffordanceId>>,
     events: Vec<DecisionEvent>,
     state_digest: String,
     last_commit_digest: Option<String>,
@@ -1481,7 +1489,7 @@ fn admit_resolved(
             }
             state
                 .affordance_grants
-                .entry(scope)
+                .entry(subject.subject_id)
                 .or_default()
                 .insert(*affordance_id);
         }
@@ -2397,30 +2405,23 @@ fn apply_operation(
             let scope = DecisionScope {
                 subject_id: *subject,
             };
-            let assignment = state.controller_assignments.get(&scope).ok_or_else(unknown)?;
-            match assignment {
-                ControllerAssignment::Retired => {
-                    return Err(KernelError::Invariant(
-                        "retire operation names an already retired subject".into(),
-                    ));
-                }
-                ControllerAssignment::Human { .. }
-                | ControllerAssignment::NarrativePersona { .. }
-                | ControllerAssignment::OperationalAgent { .. } => {}
+            let held = state.subjects.get_mut(subject).ok_or_else(unknown)?;
+            if held.retired {
+                return Err(KernelError::Invariant(
+                    "retire operation names an already retired subject".into(),
+                ));
             }
+            held.retired = true;
             state
                 .controller_assignments
                 .insert(scope, ControllerAssignment::Retired);
             state.positions.remove(subject);
-            state.affordance_grants.remove(&scope);
+            state.affordance_grants.remove(subject);
         }
         ResolvedOp::GrantAffordance { subject, affordance }
         | ResolvedOp::RevokeAffordance { subject, affordance } => {
             let granting = matches!(operation, ResolvedOp::GrantAffordance { .. });
-            let scope = DecisionScope {
-                subject_id: *subject,
-            };
-            if !state.controller_assignments.contains_key(&scope)
+            if !state.subjects.contains_key(subject)
                 || is_retired(state, *subject)
                 || !state.affordance_catalog.contains_key(affordance)
             {
@@ -2429,7 +2430,7 @@ fn apply_operation(
             if granting {
                 if !state
                     .affordance_grants
-                    .entry(scope)
+                    .entry(*subject)
                     .or_default()
                     .insert(*affordance)
                 {
@@ -2440,7 +2441,7 @@ fn apply_operation(
             } else {
                 let granted = state
                     .affordance_grants
-                    .get_mut(&scope)
+                    .get_mut(subject)
                     .ok_or_else(unknown)?;
                 if !granted.remove(affordance) {
                     return Err(KernelError::Invariant(
@@ -2448,7 +2449,7 @@ fn apply_operation(
                     ));
                 }
                 if granted.is_empty() {
-                    state.affordance_grants.remove(&scope);
+                    state.affordance_grants.remove(subject);
                 }
             }
         }
@@ -2573,14 +2574,14 @@ fn channel_referents_exist(state: &WorldState, record: &ChannelRecord) -> bool {
             .is_none_or(|subject_id| state.subjects.contains_key(&subject_id))
 }
 
-/// Whether a subject's controller assignment is `Retired`. The one statement
-/// of retirement read by anything downstream of it (audience derivation,
-/// preconditions, resolvers): only an actual `Retire` sets it.
+/// Whether a subject is retired: the one statement of retirement, read by
+/// audience derivation, preconditions and resolvers. Only an actual `Retire`
+/// sets `SubjectState.retired`.
 pub(crate) fn is_retired(state: &WorldState, subject_id: SubjectId) -> bool {
-    matches!(
-        state.controller_assignments.get(&DecisionScope { subject_id }),
-        Some(ControllerAssignment::Retired)
-    )
+    state
+        .subjects
+        .get(&subject_id)
+        .is_some_and(|subject| subject.retired)
 }
 
 /// Everyone standing anywhere under one place. The one downward-facing read of
@@ -2988,7 +2989,7 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
             })?;
             let affordances = state
                 .affordance_grants
-                .get(&scope)
+                .get(subject_id)
                 .cloned()
                 .unwrap_or_default();
             let components = scope_components(state, *subject_id);
@@ -3072,7 +3073,7 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
                 human_controller: controller.human_principal().cloned(),
                 affordances,
                 position: components.position.map(|position| position.place),
-                retired: matches!(controller, ControllerAssignment::Retired),
+                retired: subject.retired,
                 offices_held,
                 offices_granted,
                 redress,
@@ -3222,10 +3223,9 @@ fn require_granted<'a>(
     actor: SubjectId,
     affordance: AffordanceId,
 ) -> Result<GrantedAffordance<'a>, KernelError> {
-    let scope = DecisionScope { subject_id: actor };
     if !state
         .affordance_grants
-        .get(&scope)
+        .get(&actor)
         .is_some_and(|granted| granted.contains(&affordance))
     {
         return Err(KernelError::AffordanceDenied);
@@ -12700,7 +12700,7 @@ mod agency_tests {
             !kernel
                 .state
                 .affordance_grants
-                .contains_key(&DecisionScope { subject_id: persona }),
+                .contains_key(&persona),
             "the emptied row was kept"
         );
         let error = act(&mut kernel, persona, speak(only, "Silent.")).unwrap_err();
@@ -12770,7 +12770,7 @@ mod agency_tests {
                 !kernel
                     .state
                     .affordance_grants
-                    .contains_key(&DecisionScope { subject_id: found.id }),
+                    .contains_key(&found.id),
                 "{label} holds a grant row"
             );
             let error = act(&mut kernel, found.id, speak(speaking, "Mute.")).unwrap_err();
@@ -12893,7 +12893,7 @@ mod agency_tests {
         assert!(
             !candidate
                 .affordance_grants
-                .contains_key(&DecisionScope { subject_id: persona }),
+                .contains_key(&persona),
             "a retired subject was granted a verb"
         );
     }
