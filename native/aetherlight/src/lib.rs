@@ -916,14 +916,22 @@ pub enum KernelError {
     Serialization(String),
     #[error("world journal is corrupt: {0}")]
     CorruptJournal(String),
+    /// A well-formed export written under another commit schema generation
+    /// (a v1 save): not corrupt, but not readable by this build.
+    #[error("export commit schema {found} is not the supported {supported}")]
+    UnsupportedSchema { found: String, supported: &'static str },
     #[error("private reducer invariant failed: {0}")]
     Invariant(String),
 }
 
 impl From<journal::JournalError> for KernelError {
     fn from(error: journal::JournalError) -> Self {
-        let journal::JournalError::Corrupt(detail) = error;
-        Self::CorruptJournal(detail)
+        match error {
+            journal::JournalError::Corrupt(detail) => Self::CorruptJournal(detail),
+            journal::JournalError::UnsupportedSchema { found, supported } => {
+                Self::UnsupportedSchema { found, supported }
+            }
+        }
     }
 }
 

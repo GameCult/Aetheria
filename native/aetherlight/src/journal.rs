@@ -13,6 +13,23 @@ pub(super) const JOURNAL_SCHEMA: &str = "aetherlight.journal.v1";
 pub(super) enum JournalError {
     #[error("world journal is corrupt: {0}")]
     Corrupt(String),
+    /// A well-formed commit of another schema generation: not damage, a world
+    /// this build cannot read. Named apart so a store can tell an old save from
+    /// a corrupt one.
+    #[error("commit schema {found} is not the supported {supported}")]
+    UnsupportedSchema { found: String, supported: &'static str },
+}
+
+/// The one judge of the schema generation, asked of every commit before any of
+/// its other fields is believed.
+fn require_commit_schema(commit: &WorldCommit) -> Result<(), JournalError> {
+    if commit.schema == COMMIT_SCHEMA {
+        return Ok(());
+    }
+    Err(JournalError::UnsupportedSchema {
+        found: commit.schema.clone(),
+        supported: COMMIT_SCHEMA,
+    })
 }
 
 /// What an export carries: the schema that names the format, and the commits in
@@ -106,6 +123,7 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
     let genesis = commits
         .first()
         .ok_or_else(|| JournalError::Corrupt("world has no genesis commit".into()))?;
+    require_commit_schema(genesis)?;
     let CommittedCommand::CreateWorld(genesis_command) = &genesis.command else {
         return Err(JournalError::Corrupt(
             "first commit does not contain the immutable creation command".into(),
@@ -116,8 +134,7 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
             "first commit is not immutable world genesis".into(),
         ));
     };
-    if genesis.schema != COMMIT_SCHEMA
-        || genesis.previous_revision.is_some()
+    if genesis.previous_revision.is_some()
         || genesis.resulting_revision != 0
         || genesis.world_id != WorldId::of(genesis_command.id())
         || genesis.previous_state_digest.is_some()
@@ -141,8 +158,8 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
     replay.last_commit_digest = Some(genesis.digest.clone());
 
     for commit in &commits[1..] {
-        if commit.schema != COMMIT_SCHEMA
-            || commit.world_id != replay.header.world_id
+        require_commit_schema(commit)?;
+        if commit.world_id != replay.header.world_id
             || commit.previous_revision != Some(replay.revision)
             || commit.resulting_revision != replay.revision.saturating_add(1)
             || commit.previous_state_digest.as_deref() != Some(replay.state_digest.as_str())
@@ -867,7 +884,7 @@ mod tests {
         reopen(&honest).expect("the honest chain opens");
         let refused = |what: &str, commits: &[WorldCommit]| {
             assert!(
-                matches!(reopen(commits), Err(JournalError::Corrupt(_))),
+                reopen(commits).is_err(),
                 "{what} was admitted"
             );
         };
@@ -928,7 +945,20 @@ mod tests {
             }
             v1[index].digest = commit_digest(&v1[index]).unwrap();
         }
-        assert!(matches!(reopen(&v1), Err(JournalError::Corrupt(_))));
+        match reopen(&v1) {
+            Err(JournalError::UnsupportedSchema { found, supported }) => {
+                assert_eq!(found, "aetherlight.world_commit.v1");
+                assert_eq!(supported, COMMIT_SCHEMA);
+            }
+            other => panic!("a v1 chain must be refused by name, got {other:?}"),
+        }
+        // A later commit of another generation is refused the same way.
+        let mut mixed = kernel.journal.commits.clone();
+        last_commit(&mut mixed).schema = "aetherlight.world_commit.v3".into();
+        assert!(matches!(
+            reopen(&mixed),
+            Err(JournalError::UnsupportedSchema { .. })
+        ));
     }
 
     /// The replay-side future check reads only the subjects the transaction
@@ -1032,7 +1062,7 @@ mod tests {
             forge(&mut forged);
             forged.digest = commit_digest(&forged).unwrap();
             assert!(
-                matches!(reopen(&[forged]), Err(JournalError::Corrupt(_))),
+                reopen(&[forged]).is_err(),
                 "a genesis with {what} was admitted"
             );
         }
@@ -1134,7 +1164,7 @@ mod tests {
             });
             let error = reopen(&forged)
                 .expect_err("a commit forged to the owner replayed");
-            let JournalError::Corrupt(_) = error;
+            assert!(matches!(error, JournalError::Corrupt(_)), "{error:?}");
         }
     }
 
