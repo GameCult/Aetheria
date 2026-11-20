@@ -1790,8 +1790,8 @@ fn apply_operations(
 /// Every subject whose effective authority the open transaction may have
 /// changed: whose own grants were written, whose offices were written (old
 /// incumbent and new), and the incumbents of an institution whose grants were
-/// written or whose retirement flipped, because an office lends what its
-/// institution holds.
+/// written, because an office lends what its institution holds. A retirement
+/// only removes lent authority, so it cannot add an overlap and is not read.
 fn touched_holders(state: &WorldState) -> BTreeSet<SubjectId> {
     let mut touched = BTreeSet::new();
     let mut institutions = BTreeSet::new();
@@ -1804,11 +1804,6 @@ fn touched_holders(state: &WorldState) -> BTreeSet<SubjectId> {
             touched.extend(offices.values().filter_map(|office| office.incumbent));
         }
         institutions.insert(*institution);
-    }
-    for (subject, old, new) in state.subjects.changes() {
-        if old.map(|record| record.retired) != new.map(|record| record.retired) {
-            institutions.insert(*subject);
-        }
     }
     for institution in institutions {
         if let Some(offices) = state.selection.get(&institution) {
