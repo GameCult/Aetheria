@@ -543,6 +543,59 @@ mod tests {
         assert_eq!(rows_read() - before, 2);
     }
 
+    /// Arbitrary interleavings of every write, finish and rollback, read back
+    /// over arbitrary ranges: `indexed` equals the projection computed from the
+    /// map at every step, and the index is the rebuild after each close.
+    #[test]
+    fn indexed_equals_truth_over_a_random_walk_of_writes_and_ranges() {
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = move |bound: u64| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state % bound
+        };
+        let mut docs = spread(&[(0, 5), (1, 17), (2, 17)]);
+        for step in 0..4000 {
+            let key = next(12) as u8;
+            match next(8) {
+                0 | 1 => {
+                    docs.insert(key, next(100) as u8);
+                }
+                2 => {
+                    docs.remove(&key);
+                }
+                3 => {
+                    if let Some(value) = docs.get_mut(&key) {
+                        *value = (next(100)) as u8;
+                    }
+                }
+                4 => {
+                    let fresh = next(100) as u8;
+                    docs.entry(key).or_insert(fresh);
+                }
+                5 => {
+                    docs.finish();
+                    assert!(docs.index_is_derived(), "step {step}: after finish");
+                }
+                6 => {
+                    docs.rollback();
+                    assert!(docs.index_is_derived(), "step {step}: after rollback");
+                }
+                _ => {}
+            }
+            let (a, b) = (next(11) as u8, next(11) as u8);
+            let (lo, hi) = (a.min(b), a.max(b));
+            let all = truth(&docs);
+            assert_eq!(docs.indexed(..), all, "step {step}: full range");
+            let within = |keep: &dyn Fn(u8) -> bool| -> Vec<(u8, u8)> {
+                all.iter().copied().filter(|(point, _)| keep(*point)).collect()
+            };
+            assert_eq!(docs.indexed(lo..=hi), within(&|p| (lo..=hi).contains(&p)), "step {step}: {lo}..={hi}");
+            assert_eq!(docs.indexed(..hi), within(&|p| p < hi), "step {step}: ..{hi}");
+        }
+    }
+
     #[test]
     fn walking_the_open_log_is_counted_even_when_nothing_matches() {
         let mut docs = spread(&[(1, 10), (2, 21), (3, 33)]);
