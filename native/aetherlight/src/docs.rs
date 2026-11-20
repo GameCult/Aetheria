@@ -289,6 +289,30 @@ impl<K: Ord + Clone, V: Clone + PartialEq, P: Projection<V>> Docs<K, V, P> {
         found
     }
 
+    /// The committed index's (point, key) entries inside `range` for keys the
+    /// open log did not change: no walk of the log, so a bulk transaction pays
+    /// for the entries it returns and not for every key it touched. A key the
+    /// log changed is the caller's to judge from `changes()`.
+    pub(crate) fn indexed_unchanged<R: std::ops::RangeBounds<P::Point>>(
+        &self,
+        range: R,
+    ) -> Vec<(P::Point, K)> {
+        let found: Vec<(P::Point, K)> = self
+            .index
+            .range((range.start_bound(), range.end_bound()))
+            .flat_map(|(point, keys)| keys.iter().map(move |key| (point, key)))
+            .filter(|(_, key)| {
+                self.touched
+                    .get(*key)
+                    .is_none_or(|old| self.map.get(*key) == old.as_ref())
+            })
+            .map(|(point, key)| (point.clone(), key.clone()))
+            .collect();
+        #[cfg(test)]
+        count_rows(found.len() as u64);
+        found
+    }
+
     /// Whether the index is exactly the projection of the map (test builds).
     #[cfg(test)]
     pub(crate) fn index_is_derived(&self) -> bool {
@@ -595,6 +619,20 @@ mod tests {
             assert_eq!(docs.indexed(lo..=hi), within(&|p| (lo..=hi).contains(&p)), "step {step}: {lo}..={hi}");
             assert_eq!(docs.indexed(..hi), within(&|p| p < hi), "step {step}: ..{hi}");
         }
+    }
+
+    #[test]
+    fn indexed_unchanged_names_the_committed_entries_of_keys_the_log_did_not_change() {
+        let mut docs = spread(&[(1, 10), (2, 21), (3, 33), (4, 11)]);
+        docs.insert(1, 55); // changed
+        docs.remove(&2); // removed
+        docs.insert(3, 33); // touched, written back: unchanged
+        docs.insert(9, 11); // added: not in the committed index
+        let before = rows_read();
+        let found = docs.indexed_unchanged(1..=1);
+        assert_eq!(found, vec![(1, 4)], "only the committed entries of unchanged keys");
+        assert_eq!(rows_read() - before, 1, "no walk of the log, only the entries returned");
+        assert_eq!(docs.indexed_unchanged(..), vec![(1, 4), (3, 3)], "key 3 written back counts as unchanged");
     }
 
     #[test]
