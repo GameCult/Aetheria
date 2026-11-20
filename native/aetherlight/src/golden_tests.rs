@@ -898,6 +898,15 @@ fn read_work_is_equal_at_100_and_1600() {
         assert!(state.facts.len() >= persons / 10 && state.channels.len() == persons / 10);
         assert!(state.positions.len() >= persons && state.commitments.len() >= persons);
         assert!(state.edges.len() + 1 == persons / 10 && state.selection.len() == persons / 10);
+        // Not at scale, on purpose: `derive_motion` still walks every dependency
+        // row, so a dependency per person would grow a tick's reads. The owner
+        // is follow-up aetherlight-cross-partition-views; when it lands this
+        // count flips to world scale (`>= persons`) so a scan of the partition
+        // is seen.
+        assert_eq!(state.dependencies.len(), 2);
+        // The gate world opens no forum, so `redress` is empty here; the same
+        // follow-up owns populating it at scale beside dependencies.
+        assert_eq!(state.redress.len(), 0);
         let mut counts = Vec::new();
         for _ in 0..3 {
             counts.push(submit_counting_rows(&mut kernel, tick_body(1)));
