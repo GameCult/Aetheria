@@ -635,12 +635,54 @@ fn authority_target_of(target: Target) -> Option<AuthorityTarget> {
 /// Admission runs at commit against live state, so a route that closed while
 /// the proposal was in flight makes this fail rather than letting a stale path
 /// commit.
-fn reachable(
+pub(super) fn reachable(
     state: &WorldState,
     actor: SubjectId,
     authority: &BTreeSet<AuthorityGrant>,
     destination: EntityId,
     within: Cost,
+) -> bool {
+    reach(state, actor, authority, destination, within, |place| {
+        state
+            .edges
+            .indexed(place..=place)
+            .into_iter()
+            .map(|(_, edge_id)| edge_id)
+            .collect()
+    })
+}
+
+/// What `reachable` was before the index: every edge asked at every settled place.
+#[cfg(test)]
+pub(super) fn reachable_by_scan(
+    state: &WorldState,
+    actor: SubjectId,
+    authority: &BTreeSet<AuthorityGrant>,
+    destination: EntityId,
+    within: Cost,
+) -> bool {
+    reach(state, actor, authority, destination, within, |place| {
+        state
+            .edges
+            .iter()
+            .filter(|(_, record)| {
+                let (from, to) = record.endpoints();
+                from == place || to == place
+            })
+            .map(|(edge_id, _)| *edge_id)
+            .collect()
+    })
+}
+
+/// The search, given how the routes touching a place are found, in `EdgeId`
+/// order.
+fn reach(
+    state: &WorldState,
+    actor: SubjectId,
+    authority: &BTreeSet<AuthorityGrant>,
+    destination: EntityId,
+    within: Cost,
+    routes_at: impl Fn(EntityId) -> Vec<EdgeId>,
 ) -> bool {
     let Some(origin) = state.positions.get(&actor).map(|position| position.place) else {
         return false;
@@ -661,11 +703,9 @@ fn reachable(
             return true;
         }
         settled.insert(place);
-        let outbound: Vec<(EdgeId, EntityId, u64)> = state
-            .edges
-            .indexed(place..=place)
+        let outbound: Vec<(EdgeId, EntityId, u64)> = routes_at(place)
             .into_iter()
-            .map(|(_, edge_id)| (edge_id, &state.edges[&edge_id]))
+            .map(|edge_id| (edge_id, &state.edges[&edge_id]))
             .filter(|(_, record)| record.is_open())
             .filter_map(|(edge_id, record)| {
                 let (from, to) = record.endpoints();

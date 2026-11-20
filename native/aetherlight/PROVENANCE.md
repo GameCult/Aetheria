@@ -420,3 +420,51 @@ O(world), and follow-up `aetherlight-read-indexes-timing-gate` owns the gate. Wh
 this cut owns is the work it does for the digest, which
 `golden_tests::digest_work_is_equal_at_100_and_1600` pins: document digests per
 commit equal at both sizes and equal to Added + Removed + 2 x Updated.
+
+## Cut AL3b-2: partition read indexes, and the read-work gate
+
+Authority: cut `aetherlight-read-indexes` r1 of campaign `aetheria-release`;
+rulings `aetherlight-narrative-state-owner`, `cultnet-scale-is-not-negotiable`,
+`terminus-clockwork-world`. Base `576605c7b`. No digested byte moves:
+`fixtures/golden.digests` is identical at every commit of the cut.
+
+Read indexes are derived state. A `Docs` may carry a `Projection`, a pure function
+of one document's value (`DueAt`, `StandsAt`, `ChildOf`, `BySource`, `ByEndpoint`,
+`ByController`, `ByIncumbent`, in `lib.rs` beside `world_state!`). The index is the
+projection of the map as of the last `finish`, folded by `Docs::finish` from the
+same changed-key list the digest folds. It is not a partition: not digested, not
+encoded, ignored by equality, never exported. Opening a world builds it by replay,
+since genesis and every replayed commit close through `finish`; there is no rebuild
+path. `Docs::indexed(range)` returns (point, key) in order and is corrected by the
+open log (a logged key's committed entries are dropped and its current points are
+read from the map), so it is true mid-transaction; `rollback` never touches the
+index because the index never saw the transaction. `Docs` no longer derefs to its
+map: every read is an inherent method, so no reader can step around the counter.
+
+Read work is counted where reads are owned. In test builds `docs::rows_read()` is
+the number of rows any `Docs` iterator has yielded plus the entries every `indexed`
+call returned. `golden_tests::read_work_is_equal_at_100_and_1600` asserts that a
+tick (two routines rolled, two obligations pressed) and a colocated speech read
+the same number of rows at 100 and 1600 persons; `operation_reads_are_equal_at_100_and_1600`
+does the same for the reads no submit shape reaches (a two-level `under_place`, a
+`DischargeCommitment` among N pressure rows, one incumbent's `delegated_authority`,
+a three-route `reachable`). Wall time is reported by `clockwork_commit_cost` and
+asserted nowhere: it is noise at this scale. The gate world holds a route, a
+`Reach::Place` channel and an institution with an office per place, because an
+empty partition hides its scan.
+
+Eight scans became index reads: `under_place`, `audience` (colocated), the pressure
+holders of `DischargeCommitment`, `scope_components`' routes and controls,
+`delegated_authority`, `derive_motion`'s commitment walk and `reachable`'s outbound
+edges. Each old scan is kept as a `cfg(test)` `*_by_scan` reference, and
+`index_reads_equal_reference_scans` compares them over every revision of the golden
+session, the populated worlds and forty clockwork commits. `indexes_are_derived`
+rebuilds every index from its map after each commit, after reopen and after each
+failed apply; `a_corrupted_index_is_detected` damages each index both ways.
+
+Reads that still scan, each with its owner: `derive_motion`'s dependencies loop and
+`snapshot` (the host's whole-world projection, never on the commit path); the
+resolver's reads of the whole world in `AdmitPatch`
+(`aetherlight-resolver-reads-world`); `aetherlight-cross-partition-views`. The
+"Timing" paragraph of AL3b above is superseded: the gate it deferred is
+`read_work_is_equal_at_100_and_1600`.

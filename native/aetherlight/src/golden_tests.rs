@@ -258,14 +258,27 @@ fn incremental_digest_equals_full_recompute() {
 /// The clockwork world: `persons` persons, ten to a place, one Routine each
 /// with period `persons / 2`, due `1 + i mod (persons / 2)`, so a one-minute
 /// tick rolls two routines at every size and a speech reaches the same nine
-/// listeners.
+/// listeners. Every partition a read index serves is populated, because an
+/// empty one hides its scan: one route between consecutive places, one
+/// `Reach::Place` channel per place controlled by its first person, one
+/// institution per place with a warden office held by that person, and two
+/// Obligations past due from the first minute, so a tick presses two sources
+/// at every size.
 fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate::AffordanceId) {
     use crate::patch::kernel_speak_grant;
-    use crate::patch::{EntityDeclaration, SubjectDeclaration};
-    use crate::{CallerId, CommandEnvelope, CreateWorld, EntityKind, SubjectKind};
+    use crate::patch::{
+        AccessKind, AuthorityGrantRef, AuthorityTargetRef, ChannelDeclaration, EntityDeclaration,
+        ReachRef, RouteDeclaration, SubjectDeclaration,
+    };
+    use crate::tests::{LEVY_KIND, WARDEN_OFFICE, authority_kind, office};
+    use crate::{CallerId, CommandEnvelope, CreateWorld, Cost, EntityKind, SubjectKind};
+    use std::collections::BTreeSet;
 
     let places = persons / 10;
+    let draft_place = |place: usize| Ref::Draft(DraftHandle::new(format!("place-{place}")));
+    let draft_person = |person: usize| Ref::Draft(DraftHandle::new(format!("person-{person}")));
     let mut declarations = Vec::new();
+    let mut offices = Vec::new();
     for place in 0..places {
         declarations.push(Declaration::Entity(EntityDeclaration {
             handle: DraftHandle::new(format!("place-{place}")),
@@ -273,6 +286,48 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             kind: EntityKind::Place,
             container: None,
         }));
+        if place + 1 < places {
+            declarations.push(Declaration::Route(RouteDeclaration {
+                handle: DraftHandle::new(format!("route-{place}")),
+                label: format!("Route {place}"),
+                from: draft_place(place),
+                to: draft_place(place + 1),
+                access: AccessKind::Public,
+                cost: Cost(1),
+            }));
+        }
+        declarations.push(Declaration::Channel(ChannelDeclaration {
+            handle: DraftHandle::new(format!("channel-{place}")),
+            label: format!("Channel {place}"),
+            reach: ReachRef::Place(draft_place(place)),
+            controller: Some(draft_person(place * 10)),
+        }));
+        let institution = DraftHandle::new(format!("institution-{place}"));
+        declarations.push(Declaration::Subject(SubjectDeclaration {
+            handle: institution.clone(),
+            label: format!("Institution {place}"),
+            kind: SubjectKind::Institution,
+            affordances: BTreeSet::new(),
+            position: None,
+            import_key: None,
+        }));
+        offices.push(ComponentOp::GrantAuthority {
+            holder: Ref::Draft(institution.clone()),
+            grant: AuthorityGrantRef {
+                kind: authority_kind(LEVY_KIND),
+                over: AuthorityTargetRef::PlaceSubtree(draft_place(place)),
+            },
+        });
+        offices.push(ComponentOp::OpenOffice {
+            institution: Ref::Draft(institution.clone()),
+            office: office(WARDEN_OFFICE),
+            delegated: BTreeSet::from([authority_kind(LEVY_KIND)]),
+        });
+        offices.push(ComponentOp::InstallIncumbent {
+            institution: Ref::Draft(institution),
+            office: office(WARDEN_OFFICE),
+            incumbent: draft_person(place * 10),
+        });
     }
     for person in 0..persons {
         declarations.push(Declaration::Subject(SubjectDeclaration {
@@ -290,7 +345,7 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             title: "Clockwork".into(),
             patch: WorldPatch {
                 declarations,
-                operations: Vec::new(),
+                operations: offices,
                 evidence: Vec::new(),
             },
             grammar: None,
@@ -302,7 +357,7 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
         .map(|person| subject_by_label(&kernel.state, &format!("Person {person}")))
         .collect();
     let period = (persons / 2) as u64;
-    let routines = people
+    let mut routines: Vec<ComponentOp> = people
         .iter()
         .enumerate()
         .map(|(index, subject)| ComponentOp::CreateCommitment {
@@ -315,6 +370,15 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             statement: Statement::new("Keeps the hour.").unwrap(),
         })
         .collect();
+    routines.extend(people[..2].iter().map(|subject| ComponentOp::CreateCommitment {
+        subject: Ref::Existing(*subject),
+        counterparty: Some(Ref::Existing(people[2])),
+        kind: CommitmentKind::Obligation,
+        due: FictionalMinutes(1),
+        period: None,
+        checks: Vec::new(),
+        statement: Statement::new("Owes the tithe.").unwrap(),
+    }));
     let placing = CommandEnvelope {
         world_id: kernel.state.header.world_id,
         expected_revision: kernel.state.revision,
@@ -490,12 +554,14 @@ fn a_failed_apply_rolls_back() {
                 kernel.state.state_digest,
                 "{label}: the accumulator no longer matches the documents"
             );
+            assert_indexes_derived(&kernel.state, &format!("{label}, after the failure"));
 
             let envelope = clockwork_envelope(&kernel, body);
             kernel
                 .submit(envelope, &AuthenticatedCaller::verified_play())
                 .unwrap_or_else(|error| panic!("{label}: the next honest command: {error:?}"));
             assert_eq!(kernel.state.full_state_digest().unwrap(), kernel.state.state_digest);
+            assert_indexes_derived(&kernel.state, &format!("{label}, after the honest command"));
         }
     }
 }
@@ -577,17 +643,21 @@ fn every_partition_is_digested_undone_and_finished() {
 }
 
 /// What one tick and one speech cost to commit as the world grows, by the
-/// clockwork world above. Run on its own, in release, to read the numbers; no
-/// time is asserted here. The timing gate belongs to the follow-up
-/// `aetherlight-read-indexes-timing-gate`, because the world reads a commit
-/// makes (`audience`, `derive_motion`) are still O(world) and bound the ratio.
-/// `digest_work_is_equal_at_100_and_1600` is the gate on what this commit owns.
+/// clockwork world above: time, document digests and rows read (Docs rows plus
+/// index entries) per commit, and the 1600/100 ratios. Run on its own, in
+/// release, to read the numbers; nothing is asserted here. Wall time is noise
+/// at this scale (the same code ran a tick ratio of 2.8 to 4.9 over five
+/// runs), so the gate is `read_work_is_equal_at_100_and_1600`, which counts
+/// the rows each commit reads and fails when one grows with the world, and
+/// `digest_work_is_equal_at_100_and_1600` for what a commit digests.
 ///
 /// `cargo test --release --lib clockwork_commit_cost -- --ignored --nocapture`
 #[test]
 #[ignore]
 fn clockwork_commit_cost() {
-    println!("persons  create_ms  tick_ms  tick_digests  speech_ms  speech_digests");
+    println!(
+        "persons  create_ms  tick_ms  tick_digests  tick_rows  speech_ms  speech_digests  speech_rows"
+    );
     let mut ticks_ms = Vec::new();
     let mut speeches_ms = Vec::new();
     for persons in [100usize, 400, 1600] {
@@ -596,16 +666,18 @@ fn clockwork_commit_cost() {
         let create_ms = started.elapsed().as_secs_f64() * 1e3;
         let play = AuthenticatedCaller::verified_play();
 
-        let (mut ticks, mut tick_digests) = (0.0, 0);
+        let (mut ticks, mut tick_digests, mut tick_rows) = (0.0, 0, 0);
         for _ in 0..30 {
             let tick = clockwork_envelope(&kernel, tick_body(1));
             crate::digest::DOC_DIGESTS.with(|count| count.set(0));
+            let rows = crate::docs::rows_read();
             let started = Instant::now();
             kernel.submit(tick, &play).expect("the tick commits");
             ticks += started.elapsed().as_secs_f64() * 1e3;
             tick_digests = crate::digest::DOC_DIGESTS.with(|count| count.get());
+            tick_rows = crate::docs::rows_read() - rows;
         }
-        let (mut speeches, mut speech_digests) = (0.0, 0);
+        let (mut speeches, mut speech_digests, mut speech_rows) = (0.0, 0, 0);
         for index in 0..30 {
             let act = clockwork_envelope(
                 &kernel,
@@ -615,13 +687,15 @@ fn clockwork_commit_cost() {
                 },
             );
             crate::digest::DOC_DIGESTS.with(|count| count.set(0));
+            let rows = crate::docs::rows_read();
             let started = Instant::now();
             kernel.submit(act, &play).expect("the speech commits");
             speeches += started.elapsed().as_secs_f64() * 1e3;
             speech_digests = crate::digest::DOC_DIGESTS.with(|count| count.get());
+            speech_rows = crate::docs::rows_read() - rows;
         }
         println!(
-            "{persons:>7}  {create_ms:>9.1}  {:>7.3}  {tick_digests:>12}  {:>9.3}  {speech_digests:>14}",
+            "{persons:>7}  {create_ms:>9.1}  {:>7.3}  {tick_digests:>12}  {tick_rows:>9}  {:>9.3}  {speech_digests:>14}  {speech_rows:>11}",
             ticks / 30.0,
             speeches / 30.0,
         );
@@ -757,4 +831,360 @@ fn a_commitment_due_at_or_before_the_clock_reads_past_due() {
         subject.commitments.iter().any(|commitment| commitment.past_due),
         "the routine fell due behind the clock"
     );
+}
+
+/// Rows (Docs rows and index entries) one submit read.
+fn submit_counting_rows(kernel: &mut WorldKernel, body: CommandBody) -> u64 {
+    let envelope = clockwork_envelope(kernel, body);
+    let before = crate::docs::rows_read();
+    kernel
+        .submit(envelope, &AuthenticatedCaller::verified_play())
+        .expect("the commit lands");
+    crate::docs::rows_read() - before
+}
+
+/// A commit's read work is what it touches, not what the world holds: a tick
+/// that rolls two routines and presses two obligations, and a colocated speech,
+/// read the same number of rows at 100 persons and at 1600. The count is taken
+/// where reads are owned (`Docs`), so a reader that scans a partition cannot
+/// hide from it. Wall time is not asserted anywhere: it is noise at this scale.
+#[test]
+fn read_work_is_equal_at_100_and_1600() {
+    let mut worked = Vec::new();
+    for persons in [100usize, 1600] {
+        let (mut kernel, people, speak_entry) = clockwork_world(persons);
+        let mut counts = Vec::new();
+        for _ in 0..3 {
+            counts.push(submit_counting_rows(&mut kernel, tick_body(1)));
+        }
+        for index in 0..3 {
+            let speech = CommandBody::Act {
+                actor: people[index],
+                invocation: speak(speak_entry, &format!("Speech {index}.")),
+            };
+            counts.push(submit_counting_rows(&mut kernel, speech));
+        }
+        assert!(counts.iter().all(|rows| *rows > 0), "{persons} persons: a commit read nothing");
+        worked.push(counts);
+    }
+    assert_eq!(worked[0], worked[1], "read work grew with the world");
+}
+
+/// The reads a clockwork submit does not reach, inside one open transaction
+/// each: who stands under a two-level subtree, discharging a commitment while
+/// the world holds N pressure rows from other sources, one incumbent's
+/// delegated authority, and a path of three routes. (An `AdmitPatch` resolves
+/// against the whole world until follow-up `aetherlight-resolver-reads-world`,
+/// so no submit shape reaches these.)
+#[test]
+fn operation_reads_are_equal_at_100_and_1600() {
+    use crate::patch::ResolvedOp;
+    use crate::{Cost, PressureSource};
+    use std::collections::BTreeSet;
+
+    let mut worked = Vec::new();
+    for persons in [100usize, 1600] {
+        let (mut kernel, people, _) = clockwork_world(persons);
+        kernel
+            .submit(clockwork_envelope(&kernel, tick_body(1)), &AuthenticatedCaller::verified_play())
+            .expect("the tick presses the obligations");
+        let place = |label: &str| {
+            *kernel
+                .state
+                .entities
+                .iter()
+                .find(|(_, record)| record.label == label)
+                .expect("a declared place")
+                .0
+        };
+        let (zero, one, two, three) =
+            (place("Place 0"), place("Place 1"), place("Place 2"), place("Place 3"));
+
+        // N pressure rows from other sources, committed before the measured transaction.
+        kernel.state.begin();
+        for person in &people {
+            kernel.state.pressures.entry(*person).or_default().insert(
+                PressureSource::Subject(people[0]),
+                crate::patch::PressureMagnitude(1),
+            );
+        }
+        let folded = kernel.state.folded().unwrap();
+        kernel.state.finish(folded);
+
+        let state = &mut kernel.state;
+        let obligation = state.commitments[&people[0]]
+            .iter()
+            .find(|(_, commitment)| commitment.kind == CommitmentKind::Obligation)
+            .map(|(key, _)| *key)
+            .expect("the first person owes an obligation");
+
+        state.begin();
+        // Place 1 inside place 0, place 2 inside place 1.
+        state.entities.get_mut(&one).unwrap().container = Some(zero);
+        state.entities.get_mut(&two).unwrap().container = Some(one);
+
+        let mut counts = Vec::new();
+        let mut measure = |read: &mut dyn FnMut()| {
+            let before = crate::docs::rows_read();
+            read();
+            let rows = crate::docs::rows_read() - before;
+            assert!(rows > 0, "a read counted nothing");
+            counts.push(rows);
+        };
+        let mut under = BTreeSet::new();
+        measure(&mut || under = crate::under_place(state, zero));
+        assert_eq!(under.len(), 30, "places 0, 1 and 2 hold ten persons each");
+        let mut delegated = Default::default();
+        measure(&mut || delegated = crate::delegated_authority(state, people[0]));
+        assert_eq!(delegated.len(), 1, "the first person holds one office");
+        let authority = BTreeSet::new();
+        let mut reached = false;
+        measure(&mut || reached = crate::action::reachable(state, people[0], &authority, three, Cost(3)));
+        assert!(reached, "three routes of cost one reach place 3");
+        let mut applied = Ok(());
+        let revision = state.revision + 1;
+        measure(&mut || {
+            applied = crate::apply_operation(
+                state,
+                &ResolvedOp::DischargeCommitment { subject: people[0], key: obligation },
+                &[],
+                revision,
+            );
+        });
+        applied.expect("the obligation is discharged");
+        assert!(
+            state.pressures[&people[0]]
+                .keys()
+                .all(|source| !matches!(source, PressureSource::Commitment { key, .. } if *key == obligation)),
+            "the pressure the obligation sourced is gone"
+        );
+        state.rollback();
+        worked.push(counts);
+    }
+    assert_eq!(worked[0], worked[1], "an operation's read work grew with the world");
+}
+
+fn assert_indexes_derived(state: &crate::WorldState, label: &str) {
+    for (schema, docs) in state.partitions() {
+        assert!(docs.index_is_derived(), "{label}: the read index of {schema} left its documents");
+    }
+}
+
+/// The states a test walks: every revision of the golden session as replay
+/// derives it, the live and reopened golden world, each populated world, and
+/// forty commits of the clockwork world.
+fn walked_states() -> Vec<(String, crate::WorldState)> {
+    let mut states = Vec::new();
+    let (kernel, _) = golden_session();
+    let commits = kernel.journal.commits_for_test();
+    for index in 0..commits.len() {
+        let replayed = crate::journal::verify_history(&commits[..=index]).unwrap();
+        states.push((format!("golden revision {index}"), replayed));
+    }
+    let reopened = WorldKernel::open(&kernel.export().unwrap()).unwrap();
+    states.push(("golden reopened".into(), reopened.state));
+    states.push(("golden live".into(), kernel.state));
+    for (index, world) in populated_worlds().into_iter().enumerate() {
+        states.push((format!("populated world {index}"), world));
+    }
+    let (mut kernel, people, speak_entry) = clockwork_world(100);
+    states.push(("clockwork created".into(), kernel.state.clone()));
+    for step in 0..40 {
+        let body = if step % 2 == 0 {
+            tick_body(1)
+        } else {
+            CommandBody::Act {
+                actor: people[step],
+                invocation: speak(speak_entry, &format!("Speech {step}.")),
+            }
+        };
+        let envelope = clockwork_envelope(&kernel, body);
+        kernel.submit(envelope, &AuthenticatedCaller::verified_play()).unwrap();
+        states.push((format!("clockwork commit {step}"), kernel.state.clone()));
+    }
+    states
+}
+
+/// Every read index is the projection of its partition and nothing else, after
+/// every commit the walked worlds make, however the world was reached.
+#[test]
+fn indexes_are_derived() {
+    for (label, state) in walked_states() {
+        assert_indexes_derived(&state, &label);
+    }
+}
+
+/// The first place an index read and the scan it replaced disagree, if any.
+fn reference_scan_disagreement(state: &crate::WorldState) -> Option<String> {
+    use crate::{Audience, Cost, PressureSource};
+    let now = state.header.now;
+    for minutes in [1, 30] {
+        let to = FictionalMinutes(now.0 + minutes);
+        if crate::clock::derive_motion(state, to) != crate::clock::derive_motion_by_scan(state, to) {
+            return Some(format!("derive_motion over {minutes} minutes"));
+        }
+    }
+    let subjects: Vec<_> = state.subjects.keys().copied().collect();
+    let places: Vec<_> = state
+        .entities
+        .iter()
+        .filter(|(_, record)| record.kind == crate::EntityKind::Place)
+        .map(|(id, _)| *id)
+        .collect();
+    for subject in &subjects {
+        if crate::audience(state, *subject, &Audience::Colocated)
+            != crate::audience_by_scan(state, *subject, &Audience::Colocated)
+        {
+            return Some(format!("colocated audience of {subject:?}"));
+        }
+        if crate::delegated_authority(state, *subject)
+            != crate::delegated_authority_by_scan(state, *subject)
+        {
+            return Some(format!("delegated authority of {subject:?}"));
+        }
+        if crate::channels_controlled_by(state, *subject)
+            != crate::channels_controlled_by_by_scan(state, *subject)
+        {
+            return Some(format!("channels controlled by {subject:?}"));
+        }
+        let authority = crate::subject_authority(state, *subject);
+        for place in &places {
+            if crate::action::reachable(state, *subject, &authority, *place, Cost(3))
+                != crate::action::reachable_by_scan(state, *subject, &authority, *place, Cost(3))
+            {
+                return Some(format!("reachable {place:?} from {subject:?}"));
+            }
+        }
+    }
+    for place in &places {
+        if crate::under_place(state, *place) != crate::under_place_by_scan(state, *place) {
+            return Some(format!("under_place {place:?}"));
+        }
+        if crate::routes_at(state, *place) != crate::routes_at_by_scan(state, *place) {
+            return Some(format!("routes at {place:?}"));
+        }
+    }
+    for (channel, _) in state.channels.iter() {
+        let actor = subjects.first().copied()?;
+        if crate::audience(state, actor, &Audience::Channel(*channel))
+            != crate::audience_by_scan(state, actor, &Audience::Channel(*channel))
+        {
+            return Some(format!("audience of channel {channel:?}"));
+        }
+    }
+    let mut sources: Vec<PressureSource> = state
+        .pressures
+        .iter()
+        .flat_map(|(_, held)| held.keys().copied())
+        .collect();
+    sources.extend(subjects.first().map(|first| PressureSource::Subject(*first)));
+    for source in sources {
+        if crate::pressure_holders(state, source) != crate::pressure_holders_by_scan(state, source) {
+            return Some(format!("holders of {source:?}"));
+        }
+    }
+    None
+}
+
+/// Each read an index answers equals the scan it replaced, at every walked state.
+#[test]
+fn index_reads_equal_reference_scans() {
+    for (label, state) in walked_states() {
+        assert_eq!(reference_scan_disagreement(&state), None, "{label}");
+    }
+}
+
+/// A read inside an open transaction sees what the transaction wrote, though
+/// the index has not: a subject moved through `positions` leaves its old room
+/// and joins the new one, a removed pressure row no longer lists its source, and
+/// after the rollback the reads are what they were.
+#[test]
+fn an_index_read_mid_transaction_sees_the_log() {
+    use crate::patch::Position;
+    use crate::{Audience, PressureSource};
+    let (mut kernel, people, _) = clockwork_world(20);
+    kernel
+        .submit(clockwork_envelope(&kernel, tick_body(1)), &AuthenticatedCaller::verified_play())
+        .expect("the tick presses the obligations");
+    let state = &mut kernel.state;
+    let (mover, in_old, in_new) = (people[1], people[2], people[11]);
+    let new_place = state.positions[&in_new].place;
+    assert_ne!(state.positions[&mover].place, new_place);
+    let obligation = state.commitments[&people[0]]
+        .iter()
+        .find(|(_, commitment)| commitment.kind == CommitmentKind::Obligation)
+        .map(|(key, _)| *key)
+        .expect("the first person owes an obligation");
+    let source = PressureSource::Commitment { subject: people[0], key: obligation };
+    let reads = |state: &crate::WorldState| {
+        (
+            crate::audience(state, in_old, &Audience::Colocated),
+            crate::audience(state, in_new, &Audience::Colocated),
+            crate::pressure_holders(state, source),
+        )
+    };
+    let before = reads(state);
+    assert!(before.0.contains(&mover) && !before.1.contains(&mover));
+    assert!(before.2.contains(&people[0]));
+
+    state.begin();
+    state.positions.insert(mover, Position { place: new_place });
+    state.pressures.remove(&people[0]);
+    let during = reads(state);
+    assert!(!during.0.contains(&mover), "the old room still lists the mover");
+    assert!(during.1.contains(&mover), "the new room does not list the mover");
+    assert!(!during.2.contains(&people[0]), "a removed pressure row still lists its source");
+    assert_eq!(reference_scan_disagreement(state), None, "mid-transaction reads equal the scans");
+    state.rollback();
+
+    assert_indexes_derived(state, "after the rollback");
+    assert_eq!(reads(state), before);
+}
+
+/// The oracle can see an index that disagrees with its documents: damaged one
+/// way (a document listed where it is not) or the other (a document left out),
+/// every indexed partition reports it, and the reads the index serves then
+/// differ from the scans they replaced.
+#[test]
+fn a_corrupted_index_is_detected() {
+    use std::collections::BTreeSet;
+    let mut worlds = populated_worlds();
+    let (mut kernel, _, _) = clockwork_world(20);
+    kernel
+        .submit(clockwork_envelope(&kernel, tick_body(1)), &AuthenticatedCaller::verified_play())
+        .unwrap();
+    worlds.push(kernel.state);
+    let mut reported = BTreeSet::new();
+    let mut misread = BTreeSet::new();
+    for world in &worlds {
+        for index in 0..crate::WorldState::PARTITIONS {
+            for stray in [true, false] {
+                let mut damaged = world.clone();
+                if !damaged.partitions_mut()[index].1.corrupt_index_first(stray) {
+                    continue;
+                }
+                let schema = damaged.partitions()[index].0;
+                assert!(
+                    !damaged.partitions()[index].1.index_is_derived(),
+                    "{schema}: damage (stray {stray}) went unseen"
+                );
+                reported.insert(schema);
+                if reference_scan_disagreement(&damaged).is_some() {
+                    misread.insert(schema);
+                }
+            }
+        }
+    }
+    let indexed: BTreeSet<&str> = [
+        "aetherlight.entity.v1",
+        "aetherlight.edge.v1",
+        "aetherlight.position.v1",
+        "aetherlight.channel.v1",
+        "aetherlight.selection.v1",
+        "aetherlight.commitments.v1",
+        "aetherlight.pressures.v1",
+    ]
+    .into();
+    assert_eq!(reported, indexed, "exactly the indexed partitions can be damaged");
+    assert_eq!(misread, indexed, "a damaged index must change what a reader answers");
 }

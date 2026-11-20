@@ -2752,6 +2752,30 @@ fn audience(state: &WorldState, actor: SubjectId, of: &Audience) -> BTreeSet<Sub
     }
 }
 
+/// What `audience` was before the index: every position compared with the
+/// actor's, and `under_place_by_scan` for a channel's place. The index read
+/// must equal it.
+#[cfg(test)]
+fn audience_by_scan(state: &WorldState, actor: SubjectId, of: &Audience) -> BTreeSet<SubjectId> {
+    match of {
+        Audience::Colocated => {
+            let Some(here) = state.positions.get(&actor).copied() else {
+                return BTreeSet::new();
+            };
+            state
+                .positions
+                .iter()
+                .filter(|(_, position)| **position == here)
+                .map(|(subject_id, _)| *subject_id)
+                .collect()
+        }
+        Audience::Channel(channel) => match state.channels.get(channel).map(|record| &record.reach) {
+            Some(Reach::Place(root)) => under_place_by_scan(state, *root),
+            _ => audience(state, actor, of),
+        },
+    }
+}
+
 /// Whether an actor may broadcast into an audience: either the actor stands
 /// inside the declared reach, or — for a channel — the actor is that
 /// channel's controller. The controller's privilege is narrow: it lets the

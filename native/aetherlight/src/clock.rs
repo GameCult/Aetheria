@@ -111,20 +111,36 @@ mod step {
 /// magnitudes. The kernel stays an exact function of the command sequence, and
 /// the tick cadence is one operational constant in `runtime.rs`.
 pub(super) fn derive_motion(state: &WorldState, to: FictionalMinutes) -> Motion {
-    let mut fulfilled = Vec::new();
-    let mut pressed: BTreeMap<(SubjectId, PressureSource), u32> = BTreeMap::new();
-
     // Only subjects with something due: the commitments index answers it
-    // without walking every promise in the world. The dependencies walk below
-    // is still one row per subject holding a dependency: follow-up
-    // aetherlight-cross-partition-views.
+    // without walking every promise in the world.
     let due: std::collections::BTreeSet<SubjectId> = state
         .commitments
         .indexed(..=to)
         .into_iter()
         .map(|(_, subject)| subject)
         .collect();
-    for subject in &due {
+    motion_of(state, to, due)
+}
+
+/// What `derive_motion` was before the index: every subject holding a promise.
+/// The index read must derive the same motion.
+#[cfg(test)]
+pub(super) fn derive_motion_by_scan(state: &WorldState, to: FictionalMinutes) -> Motion {
+    motion_of(state, to, state.commitments.keys().copied().collect())
+}
+
+/// The motion over `promisors`, which must include every subject with a
+/// commitment due by `to`. The dependencies walk below is still one row per
+/// subject holding a dependency: follow-up aetherlight-cross-partition-views.
+fn motion_of(
+    state: &WorldState,
+    to: FictionalMinutes,
+    promisors: std::collections::BTreeSet<SubjectId>,
+) -> Motion {
+    let mut fulfilled = Vec::new();
+    let mut pressed: BTreeMap<(SubjectId, PressureSource), u32> = BTreeMap::new();
+
+    for subject in &promisors {
         let held = &state.commitments[subject];
         // A retired subject cannot act, and neither fulfilling a routine nor
         // pressing an obligation or goal is anything but that subject acting:
