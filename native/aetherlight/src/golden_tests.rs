@@ -745,15 +745,22 @@ fn every_partition_is_digested_undone_and_finished() {
 /// clockwork world above: time, document digests and rows read (Docs rows plus
 /// index entries) per commit, and the 1600/100 ratios. Run on its own, in
 /// release, to read the numbers; nothing is asserted here. Wall time is noise
-/// at this scale (the same code ran a tick ratio of 2.8 to 4.9 over five
-/// runs), so the gate is `read_work_is_equal_at_100_and_1600`, which counts
-/// the rows each commit reads and fails when one grows with the world, and
+/// at this scale (a 30-sample mean ratio of speech ran 2.1 to 4.2 over runs
+/// whose rows were flat), so each figure is the median of 200 commits, ticks
+/// and speeches interleaved so drift and cache state fall on both, and the
+/// gate is `read_work_is_equal_at_100_and_1600`, which counts the rows each
+/// commit reads and fails when one grows with the world, and
 /// `digest_work_is_equal_at_100_and_1600` for what a commit digests.
 ///
 /// `cargo test --release --lib clockwork_commit_cost -- --ignored --nocapture`
 #[test]
 #[ignore]
 fn clockwork_commit_cost() {
+    const SAMPLES: usize = 200;
+    fn median(mut values: Vec<f64>) -> f64 {
+        values.sort_by(|a, b| a.partial_cmp(b).expect("a time"));
+        values[values.len() / 2]
+    }
     println!(
         "persons  create_ms  tick_ms  tick_digests  tick_rows  speech_ms  speech_digests  speech_rows"
     );
@@ -765,47 +772,71 @@ fn clockwork_commit_cost() {
         let create_ms = started.elapsed().as_secs_f64() * 1e3;
         let play = AuthenticatedCaller::verified_play();
 
-        let (mut ticks, mut tick_digests, mut tick_rows) = (0.0, 0, 0);
-        for _ in 0..30 {
-            let tick = clockwork_envelope(&kernel, tick_body(1));
-            crate::digest::DOC_DIGESTS.with(|count| count.set(0));
-            let rows = crate::docs::rows_read();
-            let started = Instant::now();
-            kernel.submit(tick, &play).expect("the tick commits");
-            ticks += started.elapsed().as_secs_f64() * 1e3;
-            tick_digests = crate::digest::DOC_DIGESTS.with(|count| count.get());
-            tick_rows = crate::docs::rows_read() - rows;
-        }
-        let (mut speeches, mut speech_digests, mut speech_rows) = (0.0, 0, 0);
-        for index in 0..30 {
-            let act = clockwork_envelope(
-                &kernel,
+        let (mut ticks, mut speeches) = (Vec::new(), Vec::new());
+        let (mut tick_digests, mut tick_rows, mut speech_digests, mut speech_rows) = (0, 0, 0, 0);
+        for index in 0..SAMPLES {
+            let body = if index % 2 == 0 {
+                CommandBody::AdvanceTime { minutes: TickMinutes::new(1).unwrap() }
+            } else {
                 CommandBody::Act {
-                    actor: people[index],
+                    actor: people[index % 30],
                     invocation: speak(speak_entry, &format!("Speech {index}.")),
-                },
-            );
+                }
+            };
+            let is_tick = index % 2 == 0;
+            let envelope = clockwork_envelope(&kernel, body);
             crate::digest::DOC_DIGESTS.with(|count| count.set(0));
             let rows = crate::docs::rows_read();
             let started = Instant::now();
-            kernel.submit(act, &play).expect("the speech commits");
-            speeches += started.elapsed().as_secs_f64() * 1e3;
-            speech_digests = crate::digest::DOC_DIGESTS.with(|count| count.get());
-            speech_rows = crate::docs::rows_read() - rows;
+            kernel.submit(envelope, &play).expect("the commit lands");
+            let elapsed = started.elapsed().as_secs_f64() * 1e3;
+            let digests = crate::digest::DOC_DIGESTS.with(|count| count.get());
+            let rows = crate::docs::rows_read() - rows;
+            if is_tick {
+                ticks.push(elapsed);
+                (tick_digests, tick_rows) = (digests, rows);
+            } else {
+                speeches.push(elapsed);
+                (speech_digests, speech_rows) = (digests, rows);
+            }
         }
+        let (tick, speech) = (median(ticks), median(speeches));
         println!(
-            "{persons:>7}  {create_ms:>9.1}  {:>7.3}  {tick_digests:>12}  {tick_rows:>9}  {:>9.3}  {speech_digests:>14}  {speech_rows:>11}",
-            ticks / 30.0,
-            speeches / 30.0,
+            "{persons:>7}  {create_ms:>9.1}  {tick:>7.3}  {tick_digests:>12}  {tick_rows:>9}  {speech:>9.3}  {speech_digests:>14}  {speech_rows:>11}",
         );
-        ticks_ms.push(ticks / 30.0);
-        speeches_ms.push(speeches / 30.0);
+        ticks_ms.push(tick);
+        speeches_ms.push(speech);
     }
     println!(
-        "ratio 1600/100: tick {:.2}  speech {:.2}",
+        "ratio of medians 1600/100: tick {:.2}  speech {:.2}",
         ticks_ms[2] / ticks_ms[0],
         speeches_ms[2] / speeches_ms[0]
     );
+}
+
+/// What opening a world costs as it grows: `WorldKernel::open` of the clockwork
+/// world's export replays genesis and every commit as bulk commits, which the
+/// per-commit gate does not see. Median of five opens per size; nothing asserted
+/// (rows are pinned by `folding_a_bulk_commit_reads_rows_in_proportion_to_the_change`).
+///
+/// `cargo test --release --lib open_cost -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn open_cost() {
+    println!("persons  open_ms");
+    for persons in [200usize, 400, 800, 1600, 3200] {
+        let (kernel, _, _) = clockwork_world(persons);
+        let exported = kernel.export().unwrap();
+        let mut times: Vec<f64> = (0..5)
+            .map(|_| {
+                let started = Instant::now();
+                WorldKernel::open(&exported).expect("the world opens");
+                started.elapsed().as_secs_f64() * 1e3
+            })
+            .collect();
+        times.sort_by(|a, b| a.partial_cmp(b).expect("a time"));
+        println!("{persons:>7}  {:>7.1}", times[2]);
+    }
 }
 
 /// A document written back to what it was costs no digest: the transaction
