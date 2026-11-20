@@ -1261,13 +1261,15 @@ public abstract class Entity
 
     // This observer's stance toward `other`: its own override, else its belief. Allies (the observer's own non-null faction) are
     // known by datalink; any other contact is believed by the telemetry received with its track, and unknown (never hostile)
-    // without it. In a zone owned by a faction a contact is hostile when its claimed faction is the owner's and the owner does
-    // not permit its presence, or when this is the owner's ship and believes the contact trespasses.
+    // without it. A contact whose claimed faction this observer's faction Hates is hostile in any zone, owned or not; Hostile to
+    // Beloved govern presence instead. In a zone owned by a faction a contact is hostile when its claimed faction is the owner's and
+    // the owner does not permit its presence, or when this is the owner's ship and believes the contact trespasses.
     public bool IsHostileTo(Entity other)
     {
         if (_iffOverrides.TryGetValue(other, out var overrideHostile)) return overrideHostile;
         if (Faction != null && other.Faction == Faction) return false;
         if (!_telemetry.TryGetValue(other, out var claimed)) return false;
+        if (Regard(Faction, claimed) == FactionRelationship.Hated) return true;
         var owner = Zone.GalaxyZone.Owner;
         if (owner == null) return false;
         return (claimed == owner && !(PresencePermitted?.Value ?? true)) || (Faction == owner && BelievesTrespassing(other));
@@ -1300,14 +1302,27 @@ public abstract class Entity
         return false;
     }
 
-    // TODO: Inter-faction relationships
+    // How `faction` regards this entity's faction.
     public FactionRelationship GetFactionRelationship(Faction faction)
     {
         if (faction == null)
             return FactionRelationship.Neutral;
         if (this is Ship {IsPlayerShip: true})
             return Zone.Galaxy.FactionRelationships[faction];
-        return faction == Faction ? FactionRelationship.Beloved : FactionRelationship.Neutral;
+        return Regard(faction, Faction);
+    }
+
+    // The one reader of Faction.Relations: how `regarding` regards `regarded`. Unset either side is Neutral, a faction regards
+    // itself Beloved, and absent from the map is Neutral. A faction the catalog does not hold has no key and is Neutral.
+    private FactionRelationship Regard(Faction regarding, Faction regarded)
+    {
+        if (regarding == null || regarded == null) return FactionRelationship.Neutral;
+        if (regarding == regarded) return FactionRelationship.Beloved;
+        if (regarding.Relations == null || regarding.Relations.Count == 0) return FactionRelationship.Neutral;
+        var key = ItemManager.ItemData.TryGetHandle(regarded)?.Key;
+        return key != null && regarding.Relations.TryGetValue(new CultRecordRef<Faction>(key.Value), out var relationship)
+            ? relationship
+            : FactionRelationship.Neutral;
     }
 
     public static bool IsPresencePermitted(FactionRelationship relationship, SecurityLevel securityLevel) => 

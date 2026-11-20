@@ -444,4 +444,88 @@ public sealed class IffAndCombatTests : IDisposable
 
         Assert.Empty(eligible);
     }
+
+    // Two cached factions (Relations are read through the catalog's keys), with A regarding B as given when it is given, and a
+    // ship of each in the world's one ownerless zone.
+    private (Ship a, Ship b) Rivals(ItemManager items, Zone zone, FactionRelationship? aRegardsB)
+    {
+        var a = new Faction { Name = "A" };
+        var b = new Faction { Name = "B" };
+        items.ItemData.Upsert(a);
+        var bRef = items.ItemData.Upsert(b);
+        if (aRegardsB.HasValue)
+        {
+            a.Relations[bRef] = aRegardsB.Value;
+            items.ItemData.Upsert(a);
+        }
+        return (NewShip(items, zone, a), NewShip(items, zone, b));
+    }
+
+    // Hated is kill on sight in any zone, owned or not, once the claim is received with the track; it is directed, so B's stance
+    // toward A reads B's map. Kills: no Hated branch; reading the regarded side's map; reading other.Faction instead of the claim.
+    [Fact]
+    public void HatedIsKillOnSightInAnOwnerlessZone()
+    {
+        var (items, zone) = BuildWorld();
+        var (a, b) = Rivals(items, zone, FactionRelationship.Hated);
+
+        Assert.False(a.IsHostileTo(b)); // untracked: no claim to hate
+
+        Detect(a, b);
+        Detect(b, a);
+
+        Assert.True(a.IsHostileTo(b));
+        Assert.True(a.EntityHostility[b]);
+        Assert.False(b.IsHostileTo(a));
+        Assert.False(b.EntityHostility[a]);
+    }
+
+    // The ladder below Hated governs presence in owned space, not fire. Kills: treating Hostile or worse as kill on sight.
+    [Theory]
+    [InlineData(FactionRelationship.Hostile)]
+    [InlineData(FactionRelationship.Neutral)]
+    [InlineData(FactionRelationship.Beloved)]
+    public void ARelationShortOfHatedIsNotKillOnSight(FactionRelationship relationship)
+    {
+        var (items, zone) = BuildWorld();
+        var (a, b) = Rivals(items, zone, relationship);
+
+        Detect(a, b);
+        Detect(b, a);
+
+        Assert.False(a.IsHostileTo(b));
+        Assert.False(b.IsHostileTo(a));
+    }
+
+    // An IFF override is the observer's own word and outranks what its faction holds. Kills: the relation branch placed before the override.
+    [Fact]
+    public void AnOverrideOutranksARelation()
+    {
+        var (items, zone) = BuildWorld();
+        var (a, b) = Rivals(items, zone, FactionRelationship.Hated);
+        Detect(a, b);
+        Assert.True(a.IsHostileTo(b));
+
+        a.SetIff(b, false);
+
+        Assert.False(a.IsHostileTo(b));
+        Assert.False(a.EntityHostility[b]);
+    }
+
+    // A faction the catalog does not hold has no key, so it is regarded Neutral and nothing throws. Kills: RefOf in the lookup.
+    [Fact]
+    public void AFactionOutsideTheCacheIsRegardedNeutral()
+    {
+        var (items, zone) = BuildWorld();
+        var a = new Faction { Name = "A" };
+        items.ItemData.Upsert(a);
+        a.Relations[items.ItemData.Upsert(new Faction { Name = "Elsewhere" })] = FactionRelationship.Hated;
+        items.ItemData.Upsert(a);
+        var ship = NewShip(items, zone, a);
+        var stranger = NewShip(items, zone, new Faction { Name = "Stranger" });
+
+        Detect(ship, stranger);
+
+        Assert.False(ship.IsHostileTo(stranger));
+    }
 }

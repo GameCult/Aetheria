@@ -941,8 +941,8 @@ public sealed class FlightTests : IDisposable
         Assert.Equal(turns, turn != 0f);
     }
 
-    // Faction.Doctrine rides at wire slot 17; slot 16 is reserved for Relations; BossLoadout rides at 22, which sets the array's length.
-    // Kills: the key moved.
+    // Faction.Relations rides at wire slot 16 and Faction.Doctrine at 17; BossLoadout rides at 22, which sets the array's length.
+    // Kills: either key moved.
     [Fact]
     public void TheFactionDoctrineRidesAtWireSlot17()
     {
@@ -952,9 +952,23 @@ public sealed class FlightTests : IDisposable
             CultDocumentMessagePackSerialization.OptionsFor(typeof(Faction).Assembly)));
 
         Assert.Equal(23, slots.Length); // 19 is Assembly, 21 is Places, 22 is BossLoadout
-        Assert.Null(slots[16]);
+        Assert.Empty(Assert.IsAssignableFrom<System.Collections.IDictionary>(slots[16])); // 16 is Relations, none authored here
         var doctrine = Assert.IsType<object[]>(slots[17]);
         Assert.Equal(6f, Convert.ToSingle(doctrine[1]));
+    }
+
+    // A faction's relations survive the wire with the regarded faction and the stance. Kills: a wrong key or a field the wire leaves out.
+    [Fact]
+    public void ARelationsMapRoundTrips()
+    {
+        var regarded = new CultRecordRef<Faction>(new CultRecordKey("faction:regarded"));
+        var faction = new Faction { Name = "Grudging", Relations = { [regarded] = FactionRelationship.Hated } };
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(Faction).Assembly);
+
+        var back = MessagePack.MessagePackSerializer.Deserialize<Faction>(MessagePack.MessagePackSerializer.Serialize(faction, options), options);
+
+        Assert.Equal(FactionRelationship.Hated, Assert.Single(back.Relations).Value);
+        Assert.Equal(regarded.Key, Assert.Single(back.Relations).Key.Key);
     }
 
     // A cast faction that already has a doctrine keeps it, whatever it holds: one that differs in its engagement and one
