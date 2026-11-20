@@ -589,3 +589,26 @@ fn document_keys_are_canonical_text() {
     assert_eq!((subject, fact).key_text(), format!("{}/{}", subject.0, fact.0));
     assert_eq!(crate::patch::GrievanceKindName("theft".into()).key_text(), "theft");
 }
+
+/// The snapshot says a commitment is past due exactly when its due minute has
+/// been reached: the golden's routine rolled once by a thirty-minute tick and
+/// is due again at or before the clock.
+#[test]
+fn a_commitment_due_at_or_before_the_clock_reads_past_due() {
+    let (kernel, _) = golden_session();
+    let witness = subject_by_label(&kernel.state, "The Witness");
+    let snapshot = kernel.snapshot().unwrap();
+    let subject = snapshot
+        .subjects
+        .iter()
+        .find(|subject| subject.id == witness)
+        .expect("the witness is a subject");
+    assert!(!subject.commitments.is_empty());
+    for commitment in &subject.commitments {
+        assert_eq!(commitment.past_due, commitment.due <= kernel.state.header.now);
+    }
+    assert!(
+        subject.commitments.iter().any(|commitment| commitment.past_due),
+        "the routine fell due behind the clock"
+    );
+}
