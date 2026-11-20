@@ -1742,14 +1742,27 @@ fn apply_operations(
     let held_of = |held: Option<&BTreeMap<EntityId, Quantity>>, resource: &EntityId| {
         held.and_then(|held| held.get(resource)).map_or(0, |quantity| u128::from(quantity.0))
     };
+    // The holders judged are the union of those written at entry and those the
+    // log now reports: a holder written before the operations and returned to
+    // its transaction-start value is absent from `changes()` but still moved.
+    type Held<'a> = Option<&'a BTreeMap<EntityId, Quantity>>;
+    let mut judged: BTreeMap<SubjectId, (Held<'_>, Held<'_>)> = BTreeMap::new();
     for (holder, logged, now) in state.holdings.changes() {
         let before = match at_entry.get(holder) {
             Some(recorded) => recorded.as_ref(),
             None => logged,
         };
+        judged.insert(*holder, (before, now));
+    }
+    for (holder, recorded) in &at_entry {
+        judged
+            .entry(*holder)
+            .or_insert_with(|| (recorded.as_ref(), state.holdings.get(holder)));
+    }
+    for (before, now) in judged.values() {
         for (resource, delta) in &mut deltas {
-            delta.before += held_of(before, resource);
-            delta.after += held_of(now, resource);
+            delta.before += held_of(*before, resource);
+            delta.after += held_of(*now, resource);
         }
     }
     if patch::check_ledger(&deltas).is_some() {

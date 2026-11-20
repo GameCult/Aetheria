@@ -2086,3 +2086,30 @@ fn views_equal_their_rebuild_and_the_scans_over_random_commands() {
         assert!(kept.get(name).copied().unwrap_or(0) > 0, "no {name} ever landed: {kept:?}");
     }
 }
+
+/// A holder written before the operations begin and returned by them to the
+/// value it had when the transaction opened is no longer in the log, yet it
+/// moved: conservation reads it from the entry record, so the transfer that
+/// restores it is judged as conserving.
+#[test]
+fn apply_conserves_a_holder_restored_to_its_start_value() {
+    use crate::patch::ResolvedOp;
+    use crate::{Quantity, apply_operations};
+
+    let (mut kernel, people, _) = clockwork_world(20);
+    let grain = *kernel
+        .state
+        .entities
+        .iter()
+        .find(|(_, record)| record.label == "Grain 1")
+        .expect("declared")
+        .0;
+    let revision = kernel.state.revision + 1;
+    let state = &mut kernel.state;
+    state.begin();
+    crate::set_held(state, people[0], grain, 5);
+    let transfer = ResolvedOp::Transfer { from: people[0], to: people[1], resource: grain, qty: Quantity(5) };
+    apply_operations(state, std::slice::from_ref(&transfer), &[], revision)
+        .expect("moving the pre-written five on conserves it");
+    state.rollback();
+}
