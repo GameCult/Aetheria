@@ -1135,6 +1135,99 @@ fn operation_reads_are_equal_at_100_and_1600() {
     assert_eq!(worked[0], worked[1], "an operation's read work grew with the world");
 }
 
+/// The commit lane's checks read what the transaction wrote, not the world:
+/// conservation sums the holders that were written, disjointness judges the
+/// holders whose authority was written, and both cost the same rows at 100 and
+/// 1600 persons. Each shape also has to be answered right: a holder already
+/// written when the operations begin is measured from where it stood then, and
+/// an overlap made by installing an incumbent, or by a grant, is refused with
+/// every other holder untouched.
+#[test]
+fn apply_checks_read_the_log() {
+    use crate::patch::{AuthorityGrant, AuthorityTarget, ResolvedOp};
+    use crate::tests::{LEVY_KIND, WARDEN_OFFICE, authority_kind, office};
+    use crate::{Quantity, apply_operations};
+
+    let mut worked = Vec::new();
+    for persons in [100usize, 1600] {
+        let (mut kernel, people, _) = clockwork_world(persons);
+        let place = |label: &str| {
+            *kernel.state.entities.iter().find(|(_, record)| record.label == label).expect("declared").0
+        };
+        let (zero, one, grain) = (place("Place 0"), place("Place 1"), place("Grain 0"));
+        let institution = subject_by_label(&kernel.state, "Institution 0");
+        let level = AuthorityGrant {
+            kind: authority_kind(LEVY_KIND),
+            over: AuthorityTarget::PlaceSubtree(one),
+        };
+        let revision = kernel.state.revision + 1;
+        let transfer = ResolvedOp::Transfer { from: people[0], to: people[1], resource: grain, qty: Quantity(1) };
+        let mut counts = Vec::new();
+        let state = &mut kernel.state;
+
+        // A transfer between two of ten holders: nothing else is read.
+        state.begin();
+        let before = crate::docs::rows_read();
+        apply_operations(state, std::slice::from_ref(&transfer), &[], revision)
+            .expect("a conserving transfer applies");
+        counts.push(crate::docs::rows_read() - before);
+        state.rollback();
+
+        // A holder written before the operations begin is measured from there.
+        state.begin();
+        crate::set_held(state, people[0], grain, 5);
+        let before = crate::docs::rows_read();
+        apply_operations(state, std::slice::from_ref(&transfer), &[], revision)
+            .expect("the entry value is the before, not the value the transaction began with");
+        counts.push(crate::docs::rows_read() - before);
+        state.rollback();
+
+        // Place 1 inside place 0, committed, with person 5's own grant over place 1.
+        state.begin();
+        state.entities.get_mut(&one).unwrap().container = Some(zero);
+        state.authority.insert(people[5], std::collections::BTreeSet::from([level.clone()]));
+        let folded = state.folded().unwrap();
+        state.finish(folded);
+        crate::journal::verify_state_shape(state).expect("the world is still disjoint");
+
+        // A grant that overlaps the warden's lent ground is refused.
+        state.begin();
+        let overlap = ResolvedOp::GrantAuthority { holder: people[0], grant: level.clone() };
+        let before = crate::docs::rows_read();
+        let refused = apply_operations(state, &[overlap], &[], revision).unwrap_err();
+        counts.push(crate::docs::rows_read() - before);
+        assert!(
+            matches!(&refused, crate::KernelError::Invariant(m) if m.contains("overlapping")),
+            "{persons}: {refused:?}"
+        );
+        state.rollback();
+
+        // Seating a holder of overlapping ground in the office is refused too.
+        state.begin();
+        let install = ResolvedOp::InstallIncumbent {
+            institution,
+            office: office(WARDEN_OFFICE),
+            incumbent: people[5],
+        };
+        let before = crate::docs::rows_read();
+        let refused = apply_operations(state, &[install], &[], revision).unwrap_err();
+        counts.push(crate::docs::rows_read() - before);
+        assert!(
+            matches!(&refused, crate::KernelError::Invariant(m) if m.contains("overlapping")),
+            "{persons}: {refused:?}"
+        );
+        state.rollback();
+
+        // Custody is point reads, which are free; the disjointness judgments read
+        // the office index. A refusal stops at the first overlapping holder, and
+        // which holder that is depends on id order, so its reads are bounded
+        // rather than equal: a few rows, where a scan of the world reads thousands.
+        assert!(counts[2..].iter().all(|rows| (1..=8).contains(rows)), "{persons}: {counts:?}");
+        worked.push(counts[..2].to_vec());
+    }
+    assert_eq!(worked[0], worked[1], "a commit check's read work grew with the world");
+}
+
 fn assert_indexes_derived(state: &crate::WorldState, label: &str) {
     for (schema, docs) in state.partitions() {
         assert!(docs.index_is_derived(), "{label}: the read index of {schema} left its documents");
