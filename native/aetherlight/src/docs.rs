@@ -5,13 +5,62 @@
 //! key's value as it stood before the transaction (first touch wins). `finish`
 //! turns that record into the keys whose value really changed, with their old
 //! values; `rollback` puts every touched key back. Reads see the plain map
-//! through `Deref`, and there is no `DerefMut`, so a write cannot skip the log.
+//! through inherent methods, and no method hands out the map, so a write cannot skip the log.
 //! The fields are private to this module for the same reason.
 
 use serde::{Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::ops::Deref;
+
+#[cfg(test)]
+thread_local! {
+    /// Rows any `Docs` iterator has yielded on this thread, and entries any
+    /// `indexed` read has returned: the work a read did, counted where the
+    /// reads are owned so no reader can skip it.
+    static ROWS_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The rows read on this thread so far (test builds only).
+#[cfg(test)]
+pub(crate) fn rows_read() -> u64 {
+    ROWS_READ.with(|rows| rows.get())
+}
+
+#[cfg(test)]
+fn count_rows(rows: u64) {
+    ROWS_READ.with(|count| count.set(count.get() + rows));
+}
+
+/// A partition iterator that counts every row it yields (test builds); in a
+/// shipped build it is the map's own iterator.
+pub(crate) struct Counted<I>(I);
+
+impl<I: Iterator> Iterator for Counted<I> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<I::Item> {
+        let item = self.0.next();
+        #[cfg(test)]
+        if item.is_some() {
+            count_rows(1);
+        }
+        item
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+impl<I: DoubleEndedIterator> DoubleEndedIterator for Counted<I> {
+    fn next_back(&mut self) -> Option<I::Item> {
+        let item = self.0.next_back();
+        #[cfg(test)]
+        if item.is_some() {
+            count_rows(1);
+        }
+        item
+    }
+}
 
 /// A key whose value changed in a transaction, with the value it had before
 /// (`None` when the key was absent). The new value is whatever the map holds.
@@ -42,18 +91,11 @@ impl<K: Ord + Clone, V: Clone + PartialEq> PartialEq for Docs<K, V> {
 
 impl<K: Ord + Clone, V: Clone + PartialEq + Eq> Eq for Docs<K, V> {}
 
-impl<K: Ord + Clone, V: Clone + PartialEq> Deref for Docs<K, V> {
-    type Target = BTreeMap<K, V>;
-    fn deref(&self) -> &BTreeMap<K, V> {
-        &self.map
-    }
-}
-
 impl<'a, K: Ord + Clone, V: Clone + PartialEq> IntoIterator for &'a Docs<K, V> {
     type Item = (&'a K, &'a V);
-    type IntoIter = std::collections::btree_map::Iter<'a, K, V>;
+    type IntoIter = Counted<std::collections::btree_map::Iter<'a, K, V>>;
     fn into_iter(self) -> Self::IntoIter {
-        self.map.iter()
+        self.iter()
     }
 }
 
@@ -65,7 +107,55 @@ impl<K: Ord + Clone + Serialize, V: Clone + PartialEq + Serialize> Serialize for
     }
 }
 
+impl<K: Ord + Clone, V: Clone + PartialEq> std::ops::Index<&K> for Docs<K, V> {
+    type Output = V;
+    fn index(&self, key: &K) -> &V {
+        &self.map[key]
+    }
+}
+
 impl<K: Ord + Clone, V: Clone + PartialEq> Docs<K, V> {
+    pub(crate) fn get(&self, key: &K) -> Option<&V> {
+        self.map.get(key)
+    }
+
+    pub(crate) fn contains_key(&self, key: &K) -> bool {
+        self.map.contains_key(key)
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    pub(crate) fn iter(&self) -> Counted<std::collections::btree_map::Iter<'_, K, V>> {
+        Counted(self.map.iter())
+    }
+
+    pub(crate) fn keys(&self) -> Counted<std::collections::btree_map::Keys<'_, K, V>> {
+        Counted(self.map.keys())
+    }
+
+    pub(crate) fn values(&self) -> Counted<std::collections::btree_map::Values<'_, K, V>> {
+        Counted(self.map.values())
+    }
+
+    pub(crate) fn range<R: std::ops::RangeBounds<K>>(
+        &self,
+        range: R,
+    ) -> Counted<std::collections::btree_map::Range<'_, K, V>> {
+        Counted(self.map.range(range))
+    }
+
+    /// The plain map, for a test that compares a decoded partition to it.
+    #[cfg(test)]
+    pub(crate) fn as_map(&self) -> &BTreeMap<K, V> {
+        &self.map
+    }
+
     fn touch(&mut self, key: &K) {
         if !self.touched.contains_key(key) {
             self.touched.insert(key.clone(), self.map.get(key).cloned());
@@ -288,6 +378,23 @@ mod tests {
         docs.rollback();
         assert_eq!(contents(&docs), vec![(1, 10), (2, 20), (3, 30)]);
         assert!(docs.is_clean());
+    }
+
+    #[test]
+    fn every_row_an_iterator_yields_is_counted_and_point_reads_are_not() {
+        let docs = rows(&[(1, 10), (2, 20), (3, 30), (4, 40)]);
+        let before = rows_read();
+        assert_eq!(docs.iter().count(), 4);
+        assert_eq!(rows_read() - before, 4);
+        assert_eq!(docs.keys().count() + docs.values().count(), 8);
+        assert_eq!(docs.range(2..4).count(), 2);
+        assert_eq!((&docs).into_iter().rev().take(1).count(), 1);
+        assert_eq!(rows_read() - before, 4 + 8 + 2 + 1);
+        let before = rows_read();
+        assert_eq!(docs.get(&2), Some(&20));
+        assert!(docs.contains_key(&3) && docs[&4] == 40);
+        assert_eq!(docs.len(), 4);
+        assert_eq!(rows_read(), before);
     }
 
     #[test]

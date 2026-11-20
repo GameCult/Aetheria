@@ -1169,7 +1169,7 @@ fn require_play(caller: &CallerId) -> Result<(), KernelError> {
 /// `WorldState` so the genesis lane, which resolves declarations before any
 /// `WorldState` exists, can call the same owner instead of hand-copying the
 /// literal it would otherwise always evaluate to.
-fn is_genesis(revision: u64, subjects: &BTreeMap<SubjectId, SubjectState>) -> bool {
+fn is_genesis(revision: u64, subjects: &Docs<SubjectId, SubjectState>) -> bool {
     revision == 0 && subjects.is_empty()
 }
 

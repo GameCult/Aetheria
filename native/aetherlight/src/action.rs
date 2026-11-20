@@ -1638,7 +1638,7 @@ mod tests {
             .expect("the affordance document encodes");
         let decoded: std::collections::BTreeMap<_, crate::Affordance> =
             rmp_serde::from_slice(&catalog).expect("the affordance document decodes");
-        assert_eq!(decoded, *bench.kernel.state.affordance_catalog);
+        assert_eq!(decoded, *bench.kernel.state.affordance_catalog.as_map());
         assert!(bench.kernel.state.full_state_digest().is_ok());
     }
 

@@ -13,6 +13,7 @@
 
 use super::clock::{FictionalMinutes, TickMinutes};
 use super::grammar::GrammarRefusal;
+use super::docs::Docs;
 use super::{
     AffordanceId, CommandId, EdgeId, EntityId, SubjectId, SubjectKind, SubjectState, WorldId,
 };
@@ -2412,7 +2413,7 @@ fn resolve_affordance(
     site: Site,
     reference: &Ref<AffordanceId>,
     index: &BTreeMap<DraftHandle, RefKind>,
-    catalog: &BTreeMap<AffordanceId, Affordance>,
+    catalog: &Docs<AffordanceId, Affordance>,
     mismatches: &mut Vec<Mismatch>,
 ) -> Option<Key<AffordanceId>> {
     match reference {
@@ -2676,7 +2677,7 @@ fn resolve_entity(
     expected_kind: EntityKind,
     reference: &Ref<EntityId>,
     index: &BTreeMap<DraftHandle, RefKind>,
-    entities: &BTreeMap<EntityId, EntityRecord>,
+    entities: &Docs<EntityId, EntityRecord>,
     mismatches: &mut Vec<Mismatch>,
 ) -> Option<Key<EntityId>> {
     let expected = RefKind::Entity(expected_kind);
@@ -2724,7 +2725,7 @@ fn resolve_subject(
     site: Site,
     reference: &Ref<SubjectId>,
     index: &BTreeMap<DraftHandle, RefKind>,
-    subjects: &BTreeMap<SubjectId, SubjectState>,
+    subjects: &Docs<SubjectId, SubjectState>,
     mismatches: &mut Vec<Mismatch>,
 ) -> Option<Key<SubjectId>> {
     match reference {
@@ -2766,7 +2767,7 @@ fn resolve_route(
     site: Site,
     reference: &Ref<EdgeId>,
     index: &BTreeMap<DraftHandle, RefKind>,
-    edges: &BTreeMap<EdgeId, EdgeRecord>,
+    edges: &Docs<EdgeId, EdgeRecord>,
     mismatches: &mut Vec<Mismatch>,
 ) -> Option<Key<EdgeId>> {
     match reference {
@@ -5606,7 +5607,7 @@ fn contains_itself(
 /// downward enumeration and no child index: every jurisdictional question this
 /// kernel asks is "is this target inside my ground".
 pub(super) fn covers_place(
-    entities: &BTreeMap<EntityId, EntityRecord>,
+    entities: &Docs<EntityId, EntityRecord>,
     root: EntityId,
     place: EntityId,
 ) -> bool {
@@ -5624,7 +5625,7 @@ pub(super) fn covers_place(
 /// The canonical twin of the candidate graph's `candidate_targets_overlap`: whether two
 /// jurisdictions of one kind cover common ground.
 pub(super) fn targets_overlap(
-    entities: &BTreeMap<EntityId, EntityRecord>,
+    entities: &Docs<EntityId, EntityRecord>,
     left: AuthorityTarget,
     right: AuthorityTarget,
 ) -> bool {
@@ -5663,7 +5664,7 @@ pub(super) fn route_admits(
 /// chain that never terminates dies before the partition keeps it.
 pub(super) fn containment_terminates(
     start: EntityId,
-    entities: &BTreeMap<EntityId, EntityRecord>,
+    entities: &Docs<EntityId, EntityRecord>,
 ) -> bool {
     let mut current = entities.get(&start).and_then(|record| record.container);
     for _ in 0..=entities.len() {
