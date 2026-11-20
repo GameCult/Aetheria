@@ -12,10 +12,11 @@
 //! after that set is empty, so a rejected patch never mints an ID.
 
 use super::clock::{FictionalMinutes, TickMinutes};
-use super::grammar::GrammarRefusal;
 use super::docs::Docs;
+use super::grammar::GrammarRefusal;
 use super::{
-    AffordanceId, CommandId, EdgeId, EntityId, SubjectId, SubjectKind, SubjectState, WorldId,
+    AffordanceId, ByEndpoint, ChildOf, CommandId, EdgeId, EntityId, SubjectId, SubjectKind,
+    SubjectState, WorldId,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -2677,7 +2678,7 @@ fn resolve_entity(
     expected_kind: EntityKind,
     reference: &Ref<EntityId>,
     index: &BTreeMap<DraftHandle, RefKind>,
-    entities: &Docs<EntityId, EntityRecord>,
+    entities: &Docs<EntityId, EntityRecord, ChildOf>,
     mismatches: &mut Vec<Mismatch>,
 ) -> Option<Key<EntityId>> {
     let expected = RefKind::Entity(expected_kind);
@@ -2767,7 +2768,7 @@ fn resolve_route(
     site: Site,
     reference: &Ref<EdgeId>,
     index: &BTreeMap<DraftHandle, RefKind>,
-    edges: &Docs<EdgeId, EdgeRecord>,
+    edges: &Docs<EdgeId, EdgeRecord, ByEndpoint>,
     mismatches: &mut Vec<Mismatch>,
 ) -> Option<Key<EdgeId>> {
     match reference {
@@ -5603,11 +5604,12 @@ fn contains_itself(
 /// Whether `place` is `root` or is contained in it, over canonical state: one
 /// upward walk in the shape of [`containment_terminates`], bounded by the graph
 /// size. It is total because `admit_resolved` refuses a non-terminating chain,
-/// so the bound is belt-and-braces rather than a repair loop. There is no
-/// downward enumeration and no child index: every jurisdictional question this
-/// kernel asks is "is this target inside my ground".
+/// so the bound is belt-and-braces rather than a repair loop. The question it
+/// answers is "is this target inside my ground". Enumerating who stands under a
+/// place is the other direction and has its own owner: `under_place` walks the
+/// subtree by the entities partition's `ChildOf` index.
 pub(super) fn covers_place(
-    entities: &Docs<EntityId, EntityRecord>,
+    entities: &Docs<EntityId, EntityRecord, ChildOf>,
     root: EntityId,
     place: EntityId,
 ) -> bool {
@@ -5625,7 +5627,7 @@ pub(super) fn covers_place(
 /// The canonical twin of the candidate graph's `candidate_targets_overlap`: whether two
 /// jurisdictions of one kind cover common ground.
 pub(super) fn targets_overlap(
-    entities: &Docs<EntityId, EntityRecord>,
+    entities: &Docs<EntityId, EntityRecord, ChildOf>,
     left: AuthorityTarget,
     right: AuthorityTarget,
 ) -> bool {
@@ -5664,7 +5666,7 @@ pub(super) fn route_admits(
 /// chain that never terminates dies before the partition keeps it.
 pub(super) fn containment_terminates(
     start: EntityId,
-    entities: &Docs<EntityId, EntityRecord>,
+    entities: &Docs<EntityId, EntityRecord, ChildOf>,
 ) -> bool {
     let mut current = entities.get(&start).and_then(|record| record.container);
     for _ in 0..=entities.len() {

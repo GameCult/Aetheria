@@ -663,7 +663,9 @@ fn reachable(
         settled.insert(place);
         let outbound: Vec<(EdgeId, EntityId, u64)> = state
             .edges
-            .iter()
+            .indexed(place..=place)
+            .into_iter()
+            .map(|(_, edge_id)| (edge_id, &state.edges[&edge_id]))
             .filter(|(_, record)| record.is_open())
             .filter_map(|(edge_id, record)| {
                 let (from, to) = record.endpoints();
@@ -675,7 +677,7 @@ fn reachable(
                     return None;
                 };
                 patch::route_admits(state, authority, record.access(), next)
-                    .then(|| (*edge_id, next, u64::from(record.cost().0)))
+                    .then(|| (edge_id, next, u64::from(record.cost().0)))
             })
             .collect();
         for (_, next, step) in outbound {

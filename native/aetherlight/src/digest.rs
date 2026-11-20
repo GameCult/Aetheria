@@ -129,12 +129,20 @@ pub(crate) trait Partition {
     /// Removes the first document, logged like any write; false when empty.
     #[cfg(test)]
     fn remove_first(&mut self) -> bool;
+    /// Whether the read index is exactly the projection of the documents.
+    #[cfg(test)]
+    fn index_is_derived(&self) -> bool;
+    /// Damages the read index in one place (a stray entry, else a missing one);
+    /// false when there is nothing to damage.
+    #[cfg(test)]
+    fn corrupt_index_first(&mut self, stray: bool) -> bool;
 }
 
-impl<K, V> Partition for Docs<K, V>
+impl<K, V, P> Partition for Docs<K, V, P>
 where
     K: Ord + Clone + DocKey + Serialize,
     V: Clone + PartialEq + Serialize,
+    P: crate::docs::Projection<V>,
 {
     fn is_clean(&self) -> bool {
         Docs::is_clean(self)
@@ -185,6 +193,16 @@ where
             return false;
         };
         self.remove(&key).is_some()
+    }
+
+    #[cfg(test)]
+    fn index_is_derived(&self) -> bool {
+        Docs::index_is_derived(self)
+    }
+
+    #[cfg(test)]
+    fn corrupt_index_first(&mut self, stray: bool) -> bool {
+        self.corrupt_index_for_test(stray)
     }
 }
 

@@ -9,7 +9,7 @@
 //! The fields are private to this module for the same reason.
 
 use serde::{Serialize, Serializer};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::collections::btree_map::Entry;
 use std::ops::Deref;
 
@@ -66,32 +66,55 @@ impl<I: DoubleEndedIterator> DoubleEndedIterator for Counted<I> {
 /// (`None` when the key was absent). The new value is whatever the map holds.
 pub(crate) type Changed<K, V> = (K, Option<V>);
 
-#[derive(Clone, Debug)]
-pub(crate) struct Docs<K: Ord + Clone, V: Clone + PartialEq> {
-    map: BTreeMap<K, V>,
-    touched: BTreeMap<K, Option<V>>,
+/// Where a document sits in a partition's read index: a pure function of one
+/// document's value, so the index can always be rebuilt from the map and never
+/// disagrees with it.
+pub(crate) trait Projection<V> {
+    type Point: Ord + Clone + std::fmt::Debug;
+    /// Appends every point `value` sits at (duplicates allowed).
+    fn points(value: &V, out: &mut Vec<Self::Point>);
 }
 
-impl<K: Ord + Clone, V: Clone + PartialEq> Default for Docs<K, V> {
+/// The projection of a partition nothing reads by value.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct NoIndex;
+
+impl<V> Projection<V> for NoIndex {
+    type Point = ();
+    fn points(_: &V, _: &mut Vec<()>) {}
+}
+
+/// A partition: its documents, the log of the open transaction, and the read
+/// index (the projection of the documents as of the last `finish`). The index
+/// is derived state: it is not digested, not encoded, and ignored by equality.
+#[derive(Clone, Debug)]
+pub(crate) struct Docs<K: Ord + Clone, V: Clone + PartialEq, P: Projection<V> = NoIndex> {
+    map: BTreeMap<K, V>,
+    touched: BTreeMap<K, Option<V>>,
+    index: BTreeMap<P::Point, BTreeSet<K>>,
+}
+
+impl<K: Ord + Clone, V: Clone + PartialEq, P: Projection<V>> Default for Docs<K, V, P> {
     fn default() -> Self {
         Self {
             map: BTreeMap::new(),
             touched: BTreeMap::new(),
+            index: BTreeMap::new(),
         }
     }
 }
 
 /// Equality is the documents, never the log: two worlds with the same content
 /// are equal whatever transaction state they are in.
-impl<K: Ord + Clone, V: Clone + PartialEq> PartialEq for Docs<K, V> {
+impl<K: Ord + Clone, V: Clone + PartialEq, P: Projection<V>> PartialEq for Docs<K, V, P> {
     fn eq(&self, other: &Self) -> bool {
         self.map == other.map
     }
 }
 
-impl<K: Ord + Clone, V: Clone + PartialEq + Eq> Eq for Docs<K, V> {}
+impl<K: Ord + Clone, V: Clone + PartialEq + Eq, P: Projection<V>> Eq for Docs<K, V, P> {}
 
-impl<'a, K: Ord + Clone, V: Clone + PartialEq> IntoIterator for &'a Docs<K, V> {
+impl<'a, K: Ord + Clone, V: Clone + PartialEq, P: Projection<V>> IntoIterator for &'a Docs<K, V, P> {
     type Item = (&'a K, &'a V);
     type IntoIter = Counted<std::collections::btree_map::Iter<'a, K, V>>;
     fn into_iter(self) -> Self::IntoIter {
@@ -101,20 +124,20 @@ impl<'a, K: Ord + Clone, V: Clone + PartialEq> IntoIterator for &'a Docs<K, V> {
 
 /// A partition encodes as its map, so the encoded world is what it was before
 /// the partitions were tracked.
-impl<K: Ord + Clone + Serialize, V: Clone + PartialEq + Serialize> Serialize for Docs<K, V> {
+impl<K: Ord + Clone + Serialize, V: Clone + PartialEq + Serialize, P: Projection<V>> Serialize for Docs<K, V, P> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.map.serialize(serializer)
     }
 }
 
-impl<K: Ord + Clone, V: Clone + PartialEq> std::ops::Index<&K> for Docs<K, V> {
+impl<K: Ord + Clone, V: Clone + PartialEq, P: Projection<V>> std::ops::Index<&K> for Docs<K, V, P> {
     type Output = V;
     fn index(&self, key: &K) -> &V {
         &self.map[key]
     }
 }
 
-impl<K: Ord + Clone, V: Clone + PartialEq> Docs<K, V> {
+impl<K: Ord + Clone, V: Clone + PartialEq, P: Projection<V>> Docs<K, V, P> {
     pub(crate) fn get(&self, key: &K) -> Option<&V> {
         self.map.get(key)
     }
@@ -197,10 +220,112 @@ impl<K: Ord + Clone, V: Clone + PartialEq> Docs<K, V> {
     /// value they had then. A key written back to what it was is not reported.
     /// The log is empty afterwards.
     pub(crate) fn finish(&mut self) -> Vec<Changed<K, V>> {
-        std::mem::take(&mut self.touched)
+        let changed: Vec<Changed<K, V>> = std::mem::take(&mut self.touched)
             .into_iter()
             .filter(|(key, old)| self.map.get(key) != old.as_ref())
-            .collect()
+            .collect();
+        for (key, old) in &changed {
+            self.fold_index(key, old.as_ref());
+        }
+        changed
+    }
+
+    /// Moves one changed key's entries: its old points out, its current points in.
+    fn fold_index(&mut self, key: &K, old: Option<&V>) {
+        let mut points = Vec::new();
+        if let Some(old) = old {
+            P::points(old, &mut points);
+            for point in points.drain(..) {
+                if let Some(keys) = self.index.get_mut(&point) {
+                    keys.remove(key);
+                    if keys.is_empty() {
+                        self.index.remove(&point);
+                    }
+                }
+            }
+        }
+        if let Some(new) = self.map.get(key) {
+            P::points(new, &mut points);
+            for point in points {
+                self.index.entry(point).or_default().insert(key.clone());
+            }
+        }
+    }
+
+    /// Every (point, key) inside `range`, in order, true at this moment: the
+    /// committed index, corrected by the open log. A logged key's committed
+    /// entries are dropped and its current value's points are read from the
+    /// map, so a read inside a transaction sees what the transaction wrote and
+    /// the index itself never saw it (which is why `rollback` leaves it alone).
+    pub(crate) fn indexed<R: std::ops::RangeBounds<P::Point>>(
+        &self,
+        range: R,
+    ) -> Vec<(P::Point, K)> {
+        let mut found: Vec<(P::Point, K)> = self
+            .index
+            .range((range.start_bound(), range.end_bound()))
+            .flat_map(|(point, keys)| keys.iter().map(move |key| (point, key)))
+            .filter(|(_, key)| !self.touched.contains_key(*key))
+            .map(|(point, key)| (point.clone(), key.clone()))
+            .collect();
+        if !self.touched.is_empty() {
+            let mut points = Vec::new();
+            for key in self.touched.keys() {
+                if let Some(value) = self.map.get(key) {
+                    P::points(value, &mut points);
+                    for point in points.drain(..) {
+                        if range.contains(&point) {
+                            found.push((point, key.clone()));
+                        }
+                    }
+                }
+            }
+            found.sort();
+            found.dedup();
+        }
+        #[cfg(test)]
+        count_rows(found.len() as u64);
+        found
+    }
+
+    /// Whether the index is exactly the projection of the map (test builds).
+    #[cfg(test)]
+    pub(crate) fn index_is_derived(&self) -> bool {
+        let mut rebuilt: BTreeMap<P::Point, BTreeSet<K>> = BTreeMap::new();
+        let mut points = Vec::new();
+        for (key, value) in &self.map {
+            P::points(value, &mut points);
+            for point in points.drain(..) {
+                rebuilt.entry(point).or_default().insert(key.clone());
+            }
+        }
+        rebuilt == self.index
+    }
+
+    /// Makes the index disagree with the map in one place: a stray entry (a
+    /// document listed at a point it does not sit at) or a missing one. False
+    /// when this partition has no such place to damage (test builds).
+    #[cfg(test)]
+    pub(crate) fn corrupt_index_for_test(&mut self, stray: bool) -> bool {
+        if !stray {
+            let Some(point) = self.index.keys().next().cloned() else {
+                return false;
+            };
+            let keys = self.index.get_mut(&point).expect("the point is present");
+            let key = keys.iter().next().cloned().expect("a point holds a key");
+            keys.remove(&key);
+            if keys.is_empty() {
+                self.index.remove(&point);
+            }
+            return true;
+        }
+        for keys in self.index.values_mut() {
+            if let Some(key) = self.map.keys().find(|key| !keys.contains(*key)) {
+                keys.insert(key.clone());
+                return true;
+            }
+        }
+        false
     }
 
     /// Puts every touched key back as it was and empties the log.
@@ -315,6 +440,118 @@ mod tests {
         }
         docs.finish();
         docs
+    }
+
+    /// A value sits at its tens digit and its units digit (one point when they
+    /// agree), so a document has several points and two documents can share one.
+    #[derive(Clone, Debug)]
+    struct Digits;
+
+    impl Projection<u8> for Digits {
+        type Point = u8;
+        fn points(value: &u8, out: &mut Vec<u8>) {
+            out.push(value / 10);
+            out.push(value % 10);
+        }
+    }
+
+    type Spread = Docs<u8, u8, Digits>;
+
+    fn spread(held: &[(u8, u8)]) -> Spread {
+        let mut docs = Spread::default();
+        for (key, value) in held {
+            docs.insert(*key, *value);
+        }
+        docs.finish();
+        docs
+    }
+
+    /// The projection of the map, computed from scratch: what `indexed(..)` must
+    /// return at every moment.
+    fn truth(docs: &Spread) -> Vec<(u8, u8)> {
+        let mut out = Vec::new();
+        for (key, value) in docs.iter() {
+            out.push((value / 10, *key));
+            out.push((value % 10, *key));
+        }
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    #[test]
+    fn a_committed_index_is_the_projection_and_follows_every_finish() {
+        let mut docs = spread(&[(1, 10), (2, 21), (3, 33)]);
+        assert!(docs.index_is_derived());
+        assert_eq!(docs.indexed(..), truth(&docs));
+        assert_eq!(docs.indexed(1..=1), vec![(1, 1), (1, 2)]);
+
+        docs.insert(1, 32);
+        docs.remove(&2);
+        docs.insert(4, 44);
+        docs.finish();
+        assert!(docs.index_is_derived(), "old points leave, new points arrive");
+        assert_eq!(docs.indexed(..), truth(&docs));
+        assert!(docs.indexed(0..=0).is_empty() && docs.indexed(1..=1).is_empty());
+    }
+
+    #[test]
+    fn a_read_inside_a_transaction_sees_the_log_and_the_index_does_not() {
+        let mut docs = spread(&[(1, 10), (2, 21), (3, 33)]);
+        docs.insert(1, 55);
+        docs.remove(&2);
+        docs.insert(7, 12);
+        assert_eq!(docs.indexed(..), truth(&docs), "the read is true mid-transaction");
+        assert!(!docs.indexed(0..=0).iter().any(|(_, key)| *key == 1), "an overwritten value leaves its old points");
+        assert!(docs.indexed(5..=5).contains(&(5, 1)), "a new value is seen at once");
+        assert!(docs.indexed(..).iter().all(|(_, key)| *key != 2), "a removed document is gone");
+        for point in 0..=9 {
+            assert_eq!(
+                docs.indexed(point..=point),
+                truth(&docs).into_iter().filter(|(p, _)| *p == point).collect::<Vec<_>>()
+            );
+        }
+        assert!(!docs.index_is_derived(), "the open log has not reached the index");
+
+        docs.insert(1, 10);
+        docs.insert(7, 12);
+        docs.remove(&7);
+        assert_eq!(docs.indexed(..), truth(&docs), "a key written back or added and removed adds nothing");
+    }
+
+    #[test]
+    fn rollback_leaves_the_index_as_it_was_because_it_never_saw_the_transaction() {
+        let mut docs = spread(&[(1, 10), (2, 21)]);
+        let before = docs.indexed(..);
+        docs.insert(1, 99);
+        docs.insert(5, 35);
+        docs.remove(&2);
+        docs.rollback();
+        assert!(docs.index_is_derived());
+        assert_eq!(docs.indexed(..), before);
+        assert_eq!(docs.indexed(..), truth(&docs));
+    }
+
+    #[test]
+    fn an_index_read_counts_the_entries_it_returns() {
+        let docs = spread(&[(1, 10), (2, 21), (3, 33)]);
+        let before = rows_read();
+        let found = docs.indexed(..);
+        assert_eq!(rows_read() - before, found.len() as u64);
+        let before = rows_read();
+        assert_eq!(docs.indexed(1..=1).len(), 2);
+        assert_eq!(rows_read() - before, 2);
+    }
+
+    #[test]
+    fn a_damaged_index_is_seen_as_not_derived() {
+        for stray in [true, false] {
+            let mut docs = spread(&[(1, 10), (2, 21), (3, 33)]);
+            assert!(docs.corrupt_index_for_test(stray));
+            assert!(!docs.index_is_derived(), "stray={stray}");
+        }
+        let mut empty = Spread::default();
+        assert!(!empty.corrupt_index_for_test(true) && !empty.corrupt_index_for_test(false));
     }
 
     fn contents(docs: &Rows) -> Vec<(u8, u8)> {

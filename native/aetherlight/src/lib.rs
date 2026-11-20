@@ -462,14 +462,16 @@ struct WorldHeader {
 /// there is no second list to forget it from.
 ///
 /// Every partition is a `Docs`: reads see the map, every write is logged, and
-/// `submit` applies in place and either finishes or rolls the log back.
+/// `submit` applies in place and either finishes or rolls the log back. A row
+/// may name a [`docs::Projection`] as a third type: that partition then keeps a
+/// read index, and the projections sit just above this macro.
 macro_rules! world_state {
-    ($($(#[$meta:meta])* $field:ident: Docs<$key:ty, $value:ty> = $schema:literal;)*) => {
+    ($($(#[$meta:meta])* $field:ident: Docs<$key:ty, $value:ty $(, $proj:ty)?> = $schema:literal;)*) => {
         #[derive(Clone, Debug, PartialEq, Eq)]
         struct WorldState {
             header: Tracked<WorldHeader>,
             revision: u64,
-            $($(#[$meta])* $field: Docs<$key, $value>,)*
+            $($(#[$meta])* $field: Docs<$key, $value $(, $proj)?>,)*
             // The chain head: outside every document.
             accumulator: LtHash16,
             state_digest: String,
@@ -504,11 +506,106 @@ macro_rules! world_state {
     };
 }
 
+/// The read indexes. Each is a pure function of one document's value, held by
+/// its partition's `Docs` and read only through `Docs::indexed`; none is state
+/// of its own, so none is digested or encoded.
+///
+/// `ChildOf`: the places directly inside a place.
+#[derive(Clone, Debug)]
+struct ChildOf;
+
+impl docs::Projection<EntityRecord> for ChildOf {
+    type Point = EntityId;
+    fn points(value: &EntityRecord, out: &mut Vec<EntityId>) {
+        out.extend(value.container);
+    }
+}
+
+/// `StandsAt`: who stands in a place. A position holds only its place, so two
+/// positions are equal exactly when their places are.
+#[derive(Clone, Debug)]
+struct StandsAt;
+
+impl docs::Projection<Position> for StandsAt {
+    type Point = EntityId;
+    fn points(value: &Position, out: &mut Vec<EntityId>) {
+        out.push(value.place);
+    }
+}
+
+/// `DueAt`: when a subject's commitments fall due, one entry per distinct due.
+#[derive(Clone, Debug)]
+struct DueAt;
+
+impl docs::Projection<BTreeMap<CommitmentKey, Commitment>> for DueAt {
+    type Point = FictionalMinutes;
+    fn points(value: &BTreeMap<CommitmentKey, Commitment>, out: &mut Vec<FictionalMinutes>) {
+        let first = out.len();
+        out.extend(value.values().map(|commitment| commitment.due));
+        out[first..].sort();
+        out.dedup();
+    }
+}
+
+/// `BySource`: which pressure sources press on a subject.
+#[derive(Clone, Debug)]
+struct BySource;
+
+impl docs::Projection<BTreeMap<PressureSource, PressureMagnitude>> for BySource {
+    type Point = PressureSource;
+    fn points(
+        value: &BTreeMap<PressureSource, PressureMagnitude>,
+        out: &mut Vec<PressureSource>,
+    ) {
+        out.extend(value.keys().copied());
+    }
+}
+
+/// `ByEndpoint`: the routes touching a place, at either end.
+#[derive(Clone, Debug)]
+struct ByEndpoint;
+
+impl docs::Projection<EdgeRecord> for ByEndpoint {
+    type Point = EntityId;
+    fn points(value: &EdgeRecord, out: &mut Vec<EntityId>) {
+        let (from, to) = value.endpoints();
+        out.push(from);
+        if to != from {
+            out.push(to);
+        }
+    }
+}
+
+/// `ByController`: the channels a subject controls.
+#[derive(Clone, Debug)]
+struct ByController;
+
+impl docs::Projection<ChannelRecord> for ByController {
+    type Point = SubjectId;
+    fn points(value: &ChannelRecord, out: &mut Vec<SubjectId>) {
+        out.extend(value.controller);
+    }
+}
+
+/// `ByIncumbent`: the institutions in which a subject holds an office.
+#[derive(Clone, Debug)]
+struct ByIncumbent;
+
+impl docs::Projection<BTreeMap<OfficeName, Office>> for ByIncumbent {
+    type Point = SubjectId;
+    fn points(value: &BTreeMap<OfficeName, Office>, out: &mut Vec<SubjectId>) {
+        let first = out.len();
+        out.extend(value.values().filter_map(|office| office.incumbent));
+        out[first..].sort();
+        out.dedup();
+    }
+}
+
 world_state! {
     subjects: Docs<SubjectId, SubjectState> = "aetherlight.subject.v1";
-    entities: Docs<EntityId, EntityRecord> = "aetherlight.entity.v1";
-    edges: Docs<EdgeId, EdgeRecord> = "aetherlight.edge.v1";
-    positions: Docs<SubjectId, Position> = "aetherlight.position.v1";
+    entities: Docs<EntityId, EntityRecord, ChildOf> = "aetherlight.entity.v1";
+    edges: Docs<EdgeId, EdgeRecord, ByEndpoint> = "aetherlight.edge.v1";
+    positions: Docs<SubjectId, Position, StandsAt> = "aetherlight.position.v1";
     /// What each subject holds. Absence is zero at both levels: no stored
     /// `Quantity(0)` and no empty inner map, so a duplicate holding is
     /// unrepresentable and "nothing" has one shape.
@@ -520,7 +617,7 @@ world_state! {
     /// standing never changes after admission.
     facts: Docs<EntityId, FactRecord> = "aetherlight.fact.v1";
     /// One row per `EntityKind::Channel` entity, and no orphan either way.
-    channels: Docs<EntityId, ChannelRecord> = "aetherlight.channel.v1";
+    channels: Docs<EntityId, ChannelRecord, ByController> = "aetherlight.channel.v1";
     /// What each subject knows. The sole owner of who-heard-what: `events`
     /// records what was done, and this decides what a subject may act on and
     /// what its projection may contain. One document per (subject, fact), and
@@ -534,17 +631,17 @@ world_state! {
     /// The offices each institution constitutes, and who sits in them. An
     /// incumbent never acts as its institution: an office answers what its
     /// incumbent has jurisdiction over, not who the actor is.
-    selection: Docs<SubjectId, BTreeMap<OfficeName, Office>> = "aetherlight.selection.v1";
+    selection: Docs<SubjectId, BTreeMap<OfficeName, Office>, ByIncumbent> = "aetherlight.selection.v1";
     /// Where each kind of grievance goes, and who may bring it. Keyed by
     /// neither a subject nor a referent, so it enters no scope components and
     /// is admission-only state.
     redress: Docs<GrievanceKindName, Forum> = "aetherlight.redress.v1";
     /// What each subject has promised. Never empty for a present key.
-    commitments: Docs<SubjectId, BTreeMap<CommitmentKey, Commitment>> = "aetherlight.commitments.v1";
+    commitments: Docs<SubjectId, BTreeMap<CommitmentKey, Commitment>, DueAt> = "aetherlight.commitments.v1";
     /// Pressure *on* each subject, keyed target-major then source. Never empty
     /// for a present key; no stored zero magnitude. Lived meaning: read by
     /// projection and by nothing that decides.
-    pressures: Docs<SubjectId, BTreeMap<PressureSource, PressureMagnitude>> = "aetherlight.pressures.v1";
+    pressures: Docs<SubjectId, BTreeMap<PressureSource, PressureMagnitude>, BySource> = "aetherlight.pressures.v1";
     /// What an affordance *is*. World-authored and written by `admit_resolved`
     /// alone.
     affordance_catalog: Docs<AffordanceId, Affordance> = "aetherlight.affordance.v1";
@@ -2347,13 +2444,7 @@ fn apply_operation(
                 subject: *subject,
                 key: *key,
             };
-            let holding: Vec<SubjectId> = state
-                .pressures
-                .iter()
-                .filter(|(_, held)| held.contains_key(&sourced))
-                .map(|(target, _)| *target)
-                .collect();
-            for target in holding {
+            for target in pressure_holders(state, sourced) {
                 let emptied = state.pressures.get_mut(&target).is_some_and(|held| {
                     held.remove(&sourced);
                     held.is_empty()
@@ -2581,6 +2672,38 @@ pub(crate) fn is_retired(state: &WorldState, subject_id: SubjectId) -> bool {
 /// declared broadcast area and a witnessed event. A subject with no position is
 /// under nothing.
 fn under_place(state: &WorldState, root: EntityId) -> BTreeSet<SubjectId> {
+    // The subtree by `ChildOf`, collecting who stands in each place. Containment
+    // is acyclic (`admit_resolved` refuses a chain that does not terminate); the
+    // visited set keeps the walk total regardless.
+    let mut under = BTreeSet::new();
+    let mut seen = BTreeSet::new();
+    let mut frontier = vec![root];
+    while let Some(place) = frontier.pop() {
+        if !seen.insert(place) {
+            continue;
+        }
+        under.extend(
+            state
+                .positions
+                .indexed(place..=place)
+                .into_iter()
+                .map(|(_, subject_id)| subject_id),
+        );
+        frontier.extend(
+            state
+                .entities
+                .indexed(place..=place)
+                .into_iter()
+                .map(|(_, child)| child),
+        );
+    }
+    under
+}
+
+/// What `under_place` was before the index: every position, asked whether its
+/// place is covered. The index read must equal it.
+#[cfg(test)]
+fn under_place_by_scan(state: &WorldState, root: EntityId) -> BTreeSet<SubjectId> {
     state
         .positions
         .iter()
@@ -2604,9 +2727,9 @@ fn audience(state: &WorldState, actor: SubjectId, of: &Audience) -> BTreeSet<Sub
             };
             state
                 .positions
-                .iter()
-                .filter(|(_, position)| **position == here)
-                .map(|(subject_id, _)| *subject_id)
+                .indexed(here.place..=here.place)
+                .into_iter()
+                .map(|(_, subject_id)| subject_id)
                 .collect()
         }
         Audience::Channel(channel) => {
@@ -2848,30 +2971,54 @@ fn delegated_authority(
 ) -> BTreeMap<SubjectId, BTreeMap<OfficeName, BTreeSet<AuthorityGrant>>> {
     let mut held: BTreeMap<SubjectId, BTreeMap<OfficeName, BTreeSet<AuthorityGrant>>> =
         BTreeMap::new();
-    for (institution, offices) in &state.selection {
-        // A retired institution lends nothing: `Retire` does not vacate
-        // offices, so the incumbency stays on record, but a dissolved
-        // institution's grants stop reaching its office-holders here, the one
-        // site that turns an office into effective authority.
-        if is_retired(state, *institution) {
+    for (_, institution) in state.selection.indexed(subject_id..=subject_id) {
+        lend_offices(state, subject_id, institution, &state.selection[&institution], &mut held);
+    }
+    held
+}
+
+/// What one institution's offices lend `subject_id`, added to `held`.
+fn lend_offices(
+    state: &WorldState,
+    subject_id: SubjectId,
+    institution: SubjectId,
+    offices: &BTreeMap<OfficeName, Office>,
+    held: &mut BTreeMap<SubjectId, BTreeMap<OfficeName, BTreeSet<AuthorityGrant>>>,
+) {
+    // A retired institution lends nothing: `Retire` does not vacate
+    // offices, so the incumbency stays on record, but a dissolved
+    // institution's grants stop reaching its office-holders here, the one
+    // site that turns an office into effective authority.
+    if is_retired(state, institution) {
+        return;
+    }
+    for (name, office) in offices {
+        if office.incumbent != Some(subject_id) {
             continue;
         }
-        for (name, office) in offices {
-            if office.incumbent != Some(subject_id) {
-                continue;
-            }
-            let lent: BTreeSet<AuthorityGrant> = state
-                .authority
-                .get(institution)
-                .into_iter()
-                .flatten()
-                .filter(|grant| office.delegated.contains(&grant.kind))
-                .cloned()
-                .collect();
-            held.entry(*institution)
-                .or_default()
-                .insert(name.clone(), lent);
-        }
+        let lent: BTreeSet<AuthorityGrant> = state
+            .authority
+            .get(&institution)
+            .into_iter()
+            .flatten()
+            .filter(|grant| office.delegated.contains(&grant.kind))
+            .cloned()
+            .collect();
+        held.entry(institution)
+            .or_default()
+            .insert(name.clone(), lent);
+    }
+}
+
+/// What `delegated_authority` was before the index: every institution.
+#[cfg(test)]
+fn delegated_authority_by_scan(
+    state: &WorldState,
+    subject_id: SubjectId,
+) -> BTreeMap<SubjectId, BTreeMap<OfficeName, BTreeSet<AuthorityGrant>>> {
+    let mut held = BTreeMap::new();
+    for (institution, offices) in &state.selection {
+        lend_offices(state, subject_id, *institution, offices, &mut held);
     }
     held
 }
@@ -2886,20 +3033,79 @@ fn subject_authority(state: &WorldState, subject_id: SubjectId) -> BTreeSet<Auth
     )
 }
 
+/// The routes with an end at `place`, keyed by edge.
+fn routes_at(state: &WorldState, place: EntityId) -> BTreeMap<EdgeId, EdgeRecord> {
+    state
+        .edges
+        .indexed(place..=place)
+        .into_iter()
+        .map(|(_, edge_id)| (edge_id, state.edges[&edge_id].clone()))
+        .collect()
+}
+
+#[cfg(test)]
+fn routes_at_by_scan(state: &WorldState, place: EntityId) -> BTreeMap<EdgeId, EdgeRecord> {
+    state
+        .edges
+        .iter()
+        .filter(|(_, record)| {
+            let (from, to) = record.endpoints();
+            from == place || to == place
+        })
+        .map(|(edge_id, record)| (*edge_id, record.clone()))
+        .collect()
+}
+
+/// The channels `subject_id` controls, with their records.
+fn channels_controlled_by(
+    state: &WorldState,
+    subject_id: SubjectId,
+) -> BTreeMap<EntityId, ChannelRecord> {
+    state
+        .channels
+        .indexed(subject_id..=subject_id)
+        .into_iter()
+        .map(|(_, entity_id)| (entity_id, state.channels[&entity_id].clone()))
+        .collect()
+}
+
+#[cfg(test)]
+fn channels_controlled_by_by_scan(
+    state: &WorldState,
+    subject_id: SubjectId,
+) -> BTreeMap<EntityId, ChannelRecord> {
+    state
+        .channels
+        .iter()
+        .filter(|(_, record)| record.controller == Some(subject_id))
+        .map(|(entity_id, record)| (*entity_id, record.clone()))
+        .collect()
+}
+
+/// The subjects with a pressure row from `source`.
+fn pressure_holders(state: &WorldState, source: PressureSource) -> Vec<SubjectId> {
+    state
+        .pressures
+        .indexed(source..=source)
+        .into_iter()
+        .map(|(_, target)| target)
+        .collect()
+}
+
+#[cfg(test)]
+fn pressure_holders_by_scan(state: &WorldState, source: PressureSource) -> Vec<SubjectId> {
+    state
+        .pressures
+        .iter()
+        .filter(|(_, held)| held.contains_key(&source))
+        .map(|(target, _)| *target)
+        .collect()
+}
+
 fn scope_components(state: &WorldState, subject_id: SubjectId) -> ScopeComponents {
     let position = state.positions.get(&subject_id).copied();
     let routes = position
-        .map(|position| {
-            state
-                .edges
-                .iter()
-                .filter(|(_, record)| {
-                    let (from, to) = record.endpoints();
-                    from == position.place || to == position.place
-                })
-                .map(|(edge_id, record)| (*edge_id, record.clone()))
-                .collect()
-        })
+        .map(|position| routes_at(state, position.place))
         .unwrap_or_default();
     ScopeComponents {
         position,
@@ -2920,12 +3126,7 @@ fn scope_components(state: &WorldState, subject_id: SubjectId) -> ScopeComponent
             .knowledge_of(subject_id)
             .map(|(fact, _)| *fact)
             .collect(),
-        controls: state
-            .channels
-            .iter()
-            .filter(|(_, record)| record.controller == Some(subject_id))
-            .map(|(entity_id, record)| (*entity_id, record.clone()))
-            .collect(),
+        controls: channels_controlled_by(state, subject_id),
         commitments: state
             .commitments
             .get(&subject_id)
