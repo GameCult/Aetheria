@@ -911,7 +911,7 @@ fn apply_committed_command(
     }
     apply_effect(
         state,
-        command.id,
+        command.id(),
         &commit.command.caller(),
         &expected_effect,
     )
@@ -983,6 +983,15 @@ mod tests {
         value: u8,
     }
 
+    /// The commit a forgery test rewrites: the one the test just committed.
+    pub(super) fn last_commit(commits: &mut BTreeMap<CommandId, WorldCommit>) -> &mut WorldCommit {
+        commits.values_mut().max_by_key(|commit| commit.resulting_revision).unwrap()
+    }
+
+    pub(super) fn genesis_commit(commits: &mut BTreeMap<CommandId, WorldCommit>) -> &mut WorldCommit {
+        commits.values_mut().min_by_key(|commit| commit.resulting_revision).unwrap()
+    }
+
     fn owner_patch(subject: SubjectDeclaration) -> WorldPatch {
         WorldPatch {
             declarations: vec![Declaration::Subject(subject)],
@@ -1010,7 +1019,6 @@ mod tests {
         let owner = PrincipalId::new("owner@example.test");
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
         let creation = CreateWorld {
-            id: CommandId::new(),
             owner: owner.clone(),
             title: "Before".into(),
             patch: owner_patch(SubjectDeclaration {
@@ -1025,11 +1033,9 @@ mod tests {
         };
         let (mut kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
         let snapshot = kernel.snapshot().unwrap();
-        let command_id = CommandId::new();
         kernel
             .submit(
                 CommandEnvelope {
-                    id: command_id,
                     world_id: snapshot.world_id,
                     expected_revision: snapshot.revision,
                     caller: CallerId::Play,
@@ -1043,7 +1049,7 @@ mod tests {
 
         let mut command_forged_head = kernel.state.clone();
         let mut command_forged_commits = kernel.journal.commits.clone();
-        let command_forged = command_forged_commits.get_mut(&command_id).unwrap();
+        let command_forged = last_commit(&mut command_forged_commits);
         let CommittedCommand::WorldCommand(command) = &mut command_forged.command else {
             panic!("expected a world command");
         };
@@ -1060,7 +1066,7 @@ mod tests {
 
         let mut caller_forged_head = kernel.state.clone();
         let mut caller_forged_commits = kernel.journal.commits.clone();
-        let caller_forged = caller_forged_commits.get_mut(&command_id).unwrap();
+        let caller_forged = last_commit(&mut caller_forged_commits);
         let CommittedCommand::WorldCommand(command) = &mut caller_forged.command else {
             panic!("expected a world command");
         };
@@ -1075,7 +1081,7 @@ mod tests {
 
         let mut effect_forged_head = kernel.state.clone();
         let mut effect_forged_commits = kernel.journal.commits.clone();
-        let effect_forged = effect_forged_commits.get_mut(&command_id).unwrap();
+        let effect_forged = last_commit(&mut effect_forged_commits);
         let WorldEffect::TimeAdvanced { to, .. } = &mut effect_forged.effect else {
             panic!("expected a time effect");
         };
@@ -1096,7 +1102,6 @@ mod tests {
         let owner = PrincipalId::new("owner@example.test");
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
         let creation = CreateWorld {
-            id: CommandId::new(),
             owner: owner.clone(),
             title: "Kharad".into(),
             patch: owner_patch(SubjectDeclaration {
@@ -1111,11 +1116,9 @@ mod tests {
         };
         let (mut kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
         let snapshot = kernel.snapshot().unwrap();
-        let command_id = CommandId::new();
         kernel
             .submit(
                 CommandEnvelope {
-                    id: command_id,
                     world_id: snapshot.world_id,
                     expected_revision: snapshot.revision,
                     caller: CallerId::Play,
@@ -1148,7 +1151,7 @@ mod tests {
 
         let mut forged_head = kernel.state.clone();
         let mut forged_commits = kernel.journal.commits.clone();
-        let forged = forged_commits.get_mut(&command_id).unwrap();
+        let forged = last_commit(&mut forged_commits);
         let WorldEffect::PatchAdmitted { resolved, .. } = &mut forged.effect else {
             panic!("expected an admitted patch effect");
         };
@@ -1255,7 +1258,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "Clock History"),
+            creation("Clock History"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -1392,18 +1395,16 @@ mod tests {
         let authenticated = auth_principal(owner());
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            crate::tests::creation(CommandId::new(), "Chronicle"),
+            crate::tests::creation("Chronicle"),
             &authenticated,
         )
         .unwrap();
         let active = kernel.snapshot().unwrap();
-        let command_id = CommandId::new();
         let caller = CallerId::Play;
         kernel
             .submit(
                 command(
                     &active,
-                    command_id,
                     caller.clone(),
                     CommandBody::AdvanceTime {
                         minutes: TickMinutes::new(30).unwrap(),
@@ -1415,7 +1416,7 @@ mod tests {
 
         let mut forged_head = kernel.state.clone();
         let mut forged_commits = kernel.journal.commits.clone();
-        let forged = forged_commits.get_mut(&command_id).unwrap();
+        let forged = last_commit(&mut forged_commits);
         let WorldEffect::TimeAdvanced { to, .. } = &mut forged.effect else {
             panic!("expected a time-advanced effect");
         };
@@ -1440,18 +1441,16 @@ mod tests {
         let authenticated = auth_principal(owner());
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            crate::tests::creation(CommandId::new(), "Kharad"),
+            crate::tests::creation("Kharad"),
             &authenticated,
         )
         .unwrap();
         let topology = admit_topology(&mut kernel);
         let active = kernel.snapshot().unwrap();
-        let command_id = CommandId::new();
         kernel
             .submit(
                 command(
                     &active,
-                    command_id,
                     CallerId::Play,
                     CommandBody::AdmitPatch {
                         patch: WorldPatch {
@@ -1470,7 +1469,7 @@ mod tests {
 
         let mut forged_head = kernel.state.clone();
         let mut forged_commits = kernel.journal.commits.clone();
-        let forged = forged_commits.get_mut(&command_id).unwrap();
+        let forged = last_commit(&mut forged_commits);
         let WorldEffect::PatchAdmitted { resolved, .. } = &mut forged.effect else {
             panic!("expected an admitted patch effect");
         };
@@ -1511,7 +1510,7 @@ mod tests {
             let authenticated = auth_principal(owner());
             let (mut kernel, _) = WorldKernel::create(
                 &path,
-                crate::tests::creation(CommandId::new(), "ForgedDecision"),
+                crate::tests::creation("ForgedDecision"),
                 &authenticated,
             )
             .unwrap();
@@ -1520,7 +1519,6 @@ mod tests {
             let active = kernel.snapshot().unwrap();
             let entry = affordance_named(&active, kind);
             let caller = play_caller();
-            let command_id = CommandId::new();
             let role = |name: &str, target| RoleBinding {
                 role: crate::Role(name.into()),
                 target,
@@ -1529,7 +1527,6 @@ mod tests {
                 .submit(
                     command(
                         &active,
-                        command_id,
                         caller.clone(),
                         CommandBody::Act {
                             actor: custody.holder,
@@ -1559,7 +1556,7 @@ mod tests {
 
             let mut forged_head = kernel.state.clone();
             let mut forged_commits = kernel.journal.commits.clone();
-            let forged = forged_commits.get_mut(&command_id).unwrap();
+            let forged = last_commit(&mut forged_commits);
             let WorldEffect::Acted { event, .. } = &mut forged.effect else {
                 panic!("expected an acted effect");
             };
@@ -1602,9 +1599,7 @@ mod tests {
         let path = directory.path().join("world.cc");
         let owner = PrincipalId::new("owner@example.test");
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
-        let creation_id = CommandId::new();
         let creation = CreateWorld {
-            id: creation_id,
             owner: owner.clone(),
             title: "Admitted".into(),
             patch: owner_patch(SubjectDeclaration {
@@ -1620,7 +1615,7 @@ mod tests {
         let (kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
         let mut forged_head = kernel.state.clone();
         let mut forged_commits = kernel.journal.commits.clone();
-        let forged = forged_commits.get_mut(&creation_id).unwrap();
+        let forged = genesis_commit(&mut forged_commits);
         let CommittedCommand::CreateWorld(command) = &mut forged.command else {
             panic!("expected genesis creation command");
         };
@@ -1635,7 +1630,7 @@ mod tests {
 
         let mut binding_forged_head = kernel.state.clone();
         let mut binding_forged_commits = kernel.journal.commits.clone();
-        let binding_forged = binding_forged_commits.get_mut(&creation_id).unwrap();
+        let binding_forged = genesis_commit(&mut binding_forged_commits);
         let WorldEffect::WorldCreated { resolved, .. } = &mut binding_forged.effect else {
             panic!("expected genesis effect");
         };
@@ -1662,7 +1657,7 @@ mod tests {
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            crate::tests::creation(CommandId::new(), "Forged Rows"),
+            crate::tests::creation("Forged Rows"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -1743,7 +1738,7 @@ mod tests {
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            crate::tests::creation(CommandId::new(), "Old Store"),
+            crate::tests::creation("Old Store"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -1789,14 +1784,14 @@ mod tests {
         use crate::tests::{affordance_named, civic_world, command, owner, play_caller};
         use crate::{
             DecisionInvocation, Magnitude, ProposedEffect, Quantity, Role, RoleBinding,
-            SubmitReceipt, Target,
+            Target,
         };
 
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            crate::tests::creation(CommandId::new(), "Replayed Levy"),
+            crate::tests::creation("Replayed Levy"),
             &crate::tests::auth_principal(owner()),
         )
         .unwrap();
@@ -1804,7 +1799,6 @@ mod tests {
         let caller = play_caller();
         let envelope = command(
             &active,
-            CommandId::new(),
             caller.clone(),
             CommandBody::Act {
                 actor: civic.treasury,
@@ -1846,10 +1840,8 @@ mod tests {
         assert_eq!(replayed.band, event.band);
         assert_eq!(replayed.effects, event.effects);
         assert!(matches!(
-            reopened
-                .submit(envelope, &AuthenticatedCaller::fixture(caller))
-                .unwrap(),
-            SubmitReceipt::AlreadyApplied(_)
+            reopened .submit(envelope, &AuthenticatedCaller::fixture(caller)),
+            Err(KernelError::RevisionMismatch { .. })
         ));
     }
 
@@ -1869,7 +1861,7 @@ mod tests {
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            crate::tests::creation(CommandId::new(), "Forged Civics"),
+            crate::tests::creation("Forged Civics"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -1977,7 +1969,7 @@ mod tests {
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            crate::tests::creation(CommandId::new(), "Pre-Authority"),
+            crate::tests::creation("Pre-Authority"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2028,13 +2020,13 @@ mod tests {
             LEVY_KIND, auth_principal, civic_world, operations, over_subject, owner, reject_play,
             submit_play,
         };
-        use crate::{ComponentOp, Mismatch, SubmitReceipt};
+        use crate::{ComponentOp, Mismatch};
 
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            crate::tests::creation(CommandId::new(), "Moving Civics"),
+            crate::tests::creation("Moving Civics"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2042,10 +2034,7 @@ mod tests {
 
         let admit = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
-            assert!(matches!(
-                submit_play(kernel, &before, operations(ops)),
-                SubmitReceipt::Applied(_)
-            ));
+            assert!(submit_play(kernel, &before, operations(ops)).resulting_revision > 0);
             verify_state_shape(&kernel.state).expect("the committed store keeps its shape");
             assert!(
                 crate::overlapping_holder(&kernel.state).is_none(),
@@ -2108,9 +2097,10 @@ mod tests {
 #[cfg(test)]
 mod custody_tests {
     use super::*;
+    use super::tests::last_commit;
     use crate::{
-        CallerId, CommandBody, CommandId, ComponentOp, DependencyRef, EntityKind, Quantity, Ref,
-        SubmitReceipt, WorldKernel, WorldPatch,
+        CallerId, CommandBody, ComponentOp, DependencyRef, EntityKind, Quantity, Ref,
+        WorldKernel, WorldPatch,
         tests::{admit_custody, admit_topology, auth_principal, command, creation, owner},
     };
 
@@ -2123,7 +2113,7 @@ mod custody_tests {
         let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
         let (mut kernel, _) =
-            WorldKernel::create(&path, creation(CommandId::new(), "Replay"), &authenticated)
+            WorldKernel::create(&path, creation("Replay"), &authenticated)
                 .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
@@ -2131,7 +2121,6 @@ mod custody_tests {
 
         let envelope = command(
             &active,
-            CommandId::new(),
             CallerId::Play,
             CommandBody::AdmitPatch {
                 patch: WorldPatch {
@@ -2146,21 +2135,17 @@ mod custody_tests {
                 },
             },
         );
-        let SubmitReceipt::Applied(receipt) =
-            kernel.submit(envelope.clone(), &crate::AuthenticatedCaller::verified_play()).unwrap()
-        else {
-            panic!("expected an applied transfer");
-        };
+        kernel.submit(envelope.clone(), &crate::AuthenticatedCaller::verified_play()).unwrap();
         let accepted = kernel.snapshot().unwrap();
         let world_id = accepted.world_id;
         drop(kernel);
 
         let mut reopened = WorldKernel::open(&path, world_id).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
-        assert_eq!(
-            reopened.submit(envelope, &crate::AuthenticatedCaller::verified_play()).unwrap(),
-            SubmitReceipt::AlreadyApplied(receipt)
-        );
+        assert!(matches!(
+            reopened.submit(envelope, &crate::AuthenticatedCaller::verified_play()),
+            Err(KernelError::RevisionMismatch { .. })
+        ));
     }
 
     /// Replay recomputes `reduce`, so the band and the lowered operations are
@@ -2176,7 +2161,7 @@ mod custody_tests {
         let authenticated = auth_principal(owner());
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "ActionReplay"),
+            creation("ActionReplay"),
             &authenticated,
         )
         .unwrap();
@@ -2192,7 +2177,6 @@ mod custody_tests {
         };
         let envelope = command(
             &active,
-            CommandId::new(),
             caller.clone(),
             CommandBody::Act {
                 actor: custody.holder,
@@ -2214,12 +2198,9 @@ mod custody_tests {
             },
         );
         let authenticated_controller = AuthenticatedCaller::fixture(caller);
-        let SubmitReceipt::Applied(receipt) = kernel
+        kernel
             .submit(envelope.clone(), &authenticated_controller)
-            .unwrap()
-        else {
-            panic!("expected an applied invocation");
-        };
+            .unwrap();
         let accepted = kernel.snapshot().unwrap();
         let committed = kernel
             .state
@@ -2237,12 +2218,10 @@ mod custody_tests {
             reopened.state.events.last().expect("the replayed event"),
             &committed
         );
-        assert_eq!(
-            reopened
-                .submit(envelope, &authenticated_controller)
-                .unwrap(),
-            SubmitReceipt::AlreadyApplied(receipt)
-        );
+        assert!(matches!(
+            reopened .submit(envelope, &authenticated_controller),
+            Err(KernelError::RevisionMismatch { .. })
+        ));
     }
 
     /// A store written at the pass-2 schema is refused outright. There is no
@@ -2275,7 +2254,7 @@ mod custody_tests {
         let directory = tempfile::tempdir().unwrap();
         let (kernel, _) = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "Titled"),
+            creation("Titled"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2302,7 +2281,7 @@ mod custody_tests {
         let path = directory.path().join("world.cc");
         let (kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "GrantRows"),
+            creation("GrantRows"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2348,7 +2327,7 @@ mod custody_tests {
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "ActedChain"),
+            creation("ActedChain"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2392,13 +2371,13 @@ mod custody_tests {
     /// state row and commit row each on their own: reverting either constant
     /// to v8 would let its half of the store in.
     #[test]
-    fn v9_state_and_commit_rows_are_refused() {
+    fn ghostlight_state_and_commit_rows_are_refused() {
         use crate::tests::{act, auth_principal, creation, first_grant, owner, speak};
 
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "SchemaV9"),
+            creation("SchemaV9"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2415,8 +2394,8 @@ mod custody_tests {
         let state_row = |schema: &str| {
             envelope(STATE_ROW, schema, kernel.state.world_id.key(), &kernel.state).unwrap()
         };
-        assert_eq!(STATE_SCHEMA, "ghostlight.world_state.consumer.v10");
-        assert_eq!(COMMIT_SCHEMA, "ghostlight.world_commit.consumer.v10");
+        assert_eq!(STATE_SCHEMA, "aetherlight.world_state.v1");
+        assert_eq!(COMMIT_SCHEMA, "aetherlight.world_commit.v1");
         recover(
             [commit_rows(COMMIT_SCHEMA), vec![state_row(STATE_SCHEMA)]].concat(),
             None,
@@ -2425,17 +2404,17 @@ mod custody_tests {
 
         for (what, rows) in [
             (
-                "v9 state row",
+                "ghostlight state row",
                 [
                     commit_rows(COMMIT_SCHEMA),
-                    vec![state_row("ghostlight.world_state.consumer.v9")],
+                    vec![state_row("ghostlight.world_state.consumer.v10")],
                 ]
                 .concat(),
             ),
             (
-                "v9 commit rows",
+                "ghostlight commit rows",
                 [
-                    commit_rows("ghostlight.world_commit.consumer.v9"),
+                    commit_rows("ghostlight.world_commit.consumer.v10"),
                     vec![state_row(STATE_SCHEMA)],
                 ]
                 .concat(),
@@ -2462,7 +2441,7 @@ mod custody_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "SilentForgery"),
+            creation("SilentForgery"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2520,7 +2499,7 @@ mod custody_tests {
         let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
         let (mut kernel, _) =
-            WorldKernel::create(&path, creation(CommandId::new(), "Shape"), &authenticated)
+            WorldKernel::create(&path, creation("Shape"), &authenticated)
                 .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
@@ -2579,7 +2558,7 @@ mod custody_tests {
         let authenticated = auth_principal(owner());
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "EveryOperation"),
+            creation("EveryOperation"),
             &authenticated,
         )
         .unwrap();
@@ -2591,7 +2570,6 @@ mod custody_tests {
 
         let envelope = command(
             &active,
-            CommandId::new(),
             CallerId::Play,
             CommandBody::AdmitPatch {
                 patch: WorldPatch {
@@ -2627,11 +2605,7 @@ mod custody_tests {
                 },
             },
         );
-        let SubmitReceipt::Applied(receipt) =
-            kernel.submit(envelope.clone(), &crate::AuthenticatedCaller::verified_play()).unwrap()
-        else {
-            panic!("expected an applied custody patch");
-        };
+        kernel.submit(envelope.clone(), &crate::AuthenticatedCaller::verified_play()).unwrap();
         let accepted = kernel.snapshot().unwrap();
         let holdings = kernel.state.holdings.clone();
         let dependencies = kernel.state.dependencies.clone();
@@ -2644,10 +2618,10 @@ mod custody_tests {
         assert_eq!(reopened.state.holdings, holdings);
         assert_eq!(reopened.state.dependencies, dependencies);
         assert_eq!(reopened.state.state_digest, digest);
-        assert_eq!(
-            reopened.submit(envelope, &crate::AuthenticatedCaller::verified_play()).unwrap(),
-            SubmitReceipt::AlreadyApplied(receipt)
-        );
+        assert!(matches!(
+            reopened.submit(envelope, &crate::AuthenticatedCaller::verified_play()),
+            Err(KernelError::RevisionMismatch { .. })
+        ));
     }
 
     /// Soul: a dependency naming a target of the wrong kind, or no canonical
@@ -2660,7 +2634,7 @@ mod custody_tests {
         let authenticated = auth_principal(owner());
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "DependencyShape"),
+            creation("DependencyShape"),
             &authenticated,
         )
         .unwrap();
@@ -2704,7 +2678,7 @@ mod custody_tests {
 
     /// A world with one routine, one past-due goal, and a commit chain that
     /// reaches them: the fixture the two clock-forgery checks below need.
-    fn ticking_world(path: &std::path::Path) -> (WorldKernel, super::super::SubjectId, CommandId) {
+    fn ticking_world(path: &std::path::Path) -> (WorldKernel, super::super::SubjectId) {
         use crate::tests::{auth_principal, command, operations, owner};
         use crate::{
             AuthenticatedCaller, CallerId, CommandBody, CommitmentKind, ComponentOp,
@@ -2714,7 +2688,7 @@ mod custody_tests {
         let authenticated = auth_principal(owner());
         let (mut kernel, _) = WorldKernel::create(
             path,
-            crate::tests::creation(CommandId::new(), "Ticking"),
+            crate::tests::creation("Ticking"),
             &authenticated,
         )
         .unwrap();
@@ -2725,7 +2699,6 @@ mod custody_tests {
             .submit(
                 command(
                     &snapshot,
-                    CommandId::new(),
                     CallerId::Play,
                     operations(vec![
                         ComponentOp::CreateCommitment {
@@ -2752,14 +2725,12 @@ mod custody_tests {
             )
             .unwrap();
 
-        let tick_id = CommandId::new();
         let caller = CallerId::Play;
         let snapshot = kernel.snapshot().unwrap();
         kernel
             .submit(
                 command(
                     &snapshot,
-                    tick_id,
                     caller.clone(),
                     CommandBody::AdvanceTime {
                         minutes: TickMinutes::new(30).unwrap(),
@@ -2768,7 +2739,7 @@ mod custody_tests {
                 &AuthenticatedCaller::fixture(caller),
             )
             .unwrap();
-        (kernel, subject, tick_id)
+        (kernel, subject)
     }
 
     /// Soul falsification: the replay gate and the `apply_effect` gate are two
@@ -2781,11 +2752,12 @@ mod custody_tests {
 
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
-        let (kernel, subject, tick_id) = ticking_world(&path);
+        let (kernel, subject) = ticking_world(&path);
         let WorldEffect::TimeAdvanced { motion, .. } = &kernel
             .journal
             .commits
-            .get(&tick_id)
+            .values()
+            .max_by_key(|commit| commit.resulting_revision)
             .expect("the tick's commit")
             .effect
         else {
@@ -2797,7 +2769,7 @@ mod custody_tests {
         let forge = |rewrite: fn(&mut crate::Motion)| {
             let mut forged_head = kernel.state.clone();
             let mut forged_commits = kernel.journal.commits.clone();
-            let forged = forged_commits.get_mut(&tick_id).unwrap();
+            let forged = last_commit(&mut forged_commits);
             let WorldEffect::TimeAdvanced { motion, .. } = &mut forged.effect else {
                 panic!("expected a time-advanced effect");
             };
@@ -2839,7 +2811,7 @@ mod custody_tests {
     fn soul_a_zero_period_is_refused_by_the_shape_check() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
-        let (kernel, subject, _) = ticking_world(&path);
+        let (kernel, subject) = ticking_world(&path);
 
         // The forgery an in-crate caller cannot write: `TickMinutes::new`
         // refuses zero, and the field is private, so the only door is serde.

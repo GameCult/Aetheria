@@ -1015,13 +1015,13 @@ mod tests {
     };
     use crate::tests::{
         ADMIT_KIND, COMMAND_KIND, Civic, LEVY_KIND, OPENING_BALANCE, SEIZURE_GRIEVANCE, Topology,
-        WARDEN_OFFICE, act, act_command, affordance_named, authority_kind, civic_world,
+        WARDEN_OFFICE, act, affordance_named, authority_kind, civic_world,
         command, custody_world, grant_to, grievance, office, operations, over_place,
-        over_subject, play_caller, reject_play, submit_play,
+        over_subject, play_caller, reject_play, submit_play, tick_body,
     };
     use crate::{
         AffordanceKindName, AuthenticatedCaller, AuthoredSource, CommandBody, Confidence,
-        Declaration, EffectSlot, EntityKind, ProposedEffect, RoleBinding, Statement, SubmitReceipt,
+        Declaration, EffectSlot, EntityKind, ProposedEffect, RoleBinding, Statement, CommitReceipt,
         WorldEffect, WorldKernel, WorldPatch, WorldSnapshot, apply_effect,
     };
     use std::collections::BTreeSet;
@@ -1067,6 +1067,40 @@ mod tests {
     ) -> Result<DecisionEvent, KernelError> {
         let granted = crate::require_granted(state, actor, invocation.affordance)?;
         exercise(state, command_id, actor, &granted, invocation)
+    }
+
+    /// Commit `invocation` as the first command whose derived id draws `band`.
+    /// A band is a pure function of the pre-commit state and the command id,
+    /// and a command's id derives from the revision it targets, so a test
+    /// reaches a band by committing ordinary ticks until the id it would
+    /// carry draws it.
+    fn act_drawing(
+        kernel: &mut WorldKernel,
+        actor: SubjectId,
+        invocation: &DecisionInvocation,
+        band: usize,
+    ) -> CommitReceipt {
+        for _ in 0..256 {
+            let snapshot = kernel.snapshot().unwrap();
+            let envelope = command(
+                &snapshot,
+                play_caller(),
+                CommandBody::Act {
+                    actor,
+                    invocation: invocation.clone(),
+                },
+            );
+            let draws = draw_once(&kernel.state, envelope.id(), actor, invocation)
+                .expect("the invocation is admissible")
+                .band;
+            if draws == band {
+                return kernel
+                    .submit(envelope, &AuthenticatedCaller::verified_play())
+                    .expect("the invocation commits");
+            }
+            submit_play(kernel, &snapshot, tick_body(1));
+        }
+        panic!("a two-band entry reaches both bands within 256 revisions");
     }
 
     fn binding(role: &str, target: Target) -> RoleBinding {
@@ -1120,7 +1154,7 @@ mod tests {
             }
         }
 
-        fn commit(&mut self, invocation: DecisionInvocation) -> SubmitReceipt {
+        fn commit(&mut self, invocation: DecisionInvocation) -> CommitReceipt {
             act(&mut self.kernel, self.clerk, invocation).expect("the invocation commits")
         }
 
@@ -1324,7 +1358,7 @@ mod tests {
         let clerk_before = bench.held(bench.clerk);
         let keeper_before = bench.held(bench.keeper);
         let receipt = bench.commit(bench.carry(3, bench.yard));
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         assert_eq!(bench.held(bench.clerk), clerk_before - 3);
         assert_eq!(bench.held(bench.keeper), keeper_before + 3);
         assert_eq!(
@@ -1470,7 +1504,7 @@ mod tests {
         assert!(event.effects.is_empty());
 
         let receipt = bench.commit(idle);
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         assert_eq!(bench.kernel.state.holdings, holdings);
         assert_eq!(bench.kernel.state.positions, positions);
         assert_eq!(bench.kernel.state.edges, edges);
@@ -1483,7 +1517,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let mut bench = bench(directory.path(), "Lowering");
         let receipt = bench.commit(bench.carry(2, bench.yard));
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         let event = bench
             .kernel
             .state
@@ -1539,30 +1573,12 @@ mod tests {
         let mut seen: BTreeSet<usize> = BTreeSet::new();
 
         for wanted in [0usize, 1] {
-            // The draw is a pure function of the pre-commit revision and the
-            // command id, so the command id that reaches a band is findable
-            // before the envelope is built rather than hunted by retrying.
-            let command_id = (0..256)
-                .map(|_| CommandId::issue())
-                .find(|candidate| {
-                    draw_once(&bench.kernel.state, *candidate, bench.clerk, &split)
-                        .expect("the invocation is admissible")
-                        .band
-                        == wanted
-                })
-                .expect("a two-band entry reaches both bands over 256 command ids");
-
+            // The draw is a pure function of the pre-commit state and the
+            // command id; `act_drawing` finds the revision whose id reaches it.
             let before_clerk = bench.held(bench.clerk);
             let before_keeper = bench.held(bench.keeper);
-            let receipt = act_command(
-                &mut bench.kernel,
-                command_id,
-                play_caller(),
-                bench.clerk,
-                split.clone(),
-            )
-            .expect("the invocation commits");
-            assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+            let receipt = act_drawing(&mut bench.kernel, bench.clerk, &split, wanted);
+            assert!(receipt.resulting_revision > 0);
             bench.refresh();
             let event = bench
                 .kernel
@@ -1743,7 +1759,7 @@ mod tests {
             },
         )
         .expect("the Speak entry commits");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         let event = kernel.state.events.last().unwrap();
         assert_eq!(event.band, 0);
         // The two the speech lowering prepends, and nothing from a slot.
@@ -1890,7 +1906,7 @@ mod tests {
             }
         }
 
-        fn commit_as(&mut self, actor: SubjectId, invocation: DecisionInvocation) -> SubmitReceipt {
+        fn commit_as(&mut self, actor: SubjectId, invocation: DecisionInvocation) -> CommitReceipt {
             let receipt = act(&mut self.kernel, actor, invocation).expect("the invocation commits");
             self.refresh();
             receipt
@@ -1899,7 +1915,7 @@ mod tests {
         fn admit(&mut self, ops: Vec<ComponentOp>) {
             let before = self.kernel.snapshot().unwrap();
             let receipt = submit_play(&mut self.kernel, &before, operations(ops));
-            assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+            assert!(receipt.resulting_revision > 0);
             self.refresh();
         }
 
@@ -2094,10 +2110,7 @@ mod tests {
         // The chamber is inside it, so the same act commits and the deputy can
         // then levy there.
         let inside = bench.delegate(outsider, bench.civic.chamber);
-        assert!(matches!(
-            bench.commit_as(treasury, inside),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(bench.commit_as(treasury, inside).resulting_revision > 0);
         assert!(
             bench
                 .try_as(outsider, &bench.levy(bench.civic.farmer, 1))
@@ -2151,10 +2164,7 @@ mod tests {
 
         // The treasury's own `levy` grant over the hall covers the hall, so
         // the treasury may strip its own grant, and the ledger loses it.
-        assert!(matches!(
-            bench.commit_as(treasury, bench.revoke(treasury, hall)),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(bench.commit_as(treasury, bench.revoke(treasury, hall)).resulting_revision > 0);
         assert!(
             !bench
                 .kernel
@@ -2202,10 +2212,7 @@ mod tests {
                 .map(|position| position.place),
             Some(chamber)
         );
-        assert!(matches!(
-            bench.commit_as(treasury, bench.deploy(farmer, passage)),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(bench.commit_as(treasury, bench.deploy(farmer, passage)).resulting_revision > 0);
         assert_eq!(
             bench
                 .kernel
@@ -2235,10 +2242,7 @@ mod tests {
         );
 
         let farmer = bench.civic.farmer;
-        assert!(matches!(
-            bench.commit_as(farmer, petition.clone()),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(bench.commit_as(farmer, petition.clone()).resulting_revision > 0);
         let event = bench
             .kernel
             .state
@@ -2351,24 +2355,8 @@ mod tests {
 
         // The treasury commands the hall, and the passage has both endpoints
         // under it. The draw decides whether the interdiction lands.
-        let closing = (0..256)
-            .map(|_| CommandId::issue())
-            .find(|candidate| {
-                draw_once(&bench.kernel.state, *candidate, treasury, &sanction)
-                    .expect("the invocation is admissible")
-                    .band
-                    == 0
-            })
-            .expect("a two-band entry reaches its first band over 256 command ids");
-        let receipt = act_command(
-            &mut bench.kernel,
-            closing,
-            play_caller(),
-            treasury,
-            sanction,
-        )
-        .expect("the sanction commits");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        let receipt = act_drawing(&mut bench.kernel, treasury, &sanction, 0);
+        assert!(receipt.resulting_revision > 0);
         bench.refresh();
         assert!(!bench.kernel.state.edges[&passage].is_open());
 
@@ -2386,10 +2374,7 @@ mod tests {
             }],
             None,
         );
-        assert!(matches!(
-            bench.commit_as(treasury, appoint),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(bench.commit_as(treasury, appoint).resulting_revision > 0);
         assert_eq!(
             bench.kernel.state.selection[&treasury][&office("bailiff")].incumbent,
             Some(farmer)
@@ -2404,7 +2389,7 @@ mod tests {
         bench: &mut Civics,
         actor: SubjectId,
         invocation: DecisionInvocation,
-    ) -> Result<SubmitReceipt, KernelError> {
+    ) -> Result<CommitReceipt, KernelError> {
         act(&mut bench.kernel, actor, invocation)
     }
 
@@ -2587,7 +2572,6 @@ mod tests {
             let caller = play_caller();
             let envelope = command(
                 &bench.active,
-                CommandId::new(),
                 caller.clone(),
                 CommandBody::Act {
                     actor: treasury,
@@ -2601,7 +2585,7 @@ mod tests {
                 .kernel
                 .submit(envelope, &AuthenticatedCaller::fixture(caller))
                 .expect("the act commits");
-            assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+            assert!(receipt.resulting_revision > 0);
             bench.refresh();
             let WorldEffect::Acted { event, .. } = first else {
                 panic!("an acted effect");

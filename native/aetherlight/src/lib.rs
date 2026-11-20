@@ -94,7 +94,6 @@ pub(crate) use patch::{
 };
 use patch::{EdgeRecord, EntityRecord, LedgerDelta, ResolvedOp, ResolvedPatch};
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -103,18 +102,20 @@ use std::path::Path;
 use thiserror::Error;
 use uuid::Uuid;
 
-pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v10";
-pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v10";
+pub const STATE_SCHEMA: &str = "aetherlight.world_state.v1";
+pub(crate) const COMMIT_SCHEMA: &str = "aetherlight.world_commit.v1";
 
-/// Compatibility tag derived from [`STATE_SCHEMA`]: the trailing
-/// `<family>-<version>` pair (e.g. `foundation-v1`). Callers that publish a
-/// compatibility marker alongside the schema string must derive it from here
-/// rather than hand-copying a second literal that can drift from the schema.
-pub fn state_schema_compatibility_tag() -> String {
-    let mut segments = STATE_SCHEMA.rsplit('.');
-    let version = segments.next().unwrap_or_default();
-    let family = segments.next().unwrap_or_default();
-    format!("{family}-{version}")
+/// Domain strings of the three content-derived identities. A command is named
+/// by what it says, so no caller draws an id and no retry needs one.
+const COMMAND_DOMAIN: &[u8] = b"aetherlight.command.v1";
+const CREATE_DOMAIN: &[u8] = b"aetherlight.create.v1";
+const WORLD_DOMAIN: &[u8] = b"aetherlight.world.v1";
+
+/// The first 16 bytes of a digest as a `Uuid`, as `patch::derive_id` truncates.
+fn truncated_uuid(hasher: Sha256) -> Uuid {
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&hasher.finalize()[..16]);
+    Uuid::from_bytes(bytes)
 }
 
 /// The visibility argument is the whole boundary decision for an ID type: the
@@ -142,22 +143,14 @@ opaque_uuid!(AffordanceId, pub);
 opaque_uuid!(EventId);
 
 impl CommandId {
-    fn issue() -> Self {
-        Self(Uuid::new_v4())
-    }
-
-    pub fn new() -> Self {
-        Self::issue()
-    }
-
-    pub fn parse_uuid(value: &str) -> Result<Self, KernelError> {
-        Uuid::parse_str(value)
-            .map(Self)
-            .map_err(|_| KernelError::InvalidCommandId)
-    }
-
     fn key(self) -> String {
         self.0.to_string()
+    }
+
+    /// A named random id for tests that need a command id and no command.
+    #[cfg(test)]
+    fn issue() -> Self {
+        Self(Uuid::new_v4())
     }
 }
 
@@ -173,8 +166,12 @@ impl WorldId {
         Self(Uuid::nil())
     }
 
-    fn issue() -> Self {
-        Self(Uuid::new_v4())
+    /// The world is named by the creation that made it.
+    fn of(creation: CommandId) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(WORLD_DOMAIN);
+        hasher.update(creation.0.as_bytes());
+        Self(truncated_uuid(hasher))
     }
 
     fn key(self) -> String {
@@ -235,7 +232,6 @@ pub enum SubjectKind {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct CreateWorld {
-    id: CommandId,
     owner: PrincipalId,
     title: String,
     patch: WorldPatch,
@@ -243,6 +239,16 @@ struct CreateWorld {
     /// open-catalog world. Authored here and nowhere else: genesis installs it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     grammar: Option<GrammarBinding>,
+}
+
+impl CreateWorld {
+    /// The creation is named by its own bytes: equal creations are one command.
+    fn id(&self) -> CommandId {
+        let mut hasher = Sha256::new();
+        hasher.update(CREATE_DOMAIN);
+        hasher.update(rmp_serde::to_vec_named(self).expect("a creation command serializes"));
+        CommandId(truncated_uuid(hasher))
+    }
 }
 
 /// Who wrote a command. The owner principal authors genesis and nothing after
@@ -335,11 +341,25 @@ pub struct DecisionInvocation {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct CommandEnvelope {
-    id: CommandId,
     world_id: WorldId,
     expected_revision: u64,
     caller: CallerId,
     body: CommandBody,
+}
+
+impl CommandEnvelope {
+    /// A command is named by the world, revision, caller and body it carries.
+    /// The revision is in the preimage so the same body at two revisions is
+    /// two commands, and every id derived from it is distinct.
+    fn id(&self) -> CommandId {
+        let mut hasher = Sha256::new();
+        hasher.update(COMMAND_DOMAIN);
+        hasher.update(self.world_id.0.as_bytes());
+        hasher.update(self.expected_revision.to_be_bytes());
+        hasher.update(rmp_serde::to_vec_named(&self.caller).expect("a caller serializes"));
+        hasher.update(rmp_serde::to_vec_named(&self.body).expect("a command body serializes"));
+        CommandId(truncated_uuid(hasher))
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -500,7 +520,7 @@ enum WorldEffect {
 }
 
 /// The exact raw command admitted by the kernel. This is the sole
-/// persistent command authority: IDs, callers, retry identity, and effects are
+/// persistent command authority: IDs, callers, and effects are
 /// derived from this value rather than copied into independently forgeable
 /// commit fields.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -513,8 +533,8 @@ enum CommittedCommand {
 impl CommittedCommand {
     fn id(&self) -> CommandId {
         match self {
-            Self::CreateWorld(command) => command.id,
-            Self::WorldCommand(command) => command.id,
+            Self::CreateWorld(command) => command.id(),
+            Self::WorldCommand(command) => command.id(),
         }
     }
 
@@ -537,7 +557,6 @@ struct WorldCommit {
     resulting_state_digest: String,
     previous_commit_digest: Option<String>,
     effect: WorldEffect,
-    committed_at: DateTime<Utc>,
     digest: String,
 }
 
@@ -790,7 +809,7 @@ impl CreationReceipt {
             ));
         };
         Ok(Self {
-            command_id: command.id,
+            command_id: command.id(),
             world_id: commit.world_id,
             resulting_state_digest: commit.resulting_state_digest.clone(),
             commit_digest: commit.digest.clone(),
@@ -809,16 +828,8 @@ impl From<&WorldCommit> for CommitReceipt {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SubmitReceipt {
-    Applied(CommitReceipt),
-    AlreadyApplied(CommitReceipt),
-}
-
 #[derive(Debug, Error)]
 pub enum KernelError {
-    #[error("command ID must be a UUID")]
-    InvalidCommandId,
     #[error("world title must not be empty")]
     EmptyTitle,
     #[error("world owner principal must be canonical and nonempty")]
@@ -837,8 +848,6 @@ pub enum KernelError {
     AffordanceDenied,
     #[error("expected revision {expected}, current revision {actual}")]
     RevisionMismatch { expected: u64, actual: u64 },
-    #[error("command ID was reused with different content")]
-    CommandIdConflict,
     #[error("world creation ID was reused with different content")]
     CreationConflict,
     #[error("world creation target already contains another world")]
@@ -915,7 +924,7 @@ fn prepare_creation(
     let title = normalize_title(&input.title)?;
     // The world's own identity is not world structure, and it feeds every
     // derived ID, so it is minted before resolution rather than by it.
-    let world_id = WorldId::issue();
+    let world_id = WorldId::of(input.id());
     let resolved = patch::resolve_patch(
         &WorldState::empty(
             world_id,
@@ -923,7 +932,7 @@ fn prepare_creation(
             title.clone(),
             input.grammar.clone(),
         ),
-        input.id,
+        input.id(),
         &input.patch,
     )
     .map_err(KernelError::PatchRejected)?;
@@ -959,7 +968,6 @@ impl WorldKernel {
             resulting_state_digest: state.state_digest.clone(),
             previous_commit_digest: None,
             effect,
-            committed_at: Utc::now(),
             digest: String::new(),
         };
         genesis.digest = commit_digest(&genesis)?;
@@ -971,7 +979,7 @@ impl WorldKernel {
 
     fn retry_creation(&self, prepared: &PreparedCreation) -> Result<CreationReceipt, KernelError> {
         self.journal.ensure_healthy()?;
-        let Some(commit) = self.journal.commit_for(prepared.command.id) else {
+        let Some(commit) = self.journal.commit_for(prepared.command.id()) else {
             return Err(KernelError::CreationTargetOccupied);
         };
         if commit.command != CommittedCommand::CreateWorld(prepared.command.clone())
@@ -1014,27 +1022,14 @@ impl WorldKernel {
         &mut self,
         command: CommandEnvelope,
         authenticated: &AuthenticatedCaller,
-    ) -> Result<SubmitReceipt, KernelError> {
-        let committed_at = Utc::now();
+    ) -> Result<CommitReceipt, KernelError> {
         self.journal.ensure_healthy()?;
+        let command_id = command.id();
         if command.world_id != self.state.world_id {
             return Err(KernelError::WorldMismatch);
         }
         if command.caller != authenticated.caller {
             return Err(KernelError::AuthenticationMismatch);
-        }
-        // Retry identity is caller plus body. The expected revision is stamped by
-        // the mailbox owner rather than supplied by the caller, so it is not part
-        // of what makes a command the same command.
-        if let Some(commit) = self.committed_command(command.id) {
-            let CommittedCommand::WorldCommand(committed) = &commit.command else {
-                return Err(KernelError::CommandIdConflict);
-            };
-            return if committed.caller == command.caller && committed.body == command.body {
-                Ok(SubmitReceipt::AlreadyApplied(CommitReceipt::from(commit)))
-            } else {
-                Err(KernelError::CommandIdConflict)
-            };
         }
         if command.expected_revision != self.state.revision {
             return Err(KernelError::RevisionMismatch {
@@ -1045,7 +1040,7 @@ impl WorldKernel {
 
         let effect = reduce(&self.state, &command)?;
         let mut candidate = self.state.clone();
-        apply_effect(&mut candidate, command.id, &command.caller, &effect)?;
+        apply_effect(&mut candidate, command_id, &command.caller, &effect)?;
         candidate.revision = candidate
             .revision
             .checked_add(1)
@@ -1062,7 +1057,6 @@ impl WorldKernel {
             resulting_state_digest: candidate.state_digest.clone(),
             previous_commit_digest: self.state.last_commit_digest.clone(),
             effect,
-            committed_at,
             digest: String::new(),
         };
         commit.digest = commit_digest(&commit)?;
@@ -1070,11 +1064,7 @@ impl WorldKernel {
 
         self.journal.commit(&candidate, &commit)?;
         self.state = candidate;
-        Ok(SubmitReceipt::Applied(CommitReceipt::from(&commit)))
-    }
-
-    fn committed_command(&self, command_id: CommandId) -> Option<&WorldCommit> {
-        self.journal.commit_for(command_id)
+        Ok(CommitReceipt::from(&commit))
     }
 
 }
@@ -1084,10 +1074,11 @@ fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, 
     // `apply_effect`: `reduce` decides and `apply_effect` re-decides, which is
     // how every gate in this file is written.
     require_play(&command.caller)?;
+    let command_id = command.id();
     match &command.body {
         CommandBody::Act { actor, invocation } => {
             let granted = require_granted(state, *actor, invocation.affordance)?;
-            let event = action::exercise(state, command.id, *actor, &granted, invocation)?;
+            let event = action::exercise(state, command_id, *actor, &granted, invocation)?;
             Ok(WorldEffect::Acted {
                 invocation: invocation.clone(),
                 event,
@@ -1108,7 +1099,7 @@ fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, 
             })
         }
         CommandBody::AdmitPatch { patch } => {
-            let resolved = patch::resolve_patch(state, command.id, patch)
+            let resolved = patch::resolve_patch(state, command_id, patch)
                 .map_err(KernelError::PatchRejected)?;
             Ok(WorldEffect::PatchAdmitted { resolved })
         }
@@ -1202,7 +1193,7 @@ impl WorldState {
         let mut state = Self::empty(world_id, owner.clone(), title.clone(), command.grammar.clone());
         let expected = patch::resolve_patch(
             &state,
-            command.id,
+            command.id(),
             &command.patch,
         )
         .map_err(KernelError::PatchRejected)?;
@@ -3350,9 +3341,8 @@ mod tests {
             .expect("the fixture world declares this affordance")
     }
 
-    pub(crate) fn creation(id: CommandId, title: &str) -> CreateWorld {
+    pub(crate) fn creation(title: &str) -> CreateWorld {
         CreateWorld {
-            id,
             owner: owner(),
             title: title.into(),
             patch: WorldPatch {
@@ -3413,12 +3403,10 @@ mod tests {
 
     pub(crate) fn command(
         snapshot: &WorldSnapshot,
-        id: CommandId,
         caller: CallerId,
         body: CommandBody,
     ) -> CommandEnvelope {
         CommandEnvelope {
-            id,
             world_id: snapshot.world_id,
             expected_revision: snapshot.revision,
             caller,
@@ -3433,20 +3421,19 @@ mod tests {
         }
     }
 
-    pub(crate) fn play_command(snapshot: &WorldSnapshot, id: CommandId, body: CommandBody) -> CommandEnvelope {
-        command(snapshot, id, CallerId::Play, body)
+    pub(crate) fn play_command(snapshot: &WorldSnapshot, body: CommandBody) -> CommandEnvelope {
+        command(snapshot, CallerId::Play, body)
     }
 
     pub(crate) fn submit_play(
         kernel: &mut WorldKernel,
         snapshot: &WorldSnapshot,
         body: CommandBody,
-    ) -> SubmitReceipt {
+    ) -> CommitReceipt {
         kernel
             .submit(
                 command(
                     snapshot,
-                    CommandId::new(),
                     CallerId::Play,
                     body,
                 ),
@@ -3563,7 +3550,7 @@ mod tests {
                 patch: topology_patch(speak_entry(kernel)),
             },
         );
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         let entity = |label: &str| {
             *kernel
                 .state
@@ -3881,7 +3868,7 @@ mod tests {
                 patch: custody_patch(topology, speak_entry(kernel)),
             },
         );
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         let entity = |label: &str| {
             *kernel
                 .state
@@ -4328,7 +4315,7 @@ mod tests {
                 patch: civic_patch(topology, speak_entry(kernel)),
             },
         );
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         let entity = |label: &str| {
             *kernel
                 .state
@@ -4590,7 +4577,6 @@ mod tests {
             .submit(
                 command(
                     snapshot,
-                    CommandId::new(),
                     CallerId::Play,
                     body,
                 ),
@@ -4652,22 +4638,11 @@ mod tests {
         caller: CallerId,
         actor: SubjectId,
         invocation: DecisionInvocation,
-    ) -> Result<SubmitReceipt, KernelError> {
-        act_command(kernel, CommandId::new(), caller, actor, invocation)
-    }
-
-    pub(crate) fn act_command(
-        kernel: &mut WorldKernel,
-        command_id: CommandId,
-        caller: CallerId,
-        actor: SubjectId,
-        invocation: DecisionInvocation,
-    ) -> Result<SubmitReceipt, KernelError> {
+    ) -> Result<CommitReceipt, KernelError> {
         let snapshot = kernel.snapshot().unwrap();
         kernel.submit(
             command(
                 &snapshot,
-                command_id,
                 caller.clone(),
                 CommandBody::Act { actor, invocation },
             ),
@@ -4683,7 +4658,7 @@ mod tests {
         kernel: &mut WorldKernel,
         actor: SubjectId,
         invocation: DecisionInvocation,
-    ) -> Result<SubmitReceipt, KernelError> {
+    ) -> Result<CommitReceipt, KernelError> {
         act_as(
             kernel,
             CallerId::Play,
@@ -4696,7 +4671,7 @@ mod tests {
     fn create_submit_restart_and_replay_are_exact() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("world.cc");
-        let creation = creation(CommandId::new(), "First");
+        let creation = creation("First");
         let (mut kernel, creation_receipt) =
             WorldKernel::create(&path, creation.clone(), &auth_principal(owner())).unwrap();
         let active = kernel.snapshot().unwrap();
@@ -4704,22 +4679,18 @@ mod tests {
         let caller = play_caller();
         let command = command(
             &active,
-            CommandId::new(),
             caller.clone(),
             CommandBody::Act {
                 actor: operator,
                 invocation: speak(first_grant(&active, operator), "The vote carries."),
             },
         );
-        let applied = kernel
+        kernel
             .submit(
                 command.clone(),
                 &AuthenticatedCaller::fixture(caller.clone()),
             )
             .unwrap();
-        let SubmitReceipt::Applied(receipt) = applied else {
-            panic!("expected applied receipt")
-        };
         let accepted = kernel.snapshot().unwrap();
         drop(kernel);
 
@@ -4727,12 +4698,10 @@ mod tests {
             WorldKernel::create(&path, creation, &auth_principal(owner())).unwrap();
         assert_eq!(retried_creation_receipt, creation_receipt);
         assert_eq!(reopened.snapshot().unwrap(), accepted);
-        assert_eq!(
-            reopened
-                .submit(command, &AuthenticatedCaller::fixture(caller))
-                .unwrap(),
-            SubmitReceipt::AlreadyApplied(receipt)
-        );
+        assert!(matches!(
+            reopened .submit(command, &AuthenticatedCaller::fixture(caller)),
+            Err(KernelError::RevisionMismatch { .. })
+        ));
         drop(reopened);
         let reopened = WorldKernel::open(&path, accepted.world_id).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
@@ -4744,17 +4713,14 @@ mod tests {
         let path = dir.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "Still"),
+            creation("Still"),
             &auth_principal(owner()),
         )
         .unwrap();
         let genesis = kernel.snapshot().unwrap();
-        assert!(matches!(
-            submit_play(&mut kernel, &genesis, tick_body(1)),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(submit_play(&mut kernel, &genesis, tick_body(1)).resulting_revision > 0);
         let after = kernel.snapshot().unwrap();
-        let stale = play_command(&genesis, CommandId::new(), tick_body(1));
+        let stale = play_command(&genesis, tick_body(1));
         assert!(matches!(
             kernel.submit(stale, &AuthenticatedCaller::verified_play()),
             Err(KernelError::RevisionMismatch { .. })
@@ -4764,75 +4730,57 @@ mod tests {
     }
 
     #[test]
-    fn durable_idempotency_precedes_revision_and_detects_conflicts() {
+    fn ids_are_derived_from_the_command() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation(CommandId::new(), "A"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let genesis = kernel.snapshot().unwrap();
-        let id = CommandId::new();
-        let first = play_command(&genesis, id, tick_body(1));
-        let first_receipt = kernel
-            .submit(first.clone(), &AuthenticatedCaller::verified_play())
-            .unwrap();
-        let second_snapshot = kernel.snapshot().unwrap();
-        kernel
-            .submit(
-                play_command(&second_snapshot, CommandId::new(), tick_body(1)),
-                &AuthenticatedCaller::verified_play(),
-            )
-            .unwrap();
-        let after_second = kernel.snapshot().unwrap();
-        assert_eq!(
-            kernel
-                .submit(first, &AuthenticatedCaller::verified_play())
-                .unwrap(),
-            match first_receipt {
-                SubmitReceipt::Applied(value) => SubmitReceipt::AlreadyApplied(value),
-                _ => unreachable!(),
-            }
-        );
-        let conflict = play_command(&genesis, id, tick_body(2));
-        assert!(matches!(
-            kernel.submit(conflict, &AuthenticatedCaller::verified_play()),
-            Err(KernelError::CommandIdConflict)
-        ));
-        assert_eq!(kernel.snapshot().unwrap(), after_second);
-    }
+        let create = |name: &str, title: &str| {
+            WorldKernel::create(dir.path().join(name), creation(title), &auth_principal(owner()))
+                .unwrap()
+        };
+        let (mut kernel, receipt) = create("a.cc", "Same");
+        let (twin, twin_receipt) = create("b.cc", "Same");
+        assert_eq!(receipt, twin_receipt);
+        assert_eq!(kernel.state.world_id, twin.state.world_id);
+        assert_eq!(receipt.world_id, WorldId::of(receipt.command_id));
+        let (other, _) = create("c.cc", "Other");
+        assert_ne!(kernel.state.world_id, other.state.world_id);
 
-    #[test]
-    fn creation_retry_is_bound_to_the_exact_raw_command() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let id = CommandId::new();
-        let raw = creation(id, "  Canonical Result  ");
-        let (kernel, first) =
-            WorldKernel::create(&path, raw.clone(), &auth_principal(owner())).unwrap();
-        assert_eq!(kernel.snapshot().unwrap().title, "Canonical Result");
-        drop(kernel);
-
-        let (kernel, retry) =
-            WorldKernel::create(&path, raw.clone(), &auth_principal(owner())).unwrap();
-        assert_eq!(retry, first);
-        drop(kernel);
-
-        let mut merely_equivalent = raw;
-        merely_equivalent.title = "Canonical Result".into();
-        assert!(matches!(
-            WorldKernel::create(&path, merely_equivalent, &auth_principal(owner())),
-            Err(KernelError::CreationConflict)
-        ));
+        // The same patch at two revisions is two commands, so the entity it
+        // declares is minted twice under two ids.
+        let patch = WorldPatch {
+            declarations: vec![Declaration::Entity(EntityDeclaration {
+                handle: DraftHandle::new("cairn"),
+                label: "A Cairn".into(),
+                kind: EntityKind::Place,
+                container: None,
+            })],
+            operations: Vec::new(),
+            evidence: Vec::new(),
+        };
+        let mut ids = BTreeSet::new();
+        for _ in 0..2 {
+            let snapshot = kernel.snapshot().unwrap();
+            let envelope = play_command(&snapshot, CommandBody::AdmitPatch { patch: patch.clone() });
+            let expected = envelope.id();
+            let receipt = kernel
+                .submit(envelope, &AuthenticatedCaller::verified_play())
+                .unwrap();
+            assert_eq!(receipt.command_id, expected);
+            assert!(ids.insert(receipt.command_id), "two commands share an id");
+        }
+        let cairns = kernel
+            .state
+            .entities
+            .values()
+            .filter(|entity| entity.label == "A Cairn")
+            .count();
+        assert_eq!(cairns, 2);
     }
 
     #[test]
     fn invalid_seed_never_allocates_a_world() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("world.cc");
-        let mut invalid = creation(CommandId::new(), "Nope");
+        let mut invalid = creation("Nope");
         invalid.patch.declarations[3] = invalid.patch.declarations[2].clone();
         let Err(KernelError::PatchRejected(rejected)) =
             WorldKernel::create(&path, invalid, &auth_principal(owner()))
@@ -4848,7 +4796,7 @@ mod tests {
         assert!(
             WorldKernel::create(
                 &path,
-                creation(CommandId::new(), "Valid"),
+                creation("Valid"),
                 &auth_principal(owner())
             )
             .is_ok()
@@ -4859,7 +4807,7 @@ mod tests {
     fn a_second_live_owner_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("world.cc");
-        let creation = creation(CommandId::new(), "Held");
+        let creation = creation("Held");
         let (kernel, _) =
             WorldKernel::create(&path, creation.clone(), &auth_principal(owner())).unwrap();
         let world_id = kernel.snapshot().unwrap().world_id;
@@ -4875,7 +4823,7 @@ mod tests {
         let kernel = WorldKernel::open(&path, world_id).unwrap();
         drop(kernel);
         assert!(matches!(
-            WorldKernel::open(&path, WorldId::issue()),
+            WorldKernel::open(&path, WorldId::of(CommandId::issue())),
             Err(KernelError::OpenedWorldMismatch)
         ));
     }
@@ -4886,13 +4834,13 @@ mod tests {
         let path = dir.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "Certain"),
+            creation("Certain"),
             &auth_principal(owner()),
         )
         .unwrap();
         let genesis = kernel.snapshot().unwrap();
-        let uncertain = CommandId::new();
-        let attempted = play_command(&genesis, uncertain, tick_body(1));
+        let attempted = play_command(&genesis, tick_body(1));
+        let uncertain = attempted.id();
         kernel.journal.fail_after_durable_commit_for_test();
         assert!(matches!(
             kernel.submit(attempted.clone(), &AuthenticatedCaller::verified_play()),
@@ -4908,10 +4856,8 @@ mod tests {
         let durable = reopened.snapshot().unwrap();
         assert_eq!(durable.revision, 1);
         assert!(matches!(
-            reopened
-                .submit(attempted, &AuthenticatedCaller::verified_play())
-                .unwrap(),
-            SubmitReceipt::AlreadyApplied(_)
+            reopened .submit(attempted, &AuthenticatedCaller::verified_play()),
+            Err(KernelError::RevisionMismatch { .. })
         ));
     }
 
@@ -4919,8 +4865,8 @@ mod tests {
     fn lost_genesis_ack_reopens_as_the_same_world_and_exact_receipt() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("world.cc");
-        let command_id = CommandId::new();
-        let input = creation(command_id, "Durable Genesis");
+        let input = creation("Durable Genesis");
+        let command_id = input.id();
         let authenticated = auth_principal(owner());
         let mut empty = match journal::WorldJournal::open_owner(&path).unwrap() {
             journal::JournalOpen::Empty(empty) => empty,
@@ -4949,7 +4895,7 @@ mod tests {
         let displaced = dir.path().join("displaced.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "Pinned"),
+            creation("Pinned"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -4959,7 +4905,7 @@ mod tests {
         assert!(matches!(kernel.snapshot(), Err(KernelError::OwnershipLost)));
         assert!(matches!(
             kernel.submit(
-                play_command(&snapshot, CommandId::new(), tick_body(1)),
+                play_command(&snapshot, tick_body(1)),
                 &AuthenticatedCaller::verified_play()
             ),
             Err(KernelError::OwnershipLost)
@@ -4978,14 +4924,13 @@ mod tests {
         let path = dir.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "Owned"),
+            creation("Owned"),
             &auth_principal(owner()),
         )
         .unwrap();
         let snapshot = kernel.snapshot().unwrap();
         let forged = command(
             &snapshot,
-            CommandId::new(),
             CallerId::Principal(human_principal()),
             tick_body(1),
         );
@@ -5004,7 +4949,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             dir.path().join("world.cc"),
-            creation(CommandId::new(), "Preimage"),
+            creation("Preimage"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -5126,7 +5071,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             dir.path().join("world.cc"),
-            creation(CommandId::new(), "SharedCatalogIds"),
+            creation("SharedCatalogIds"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -5165,10 +5110,7 @@ mod tests {
         };
 
         // The grantee's scope commits with that id.
-        assert!(matches!(
-            invoke(&mut kernel, holders[0]).unwrap(),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(invoke(&mut kernel, holders[0]).unwrap().resulting_revision > 0);
 
         // A scope that does not hold the entry is denied the very same id, and
         // nothing commits.
@@ -5191,7 +5133,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             dir.path().join("world.cc"),
-            creation(CommandId::new(), "BindingAndAdmission"),
+            creation("BindingAndAdmission"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -5229,7 +5171,7 @@ mod tests {
             },
         )
         .expect("a distant route closing does not stop this act");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
     }
 
     /// The mvp doc's disjointness requirement: an institution with an
@@ -5286,7 +5228,6 @@ mod tests {
             .submit(
                 command(
                     &active,
-                    CommandId::new(),
                     caller.clone(),
                     CommandBody::Act {
                         actor: civic.treasury,
@@ -5314,7 +5255,7 @@ mod tests {
                 &AuthenticatedCaller::fixture(caller),
             )
             .unwrap();
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
 
         let held = |holder: SubjectId| {
             kernel
@@ -5453,16 +5394,7 @@ mod tests {
         // A different kind over the same ground commits, and so does the same
         // kind held by a different subject: two holders authorized over one
         // target is not a contradiction, because nothing arbitrates.
-        assert!(matches!(
-            admit(
-                &mut kernel,
-                vec![
-                    grant_to(civic.reeve, JUDGE_KIND, over_place(civic.chamber)),
-                    grant_to(civic.outsider, LEVY_KIND, over_place(civic.chamber)),
-                ]
-            ),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(admit( &mut kernel, vec![ grant_to(civic.reeve, JUDGE_KIND, over_place(civic.chamber)), grant_to(civic.outsider, LEVY_KIND, over_place(civic.chamber)), ] ).resulting_revision > 0);
     }
 
     /// Contract 6 on the civic surface: one patch, the complete sorted set, no
@@ -5533,10 +5465,7 @@ mod tests {
                 standing: over_place(civic.hall),
             },
         ];
-        assert!(matches!(
-            submit_play(&mut kernel, &before, operations(repaired)),
-            SubmitReceipt::Applied(_)
-        ));
+        assert!(submit_play(&mut kernel, &before, operations(repaired)).resulting_revision > 0);
     }
 
     /// A civic operation that changes nothing is not a canonical change.
@@ -5828,7 +5757,7 @@ mod custody_tests {
     pub(crate) fn custody_kernel(path: &Path, title: &str) -> WorldKernel {
         WorldKernel::create(
             path.join("world.cc"),
-            creation(CommandId::new(), title),
+            creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -6004,7 +5933,7 @@ mod custody_tests {
                 qty: Quantity(3),
             }]),
         );
-        assert!(matches!(after_three, SubmitReceipt::Applied(_)));
+        assert!(after_three.resulting_revision > 0);
         assert_eq!(holding(&kernel, custody.holder, custody.tithe), 4);
 
         let snapshot = kernel.snapshot().unwrap();
@@ -6359,7 +6288,7 @@ mod custody_tests {
                 },
             ]),
         );
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
 
         // Transfer contributes to no term; transform contributes one spent and
         // one gained; consume contributes one consumed. Nothing was admitted.
@@ -6596,7 +6525,7 @@ mod custody_tests {
             speak(first_grant(&moved, topology.walker), "Unmoved."),
         )
         .expect("an unrelated subject acts at the later revision");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
     }
 }
 
@@ -6617,7 +6546,7 @@ mod knowledge_tests {
     fn speech_kernel(path: &Path, title: &str) -> (WorldKernel, Speech, WorldSnapshot) {
         let mut kernel = WorldKernel::create(
             path.join("world.cc"),
-            creation(CommandId::new(), title),
+            creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -6630,7 +6559,7 @@ mod knowledge_tests {
         kernel: &mut WorldKernel,
         actor: SubjectId,
         invocation: DecisionInvocation,
-    ) -> Result<SubmitReceipt, KernelError> {
+    ) -> Result<CommitReceipt, KernelError> {
         act(kernel, actor, invocation)
     }
 
@@ -6651,7 +6580,7 @@ mod knowledge_tests {
         }
     }
 
-    fn rejected(result: Result<SubmitReceipt, KernelError>) -> Vec<ActionMismatch> {
+    fn rejected(result: Result<CommitReceipt, KernelError>) -> Vec<ActionMismatch> {
         match result {
             Err(KernelError::ActionRejected(mismatches)) => mismatches,
             other => panic!("expected a rejected invocation, got {other:?}"),
@@ -6751,7 +6680,7 @@ mod knowledge_tests {
         let directory = tempfile::tempdir().unwrap();
         let mut draft = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "Standing"),
+            creation("Standing"),
             &auth_principal(owner()),
         )
         .expect("a draft world")
@@ -7151,7 +7080,7 @@ mod knowledge_tests {
         let (speech, world_id, expected) = {
             let mut kernel = WorldKernel::create(
                 &path,
-                creation(CommandId::new(), "ReplayDisplay"),
+                creation("ReplayDisplay"),
                 &auth_principal(owner()),
             )
             .expect("a created world")
@@ -7412,26 +7341,23 @@ mod knowledge_tests {
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, speech, active) = speech_kernel(directory.path(), "Allocation");
         let world_id = kernel.state.world_id;
-        let command_id = CommandId::new();
         let caller = play_caller();
         let entities_before = kernel.state.entities.len();
-        kernel
-            .submit(
-                command(
-                    &active,
-                    command_id,
-                    caller.clone(),
-                    CommandBody::Act {
-                        actor: speech.speaker,
-                        invocation: say(
-                            speech.whisper,
-                            vec![binding("target", Target::Subject(speech.listener))],
-                            "Counted.",
-                        ),
-                    },
+        let whisper = command(
+            &active,
+            caller.clone(),
+            CommandBody::Act {
+                actor: speech.speaker,
+                invocation: say(
+                    speech.whisper,
+                    vec![binding("target", Target::Subject(speech.listener))],
+                    "Counted.",
                 ),
-                &AuthenticatedCaller::fixture(caller),
-            )
+            },
+        );
+        let command_id = whisper.id();
+        kernel
+            .submit(whisper, &AuthenticatedCaller::fixture(caller))
             .expect("the whisper commits");
 
         let claim = minted_claim(&kernel);
@@ -7464,7 +7390,7 @@ mod knowledge_tests {
         let (speech, world_id, expected) = {
             let mut kernel = WorldKernel::create(
                 &path,
-                creation(CommandId::new(), "ReplaySpeech"),
+                creation("ReplaySpeech"),
                 &auth_principal(owner()),
             )
             .expect("a created world")
@@ -7516,7 +7442,7 @@ mod knowledge_tests {
     fn a_forged_claim_or_forged_recipient_does_not_apply() {
         let directory = tempfile::tempdir().unwrap();
         let (kernel, speech, _) = speech_kernel(directory.path(), "Forgery");
-        let command_id = CommandId::new();
+        let command_id = CommandId::issue();
         let caller = play_caller();
         let invocation = say(
             speech.proclaim,
@@ -7633,7 +7559,7 @@ mod knowledge_tests {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "SpeechAudience"),
+            creation("SpeechAudience"),
             &auth_principal(owner()),
         )
         .expect("a draft world")
@@ -7702,7 +7628,7 @@ mod knowledge_tests {
                 ),
             )
             .expect("both statements commit identically");
-            assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+            assert!(receipt.resulting_revision > 0);
             let event = kernel.state.events.last().unwrap().clone();
             (kernel, speech, event)
         };
@@ -7743,7 +7669,7 @@ mod soul_knowledge_tests {
     fn speech_kernel(path: &Path, title: &str) -> (WorldKernel, Speech, WorldSnapshot) {
         let mut kernel = WorldKernel::create(
             path.join("world.cc"),
-            creation(CommandId::new(), title),
+            creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -7773,7 +7699,7 @@ mod soul_knowledge_tests {
         kernel: &mut WorldKernel,
         actor: SubjectId,
         invocation: DecisionInvocation,
-    ) -> Result<SubmitReceipt, KernelError> {
+    ) -> Result<CommitReceipt, KernelError> {
         act(kernel, actor, invocation)
     }
 
@@ -7943,7 +7869,7 @@ mod soul_knowledge_tests {
     fn soul_a_forged_wider_audience_does_not_apply() {
         let directory = tempfile::tempdir().unwrap();
         let (kernel, speech, _) = speech_kernel(directory.path(), "WiderAudience");
-        let command_id = CommandId::new();
+        let command_id = CommandId::issue();
         let caller = play_caller();
         let invocation = say(
             speech.whisper,
@@ -8110,7 +8036,6 @@ mod soul_knowledge_tests {
             .submit(
                 command(
                     &active,
-                    CommandId::new(),
                     CallerId::Play,
                     operations(vec![tell.clone(), forget.clone()]),
                 ),
@@ -8181,7 +8106,6 @@ mod soul_knowledge_tests {
             .submit(
                 command(
                     &active,
-                    CommandId::new(),
                     CallerId::Play,
                     CommandBody::AdmitPatch {
                         patch: WorldPatch {
@@ -8201,7 +8125,7 @@ mod soul_knowledge_tests {
                 &AuthenticatedCaller::fixture(CallerId::Play),
             )
             .expect("the play table declares a claim in Active");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         assert_eq!(kernel.state.facts.len(), before.facts.len() + 1);
         let facts = kernel.state.facts.clone();
         drop(kernel);
@@ -8408,7 +8332,7 @@ mod witness_tests {
     fn nesting_kernel(path: &Path, title: &str) -> (WorldKernel, Nesting, WorldSnapshot) {
         let mut kernel = WorldKernel::create(
             path.join("world.cc"),
-            creation(CommandId::new(), title),
+            creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -8888,7 +8812,6 @@ mod witness_tests {
             .submit(
                 command(
                     &active,
-                    CommandId::new(),
                     caller.clone(),
                     CommandBody::Act {
                         actor: world.villager,
@@ -8995,7 +8918,7 @@ mod witness_tests {
     fn a_genesis_seeded_knowledge_row_is_acquired_at_revision_zero() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
-        let mut creation = creation(CommandId::new(), "PAf49Genesis");
+        let mut creation = creation("PAf49Genesis");
         creation.patch.declarations.push(Declaration::Fact(FactDeclaration {
             handle: DraftHandle::new("founding"),
             label: "The Founding Ruling".into(),
@@ -9258,7 +9181,6 @@ mod witness_tests {
                 kernel.submit(
                     command(
                         &snapshot,
-                        CommandId::new(),
                         caller.clone(),
                         CommandBody::AdmitPatch {
                             patch: WorldPatch {
@@ -9313,7 +9235,7 @@ mod witness_tests {
             Some(world.village),
         );
         assert!(
-            matches!(receipt, Ok(SubmitReceipt::Applied(_))),
+            matches!(receipt, Ok(_)),
             "{receipt:?}"
         );
         let arrived = *kernel
@@ -9384,7 +9306,7 @@ mod witness_tests {
                 witness(world.asteroid, world.village, Confidence::Certain),
             ]),
         );
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)), "{receipt:?}");
+        assert!(receipt.resulting_revision > 0, "{receipt:?}");
         assert_eq!(
             knows(&kernel, world.villager, world.asteroid),
             seen(Confidence::Certain, seeded.revision + 1),
@@ -9484,7 +9406,7 @@ mod clock_tests {
     fn clock_kernel(path: &Path, title: &str) -> (WorldKernel, Clockwork, WorldSnapshot) {
         let mut kernel = WorldKernel::create(
             path.join("world.cc"),
-            creation(CommandId::new(), title),
+            creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -9725,12 +9647,11 @@ mod clock_tests {
         )
     }
 
-    fn tick(kernel: &mut WorldKernel, span: u32) -> Result<SubmitReceipt, KernelError> {
+    fn tick(kernel: &mut WorldKernel, span: u32) -> Result<CommitReceipt, KernelError> {
         let snapshot = kernel.snapshot().unwrap();
         kernel.submit(
             command(
                 &snapshot,
-                CommandId::new(),
                 CallerId::Play,
                 CommandBody::AdvanceTime {
                     minutes: minutes(span),
@@ -9745,7 +9666,7 @@ mod clock_tests {
         actor: SubjectId,
         affordance: AffordanceId,
         bindings: Vec<RoleBinding>,
-    ) -> Result<SubmitReceipt, KernelError> {
+    ) -> Result<CommitReceipt, KernelError> {
         act(
             kernel,
             actor,
@@ -9986,7 +9907,7 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "Negatives"),
+            creation("Negatives"),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -10006,7 +9927,6 @@ mod clock_tests {
                 .submit(
                     command(
                         &active,
-                        CommandId::new(),
                         caller.clone(),
                         CommandBody::AdvanceTime {
                             minutes: minutes(1),
@@ -10036,7 +9956,6 @@ mod clock_tests {
             .submit(
                 command(
                     &snapshot,
-                    CommandId::new(),
                     CallerId::Play,
                     CommandBody::AdvanceTime {
                         minutes: minutes(1),
@@ -10157,7 +10076,6 @@ mod clock_tests {
         let snapshot = kernel.snapshot().unwrap();
         let repeat = command(
             &snapshot,
-            CommandId::new(),
             CallerId::Play,
             operations(vec![ComponentOp::DischargeCommitment {
                 subject: Ref::Existing(clockwork.farmer),
@@ -10188,7 +10106,7 @@ mod clock_tests {
         assert_eq!(replayed.snapshot().unwrap(), before_snapshot);
         assert!(matches!(
             replayed.submit(repeat, &AuthenticatedCaller::verified_play()),
-            Ok(SubmitReceipt::AlreadyApplied(_))
+            Err(KernelError::RevisionMismatch { .. })
         ));
     }
 
@@ -10267,7 +10185,7 @@ mod clock_tests {
                     ComponentOp::DischargeCommitment {
                         subject: Ref::Existing(clockwork.farmer),
                         key: CommitmentKey {
-                            command: CommandId::new(),
+                            command: CommandId::issue(),
                             index: 0,
                         },
                     },
@@ -10624,7 +10542,7 @@ mod clock_tests {
     fn genesis_may_not_rule_or_mint() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
-        let mut input = creation(CommandId::new(), "RulesAndMints");
+        let mut input = creation("RulesAndMints");
         for handle in ["first-rule", "second-rule"] {
             input
                 .patch
@@ -10673,7 +10591,7 @@ mod clock_tests {
     fn a_genesis_patch_carrying_a_ruled_fact_is_refused() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
-        let mut input = creation(CommandId::new(), "RuledGenesis");
+        let mut input = creation("RuledGenesis");
         input
             .patch
             .declarations
@@ -10702,7 +10620,7 @@ mod clock_tests {
     fn a_genesis_patch_carrying_a_mint_is_refused() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("world.cc");
-        let mut input = creation(CommandId::new(), "MintGenesis");
+        let mut input = creation("MintGenesis");
         input
             .patch
             .declarations
@@ -10732,8 +10650,8 @@ mod clock_tests {
     /// so this cannot be satisfied by `prepare_creation`'s own check.
     #[test]
     fn genesis_itself_refuses_a_ruled_fact_and_a_mint() {
-        let world_id = WorldId::issue();
-        let mut input = creation(CommandId::new(), "GenesisRuleDirect");
+        let mut input = creation("GenesisRuleDirect");
+        let world_id = WorldId::of(input.id());
         input
             .patch
             .declarations
@@ -10746,7 +10664,7 @@ mod clock_tests {
         let title = normalize_title(&input.title).unwrap();
         let resolved = patch::resolve_patch(
             &WorldState::empty(world_id, input.owner.clone(), title.clone(), None),
-            input.id,
+            input.id(),
             &input.patch,
         )
         .expect("the resolver is actor-blind and accepts a Ruled fact");
@@ -10758,8 +10676,8 @@ mod clock_tests {
         let error = WorldState::genesis(world_id, &input, &effect).unwrap_err();
         assert!(matches!(error, KernelError::Invariant(_)), "{error:?}");
 
-        let world_id = WorldId::issue();
-        let mut input = creation(CommandId::new(), "GenesisMintDirect");
+        let mut input = creation("GenesisMintDirect");
+        let world_id = WorldId::of(input.id());
         input
             .patch
             .declarations
@@ -10772,7 +10690,7 @@ mod clock_tests {
         let title = normalize_title(&input.title).unwrap();
         let resolved = patch::resolve_patch(
             &WorldState::empty(world_id, input.owner.clone(), title.clone(), None),
-            input.id,
+            input.id(),
             &input.patch,
         )
         .expect("the resolver is actor-blind and accepts a Mint");
@@ -10911,7 +10829,6 @@ mod clock_tests {
         let snapshot = kernel.snapshot().unwrap();
         let ticking = command(
             &snapshot,
-            CommandId::new(),
             CallerId::Play,
             CommandBody::AdvanceTime {
                 minutes: minutes(span),
@@ -10929,7 +10846,7 @@ mod clock_tests {
         // Applying the re-derived effect to a copy reproduces the committed
         // state exactly, which is the replay identity the journal relies on.
         let mut replayed = kernel.state.clone();
-        apply_effect(&mut replayed, ticking.id, &CallerId::Play, &expected)
+        apply_effect(&mut replayed, ticking.id(), &CallerId::Play, &expected)
             .expect("the re-derived effect applies");
         kernel
             .submit(ticking, &AuthenticatedCaller::fixture(CallerId::Play))
@@ -10945,10 +10862,10 @@ mod clock_tests {
         kernel: &mut WorldKernel,
         caller: CallerId,
         body: CommandBody,
-    ) -> Result<SubmitReceipt, KernelError> {
+    ) -> Result<CommitReceipt, KernelError> {
         let snapshot = kernel.snapshot().unwrap();
         kernel.submit(
-            command(&snapshot, CommandId::new(), caller.clone(), body),
+            command(&snapshot, caller.clone(), body),
             &AuthenticatedCaller::fixture(caller),
         )
     }
@@ -11035,7 +10952,7 @@ mod clock_tests {
             },
         )
         .expect("the play authority declares unanswered in Active");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
     }
 
     /// Invariant 5: the play authority reaches the whole world, unconfined to
@@ -11068,7 +10985,7 @@ mod clock_tests {
             },
         )
         .expect("the play authority advances time");
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         assert!(kernel.state.now > active.now);
     }
 
@@ -11279,7 +11196,7 @@ mod clock_tests {
     }
 
     /// Play retires a subject.
-    fn play_retires(kernel: &mut WorldKernel, subject: SubjectId) -> Result<SubmitReceipt, KernelError> {
+    fn play_retires(kernel: &mut WorldKernel, subject: SubjectId) -> Result<CommitReceipt, KernelError> {
         submit_as(
             kernel,
             CallerId::Play,
@@ -11444,7 +11361,7 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "SeedGrantsDraft"),
+            creation("SeedGrantsDraft"),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -11726,7 +11643,7 @@ mod clock_tests {
         let directory = tempfile::tempdir().unwrap();
         let mut kernel = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "PAf33CanReach"),
+            creation("PAf33CanReach"),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -12286,7 +12203,7 @@ mod agency_tests {
         let path = directory.path().join("world.cc");
         let (kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), title),
+            creation(title),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -12359,7 +12276,7 @@ mod agency_tests {
                 let commits = kernel.journal.commit_count();
                 let error = kernel
                     .submit(
-                        command(&snapshot, CommandId::new(), caller.clone(), body.clone()),
+                        command(&snapshot, caller.clone(), body.clone()),
                         &AuthenticatedCaller::fixture(caller.clone()),
                     )
                     .unwrap_err();
@@ -12375,11 +12292,11 @@ mod agency_tests {
             let before = kernel.snapshot().unwrap();
             let receipt = kernel
                 .submit(
-                    play_command(&before, CommandId::new(), body),
+                    play_command(&before, body),
                     &AuthenticatedCaller::verified_play(),
                 )
                 .unwrap_or_else(|error| panic!("Play {name}: {error:?}"));
-            assert!(matches!(receipt, SubmitReceipt::Applied(_)), "Play {name}");
+            assert!(receipt.resulting_revision > 0, "Play {name}");
         }
     }
 
@@ -12458,7 +12375,7 @@ mod agency_tests {
             for body in [broken.clone(), denied.clone()] {
                 let error = kernel
                     .submit(
-                        command(&snapshot, CommandId::new(), caller.clone(), body),
+                        command(&snapshot, caller.clone(), body),
                         &AuthenticatedCaller::fixture(caller.clone()),
                     )
                     .unwrap_err();
@@ -12619,7 +12536,7 @@ mod agency_tests {
             })
         };
         let directory = tempfile::tempdir().unwrap();
-        let mut input = creation(CommandId::new(), "Mutes");
+        let mut input = creation("Mutes");
         input.patch.declarations.push(mute("born-mute"));
         let (mut kernel, _) = WorldKernel::create(
             directory.path().join("world.cc"),

@@ -9,7 +9,7 @@ use crate::patch::{
 use crate::tests::{auth_principal, command, creation, owner};
 use crate::{
     CallerId, CommandBody, CommandId, CreateWorld, EntityId, KernelError,
-    SubjectDeclaration, SubjectKind, SubmitReceipt,
+    SubjectDeclaration, SubjectKind, CommitReceipt,
     WorldKernel, WorldPatch,
 };
 use std::collections::BTreeSet;
@@ -24,7 +24,7 @@ fn alpha() -> ImportKey {
 
 /// The fixture genesis with its witness imported from `alpha()`.
 fn keyed_creation(title: &str) -> CreateWorld {
-    let mut world = creation(CommandId::new(), title);
+    let mut world = creation(title);
     for declaration in &mut world.patch.declarations {
         if let Declaration::Subject(subject) = declaration
             && subject.handle == DraftHandle::new("persona")
@@ -71,12 +71,11 @@ fn submit_as(
     kernel: &mut WorldKernel,
     caller: CallerId,
     patch: WorldPatch,
-) -> Result<SubmitReceipt, KernelError> {
+) -> Result<CommitReceipt, KernelError> {
     let snapshot = kernel.snapshot().unwrap();
     kernel.submit(
         command(
             &snapshot,
-            CommandId::new(),
             caller.clone(),
             CommandBody::AdmitPatch { patch },
         ),
@@ -132,7 +131,7 @@ fn keys_in(kernel: &WorldKernel) -> Vec<ImportKey> {
 #[test]
 fn one_patch_cannot_declare_two_subjects_with_one_import_key() {
     // At genesis.
-    let mut world = creation(CommandId::new(), "Twins");
+    let mut world = creation("Twins");
     for declaration in &mut world.patch.declarations {
         if let Declaration::Subject(subject) = declaration
             && (subject.handle == DraftHandle::new("persona")
@@ -236,7 +235,7 @@ fn a_held_import_key_is_refused_at_every_door_after_the_revision_has_moved() {
         patch_of(vec![keyed("fresh", Some(fresh.clone()), dead_end)]),
     )
     .unwrap();
-    assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+    assert!(receipt.resulting_revision > 0);
     let again = submit_as(
         &mut kernel,
         CallerId::Play,
@@ -404,7 +403,7 @@ fn the_subjects_map_refuses_a_second_subject_for_one_key_even_when_resolved_else
     let resolve = |handle: &str| {
         crate::patch::resolve_patch(
             &kernel.state,
-            CommandId::new(),
+            CommandId::issue(),
             &patch_of(vec![keyed(
                 handle,
                 Some(key("aetheria.ship", "Omega")),
@@ -421,7 +420,7 @@ fn the_subjects_map_refuses_a_second_subject_for_one_key_even_when_resolved_else
     };
     crate::apply_effect(
         &mut state,
-        CommandId::new(),
+        CommandId::issue(),
         &CallerId::Play,
         &effect(first),
     )
@@ -429,7 +428,7 @@ fn the_subjects_map_refuses_a_second_subject_for_one_key_even_when_resolved_else
     assert_eq!(state.subjects.len(), before + 1);
     let result = crate::apply_effect(
         &mut state,
-        CommandId::new(),
+        CommandId::issue(),
         &CallerId::Play,
         &effect(second),
     );
@@ -452,7 +451,7 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 fn keyless_world_digests_unchanged() {
     // A subject nobody imported serialises without the field at all, so every
     // digest written before keys existed is the digest of the same bytes.
-    let (_dir, kernel) = create(creation(CommandId::new(), "Keyless"));
+    let (_dir, kernel) = create(creation("Keyless"));
     let kernel = kernel.unwrap();
     let state = rmp_serde::to_vec_named(&kernel.state).unwrap();
     assert!(
@@ -616,7 +615,7 @@ fn admitting_a_resolved_effect_refuses_two_subjects_with_one_key() {
     let resolve = || {
         crate::patch::resolve_patch(
             &kernel.state,
-            CommandId::new(),
+            CommandId::issue(),
             &patch_of(vec![
                 keyed("first", Some(key("aetheria.ship", "Beta")), place),
                 keyed("second", Some(key("aetheria.ship", "Gamma")), place),

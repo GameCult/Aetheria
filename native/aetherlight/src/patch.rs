@@ -5679,7 +5679,7 @@ mod tests {
         over_place, owner, reject_play, speak_entry, submit_play,
     };
     use crate::{
-        AuthenticatedCaller, CallerId, CommandBody, CommandId, KernelError, SubmitReceipt, WorldKernel,
+        AuthenticatedCaller, CallerId, CommandBody, CommandId, KernelError, WorldKernel,
     };
 
     fn entity(handle: &str, label: &str, kind: EntityKind) -> Declaration {
@@ -6030,7 +6030,7 @@ mod tests {
                 granting("verb"),
             ])),
         );
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         assert_eq!(kernel.state.affordance_catalog.len(), entries_before + 1);
         assert_eq!(kernel.state.subjects.len(), subjects_before + 1);
         let granted = kernel
@@ -6106,7 +6106,7 @@ mod tests {
     fn draft_world(directory: &std::path::Path) -> WorldKernel {
         WorldKernel::create(
             directory.join("world.cc"),
-            creation(CommandId::new(), "Kharad"),
+            creation("Kharad"),
             &auth_principal(owner()),
         )
         .expect("draft world")
@@ -6126,7 +6126,6 @@ mod tests {
             .submit(
                 command(
                     &before,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(patch_of(vec![institution(
                         &kernel,
@@ -6183,7 +6182,7 @@ mod tests {
             ),
         ]);
         let receipt = submit_play(&mut kernel, &before, admit(patch));
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
 
         let after = kernel.snapshot().unwrap();
         assert_eq!(after.revision, before.revision + 1);
@@ -6236,7 +6235,6 @@ mod tests {
             .submit(
                 command(
                     &before,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(patch_of(vec![
                         entity("rhythm-tithe", "The Rhythm Tithe", EntityKind::Resource),
@@ -6290,7 +6288,6 @@ mod tests {
             .submit(
                 command(
                     &before,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(broken),
                 ),
@@ -6336,7 +6333,7 @@ mod tests {
             }),
         ]);
         let receipt = submit_play(&mut kernel, &before, admit(repaired));
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         assert_eq!(kernel.state.entities.len(), 3);
     }
 
@@ -6350,7 +6347,6 @@ mod tests {
             .submit(
                 command(
                     &before,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(patch_of(Vec::new())),
                 ),
@@ -6377,7 +6373,6 @@ mod tests {
             .submit(
                 command(
                     &before,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(patch_of(vec![
                         contained("yard", "The Cavity Yard", "road"),
@@ -6422,7 +6417,6 @@ mod tests {
             .submit(
                 command(
                     &before,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(patch_of(vec![
                         entity("yard", "The Cavity Yard", EntityKind::Place),
@@ -6462,7 +6456,6 @@ mod tests {
             .submit(
                 command(
                     &before,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(WorldPatch {
                         declarations: vec![Declaration::Route(RouteDeclaration {
@@ -6521,7 +6514,6 @@ mod tests {
                 .submit(
                     command(
                         &active,
-                        CommandId::new(),
                         CallerId::Play,
                         admit(operations_of(vec![ComponentOp::Relocate {
                             subject: Ref::Existing(topology.walker),
@@ -6572,7 +6564,7 @@ mod tests {
             ])),
         );
         assert!(
-            matches!(receipt, SubmitReceipt::Applied(_)),
+            receipt.resulting_revision > 0,
             "a dead institution's lend must not collide with a fresh direct grant over the same ground"
         );
     }
@@ -6609,7 +6601,7 @@ mod tests {
             ])),
         );
         assert!(
-            matches!(delegated, SubmitReceipt::Applied(_)),
+            delegated.resulting_revision > 0,
             "expected the delegation patch to apply, got {delegated:?}"
         );
         let after_delegation = kernel.snapshot().unwrap();
@@ -6654,7 +6646,7 @@ mod tests {
                 via: Ref::Existing(topology.ramp),
             }])),
         );
-        assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+        assert!(receipt.resulting_revision > 0);
         assert_eq!(
             kernel.state.positions.get(&topology.walker),
             Some(&Position {
@@ -6681,7 +6673,7 @@ mod tests {
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "Kharad"),
+            creation("Kharad"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -6689,7 +6681,6 @@ mod tests {
         let active = kernel.snapshot().unwrap();
         let envelope = command(
             &active,
-            CommandId::new(),
             CallerId::Play,
             admit(operations_of(vec![ComponentOp::Relocate {
                 subject: Ref::Existing(topology.walker),
@@ -6712,8 +6703,8 @@ mod tests {
             })
         );
         assert!(matches!(
-            reopened.submit(envelope, &AuthenticatedCaller::verified_play()).unwrap(),
-            SubmitReceipt::AlreadyApplied(_)
+            reopened.submit(envelope, &AuthenticatedCaller::verified_play()),
+            Err(KernelError::RevisionMismatch { .. })
         ));
     }
 
@@ -6764,14 +6755,13 @@ mod tests {
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "Kharad"),
+            creation("Kharad"),
             &auth_principal(owner()),
         )
         .unwrap();
         let before = kernel.snapshot().unwrap();
         let envelope = command(
             &before,
-            CommandId::new(),
             CallerId::Play,
             admit(patch_of(vec![
                 entity("rhythm-road", "The Rhythm Road", EntityKind::Place),
@@ -6793,8 +6783,8 @@ mod tests {
         let mut reopened = WorldKernel::open(&path, world_id).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), committed);
         assert!(matches!(
-            reopened.submit(envelope, &AuthenticatedCaller::verified_play()).unwrap(),
-            SubmitReceipt::AlreadyApplied(_)
+            reopened.submit(envelope, &AuthenticatedCaller::verified_play()),
+            Err(KernelError::RevisionMismatch { .. })
         ));
     }
 
@@ -6831,7 +6821,7 @@ mod tests {
             .0;
         assert_ne!(admitted, genesis_human);
 
-        let command_id = CommandId::new();
+        let command_id = CommandId::issue();
         let first = resolve_patch(&kernel.state, command_id, &patch).unwrap();
         let second = resolve_patch(&kernel.state, command_id, &patch).unwrap();
         assert_eq!(first, second);
@@ -6846,29 +6836,26 @@ mod tests {
         let path = directory.path().join("world.cc");
         let (mut kernel, _) = WorldKernel::create(
             &path,
-            creation(CommandId::new(), "Kharad"),
+            creation("Kharad"),
             &auth_principal(owner()),
         )
         .unwrap();
         let before = kernel.snapshot().unwrap();
-        let command_id = CommandId::new();
         let handle = DraftHandle::new("rhythm-authority");
+        let envelope = command(
+            &before,
+            CallerId::Play,
+            admit(patch_of(vec![institution(
+                &kernel,
+                "rhythm-authority",
+                "The Rhythm Authority",
+                Some(Ref::Draft(DraftHandle::new("kharad-rhythm-road"))),
+            )])),
+        );
+        let command_id = envelope.id();
 
         let error = kernel
-            .submit(
-                command(
-                    &before,
-                    command_id,
-                    CallerId::Play,
-                    admit(patch_of(vec![institution(
-                        &kernel,
-                        "rhythm-authority",
-                        "The Rhythm Authority",
-                        Some(Ref::Draft(DraftHandle::new("kharad-rhythm-road"))),
-                    )])),
-                ),
-                &AuthenticatedCaller::verified_play(),
-            )
+            .submit(envelope, &AuthenticatedCaller::verified_play())
             .unwrap_err();
         assert!(matches!(error, KernelError::PatchRejected(_)));
 
@@ -6920,12 +6907,12 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let (kernel, _) = WorldKernel::create(
             &directory.path().join("world.cc"),
-            creation(CommandId::new(), "DeriveId"),
+            creation("DeriveId"),
             &auth_principal(owner()),
         )
         .unwrap();
         let world_id = kernel.state.world_id;
-        let command_id = CommandId::new();
+        let command_id = CommandId::issue();
         let handle = DraftHandle::new("a-handle");
         assert_ne!(
             derive_id(SUBJECT_NAMESPACE, world_id, command_id, &handle, None),
@@ -6968,7 +6955,7 @@ mod tests {
                 Some(Ref::Draft(DraftHandle::new("rhythm-road"))),
             ),
         ]);
-        let resolved = resolve_patch(&kernel.state, CommandId::new(), &patch).unwrap();
+        let resolved = resolve_patch(&kernel.state, CommandId::issue(), &patch).unwrap();
         let honest = super::super::WorldEffect::PatchAdmitted {
             resolved: resolved.clone(),
         };
@@ -7036,7 +7023,6 @@ mod tests {
             .submit(
                 command(
                     &before,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(patch_of(vec![
                         entity("hollow", "The Hollow", EntityKind::Place),
@@ -7088,7 +7074,6 @@ mod tests {
             .submit(
                 command(
                     &active,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(operations_of(vec![ComponentOp::Relocate {
                         subject: Ref::Existing(unplaced),
@@ -7109,7 +7094,6 @@ mod tests {
             .submit(
                 command(
                     &active,
-                    CommandId::new(),
                     CallerId::Play,
                     admit(operations_of(vec![
                         ComponentOp::OpenRoute {

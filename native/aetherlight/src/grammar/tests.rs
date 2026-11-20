@@ -5,7 +5,7 @@ use crate::patch::{
 };
 use crate::tests::{auth_principal, command, creation, owner};
 use crate::{
-    CallerId, CommandBody, CommandId, CreateWorld, KernelError, SubjectKind, SubmitReceipt,
+    CallerId, CommandBody, CommandId, CreateWorld, KernelError, SubjectKind, CommitReceipt,
     WorldKernel, WorldPatch,
 };
 
@@ -38,7 +38,7 @@ fn grammar_with(extra: &[(&str, GrammarVerb)]) -> GrammarBinding {
 }
 
 fn bound(grammar: Option<GrammarBinding>, title: &str) -> CreateWorld {
-    let mut world = creation(CommandId::new(), title);
+    let mut world = creation(title);
     world.grammar = grammar;
     world
 }
@@ -96,12 +96,11 @@ fn create(world: CreateWorld) -> (tempfile::TempDir, Result<WorldKernel, KernelE
     (directory, result)
 }
 
-fn admit(kernel: &mut WorldKernel, patch: WorldPatch) -> Result<SubmitReceipt, KernelError> {
+fn admit(kernel: &mut WorldKernel, patch: WorldPatch) -> Result<CommitReceipt, KernelError> {
     let snapshot = kernel.snapshot().unwrap();
     kernel.submit(
         command(
             &snapshot,
-            CommandId::new(),
             CallerId::Play,
             CommandBody::AdmitPatch {
                 patch,
@@ -151,7 +150,7 @@ fn grammar_world_refuses_an_affordance_kind_outside_the_grammar() {
         not_in_grammar("wave")
     );
     let receipt = admit(&mut kernel, patch_of(vec![declare("hail", "hail", &[])])).unwrap();
-    assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+    assert!(receipt.resulting_revision > 0);
 }
 
 #[test]
@@ -203,7 +202,7 @@ fn grammar_world_refuses_a_role_signature_the_grammar_does_not_carry() {
         )]),
     )
     .unwrap();
-    assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+    assert!(receipt.resulting_revision > 0);
 }
 
 #[test]
@@ -235,7 +234,7 @@ fn each_grammar_referent_kind_admits_exactly_its_own_kernel_kind() {
             );
             if offered == own {
                 assert!(
-                    matches!(result, Ok(SubmitReceipt::Applied(_))),
+                    matches!(result, Ok(_)),
                     "{referent:?} refused its own kind"
                 );
             } else {
@@ -298,7 +297,7 @@ fn unbound_world_keeps_the_open_catalog() {
         patch_of(vec![declare("beacon", "beacon", &[])]),
     )
     .unwrap();
-    assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+    assert!(receipt.resulting_revision > 0);
     let snapshot = kernel.snapshot().unwrap();
     assert!(snapshot.grammar.is_none());
     assert!(snapshot.affordances.len() >= 4);
@@ -487,12 +486,11 @@ fn submit_as(
     kernel: &mut WorldKernel,
     caller: CallerId,
     patch: WorldPatch,
-) -> Result<SubmitReceipt, KernelError> {
+) -> Result<CommitReceipt, KernelError> {
     let snapshot = kernel.snapshot().unwrap();
     kernel.submit(
         command(
             &snapshot,
-            CommandId::new(),
             caller.clone(),
             CommandBody::AdmitPatch { patch },
         ),
@@ -576,7 +574,7 @@ fn play_refuses_outside_the_grammar_after_the_revision_has_moved() {
         patch_of(vec![declare("hail", "hail", &[])]),
     )
     .unwrap();
-    assert!(matches!(receipt, SubmitReceipt::Applied(_)));
+    assert!(receipt.resulting_revision > 0);
 }
 
 #[test]
@@ -636,7 +634,7 @@ fn an_effect_resolved_elsewhere_cannot_install_an_entry_outside_the_grammar() {
     let resolve = |kind: &str, roles: &[(&str, RefKind)]| {
         crate::patch::resolve_patch(
             &twin,
-            CommandId::new(),
+            CommandId::issue(),
             &patch_of(vec![declare("probe", kind, roles)]),
         )
         .expect("the unbound twin admits any canonical kind")
@@ -650,7 +648,7 @@ fn an_effect_resolved_elsewhere_cannot_install_an_entry_outside_the_grammar() {
         let catalog = state.affordance_catalog.len();
         let result = crate::apply_effect(
             &mut state,
-            CommandId::new(),
+            CommandId::issue(),
             &CallerId::Play,
             &crate::WorldEffect::PatchAdmitted {
                 resolved,
