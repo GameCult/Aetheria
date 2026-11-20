@@ -14,6 +14,9 @@ public class GameSettings : ScriptableObject
     public float HeatstrokePhasingFloor = 0;
     public float HeatstrokePhasingFrequency = 5;
     public float WormholeDistanceRatio;
+    // The follow camera's distance from the hull's centre of mass, as a multiple of the hull's reach
+    // (Contacts.Radius); 1.5 keeps the Longinus at about 30 m.
+    public float FollowCameraDistancePerReach = 1.5f;
     public float DefaultViewDistance;
     public float[] MinimapZoomLevels;
     public int DefaultMinimapZoom;

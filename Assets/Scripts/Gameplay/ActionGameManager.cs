@@ -191,9 +191,6 @@ public class ActionGameManager : MonoBehaviour
 
     //public PlayerInput Input;
     
-    // private CinemachineFramingTransposer _transposer;
-    // private CinemachineComposer _composer;
-    
     private bool _paused;
     private float _time;
     private int _zoomLevelIndex;
