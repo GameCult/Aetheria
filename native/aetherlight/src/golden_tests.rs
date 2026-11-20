@@ -606,7 +606,7 @@ fn a_failed_apply_rolls_back() {
 
 /// Worlds that between them hold a document in every partition: the golden
 /// session, the civic, custody and speech benches and the ticked clock bench.
-fn populated_worlds() -> Vec<crate::WorldState> {
+pub(crate) fn populated_worlds() -> Vec<crate::WorldState> {
     use crate::tests::{auth_principal, civic_world, creation, custody_world, owner, speech_world};
     let created = |title: &str| {
         WorldKernel::create(creation(title), &auth_principal(owner())).unwrap().0
