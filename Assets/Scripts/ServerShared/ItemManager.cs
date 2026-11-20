@@ -45,6 +45,25 @@ public class ItemManager
         _logger = logger;
     }
 
+    // A restore point over everything building items draws or mints: the item stream and the lot ledger, which a run save
+    // persists. Rewind puts both back, so a refused build is neither a draw nor a lot.
+    public readonly struct Checkpoint
+    {
+        internal readonly Random Stream;
+        internal readonly int NextLot;
+        internal Checkpoint(Random stream, int nextLot) { Stream = stream; NextLot = nextLot; }
+    }
+
+    public Checkpoint Mark() => new Checkpoint(Random, Lots.NextLot);
+
+    public void Rewind(Checkpoint mark)
+    {
+        Random = mark.Stream;
+        foreach (var id in Lots.Lots.Keys.Where(id => id >= mark.NextLot).ToList()) Lots.Lots.Remove(id);
+        Lots.NextLot = mark.NextLot;
+        foreach (var key in _extracted.Where(entry => entry.Value >= mark.NextLot).Select(entry => entry.Key).ToList()) _extracted.Remove(key);
+    }
+
     public void Log(string s)
     {
         _logger(s);

@@ -201,7 +201,7 @@ public class ZoneStage
 
     // Places ships into a running zone through the admission a run start uses: the script places with the stage's verbs,
     // and the entities join with their stance toward the player, a pilot when piloted and the knowledge the script stated.
-    // Returns the placed entities in order, or null with every failure listed and the zone and the item stream unchanged.
+    // Returns the placed entities in order, or null with every failure listed and the zone and the item stream and lot ledger unchanged.
     // It draws from the live item stream and does not reseed (a reseed would give every summon the same fits). The anchor
     // is the player's ship: the stance is written against it.
     public static IReadOnlyList<Entity> Summon(ItemManager items, Zone zone, Ship player, Action<ZoneStage> script, List<string> failures)
@@ -216,13 +216,13 @@ public class ZoneStage
             failures.Add("summon: the player is not in this zone");
             return null;
         }
-        var stream = items.Random;
+        var mark = items.Mark();
         var stage = new ZoneStage(items, zone);
         script(stage);
         failures.AddRange(stage._failures);
         if (stage._failures.Count > 0)
         {
-            items.Random = stream; // a refusal draws nothing: the fits it built are discarded with it
+            items.Rewind(mark); // a refusal draws and mints nothing: the fits it built are discarded with it
             return null;
         }
         stage.StockUnauthoredAmmunition();

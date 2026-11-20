@@ -469,14 +469,16 @@ public sealed partial class RunStartTests
         SafeAssert.Unchanged(zone, entities, agents);
     }
 
-    // A refused summon leaves the item stream where it was, so a refusal is not a draw: the next fit is the one it would have been.
-    // Kills: a summon that keeps the draws of the fits it built before refusing.
+    // A refused summon leaves the item stream and the lot ledger (which a run save persists) where they were, so a refusal is neither
+    // a draw nor a mint. Kills: a summon that keeps the draws or the lots of the fits it built before refusing.
     [Fact]
     public void ARefusedSummonLeavesTheItemStream()
     {
         var zone = Arena(true);
         var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
         var before = _items.Random;
+        var nextLot = _items.Lots.NextLot;
+        var lots = _items.Lots.Lots.Keys.ToList();
         var failures = new List<string>();
 
         Assert.Null(ZoneStage.Summon(_items, zone, player, stage =>
@@ -487,6 +489,8 @@ public sealed partial class RunStartTests
 
         var after = _items.Random;
         Assert.Equal(before.NextUInt(), after.NextUInt());
+        Assert.Equal(nextLot, _items.Lots.NextLot);
+        Assert.Equal(lots.OrderBy(id => id), _items.Lots.Lots.Keys.OrderBy(id => id));
     }
 
     // The anchor of a summon is the player's ship, not any ship in the zone. Kills: a summon that takes any zone member as the player.
