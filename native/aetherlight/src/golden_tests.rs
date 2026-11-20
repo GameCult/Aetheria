@@ -1511,7 +1511,6 @@ fn a_corrupted_view_is_detected() {
 
 /// A view is read only with clean logs: reading one while a partition it joins
 /// has an open write is refused, not answered from a stale fold.
-#[cfg(debug_assertions)]
 #[test]
 #[should_panic(expected = "open log")]
 fn a_view_read_with_an_open_log_is_refused() {
