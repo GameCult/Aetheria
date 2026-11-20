@@ -2267,6 +2267,44 @@ mod custody_tests {
         let _ = subject;
     }
 
+    /// A commitment that is not a Routine and carries a check is not canonical:
+    /// nothing would ever evaluate the check. The check is a live one, taken
+    /// from a Routine, so no other clause can be what refuses it; the control
+    /// is the honest world.
+    #[test]
+    fn a_non_routine_commitment_carrying_a_check_is_corrupt() {
+        let (kernel, _, _) = crate::clock_tests::clock_kernel("Checks");
+        verify_state_shape(&kernel.state).expect("the honest world is canonical");
+        let check = kernel
+            .state
+            .commitments
+            .values()
+            .flat_map(|held| held.values())
+            .find_map(|commitment| commitment.checks.first().cloned())
+            .expect("the clock bench's routine carries a check");
+        let (subject, key) = kernel
+            .state
+            .commitments
+            .iter()
+            .flat_map(|(subject, held)| held.iter().map(move |(key, c)| (*subject, *key, c)))
+            .find(|(_, _, commitment)| commitment.kind != crate::CommitmentKind::Routine)
+            .map(|(subject, key, _)| (subject, key))
+            .expect("the clock bench holds an obligation or a goal");
+
+        let mut forged = kernel.state.clone();
+        forged
+            .commitments
+            .get_mut(&subject)
+            .unwrap()
+            .get_mut(&key)
+            .unwrap()
+            .checks = vec![check];
+        assert!(
+            matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
+            "a non-routine commitment with a check was admitted"
+        );
+    }
+
     /// `TickMinutes` owns its bound at decode, so a span outside
     /// `1..=MAX_ROUTE_COST` cannot be read in any position: a routine's period,
     /// a command, or a tick's own effect.
