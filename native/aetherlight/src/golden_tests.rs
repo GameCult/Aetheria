@@ -267,10 +267,12 @@ fn incremental_digest_equals_full_recompute() {
 fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate::AffordanceId) {
     use crate::patch::kernel_speak_grant;
     use crate::patch::{
-        AccessKind, AuthorityGrantRef, AuthorityTargetRef, ChannelDeclaration, EntityDeclaration,
+        AccessKind, AuthoredSource, AuthorityGrantRef, AuthorityTargetRef, ChannelDeclaration,
+        DependencyRef, EntityDeclaration, EvidenceRef, FactDeclaration, FactStandingRef, Quantity,
         ReachRef, RouteDeclaration, SubjectDeclaration,
     };
-    use crate::tests::{LEVY_KIND, WARDEN_OFFICE, authority_kind, office};
+    use crate::tests::{LEVY_KIND, TITHE_RECEIPT, WARDEN_OFFICE, authority_kind, office};
+    use crate::Confidence;
     use crate::{CallerId, CommandEnvelope, CreateWorld, Cost, EntityKind, SubjectKind};
     use std::collections::BTreeSet;
 
@@ -302,6 +304,18 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             reach: ReachRef::Place(draft_place(place)),
             controller: Some(draft_person(place * 10)),
         }));
+        declarations.push(Declaration::Entity(EntityDeclaration {
+            handle: DraftHandle::new(format!("grain-{place}")),
+            label: format!("Grain {place}"),
+            kind: EntityKind::Resource,
+            container: None,
+        }));
+        declarations.push(Declaration::Fact(FactDeclaration {
+            handle: DraftHandle::new(format!("fact-{place}")),
+            label: format!("Fact {place}"),
+            statement: Statement::new("The place keeps its hour.").unwrap(),
+            standing: FactStandingRef::Canonical { evidence: EvidenceRef::new(TITHE_RECEIPT) },
+        }));
         let institution = DraftHandle::new(format!("institution-{place}"));
         declarations.push(Declaration::Subject(SubjectDeclaration {
             handle: institution.clone(),
@@ -330,6 +344,21 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
         });
     }
     for person in 0..persons {
+        let place = person / 10;
+        // One holding and one known fact per person, so `holdings`, `facts` and
+        // `knowledge` grow with the world and a scan of them breaks the gate.
+        offices.push(ComponentOp::Admit {
+            holder: draft_person(person),
+            resource: Ref::Draft(DraftHandle::new(format!("grain-{place}"))),
+            qty: Quantity(1),
+            evidence: EvidenceRef::new(TITHE_RECEIPT),
+        });
+        offices.push(ComponentOp::AcquireKnowledge {
+            subject: draft_person(person),
+            fact: Ref::Draft(DraftHandle::new(format!("fact-{place}"))),
+            source: AuthoredSource::Witnessed,
+            confidence: Confidence::Believed,
+        });
         declarations.push(Declaration::Subject(SubjectDeclaration {
             handle: DraftHandle::new(format!("person-{person}")),
             label: format!("Person {person}"),
@@ -339,6 +368,15 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             import_key: None,
         }));
     }
+    // Two dependencies, a fixed count: `derive_motion` still walks every
+    // dependency row (follow-up aetherlight-cross-partition-views), so a
+    // dependency per person would grow a tick's reads with the world.
+    for person in 0..2 {
+        offices.push(ComponentOp::Bind {
+            subject: draft_person(person),
+            target: DependencyRef::Subject(draft_person(2)),
+        });
+    }
     let (mut kernel, _) = WorldKernel::create(
         CreateWorld {
             owner: owner(),
@@ -346,7 +384,7 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             patch: WorldPatch {
                 declarations,
                 operations: offices,
-                evidence: Vec::new(),
+                evidence: vec![EvidenceRef::new(TITHE_RECEIPT)],
             },
             grammar: None,
         },
@@ -853,6 +891,13 @@ fn read_work_is_equal_at_100_and_1600() {
     let mut worked = Vec::new();
     for persons in [100usize, 1600] {
         let (mut kernel, people, speak_entry) = clockwork_world(persons);
+        // The gate holds only if the partitions are populated at scale: an empty
+        // one hides a scan of it.
+        let state = &kernel.state;
+        assert!(state.holdings.len() >= persons && state.knowledge.len() >= persons);
+        assert!(state.facts.len() >= persons / 10 && state.channels.len() == persons / 10);
+        assert!(state.positions.len() >= persons && state.commitments.len() >= persons);
+        assert!(state.edges.len() + 1 == persons / 10 && state.selection.len() == persons / 10);
         let mut counts = Vec::new();
         for _ in 0..3 {
             counts.push(submit_counting_rows(&mut kernel, tick_body(1)));
