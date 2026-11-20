@@ -116,10 +116,11 @@ mod step {
 /// What is due, and which dependencies fail, is read from `Views` (the one owner
 /// of both questions: a live subject's due commitments and a live subject's
 /// unavailable dependencies), so a tick reads the work it does and not the
-/// world. A view is true only with clean logs, so both callers (`reduce`, and
+/// world. A view is true only with clean logs, so it is read behind a check
+/// that holds in every build (six flag tests), and both callers (`reduce`, and
 /// `apply_effect`'s `TimeAdvanced` arm before its first write) call it clean.
 pub(super) fn derive_motion(state: &WorldState, to: FictionalMinutes) -> Motion {
-    debug_assert!(views::readable(state), "the views are read with an open log");
+    assert!(views::readable(state), "the views are read with an open log");
     motion_of(state, to, &state.views.due_by(to), state.views.failing().copied())
 }
 
