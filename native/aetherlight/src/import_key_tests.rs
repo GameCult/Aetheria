@@ -35,20 +35,12 @@ fn keyed_creation(title: &str) -> CreateWorld {
     world
 }
 
-fn create(world: CreateWorld) -> (tempfile::TempDir, Result<WorldKernel, KernelError>) {
-    let directory = tempfile::tempdir().unwrap();
-    let result = WorldKernel::create(
-        directory.path().join("world.cc"),
-        world,
-        &auth_principal(owner()),
-    )
-    .map(|(kernel, _)| kernel);
-    (directory, result)
+fn create(world: CreateWorld) -> Result<WorldKernel, KernelError> {
+    WorldKernel::create(world, &auth_principal(owner())).map(|(kernel, _)| kernel)
 }
 
-fn keyed_world() -> (tempfile::TempDir, WorldKernel) {
-    let (dir, kernel) = create(keyed_creation("Keyed"));
-    (dir, kernel.unwrap())
+fn keyed_world() -> WorldKernel {
+    create(keyed_creation("Keyed")).unwrap()
 }
 
 fn rejected(result: Result<impl Sized, KernelError>) -> Vec<Mismatch> {
@@ -140,11 +132,11 @@ fn one_patch_cannot_declare_two_subjects_with_one_import_key() {
             subject.import_key = Some(alpha());
         }
     }
-    let (_dir, result) = create(world);
+    let result = create(world);
     assert_eq!(rejected(result), vec![duplicate("operator")]);
 
     // In a later patch, with the key unheld.
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     let revision = kernel.state.revision;
     let beta = Some(key("aetheria.ship", "Beta"));
@@ -161,8 +153,8 @@ fn one_patch_cannot_declare_two_subjects_with_one_import_key() {
 }
 
 /// The fixture world past genesis: Play has added an unwalked place.
-fn advanced_keyed_world() -> (tempfile::TempDir, WorldKernel, EntityId) {
-    let (dir, mut kernel) = keyed_world();
+fn advanced_keyed_world() -> (WorldKernel, EntityId) {
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     submit_as(
         &mut kernel,
@@ -192,7 +184,7 @@ fn advanced_keyed_world() -> (tempfile::TempDir, WorldKernel, EntityId) {
         .find(|(_, record)| record.label == "The Unwalked Road")
         .map(|(id, _)| id)
         .unwrap();
-    (dir, kernel, dead_end)
+    (kernel, dead_end)
 }
 
 /// Each door names the held key, typed, and the refusal leaves the revision
@@ -219,7 +211,7 @@ fn refuse_held_key_at_each_door(
 
 #[test]
 fn a_held_import_key_is_refused_at_every_door_after_the_revision_has_moved() {
-    let (_dir, mut kernel, dead_end) = advanced_keyed_world();
+    let (mut kernel, dead_end) = advanced_keyed_world();
     assert!(kernel.state.revision > 0, "the world has moved past genesis");
     refuse_held_key_at_each_door(
         &mut kernel,
@@ -246,7 +238,7 @@ fn a_held_import_key_is_refused_at_every_door_after_the_revision_has_moved() {
 
 #[test]
 fn a_held_import_key_is_refused_in_a_later_patch() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     let revision = kernel.state.revision;
     let error = submit_as(
@@ -261,7 +253,7 @@ fn a_held_import_key_is_refused_in_a_later_patch() {
 
 #[test]
 fn a_retired_subjects_import_key_is_never_reissued() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     let witness = kernel
         .snapshot()
@@ -306,7 +298,7 @@ fn a_retired_subjects_import_key_is_never_reissued() {
 
 #[test]
 fn keys_that_differ_in_any_way_are_distinct_records() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     // Same length, case, prefix, the same concatenation split elsewhere, and
     // the parts swapped: none is the held key.
@@ -347,7 +339,7 @@ fn keys_that_differ_in_any_way_are_distinct_records() {
 
 #[test]
 fn a_malformed_import_key_is_refused_without_echoing_it() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     let long = "x".repeat(201);
     let wide = "é".repeat(101);
@@ -398,7 +390,7 @@ fn a_malformed_import_key_is_refused_without_echoing_it() {
 
 #[test]
 fn the_subjects_map_refuses_a_second_subject_for_one_key_even_when_resolved_elsewhere() {
-    let (_dir, kernel) = keyed_world();
+    let kernel = keyed_world();
     let place = commons(&kernel);
     let resolve = |handle: &str| {
         crate::patch::resolve_patch(
@@ -451,7 +443,7 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 fn keyless_world_digests_unchanged() {
     // A subject nobody imported serialises without the field at all, so every
     // digest written before keys existed is the digest of the same bytes.
-    let (_dir, kernel) = create(creation("Keyless"));
+    let kernel = create(creation("Keyless"));
     let kernel = kernel.unwrap();
     let state = rmp_serde::to_vec_named(&kernel.state).unwrap();
     assert!(
@@ -459,7 +451,7 @@ fn keyless_world_digests_unchanged() {
         "a keyless world grew a field"
     );
     // A keyed world carries it, round-trips, and digests differently.
-    let (_dir, keyed) = keyed_world();
+    let keyed = keyed_world();
     let keyed_state = rmp_serde::to_vec_named(&keyed.state).unwrap();
     assert!(contains(&keyed_state, b"import_key"));
     let back: crate::WorldState = rmp_serde::from_slice(&keyed_state).unwrap();
@@ -478,11 +470,11 @@ fn keyless_world_digests_unchanged() {
 
 #[test]
 fn a_keyed_world_reopens_with_its_keys_and_digests() {
-    let (dir, kernel) = keyed_world();
+    let kernel = keyed_world();
     let snapshot = kernel.snapshot().unwrap();
-    let world_id = snapshot.world_id;
+    let exported = kernel.export().unwrap();
     drop(kernel);
-    let reopened = WorldKernel::open(dir.path().join("world.cc"), world_id).unwrap();
+    let reopened = WorldKernel::open(&exported).unwrap();
     let again = reopened.snapshot().unwrap();
     assert_eq!(again.state_digest, snapshot.state_digest);
     let keys = keys_in(&reopened);
@@ -495,7 +487,7 @@ fn a_keyed_world_reopens_with_its_keys_and_digests() {
 
 #[test]
 fn a_record_key_is_one_canonical_spelling() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     let nfc = "Caf\u{e9}";
     let nfd = "Cafe\u{301}";
@@ -544,7 +536,7 @@ fn a_record_key_is_one_canonical_spelling() {
 
 #[test]
 fn a_lore_page_path_with_spaces_is_a_record_key() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     let record = "Worldbuilding/Pre-Elysium/Factions/Powers/Minor/Ewan Hart";
     let declare = |kernel: &mut WorldKernel, handle: &str| {
@@ -564,7 +556,7 @@ fn a_lore_page_path_with_spaces_is_a_record_key() {
 
 #[test]
 fn a_loaded_state_with_a_bad_import_key_is_refused() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     submit_as(
         &mut kernel,
@@ -610,7 +602,7 @@ fn a_loaded_state_with_a_bad_import_key_is_refused() {
 /// effect with distinct keys, admitted by the same function.
 #[test]
 fn admitting_a_resolved_effect_refuses_two_subjects_with_one_key() {
-    let (_dir, kernel) = keyed_world();
+    let kernel = keyed_world();
     let place = commons(&kernel);
     let resolve = || {
         crate::patch::resolve_patch(
@@ -646,7 +638,7 @@ fn admitting_a_resolved_effect_refuses_two_subjects_with_one_key() {
 /// rule cannot be a prefix, suffix or first-character check.
 #[test]
 fn a_decomposable_character_is_refused_in_nfd_at_every_position() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     let template: Vec<char> = "Worldbuilding/Pre-Elysium/Factions/Powers/Minor/Ewan Hart"
         .chars()
@@ -691,7 +683,7 @@ fn a_decomposable_character_is_refused_in_nfd_at_every_position() {
 
 #[test]
 fn the_owner_door_is_closed_to_a_keyed_declaration() {
-    let (_dir, mut kernel) = keyed_world();
+    let mut kernel = keyed_world();
     let place = commons(&kernel);
     let revision = kernel.state.revision;
     let error = submit_as(

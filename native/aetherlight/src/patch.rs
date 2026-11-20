@@ -2382,7 +2382,7 @@ pub(super) fn kernel_speak_entry() -> Affordance {
 
 /// Whether a stored catalog entry would still be admitted by the declaration
 /// validator. One validator, two readers: the resolver rejects a bad entry, and
-/// journal recovery refuses a store that already holds one.
+/// opening an export refuses a chain that already holds one.
 pub(super) fn entry_is_admissible(entry: &Affordance) -> bool {
     let mut mismatches = Vec::new();
     validate_affordance(
@@ -5810,8 +5810,7 @@ mod tests {
 
     #[test]
     fn a_catalog_entry_with_a_dangling_or_noncanonical_band_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
         let slots = vec![
             transfer_slot(vec!["from", "to", "goods"], Bounds::Quantity(Quantity(2))),
@@ -5883,8 +5882,7 @@ mod tests {
 
     #[test]
     fn a_slot_whose_roles_do_not_match_its_operation_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
         let handle = DraftHandle::new("verb");
 
@@ -5980,8 +5978,7 @@ mod tests {
 
     #[test]
     fn a_grant_naming_an_undeclared_affordance_is_rejected_and_the_same_patch_commits() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
         let entries_before = kernel.state.affordance_catalog.len();
         let subjects_before = kernel.state.subjects.len();
@@ -6048,8 +6045,7 @@ mod tests {
 
     #[test]
     fn two_entries_cannot_share_one_kind_name() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
         let slot = transfer_slot(vec!["from", "to", "goods"], Bounds::Quantity(Quantity(2)));
         let rejected = reject_play(
@@ -6103,10 +6099,8 @@ mod tests {
         );
     }
 
-    fn draft_world(directory: &std::path::Path) -> WorldKernel {
-        WorldKernel::create(
-            directory.join("world.cc"),
-            creation("Kharad"),
+    fn draft_world() -> WorldKernel {
+        WorldKernel::create(creation("Kharad"),
             &auth_principal(owner()),
         )
         .expect("draft world")
@@ -6117,8 +6111,7 @@ mod tests {
     /// provides. Nothing commits and nothing is allocated.
     #[test]
     fn a_subject_declared_at_an_undeclared_place_is_rejected_and_allocates_nothing() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
         let commits_before = kernel.journal.commit_count();
 
@@ -6159,8 +6152,7 @@ mod tests {
     /// commit: every reference resolves to an ID the same patch allocated.
     #[test]
     fn a_declared_place_and_its_dependents_commit_atomically() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
         let commits_before = kernel.journal.commit_count();
 
@@ -6226,8 +6218,7 @@ mod tests {
     /// conversion between them and no public `Uuid` constructor.
     #[test]
     fn a_draft_handle_of_the_wrong_kind_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
         let commits_before = kernel.journal.commit_count();
 
@@ -6270,8 +6261,7 @@ mod tests {
     /// and repairing exactly that set is enough to commit.
     #[test]
     fn rejection_returns_every_failed_check_and_repairing_exactly_those_commits() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
 
         let broken = patch_of(vec![
@@ -6339,8 +6329,7 @@ mod tests {
 
     #[test]
     fn an_empty_patch_is_no_canonical_change() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
 
         let error = kernel
@@ -6365,8 +6354,7 @@ mod tests {
     /// unrelated empty label joins the same complete set.
     #[test]
     fn a_containment_cycle_is_rejected_with_the_complete_set() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
 
         let error = kernel
@@ -6409,8 +6397,7 @@ mod tests {
 
     #[test]
     fn a_route_endpoint_that_is_not_a_place_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
 
         let error = kernel
@@ -6447,8 +6434,7 @@ mod tests {
     /// or in an operation.
     #[test]
     fn an_invalid_route_cost_is_rejected_from_declaration_and_from_alter_cost() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let topology = admit_topology(&mut kernel);
         let before = kernel.snapshot().unwrap();
 
@@ -6496,8 +6482,7 @@ mod tests {
     /// a route that does not start where the subject stands.
     #[test]
     fn relocate_without_an_open_public_route_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let topology = admit_topology(&mut kernel);
         let active = kernel.snapshot().unwrap();
         let commits_before = kernel.journal.commit_count();
@@ -6545,8 +6530,7 @@ mod tests {
     /// not be read as an overlap with a lend the retirement already killed.
     #[test]
     fn a_grant_after_retiring_the_lending_institution_is_admitted() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let (_, civic, before) = civic_world(&mut kernel);
 
         // The office lends levy over the whole hall; grant the reeve levy
@@ -6577,8 +6561,7 @@ mod tests {
     /// gone, and refuses the already-applied `Retire`'s sibling operation.
     #[test]
     fn a_relocate_relying_only_on_a_retiring_institutions_authority_is_refused_by_the_resolver() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let (topology, civic, before) = civic_world(&mut kernel);
 
         // `topology.walker` already exists and already stands at `yard`, so
@@ -6631,8 +6614,7 @@ mod tests {
 
     #[test]
     fn relocate_moves_the_subject_and_nothing_else() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let topology = admit_topology(&mut kernel);
         let active = kernel.snapshot().unwrap();
         let entities_before = kernel.state.entities.clone();
@@ -6669,11 +6651,7 @@ mod tests {
 
     #[test]
     fn restart_replay_after_a_relocate_is_exact() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("Kharad"),
+        let (mut kernel, _) = WorldKernel::create(creation("Kharad"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -6691,10 +6669,10 @@ mod tests {
             .submit(envelope.clone(), &AuthenticatedCaller::verified_play())
             .unwrap();
         let committed = kernel.snapshot().unwrap();
-        let world_id = committed.world_id;
+        let exported = kernel.export().unwrap();
         drop(kernel);
 
-        let mut reopened = WorldKernel::open(&path, world_id).unwrap();
+        let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), committed);
         assert_eq!(
             reopened.state.positions.get(&topology.walker),
@@ -6710,8 +6688,7 @@ mod tests {
 
     #[test]
     fn the_snapshot_exposes_places_routes_and_positions_deterministically() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let topology = admit_topology(&mut kernel);
         let snapshot = kernel.snapshot().unwrap();
         assert_eq!(snapshot, kernel.snapshot().unwrap());
@@ -6751,11 +6728,7 @@ mod tests {
 
     #[test]
     fn restart_replay_after_a_committed_patch_is_exact() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("Kharad"),
+        let (mut kernel, _) = WorldKernel::create(creation("Kharad"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -6777,10 +6750,10 @@ mod tests {
             .submit(envelope.clone(), &AuthenticatedCaller::verified_play())
             .unwrap();
         let committed = kernel.snapshot().unwrap();
-        let world_id = committed.world_id;
+        let exported = kernel.export().unwrap();
         drop(kernel);
 
-        let mut reopened = WorldKernel::open(&path, world_id).unwrap();
+        let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), committed);
         assert!(matches!(
             reopened.submit(envelope, &AuthenticatedCaller::verified_play()),
@@ -6793,8 +6766,7 @@ mod tests {
     /// re-resolved gets the same ones.
     #[test]
     fn genesis_and_admit_patch_share_one_allocator() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
         let genesis_human = before
             .subjects
@@ -6827,16 +6799,12 @@ mod tests {
         assert_eq!(first, second);
     }
 
-    /// The durable half of "a rejected patch mints nothing": the store on disk,
-    /// not just the in-memory head, carries no row and no byte of any ID the
+    /// The durable half of "a rejected patch mints nothing": the export, not
+    /// just the in-memory head, carries no commit and no byte of any ID the
     /// rejected patch would have allocated.
     #[test]
-    fn a_rejected_patch_leaves_no_row_and_no_id_in_the_store() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("Kharad"),
+    fn a_rejected_patch_leaves_no_commit_and_no_id_in_the_export() {
+        let (mut kernel, _) = WorldKernel::create(creation("Kharad"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -6877,16 +6845,17 @@ mod tests {
             ),
         ];
 
+        let exported = kernel.export().unwrap();
         drop(kernel);
-        let raw = std::fs::read(&path).unwrap();
+        let raw = &exported;
         for id in would_be {
             assert!(
                 !raw.windows(16).any(|window| window == id.as_bytes()),
-                "a rejected patch left {id} in the store"
+                "a rejected patch left {id} in the export"
             );
         }
 
-        let reopened = WorldKernel::open(&path, before.world_id).unwrap();
+        let reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), before);
         assert_eq!(reopened.journal.commit_count(), 1);
         assert_eq!(reopened.state.entities.len(), FIXTURE_ENTITIES);
@@ -6904,9 +6873,7 @@ mod tests {
     /// otherwise concatenate to the same string.
     #[test]
     fn derive_id_does_not_collide_some_empty_discriminator_with_none() {
-        let directory = tempfile::tempdir().unwrap();
         let (kernel, _) = WorldKernel::create(
-            &directory.path().join("world.cc"),
             creation("DeriveId"),
             &auth_principal(owner()),
         )
@@ -6944,8 +6911,7 @@ mod tests {
     /// without the journal's reduce-equality check running.
     #[test]
     fn apply_effect_rejects_a_forged_stale_or_unauthorized_patch_effect() {
-        let directory = tempfile::tempdir().unwrap();
-        let kernel = draft_world(directory.path());
+        let kernel = draft_world();
         let patch = patch_of(vec![
             entity("rhythm-road", "The Rhythm Road", EntityKind::Place),
             institution(
@@ -7014,8 +6980,7 @@ mod tests {
     /// test names are each reachable from a real patch.
     #[test]
     fn soul_self_loop_unplaced_subject_and_no_effect_are_each_reachable() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let before = kernel.snapshot().unwrap();
 
         // A route whose two endpoints resolve to one place.
@@ -7131,8 +7096,7 @@ mod tests {
     /// stand on, a closed route, or a restricted one dies at apply time.
     #[test]
     fn soul_a_forged_relocate_effect_is_refused_at_apply_time() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = draft_world(directory.path());
+        let mut kernel = draft_world();
         let topology = admit_topology(&mut kernel);
         for edge_id in [topology.span, topology.shutter, topology.toll] {
             let forged = super::super::WorldEffect::PatchAdmitted {

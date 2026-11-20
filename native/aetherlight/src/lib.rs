@@ -1,8 +1,10 @@
 //! The Aetherlight world library, a fork of Ghostlight c43eb54 (see `PROVENANCE.md`).
 //!
 //! The world owner is one deterministic authority: authenticated commands enter,
-//! one reducer decides, and one journal atomically commits the resulting state.
-//! The fork keeps only that synchronous kernel: no async runtime, no network, no
+//! one reducer decides, and the journal, an in-memory list of commits, records
+//! each result. The journal exports as bytes, and opening those bytes replays
+//! the chain from genesis: the head state is whatever the replay derives.
+//! The fork keeps only that single-threaded kernel: no async runtime, no network, no
 //! model controllers and no ports. A decision arrives as an invocation the caller
 //! built, a player or a brain; nothing in this crate composes one.
 //!
@@ -97,8 +99,6 @@ use patch::{EdgeRecord, EntityRecord, LedgerDelta, ResolvedOp, ResolvedPatch};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
-#[cfg(test)]
-use std::path::Path;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -848,52 +848,18 @@ pub enum KernelError {
     AffordanceDenied,
     #[error("expected revision {expected}, current revision {actual}")]
     RevisionMismatch { expected: u64, actual: u64 },
-    #[error("world creation ID was reused with different content")]
-    CreationConflict,
-    #[error("world creation target already contains another world")]
-    CreationTargetOccupied,
-    #[error("world has not been created")]
-    WorldNotCreated,
-    #[error("opened store contains another world")]
-    OpenedWorldMismatch,
-    #[error("world ownership is uncertain after command {command_id:?}; drop and reopen")]
-    RecoveryRequired { command_id: CommandId },
-    #[error("world store path no longer names the owned database; drop and reopen explicitly")]
-    OwnershipLost,
     #[error("canonical serialization failed: {0}")]
     Serialization(String),
-    #[error("world store operation failed: {0}")]
-    Store(String),
     #[error("world journal is corrupt: {0}")]
     CorruptJournal(String),
     #[error("private reducer invariant failed: {0}")]
     Invariant(String),
 }
 
-impl KernelError {
-    fn requires_owner_restart(&self) -> bool {
-        matches!(
-            self,
-            Self::RecoveryRequired { .. }
-                | Self::OwnershipLost
-                | Self::Store(_)
-                | Self::CorruptJournal(_)
-                | Self::Invariant(_)
-        )
-    }
-}
-
 impl From<journal::JournalError> for KernelError {
     fn from(error: journal::JournalError) -> Self {
-        match error {
-            journal::JournalError::WorldMismatch => Self::OpenedWorldMismatch,
-            journal::JournalError::RecoveryRequired { command_id } => {
-                Self::RecoveryRequired { command_id }
-            }
-            journal::JournalError::OwnershipLost => Self::OwnershipLost,
-            journal::JournalError::Store(detail) => Self::Store(detail),
-            journal::JournalError::Corrupt(detail) => Self::CorruptJournal(detail),
-        }
+        let journal::JournalError::Corrupt(detail) = error;
+        Self::CorruptJournal(detail)
     }
 }
 
@@ -947,10 +913,7 @@ fn prepare_creation(
 }
 
 impl WorldKernel {
-    fn initialize(
-        empty: journal::EmptyWorldJournal,
-        prepared: PreparedCreation,
-    ) -> Result<(Self, CreationReceipt), KernelError> {
+    fn initialize(prepared: PreparedCreation) -> Result<(Self, CreationReceipt), KernelError> {
         let world_id = prepared.world_id;
         let effect = WorldEffect::WorldCreated {
             owner: prepared.owner,
@@ -973,48 +936,28 @@ impl WorldKernel {
         genesis.digest = commit_digest(&genesis)?;
         state.last_commit_digest = Some(genesis.digest.clone());
         let receipt = CreationReceipt::from_commit(&genesis)?;
-        let journal = empty.initialize(&state, &genesis)?;
+        let journal = journal::WorldJournal::genesis(genesis);
         Ok((Self { state, journal }, receipt))
     }
 
-    fn retry_creation(&self, prepared: &PreparedCreation) -> Result<CreationReceipt, KernelError> {
-        self.journal.ensure_healthy()?;
-        let Some(commit) = self.journal.commit_for(prepared.command.id()) else {
-            return Err(KernelError::CreationTargetOccupied);
-        };
-        if commit.command != CommittedCommand::CreateWorld(prepared.command.clone())
-            || !matches!(&commit.effect, WorldEffect::WorldCreated { .. })
-        {
-            return Err(KernelError::CreationConflict);
-        }
-        CreationReceipt::from_commit(commit)
-    }
-
-    #[cfg(test)]
     fn create(
-        path: impl AsRef<Path>,
         input: CreateWorld,
         authenticated: &AuthenticatedCaller,
     ) -> Result<(Self, CreationReceipt), KernelError> {
-        let prepared = prepare_creation(input, authenticated)?;
-        match journal::WorldJournal::open_owner(path.as_ref())? {
-            journal::JournalOpen::Empty(empty) => Self::initialize(empty, prepared),
-            journal::JournalOpen::Live { journal, state } => {
-                let kernel = Self { state, journal };
-                let receipt = kernel.retry_creation(&prepared)?;
-                Ok((kernel, receipt))
-            }
-        }
+        Self::initialize(prepare_creation(input, authenticated)?)
     }
 
-    #[cfg(test)]
-    fn open(path: impl AsRef<Path>, expected_world_id: WorldId) -> Result<Self, KernelError> {
-        let (journal, state) = journal::WorldJournal::open(path.as_ref(), expected_world_id)?;
+    /// The world an export derives: its head state is the replay of its commits.
+    fn open(bytes: &[u8]) -> Result<Self, KernelError> {
+        let (journal, state) = journal::WorldJournal::open(bytes)?;
         Ok(Self { state, journal })
     }
 
+    fn export(&self) -> Result<Vec<u8>, KernelError> {
+        self.journal.export()
+    }
+
     fn snapshot(&self) -> Result<WorldSnapshot, KernelError> {
-        self.journal.ensure_healthy()?;
         snapshot(&self.state)
     }
 
@@ -1023,7 +966,6 @@ impl WorldKernel {
         command: CommandEnvelope,
         authenticated: &AuthenticatedCaller,
     ) -> Result<CommitReceipt, KernelError> {
-        self.journal.ensure_healthy()?;
         let command_id = command.id();
         if command.world_id != self.state.world_id {
             return Err(KernelError::WorldMismatch);
@@ -1062,9 +1004,10 @@ impl WorldKernel {
         commit.digest = commit_digest(&commit)?;
         candidate.last_commit_digest = Some(commit.digest.clone());
 
-        self.journal.commit(&candidate, &commit)?;
+        let receipt = CommitReceipt::from(&commit);
+        self.journal.append(commit);
         self.state = candidate;
-        Ok(CommitReceipt::from(&commit))
+        Ok(receipt)
     }
 
 }
@@ -4669,57 +4612,63 @@ mod tests {
 
     #[test]
     fn create_submit_restart_and_replay_are_exact() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
         let creation = creation("First");
         let (mut kernel, creation_receipt) =
-            WorldKernel::create(&path, creation.clone(), &auth_principal(owner())).unwrap();
+            WorldKernel::create(creation.clone(), &auth_principal(owner())).unwrap();
         let active = kernel.snapshot().unwrap();
         let operator = subject_by_label(&kernel.state, "The Council");
-        let caller = play_caller();
         let command = command(
             &active,
-            caller.clone(),
+            play_caller(),
             CommandBody::Act {
                 actor: operator,
                 invocation: speak(first_grant(&active, operator), "The vote carries."),
             },
         );
         kernel
-            .submit(
-                command.clone(),
-                &AuthenticatedCaller::fixture(caller.clone()),
-            )
+            .submit(command.clone(), &AuthenticatedCaller::verified_play())
             .unwrap();
         let accepted = kernel.snapshot().unwrap();
-        drop(kernel);
+        let exported = kernel.export().unwrap();
 
-        let (mut reopened, retried_creation_receipt) =
-            WorldKernel::create(&path, creation, &auth_principal(owner())).unwrap();
-        assert_eq!(retried_creation_receipt, creation_receipt);
+        // The same creation names the same world, with the same receipt.
+        let (_, retried) = WorldKernel::create(creation, &auth_principal(owner())).unwrap();
+        assert_eq!(retried, creation_receipt);
+
+        // The export is the whole world: its reopening is equal, re-exports
+        // byte for byte, and the applied command is stale in it.
+        let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
+        assert_eq!(reopened.export().unwrap(), exported);
         assert!(matches!(
-            reopened .submit(command, &AuthenticatedCaller::fixture(caller)),
+            reopened.submit(command, &AuthenticatedCaller::verified_play()),
             Err(KernelError::RevisionMismatch { .. })
         ));
-        drop(reopened);
-        let reopened = WorldKernel::open(&path, accepted.world_id).unwrap();
-        assert_eq!(reopened.snapshot().unwrap(), accepted);
+
+        // The next command gives equal receipts and equal worlds on both.
+        let next = play_command(&accepted, tick_body(1));
+        let original_receipt = kernel
+            .submit(next.clone(), &AuthenticatedCaller::verified_play())
+            .unwrap();
+        let reopened_receipt = reopened
+            .submit(next, &AuthenticatedCaller::verified_play())
+            .unwrap();
+        assert_eq!(original_receipt, reopened_receipt);
+        assert_eq!(kernel.snapshot().unwrap(), reopened.snapshot().unwrap());
+        assert_eq!(kernel.export().unwrap(), reopened.export().unwrap());
     }
 
     #[test]
-    fn stale_commands_do_not_commit() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("Still"),
+    fn a_stale_command_is_a_revision_mismatch() {
+        let (mut kernel, _) = WorldKernel::create(creation("Still"),
             &auth_principal(owner()),
         )
         .unwrap();
         let genesis = kernel.snapshot().unwrap();
         assert!(submit_play(&mut kernel, &genesis, tick_body(1)).resulting_revision > 0);
         let after = kernel.snapshot().unwrap();
+        // The very command that was applied, resubmitted: there is no retry
+        // identity, so it is stale like any other.
         let stale = play_command(&genesis, tick_body(1));
         assert!(matches!(
             kernel.submit(stale, &AuthenticatedCaller::verified_play()),
@@ -4731,17 +4680,15 @@ mod tests {
 
     #[test]
     fn ids_are_derived_from_the_command() {
-        let dir = tempfile::tempdir().unwrap();
-        let create = |name: &str, title: &str| {
-            WorldKernel::create(dir.path().join(name), creation(title), &auth_principal(owner()))
-                .unwrap()
+        let create = |title: &str| {
+            WorldKernel::create(creation(title), &auth_principal(owner())).unwrap()
         };
-        let (mut kernel, receipt) = create("a.cc", "Same");
-        let (twin, twin_receipt) = create("b.cc", "Same");
+        let (mut kernel, receipt) = create("Same");
+        let (twin, twin_receipt) = create("Same");
         assert_eq!(receipt, twin_receipt);
         assert_eq!(kernel.state.world_id, twin.state.world_id);
         assert_eq!(receipt.world_id, WorldId::of(receipt.command_id));
-        let (other, _) = create("c.cc", "Other");
+        let (other, _) = create("Other");
         assert_ne!(kernel.state.world_id, other.state.world_id);
 
         // The same patch at two revisions is two commands, so the entity it
@@ -4778,12 +4725,10 @@ mod tests {
 
     #[test]
     fn invalid_seed_never_allocates_a_world() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
         let mut invalid = creation("Nope");
         invalid.patch.declarations[3] = invalid.patch.declarations[2].clone();
         let Err(KernelError::PatchRejected(rejected)) =
-            WorldKernel::create(&path, invalid, &auth_principal(owner()))
+            WorldKernel::create(invalid, &auth_principal(owner()))
         else {
             panic!("expected a rejected creation patch");
         };
@@ -4794,9 +4739,7 @@ mod tests {
             }]
         );
         assert!(
-            WorldKernel::create(
-                &path,
-                creation("Valid"),
+            WorldKernel::create(creation("Valid"),
                 &auth_principal(owner())
             )
             .is_ok()
@@ -4804,127 +4747,8 @@ mod tests {
     }
 
     #[test]
-    fn a_second_live_owner_is_refused() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let creation = creation("Held");
-        let (kernel, _) =
-            WorldKernel::create(&path, creation.clone(), &auth_principal(owner())).unwrap();
-        let world_id = kernel.snapshot().unwrap().world_id;
-        assert!(matches!(
-            WorldKernel::open(&path, world_id),
-            Err(KernelError::Store(_))
-        ));
-        assert!(matches!(
-            WorldKernel::create(&path, creation.clone(), &auth_principal(owner())),
-            Err(KernelError::Store(_))
-        ));
-        drop(kernel);
-        let kernel = WorldKernel::open(&path, world_id).unwrap();
-        drop(kernel);
-        assert!(matches!(
-            WorldKernel::open(&path, WorldId::of(CommandId::issue())),
-            Err(KernelError::OpenedWorldMismatch)
-        ));
-    }
-
-    #[test]
-    fn lost_post_commit_ack_poisons_until_reopen_and_exact_retry() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("Certain"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let genesis = kernel.snapshot().unwrap();
-        let attempted = play_command(&genesis, tick_body(1));
-        let uncertain = attempted.id();
-        kernel.journal.fail_after_durable_commit_for_test();
-        assert!(matches!(
-            kernel.submit(attempted.clone(), &AuthenticatedCaller::verified_play()),
-            Err(KernelError::RecoveryRequired { command_id }) if command_id == uncertain
-        ));
-        assert!(matches!(
-            kernel.snapshot(),
-            Err(KernelError::RecoveryRequired { command_id }) if command_id == uncertain
-        ));
-        drop(kernel);
-
-        let mut reopened = WorldKernel::open(&path, genesis.world_id).unwrap();
-        let durable = reopened.snapshot().unwrap();
-        assert_eq!(durable.revision, 1);
-        assert!(matches!(
-            reopened .submit(attempted, &AuthenticatedCaller::verified_play()),
-            Err(KernelError::RevisionMismatch { .. })
-        ));
-    }
-
-    #[test]
-    fn lost_genesis_ack_reopens_as_the_same_world_and_exact_receipt() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let input = creation("Durable Genesis");
-        let command_id = input.id();
-        let authenticated = auth_principal(owner());
-        let mut empty = match journal::WorldJournal::open_owner(&path).unwrap() {
-            journal::JournalOpen::Empty(empty) => empty,
-            journal::JournalOpen::Live { .. } => panic!("fixture store must be empty"),
-        };
-        empty.fail_after_durable_initialize_for_test();
-        let prepared = prepare_creation(input.clone(), &authenticated).unwrap();
-        assert!(matches!(
-            WorldKernel::initialize(empty, prepared),
-            Err(KernelError::RecoveryRequired { command_id: uncertain })
-                if uncertain == command_id
-        ));
-
-        let (reopened, receipt) = WorldKernel::create(&path, input, &authenticated).unwrap();
-        let snapshot = reopened.snapshot().unwrap();
-        assert_eq!(receipt.command_id, command_id);
-        assert_eq!(receipt.world_id, snapshot.world_id);
-        assert_eq!(snapshot.revision, 0);
-        assert_eq!(snapshot.title, "Durable Genesis");
-    }
-
-    #[test]
-    fn replacing_the_store_path_revokes_the_live_owner() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let displaced = dir.path().join("displaced.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("Pinned"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let snapshot = kernel.snapshot().unwrap();
-        std::fs::rename(&path, &displaced).unwrap();
-        std::fs::File::create(&path).unwrap();
-        assert!(matches!(kernel.snapshot(), Err(KernelError::OwnershipLost)));
-        assert!(matches!(
-            kernel.submit(
-                play_command(&snapshot, tick_body(1)),
-                &AuthenticatedCaller::verified_play()
-            ),
-            Err(KernelError::OwnershipLost)
-        ));
-        std::fs::remove_file(&path).unwrap();
-        std::fs::rename(&displaced, &path).unwrap();
-        assert!(matches!(kernel.snapshot(), Err(KernelError::OwnershipLost)));
-        drop(kernel);
-        let reopened = WorldKernel::open(&path, snapshot.world_id).unwrap();
-        assert_eq!(reopened.snapshot().unwrap(), snapshot);
-    }
-
-    #[test]
     fn sealed_authentication_cannot_be_replaced_by_a_command_claim() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("Owned"),
+        let (mut kernel, _) = WorldKernel::create(creation("Owned"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -4946,10 +4770,7 @@ mod tests {
     /// that moves the world, not a hand-edited state.
     #[test]
     fn soul_scope_components_exclude_revision_and_everything_outside_the_scope() {
-        let dir = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            dir.path().join("world.cc"),
-            creation("Preimage"),
+        let (mut kernel, _) = WorldKernel::create(creation("Preimage"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -5068,10 +4889,7 @@ mod tests {
     /// one that does not.
     #[test]
     fn act_needs_the_actors_grant() {
-        let dir = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            dir.path().join("world.cc"),
-            creation("SharedCatalogIds"),
+        let (mut kernel, _) = WorldKernel::create(creation("SharedCatalogIds"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -5130,10 +4948,7 @@ mod tests {
 
     #[test]
     fn a_distant_route_closing_leaves_the_actors_scope_alone_and_its_act_commits() {
-        let dir = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            dir.path().join("world.cc"),
-            creation("BindingAndAdmission"),
+        let (mut kernel, _) = WorldKernel::create(creation("BindingAndAdmission"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -5179,8 +4994,7 @@ mod tests {
     /// office, not one subject with two controllers.
     #[test]
     fn an_institution_and_its_voice_are_two_subjects_joined_by_an_office() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Two");
+        let mut kernel = crate::custody_tests::custody_kernel("Two");
         let (_, civic, _) = civic_world(&mut kernel);
 
 
@@ -5209,8 +5023,7 @@ mod tests {
     /// total unchanged, and no other partition touched.
     #[test]
     fn a_levy_round_trips_from_catalog_to_conservation() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Levy");
+        let mut kernel = crate::custody_tests::custody_kernel("Levy");
         let (_, civic, active) = civic_world(&mut kernel);
         let before_total: u64 = kernel
             .state
@@ -5293,8 +5106,7 @@ mod tests {
     /// that stops the two-subject shape from collapsing back into one.
     #[test]
     fn office_admission_is_person_and_institution_shaped() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Offices");
+        let mut kernel = crate::custody_tests::custody_kernel("Offices");
         let (_, civic, _) = civic_world(&mut kernel);
         let refuse = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
@@ -5343,8 +5155,7 @@ mod tests {
     /// authority is refused, overlap between subjects is layered government.
     #[test]
     fn overlapping_jurisdiction_within_one_subject_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Overlap");
+        let mut kernel = crate::custody_tests::custody_kernel("Overlap");
         let (_, civic, _) = civic_world(&mut kernel);
         let refuse = |kernel: &mut WorldKernel, ops: Vec<ComponentOp>| {
             let before = kernel.snapshot().unwrap();
@@ -5401,8 +5212,7 @@ mod tests {
     /// allocation, and repairing exactly those failures commits.
     #[test]
     fn civic_operations_are_rejected_with_the_complete_set() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "CivicSet");
+        let mut kernel = crate::custody_tests::custody_kernel("CivicSet");
         let (_, civic, _) = civic_world(&mut kernel);
         let before = kernel.snapshot().unwrap();
         let broken = vec![
@@ -5471,9 +5281,8 @@ mod tests {
     /// A civic operation that changes nothing is not a canonical change.
     #[test]
     fn an_idempotent_civic_operation_is_no_change() {
-        let directory = tempfile::tempdir().unwrap();
         let mut kernel =
-            crate::custody_tests::custody_kernel(directory.path(), "Idempotent");
+            crate::custody_tests::custody_kernel("Idempotent");
         let (_, civic, _) = civic_world(&mut kernel);
         for operation in [
             grant_to(civic.treasury, LEVY_KIND, over_place(civic.hall)),
@@ -5508,8 +5317,7 @@ mod tests {
     /// world the actor reaches.
     #[test]
     fn scope_components_read_authority_and_delegation_but_not_occupancy() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Digest");
+        let mut kernel = crate::custody_tests::custody_kernel("Digest");
         let (topology, civic, _) = civic_world(&mut kernel);
         let digest_of = |kernel: &WorldKernel, subject_id| {
             scope_components(&kernel.state, subject_id)
@@ -5597,8 +5405,7 @@ mod tests {
     /// grants.
     #[test]
     fn a_forum_is_visible_only_to_its_standing() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "Redress");
+        let mut kernel = crate::custody_tests::custody_kernel("Redress");
         let (_, civic, active) = civic_world(&mut kernel);
         let of = |subject_id: SubjectId| {
             active
@@ -5648,8 +5455,7 @@ mod tests {
     /// cannot declare a restricted room and walk anyone into it in one batch.
     #[test]
     fn a_same_patch_destination_is_covered_by_no_grant() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "DraftDoor");
+        let mut kernel = crate::custody_tests::custody_kernel("DraftDoor");
         let topology = admit_topology(&mut kernel);
         let before = kernel.snapshot().unwrap();
         let patch = WorldPatch {
@@ -5707,8 +5513,7 @@ mod tests {
     /// the one site that turns an office into effective authority.
     #[test]
     fn a_retired_institution_lends_no_authority_to_its_office_holder() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = crate::custody_tests::custody_kernel(directory.path(), "RetiredLends");
+        let mut kernel = crate::custody_tests::custody_kernel("RetiredLends");
         let (_, civic, before) = civic_world(&mut kernel);
         let over_hall = AuthorityGrant {
             kind: authority_kind(LEVY_KIND),
@@ -5754,10 +5559,8 @@ mod custody_tests {
     };
     use super::*;
 
-    pub(crate) fn custody_kernel(path: &Path, title: &str) -> WorldKernel {
-        WorldKernel::create(
-            path.join("world.cc"),
-            creation(title),
+    pub(crate) fn custody_kernel(title: &str) -> WorldKernel {
+        WorldKernel::create(creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -5779,8 +5582,7 @@ mod custody_tests {
     /// the conservation equation itself is falsified directly beside it.
     #[test]
     fn a_non_conserving_transfer_effect_does_not_apply() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Forged");
+        let mut kernel = custody_kernel("Forged");
         let (_, custody, _) = custody_world(&mut kernel);
         let before = kernel.state.holdings.clone();
 
@@ -5840,8 +5642,7 @@ mod custody_tests {
     /// patch's own evidence list mints nothing and allocates no ID.
     #[test]
     fn an_admit_without_evidence_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Unevidenced");
+        let mut kernel = custody_kernel("Unevidenced");
         let topology = admit_topology(&mut kernel);
         let speak = speak_entry(&kernel);
         let before = kernel.snapshot().unwrap();
@@ -5890,8 +5691,7 @@ mod custody_tests {
 
     #[test]
     fn a_transfer_moves_the_exact_quantity_and_nothing_else() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Transfer");
+        let mut kernel = custody_kernel("Transfer");
         let (_, custody, active) = custody_world(&mut kernel);
         let entities = kernel.state.entities.clone();
         let edges = kernel.state.edges.clone();
@@ -5920,8 +5720,7 @@ mod custody_tests {
     /// resource key and emptying a holder removes the holder key.
     #[test]
     fn consume_reduces_the_holding_and_emptying_removes_the_key() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Consume");
+        let mut kernel = custody_kernel("Consume");
         let (_, custody, active) = custody_world(&mut kernel);
 
         let after_three = submit_play(
@@ -5959,8 +5758,7 @@ mod custody_tests {
 
     #[test]
     fn a_transform_conserves_one_for_one() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Transform");
+        let mut kernel = custody_kernel("Transform");
         let (_, custody, active) = custody_world(&mut kernel);
 
         submit_play(
@@ -5982,8 +5780,7 @@ mod custody_tests {
 
     #[test]
     fn spending_more_than_held_is_rejected_with_insufficient_custody() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Insufficient");
+        let mut kernel = custody_kernel("Insufficient");
         let (_, custody, _) = custody_world(&mut kernel);
         let too_much = Quantity(OPENING_BALANCE + 1);
         let attempts = [
@@ -6023,8 +5820,7 @@ mod custody_tests {
     /// zero entry anywhere in the snapshot.
     #[test]
     fn an_absent_holding_is_zero() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Absent");
+        let mut kernel = custody_kernel("Absent");
         let (_, custody, active) = custody_world(&mut kernel);
 
         let mismatches = reject_play(
@@ -6052,8 +5848,7 @@ mod custody_tests {
 
     #[test]
     fn a_zero_quantity_operation_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Zero");
+        let mut kernel = custody_kernel("Zero");
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
 
@@ -6101,8 +5896,7 @@ mod custody_tests {
 
     #[test]
     fn dependency_bind_and_release_round_trip() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Dependency");
+        let mut kernel = custody_kernel("Dependency");
         let (_, custody, active) = custody_world(&mut kernel);
         let before = kernel.state.dependencies.clone();
 
@@ -6136,8 +5930,7 @@ mod custody_tests {
     /// already owns; a subject bound to itself is `SelfDependency`.
     #[test]
     fn a_duplicate_dependency_bind_is_rejected_as_no_effect() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Duplicate");
+        let mut kernel = custody_kernel("Duplicate");
         let (_, custody, active) = custody_world(&mut kernel);
 
         let bind = ComponentOp::Bind {
@@ -6180,8 +5973,7 @@ mod custody_tests {
     /// components; nothing rejects it and nothing fires from it.
     #[test]
     fn a_dependency_on_a_closed_route_is_representable_and_visible() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Closed");
+        let mut kernel = custody_kernel("Closed");
         let (topology, custody, active) = custody_world(&mut kernel);
         assert!(!kernel.state.edges[&topology.shutter].is_open());
 
@@ -6211,8 +6003,7 @@ mod custody_tests {
     /// only its own: a counterparty's churn does not move it.
     #[test]
     fn scope_components_read_holdings_and_dependencies() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "ScopeCustody");
+        let mut kernel = custody_kernel("ScopeCustody");
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
         let scope = custody.holder;
@@ -6250,8 +6041,7 @@ mod custody_tests {
     /// consumed - spent`, and no third resource moves.
     #[test]
     fn soul_a_mixed_patch_conserves_every_resource_it_touches() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "MixedLedger");
+        let mut kernel = custody_kernel("MixedLedger");
         let (_, custody, active) = custody_world(&mut kernel);
 
         // The opening balance was created by `Admit` alone: before is zero,
@@ -6318,8 +6108,7 @@ mod custody_tests {
     /// records: the apply-side call is unreachable from the current closed set.
     #[test]
     fn soul_a_forged_sequence_dies_at_the_per_operation_check_not_the_ledger() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "ForgedSequence");
+        let mut kernel = custody_kernel("ForgedSequence");
         let (_, custody, _) = custody_world(&mut kernel);
         let before = kernel.state.holdings.clone();
 
@@ -6436,8 +6225,7 @@ mod custody_tests {
     /// whose sum exceeds `u64::MAX` mint nothing and allocate no ID.
     #[test]
     fn soul_a_holding_cannot_overflow_silently() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "Overflow");
+        let mut kernel = custody_kernel("Overflow");
         let topology = admit_topology(&mut kernel);
         let speak = speak_entry(&kernel);
         let before = kernel.snapshot().unwrap();
@@ -6490,8 +6278,7 @@ mod custody_tests {
     /// no unrelated subject's, whose act still commits at the later revision.
     #[test]
     fn soul_an_incoming_transfer_changes_only_the_counterpartys_scope() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "IncomingScope");
+        let mut kernel = custody_kernel("IncomingScope");
         let (topology, custody, active) = custody_world(&mut kernel);
         let receiver_before = scope_components(&kernel.state, custody.counterparty);
         let bystander_before = scope_components(&kernel.state, topology.walker);
@@ -6541,12 +6328,9 @@ mod knowledge_tests {
         owner, reject_play, speech_world, spoken, submit_play,
     };
     use super::*;
-    use std::path::Path;
 
-    fn speech_kernel(path: &Path, title: &str) -> (WorldKernel, Speech, WorldSnapshot) {
-        let mut kernel = WorldKernel::create(
-            path.join("world.cc"),
-            creation(title),
+    fn speech_kernel(title: &str) -> (WorldKernel, Speech, WorldSnapshot) {
+        let mut kernel = WorldKernel::create(creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -6619,8 +6403,7 @@ mod knowledge_tests {
     /// accessible fact, and a rejected citation allocates nothing.
     #[test]
     fn knowledge_citing_an_inaccessible_fact_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Inaccessible");
+        let (mut kernel, speech, active) = speech_kernel("Inaccessible");
         let before = kernel.state.clone();
 
         assert_eq!(
@@ -6677,10 +6460,7 @@ mod knowledge_tests {
     /// canon needs its receipt in the same patch, a claim needs a live asserter.
     #[test]
     fn a_canonical_fact_needs_evidence_and_a_claim_needs_an_asserter() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut draft = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("Standing"),
+        let mut draft = WorldKernel::create(creation("Standing"),
             &auth_principal(owner()),
         )
         .expect("a draft world")
@@ -6754,8 +6534,7 @@ mod knowledge_tests {
     /// never evaluated.
     #[test]
     fn evidenced_knowledge_of_a_claim_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, _) = speech_kernel(directory.path(), "Evidenced");
+        let (mut kernel, speech, _) = speech_kernel("Evidenced");
         utter(&mut kernel, speech.speaker,
             say(
                 speech.proclaim,
@@ -6804,8 +6583,7 @@ mod knowledge_tests {
     /// the exact room, and the utterance lands in `facts` and nowhere else.
     #[test]
     fn speak_fans_out_to_the_audience_and_not_beyond() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "FanOut");
+        let (mut kernel, speech, active) = speech_kernel("FanOut");
         utter(&mut kernel, speech.speaker,
             say(
                 speech.whisper,
@@ -6847,8 +6625,7 @@ mod knowledge_tests {
     /// subtree, through the same containment walk a jurisdiction uses.
     #[test]
     fn co_location_reach_is_the_exact_place_and_a_channel_place_is_the_subtree() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, _) = speech_kernel(directory.path(), "Reach");
+        let (mut kernel, speech, _) = speech_kernel("Reach");
         utter(&mut kernel, speech.speaker,
             say(
                 speech.proclaim,
@@ -6901,8 +6678,7 @@ mod knowledge_tests {
     /// nothing.
     #[test]
     fn speaking_into_an_empty_room_commits_the_claim_and_lands_nothing() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, _) = speech_kernel(directory.path(), "EmptyRoom");
+        let (mut kernel, speech, _) = speech_kernel("EmptyRoom");
         let knowledge_before = kernel.state.knowledge.clone();
         utter(&mut kernel, speech.bystander,
             say(
@@ -6953,8 +6729,7 @@ mod knowledge_tests {
     /// and still folds its arms only before the hall.
     #[test]
     fn a_display_is_seen_by_the_room_and_by_no_one_else() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Display");
+        let (mut kernel, speech, active) = speech_kernel("Display");
         utter(&mut kernel, speech.speaker,
             show(
                 speech.proclaim,
@@ -7009,8 +6784,7 @@ mod knowledge_tests {
     /// and lands nothing, as speaking alone does.
     #[test]
     fn a_silent_display_addresses_the_room_through_the_speak_entry() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Silent");
+        let (mut kernel, speech, active) = speech_kernel("Silent");
         let speak = affordance_named(&active, "speak");
         utter(&mut kernel, speech.speaker,
             show(speak, Vec::new(), None, "I nod toward the stair."),
@@ -7041,8 +6815,7 @@ mod knowledge_tests {
     /// fails the entry's own `NoAudience`. None of them mints anything.
     #[test]
     fn a_display_is_refused_when_empty_placeless_or_when_nothing_is_addressed() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Refused");
+        let (mut kernel, speech, active) = speech_kernel("Refused");
         let speak = affordance_named(&active, "speak");
         let mut padded = show(speak, Vec::new(), None, "placeholder");
         padded.display = Some(serde_json::from_str::<Statement>("\"   \"").unwrap());
@@ -7075,12 +6848,8 @@ mod knowledge_tests {
     /// the journal exactly, through the same path as speech.
     #[test]
     fn restart_replay_after_a_display_is_exact() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (speech, world_id, expected) = {
-            let mut kernel = WorldKernel::create(
-                &path,
-                creation("ReplayDisplay"),
+        let (speech, exported, expected) = {
+            let mut kernel = WorldKernel::create(creation("ReplayDisplay"),
                 &auth_principal(owner()),
             )
             .expect("a created world")
@@ -7095,9 +6864,9 @@ mod knowledge_tests {
                 show(speak, Vec::new(), None, "I look away."),
             )
             .expect("the silent act commits");
-            (speech, kernel.state.world_id, kernel.state.clone())
+            (speech, kernel.export().unwrap(), kernel.state.clone())
         };
-        let reopened = WorldKernel::open(&path, world_id).expect("the store replays");
+        let reopened = WorldKernel::open(&exported).expect("the export replays");
         assert_eq!(reopened.state, expected);
         assert!(reopened.state.knowledge[&speech.listener]
             .values()
@@ -7121,8 +6890,7 @@ mod knowledge_tests {
     /// same invocation to exactly one named failure.
     #[test]
     fn a_channel_controller_may_speak_outside_its_own_reach() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Controller");
+        let (mut kernel, speech, active) = speech_kernel("Controller");
         submit_play(
             &mut kernel,
             &active,
@@ -7161,8 +6929,7 @@ mod knowledge_tests {
     /// audience receives the telling, not only the addressed subject.
     #[test]
     fn an_addressed_subject_outside_the_audience_names_itself() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Addressing");
+        let (mut kernel, speech, active) = speech_kernel("Addressing");
         let whisper = || {
             say(
                 speech.whisper,
@@ -7197,8 +6964,7 @@ mod knowledge_tests {
     /// rather than storing a zero.
     #[test]
     fn knows_fails_below_its_confidence_and_forget_removes() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Knows");
+        let (mut kernel, speech, active) = speech_kernel("Knows");
         let recant = || DecisionInvocation {
             affordance: speech.recant,
             bindings: vec![binding("fact", Target::Entity(speech.flood))],
@@ -7263,8 +7029,7 @@ mod knowledge_tests {
     /// credence.
     #[test]
     fn a_telling_never_overwrites_a_holder() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "NoOverwrite");
+        let (mut kernel, speech, active) = speech_kernel("NoOverwrite");
         submit_play(
             &mut kernel,
             &active,
@@ -7304,8 +7069,7 @@ mod knowledge_tests {
     /// channel's reach, and a speaker outside it is not speaking.
     #[test]
     fn communicating_from_outside_the_audience_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "OutsideAudience");
+        let (mut kernel, speech, active) = speech_kernel("OutsideAudience");
         assert_eq!(
             reject_play(
                 &mut kernel,
@@ -7338,8 +7102,7 @@ mod knowledge_tests {
     /// directly with the recorded world, command, handle, and discriminator.
     #[test]
     fn every_canonical_id_comes_from_one_of_two_sites() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "Allocation");
+        let (mut kernel, speech, active) = speech_kernel("Allocation");
         let world_id = kernel.state.world_id;
         let caller = play_caller();
         let entities_before = kernel.state.entities.len();
@@ -7385,12 +7148,8 @@ mod knowledge_tests {
     /// state.
     #[test]
     fn restart_replay_after_speech_is_exact() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (speech, world_id, expected) = {
-            let mut kernel = WorldKernel::create(
-                &path,
-                creation("ReplaySpeech"),
+        let (speech, exported, expected) = {
+            let mut kernel = WorldKernel::create(creation("ReplaySpeech"),
                 &auth_principal(owner()),
             )
             .expect("a created world")
@@ -7422,11 +7181,11 @@ mod knowledge_tests {
                     to: AudienceRef::Channel(Ref::Existing(speech.horn)),
                 }]),
             );
-            let world_id = kernel.state.world_id;
-            (speech, world_id, kernel.state.clone())
+            let exported = kernel.export().unwrap();
+            (speech, exported, kernel.state.clone())
         };
 
-        let reopened = WorldKernel::open(&path, world_id).expect("the store replays");
+        let reopened = WorldKernel::open(&exported).expect("the export replays");
         assert_eq!(reopened.state.facts, expected.facts);
         assert_eq!(reopened.state.channels, expected.channels);
         assert_eq!(reopened.state.knowledge, expected.knowledge);
@@ -7440,8 +7199,7 @@ mod knowledge_tests {
     /// recipients.
     #[test]
     fn a_forged_claim_or_forged_recipient_does_not_apply() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, speech, _) = speech_kernel(directory.path(), "Forgery");
+        let (kernel, speech, _) = speech_kernel("Forgery");
         let command_id = CommandId::issue();
         let caller = play_caller();
         let invocation = say(
@@ -7516,8 +7274,7 @@ mod knowledge_tests {
     /// alone, and a reach change moves only the controller's scope.
     #[test]
     fn a_telling_moves_only_the_listeners_scope() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, _) = speech_kernel(directory.path(), "ScopeMove");
+        let (mut kernel, speech, _) = speech_kernel("ScopeMove");
         let digest = |kernel: &WorldKernel, subject: SubjectId| {
             scope_components(&kernel.state, subject)
         };
@@ -7556,10 +7313,7 @@ mod knowledge_tests {
     /// and two is unchoosable. Each rejection allocates no `AffordanceId`.
     #[test]
     fn a_speech_carrying_entry_must_declare_exactly_one_audience() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("SpeechAudience"),
+        let mut kernel = WorldKernel::create(creation("SpeechAudience"),
             &auth_principal(owner()),
         )
         .expect("a draft world")
@@ -7615,11 +7369,8 @@ mod knowledge_tests {
     /// canonical fact and one that plainly negates it commit identically.
     #[test]
     fn the_kernel_never_compares_two_statements() {
-        let directory = tempfile::tempdir().unwrap();
         let run = |name: &str, text: &str| {
-            let room = directory.path().join(name);
-            std::fs::create_dir_all(&room).unwrap();
-            let (mut kernel, speech, _) = speech_kernel(&room, name);
+            let (mut kernel, speech, _) = speech_kernel(name);
             let receipt = utter(&mut kernel, speech.speaker,
                 say(
                     speech.whisper,
@@ -7664,12 +7415,9 @@ mod soul_knowledge_tests {
         owner, speech_world, submit_play,
     };
     use super::*;
-    use std::path::Path;
 
-    fn speech_kernel(path: &Path, title: &str) -> (WorldKernel, Speech, WorldSnapshot) {
-        let mut kernel = WorldKernel::create(
-            path.join("world.cc"),
-            creation(title),
+    fn speech_kernel(title: &str) -> (WorldKernel, Speech, WorldSnapshot) {
+        let mut kernel = WorldKernel::create(creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -7733,8 +7481,7 @@ mod soul_knowledge_tests {
     /// its own or another subject's.
     #[test]
     fn soul_a_channel_controller_hears_what_it_is_out_of_reach_of() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "ControllerHears");
+        let (mut kernel, speech, active) = speech_kernel("ControllerHears");
         // The horn now reaches exactly one subject. The speaker controls it and
         // is not in that set.
         submit_play(
@@ -7808,8 +7555,7 @@ mod soul_knowledge_tests {
     /// replay to be caught later.
     #[test]
     fn soul_a_refused_utterance_dies_at_the_gate_and_allocates_nothing() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "GateNotReplay");
+        let (mut kernel, speech, active) = speech_kernel("GateNotReplay");
         let speak = affordance_named(&active, "speak");
         let before = kernel.state.clone();
 
@@ -7867,8 +7613,7 @@ mod soul_knowledge_tests {
     /// by `apply_effect` itself, so replay is never the first reader to notice.
     #[test]
     fn soul_a_forged_wider_audience_does_not_apply() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, speech, _) = speech_kernel(directory.path(), "WiderAudience");
+        let (kernel, speech, _) = speech_kernel("WiderAudience");
         let command_id = CommandId::issue();
         let caller = play_caller();
         let invocation = say(
@@ -7940,8 +7685,7 @@ mod soul_knowledge_tests {
     /// by a speaker who is in the room applies.
     #[test]
     fn a_telling_by_a_speaker_outside_its_audience_does_not_apply() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, speech, _) = speech_kernel(directory.path(), "OutsideAudience");
+        let (kernel, speech, _) = speech_kernel("OutsideAudience");
         let resolves_to = kernel.state.revision + 1;
 
         let mut candidate = kernel.state.clone();
@@ -7979,8 +7723,7 @@ mod soul_knowledge_tests {
     /// survives an utterance nobody heard.
     #[test]
     fn soul_speech_that_lands_nothing_moves_no_digest_including_the_speakers() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "NoDigestMove");
+        let (mut kernel, speech, active) = speech_kernel("NoDigestMove");
         let speak = affordance_named(&active, "speak");
         let everyone = [
             speech.speaker,
@@ -8020,8 +7763,7 @@ mod soul_knowledge_tests {
     /// what the subject ends up holding.
     #[test]
     fn soul_a_same_patch_telling_then_forget_fails_closed_only() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "SamePatchOrder");
+        let (mut kernel, speech, active) = speech_kernel("SamePatchOrder");
         let tell = ComponentOp::Communicate {
             speaker: Ref::Existing(speech.speaker),
             fact: Ref::Existing(speech.flood),
@@ -8086,9 +7828,7 @@ mod soul_knowledge_tests {
     /// claim is a valid shape and its store reopens.
     #[test]
     fn an_orphan_claim_is_a_valid_shape_and_reopens() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "OrphanClaim");
+        let (mut kernel, speech, active) = speech_kernel("OrphanClaim");
         // The Draft-declared fact is an orphan by construction: no event names
         // it. Reopening runs the shape verifier over the replayed state.
         assert!(kernel.state.facts.contains_key(&speech.flood));
@@ -8099,7 +7839,6 @@ mod soul_knowledge_tests {
                 .iter()
                 .all(|event| event.speech.is_none())
         );
-        let world_id = kernel.state.world_id;
 
         let before = kernel.state.clone();
         let receipt = kernel
@@ -8128,8 +7867,9 @@ mod soul_knowledge_tests {
         assert!(receipt.resulting_revision > 0);
         assert_eq!(kernel.state.facts.len(), before.facts.len() + 1);
         let facts = kernel.state.facts.clone();
+        let exported = kernel.export().unwrap();
         drop(kernel);
-        let replayed = WorldKernel::open(&path, world_id).expect("the orphan store is healthy");
+        let replayed = WorldKernel::open(&exported).expect("the orphan store is healthy");
         assert_eq!(replayed.state.facts, facts);
     }
 
@@ -8139,10 +7879,8 @@ mod soul_knowledge_tests {
     /// from the journal, and reopening again reproduces the same state.
     #[test]
     fn soul_replay_is_exact_across_every_new_arm() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (world_id, expected) = {
-            let (mut kernel, speech, _) = speech_kernel(directory.path(), "ReplayArms");
+        let (exported, expected) = {
+            let (mut kernel, speech, _) = speech_kernel("ReplayArms");
             utter(&mut kernel, speech.speaker,
                 say(
                     speech.proclaim,
@@ -8188,11 +7926,11 @@ mod soul_knowledge_tests {
             );
             assert!(!kernel.state.knowledge.is_empty());
             assert!(!kernel.state.facts.is_empty());
-            (kernel.state.world_id, kernel.state.clone())
+            (kernel.export().unwrap(), kernel.state.clone())
         };
 
         for _ in 0..2 {
-            let replayed = WorldKernel::open(&path, world_id).expect("the store replays");
+            let replayed = WorldKernel::open(&exported).expect("the export replays");
             assert_eq!(replayed.state.facts, expected.facts);
             assert_eq!(replayed.state.channels, expected.channels);
             assert_eq!(replayed.state.knowledge, expected.knowledge);
@@ -8212,8 +7950,7 @@ mod soul_knowledge_tests {
     /// a subject-facing surface.
     #[test]
     fn soul_the_utterance_is_stored_in_facts_and_in_the_committed_effect() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, speech, active) = speech_kernel(directory.path(), "OneHome");
+        let (mut kernel, speech, active) = speech_kernel("OneHome");
         let speak = affordance_named(&active, "speak");
         let text = "A statement that appears nowhere else.";
         utter(&mut kernel, speech.speaker,
@@ -8329,10 +8066,8 @@ mod witness_tests {
         }
     }
 
-    fn nesting_kernel(path: &Path, title: &str) -> (WorldKernel, Nesting, WorldSnapshot) {
-        let mut kernel = WorldKernel::create(
-            path.join("world.cc"),
-            creation(title),
+    fn nesting_kernel(title: &str) -> (WorldKernel, Nesting, WorldSnapshot) {
+        let mut kernel = WorldKernel::create(creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -8484,8 +8219,7 @@ mod witness_tests {
     /// beside it, and a wider place reaches the wider set.
     #[test]
     fn a_witness_reaches_every_subject_under_the_place_and_no_other() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Reach");
+        let (mut kernel, world, active) = nesting_kernel("Reach");
         submit_play(
             &mut kernel,
             &active,
@@ -8545,8 +8279,7 @@ mod witness_tests {
     /// mind by repeating itself.
     #[test]
     fn a_witness_never_overwrites_a_holder() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, world, _) = nesting_kernel(directory.path(), "Holder");
+        let (kernel, world, _) = nesting_kernel("Holder");
         // `Told` has exactly one writer, so the holder's row is planted at the
         // layer that can hold one and the witness is applied beside it.
         let held = Knowledge {
@@ -8592,8 +8325,7 @@ mod witness_tests {
     /// every stander already holds the fact.
     #[test]
     fn a_witness_over_nobody_is_refused_at_resolve_and_at_apply() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Nobody");
+        let (mut kernel, world, active) = nesting_kernel("Nobody");
         let forged = |place: EntityId, state: &WorldState| {
             let resolves_to = state.revision + 1;
             let mut state = state.clone();
@@ -8682,8 +8414,7 @@ mod witness_tests {
     /// layer and the apply layer agree on both.
     #[test]
     fn a_mid_patch_relocation_into_the_subtree_counts() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Relocation");
+        let (mut kernel, world, active) = nesting_kernel("Relocation");
         // The village's own standers already hold it, so the relocated coaster
         // is the only candidate recipient left.
         submit_play(
@@ -8752,8 +8483,7 @@ mod witness_tests {
     /// moves exactly the components of the subjects that learned something.
     #[test]
     fn a_witness_moves_every_recipients_scope_components_and_nobody_elses() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Digest");
+        let (mut kernel, world, active) = nesting_kernel("Digest");
         submit_play(
             &mut kernel,
             &active,
@@ -8791,8 +8521,7 @@ mod witness_tests {
     /// place position binds a subject is refused before it is ever declared.
     #[test]
     fn a_witness_affordance_lowers_with_no_speaker() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Affordance");
+        let (mut kernel, world, active) = nesting_kernel("Affordance");
         let beacon = *active
             .subjects
             .iter()
@@ -8884,8 +8613,7 @@ mod witness_tests {
     /// wrote pass the shape check with no clause of their own.
     #[test]
     fn a_world_with_a_witness_replays() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Replay");
+        let (mut kernel, world, active) = nesting_kernel("Replay");
         submit_play(
             &mut kernel,
             &active,
@@ -8896,11 +8624,11 @@ mod witness_tests {
             )]),
         );
         assert!(journal::verify_state_shape(&kernel.state).is_ok());
-        let world_id = kernel.state.world_id;
         let committed = kernel.state.clone();
+        let exported = kernel.export().unwrap();
         drop(kernel);
         let reopened =
-            WorldKernel::open(directory.path().join("world.cc"), world_id).expect("it replays");
+            WorldKernel::open(&exported).expect("it replays");
         assert_eq!(reopened.state, committed);
         assert_eq!(
             knows(&reopened, world.villager, world.asteroid),
@@ -8916,8 +8644,6 @@ mod witness_tests {
     /// state it was written into.
     #[test]
     fn a_genesis_seeded_knowledge_row_is_acquired_at_revision_zero() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let mut creation = creation("PAf49Genesis");
         creation.patch.declarations.push(Declaration::Fact(FactDeclaration {
             handle: DraftHandle::new("founding"),
@@ -8933,7 +8659,7 @@ mod witness_tests {
             source: AuthoredSource::Witnessed,
             confidence: Confidence::Certain,
         });
-        let (kernel, _) = WorldKernel::create(&path, creation, &auth_principal(owner())).unwrap();
+        let (kernel, _) = WorldKernel::create(creation, &auth_principal(owner())).unwrap();
         assert_eq!(kernel.state.revision, 0);
         let human = *kernel
             .state
@@ -8961,8 +8687,7 @@ mod witness_tests {
     /// resolves to, one past the state it was applied against.
     #[test]
     fn a_later_commits_knowledge_row_is_acquired_at_that_commits_revision() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "PAf49Later");
+        let (mut kernel, world, active) = nesting_kernel("PAf49Later");
         submit_play(
             &mut kernel,
             &active,
@@ -8986,8 +8711,7 @@ mod witness_tests {
     /// replay silently.
     #[test]
     fn a_shape_check_refuses_a_knowledge_row_forged_ahead_of_the_world_revision() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "PAf49Shape");
+        let (mut kernel, world, active) = nesting_kernel("PAf49Shape");
         submit_play(
             &mut kernel,
             &active,
@@ -9016,8 +8740,7 @@ mod witness_tests {
     /// it.
     #[test]
     fn soul_a_place_reach_fan_out_and_a_witness_select_the_same_subjects() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, world, _) = nesting_kernel(directory.path(), "One owner");
+        let (kernel, world, _) = nesting_kernel("One owner");
         let mut state = kernel.state.clone();
         // One holder, so the already-holds half of the selection is exercised
         // and not merely the subtree half.
@@ -9069,8 +8792,7 @@ mod witness_tests {
     /// world's widest.
     #[test]
     fn soul_under_place_covers_itself_and_below_and_never_the_placeless() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, world, _) = nesting_kernel(directory.path(), "Nesting");
+        let (kernel, world, _) = nesting_kernel("Nesting");
         let under = |root: EntityId| under_place(&kernel.state, root);
         // The village holds its two standers and nobody else.
         assert_eq!(
@@ -9156,8 +8878,7 @@ mod witness_tests {
     /// by both.
     #[test]
     fn soul_a_subject_declared_and_placed_in_one_patch_is_a_recipient_at_both_layers() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Draft stander");
+        let (mut kernel, world, active) = nesting_kernel("Draft stander");
         submit_play(
             &mut kernel,
             &active,
@@ -9268,8 +8989,7 @@ mod witness_tests {
     /// reaching nobody.
     #[test]
     fn soul_a_forget_before_a_witness_agrees_at_both_layers() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Forget first");
+        let (mut kernel, world, active) = nesting_kernel("Forget first");
         submit_play(
             &mut kernel,
             &active,
@@ -9328,8 +9048,7 @@ mod witness_tests {
     /// row, so no attributable line can be built from it.
     #[test]
     fn soul_a_witness_moves_only_knows_and_writes_no_spoken_row() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, world, active) = nesting_kernel(directory.path(), "Anonymous");
+        let (mut kernel, world, active) = nesting_kernel("Anonymous");
         let before = scope_components(&kernel.state, world.villager);
         submit_play(
             &mut kernel,
@@ -9377,7 +9096,6 @@ mod clock_tests {
         speech_world, submit_play,
     };
     use super::*;
-    use std::path::Path;
 
     /// The canonical IDs of the clock fixture: a hall containing a yard, a
     /// dead end reached by exactly one route, three subjects, a resource, and
@@ -9403,10 +9121,8 @@ mod clock_tests {
         TickMinutes::new(value).expect("a valid span")
     }
 
-    fn clock_kernel(path: &Path, title: &str) -> (WorldKernel, Clockwork, WorldSnapshot) {
-        let mut kernel = WorldKernel::create(
-            path.join("world.cc"),
-            creation(title),
+    fn clock_kernel(title: &str) -> (WorldKernel, Clockwork, WorldSnapshot) {
+        let mut kernel = WorldKernel::create(creation(title),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -9713,8 +9429,7 @@ mod clock_tests {
     /// its subject, and the pressure grows with the next tick.
     #[test]
     fn a_defaulted_commitment_advances_pressure_one_step_per_tick() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Default");
+        let (mut kernel, clockwork, _) = clock_kernel("Default");
         let sourced = PressureSource::Commitment {
             subject: clockwork.farmer,
             key: clockwork.obligation,
@@ -9736,8 +9451,7 @@ mod clock_tests {
     /// and a blocked one neither rolls nor presses.
     #[test]
     fn a_due_routine_auto_fulfils_and_a_blocked_one_does_not() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "Routine");
+        let (mut kernel, clockwork, active) = clock_kernel("Routine");
         let holdings = kernel.state.holdings.clone();
         let positions = kernel.state.positions.clone();
         let edges = kernel.state.edges.clone();
@@ -9804,8 +9518,7 @@ mod clock_tests {
     /// canonical change.
     #[test]
     fn a_tick_with_nothing_due_moves_only_the_clock() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _, _) = clock_kernel(directory.path(), "Quiet");
+        let (mut kernel, _, _) = clock_kernel("Quiet");
         let before = kernel.state.clone();
 
         tick(&mut kernel, 1).expect("the tick commits");
@@ -9826,8 +9539,7 @@ mod clock_tests {
     /// does.
     #[test]
     fn an_unavailable_dependency_presses_its_depender() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Dependency");
+        let (mut kernel, clockwork, _) = clock_kernel("Dependency");
         let sourced = PressureSource::Dependency(DependencyTarget::Route(clockwork.gate));
 
         tick(&mut kernel, 1).expect("the tick commits");
@@ -9876,8 +9588,7 @@ mod clock_tests {
     /// The clock moves through exactly one command body.
     #[test]
     fn time_advances_only_through_advance_time() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "OnlyTick");
+        let (mut kernel, clockwork, _) = clock_kernel("OnlyTick");
         tick(&mut kernel, 5).expect("the tick commits");
         let now = kernel.state.now;
 
@@ -9904,10 +9615,7 @@ mod clock_tests {
     /// Who may tick, when, and how far.
     #[test]
     fn advance_time_negatives() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("Negatives"),
+        let mut kernel = WorldKernel::create(creation("Negatives"),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -9971,8 +9679,7 @@ mod clock_tests {
     /// magnitude, or clock reading is one comparison.
     #[test]
     fn a_forged_motion_does_not_apply() {
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, clockwork, _) = clock_kernel(directory.path(), "Forged");
+        let (kernel, clockwork, _) = clock_kernel("Forged");
         let to = FictionalMinutes(120);
         let honest = clock::derive_motion(&kernel.state, to);
         assert!(!honest.fulfilled.is_empty() || !honest.pressed.is_empty());
@@ -10059,10 +9766,7 @@ mod clock_tests {
     /// Replay across a tick is exact, and every envelope is idempotent.
     #[test]
     fn restart_replay_across_a_tick_is_exact() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Replay");
-        let world_id = kernel.state.world_id;
+        let (mut kernel, clockwork, _) = clock_kernel("Replay");
 
         exercise(
             &mut kernel,
@@ -10100,8 +9804,9 @@ mod clock_tests {
 
         let before = kernel.state.clone();
         let before_snapshot = kernel.snapshot().unwrap();
+        let exported = kernel.export().unwrap();
         drop(kernel);
-        let mut replayed = WorldKernel::open(&path, world_id).expect("the store replays");
+        let mut replayed = WorldKernel::open(&exported).expect("the export replays");
         assert_eq!(replayed.state, before);
         assert_eq!(replayed.snapshot().unwrap(), before_snapshot);
         assert!(matches!(
@@ -10113,8 +9818,7 @@ mod clock_tests {
     /// Every commitment shape check, in one complete sorted set.
     #[test]
     fn commitment_declaration_negatives() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "Shapes");
+        let (mut kernel, clockwork, active) = clock_kernel("Shapes");
         let before = kernel.state.clone();
         let create = |kind: CommitmentKind,
                       counterparty: Option<SubjectId>,
@@ -10243,8 +9947,7 @@ mod clock_tests {
     /// treasury and the reeve did not.
     #[test]
     fn committed_reads_the_actors_own_commitments() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Committed");
+        let (mut kernel, clockwork, _) = clock_kernel("Committed");
 
         // The reeve promised the treasury nothing.
         let error = exercise(
@@ -10281,8 +9984,7 @@ mod clock_tests {
     /// it is refused and nothing commits.
     #[test]
     fn a_discharged_commitment_refuses_the_act_that_needs_it() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "DischargeThenAct");
+        let (mut kernel, clockwork, _) = clock_kernel("DischargeThenAct");
         let snapshot = kernel.snapshot().unwrap();
         submit_play(
             &mut kernel,
@@ -10317,8 +10019,7 @@ mod clock_tests {
     /// half while the kind half holds.
     #[test]
     fn committed_requires_the_named_counterparty() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "CommittedCounterparty");
+        let (mut kernel, clockwork, _) = clock_kernel("CommittedCounterparty");
         let error = exercise(
             &mut kernel,
             clockwork.farmer,
@@ -10338,8 +10039,7 @@ mod clock_tests {
     /// half fails. The farmer's own obligation to the same treasury still passes.
     #[test]
     fn committed_requires_the_named_kind() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "CommittedKind");
+        let (mut kernel, clockwork, _) = clock_kernel("CommittedKind");
         let snapshot = kernel.snapshot().unwrap();
         submit_play(
             &mut kernel,
@@ -10388,8 +10088,7 @@ mod clock_tests {
     /// that fulfils a routine moves exactly that subject's.
     #[test]
     fn a_pressure_tick_moves_no_scope_components_and_a_routine_tick_moves_one() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Digests");
+        let (mut kernel, clockwork, _) = clock_kernel("Digests");
         let digests = |kernel: &WorldKernel| -> BTreeMap<SubjectId, ScopeComponents> {
             kernel
                 .state
@@ -10446,8 +10145,7 @@ mod clock_tests {
     /// and zero is spelled by absence at both ends.
     #[test]
     fn soul_pressure_saturates_and_never_underflows() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Saturate");
+        let (mut kernel, clockwork, _) = clock_kernel("Saturate");
         let sourced = PressureSource::Commitment {
             subject: clockwork.farmer,
             key: clockwork.obligation,
@@ -10513,8 +10211,7 @@ mod clock_tests {
     /// the clock and not one subject's components.
     #[test]
     fn soul_a_clock_only_tick_moves_no_scope_components() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _, _) = clock_kernel(directory.path(), "ClockOnly");
+        let (mut kernel, _, _) = clock_kernel("ClockOnly");
         let digests = |kernel: &WorldKernel| -> BTreeMap<SubjectId, ScopeComponents> {
             kernel
                 .state
@@ -10540,8 +10237,6 @@ mod clock_tests {
     /// fact or one operation fails here.
     #[test]
     fn genesis_may_not_rule_or_mint() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let mut input = creation("RulesAndMints");
         for handle in ["first-rule", "second-rule"] {
             input
@@ -10565,7 +10260,7 @@ mod clock_tests {
                 qty: Quantity(4),
             });
         }
-        let Err(error) = WorldKernel::create(&path, input, &auth_principal(owner())) else {
+        let Err(error) = WorldKernel::create(input, &auth_principal(owner())) else {
             panic!("a genesis patch that rules and mints was admitted");
         };
         let KernelError::PatchRejected(set) = error else {
@@ -10581,7 +10276,6 @@ mod clock_tests {
                 offender(patch::Site::Operation(1)),
             ]
         );
-        assert!(!path.exists(), "a refused genesis wrote a world file");
     }
 
     /// `prepare_creation` and `WorldState::genesis` both forbid rulings at
@@ -10589,8 +10283,6 @@ mod clock_tests {
     /// a world is ever written.
     #[test]
     fn a_genesis_patch_carrying_a_ruled_fact_is_refused() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let mut input = creation("RuledGenesis");
         input
             .patch
@@ -10601,7 +10293,7 @@ mod clock_tests {
                 statement: Statement::new("Stated by the table.").unwrap(),
                 standing: FactStandingRef::Ruled,
             }));
-        let Err(error) = WorldKernel::create(&path, input, &auth_principal(owner())) else {
+        let Err(error) = WorldKernel::create(input, &auth_principal(owner())) else {
             panic!("a genesis patch carrying a Ruled fact was admitted");
         };
         assert!(
@@ -10611,15 +10303,12 @@ mod clock_tests {
                 })),
             "{error:?}"
         );
-        assert!(!path.exists(), "a refused genesis wrote a world file");
     }
 
     /// The `Mint` half: a creation patch that carries a `Mint` is refused the
     /// same way.
     #[test]
     fn a_genesis_patch_carrying_a_mint_is_refused() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let mut input = creation("MintGenesis");
         input
             .patch
@@ -10630,7 +10319,7 @@ mod clock_tests {
             resource: Ref::Draft(DraftHandle::new("loot")),
             qty: Quantity(4),
         });
-        let Err(error) = WorldKernel::create(&path, input, &auth_principal(owner())) else {
+        let Err(error) = WorldKernel::create(input, &auth_principal(owner())) else {
             panic!("a genesis patch carrying a Mint was admitted");
         };
         assert!(
@@ -10640,7 +10329,6 @@ mod clock_tests {
                 })),
             "{error:?}"
         );
-        assert!(!path.exists(), "a refused genesis wrote a world file");
     }
 
     /// `WorldState::genesis` re-decides `forbid_rulings_at_genesis` on its own
@@ -10706,8 +10394,7 @@ mod clock_tests {
     /// Soul falsification: a discharge names one subject's own live key.
     #[test]
     fn soul_discharging_a_foreign_or_already_discharged_commitment_is_refused() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Discharge");
+        let (mut kernel, clockwork, _) = clock_kernel("Discharge");
 
         // The farmer's obligation, claimed by the reeve.
         let snapshot = kernel.snapshot().unwrap();
@@ -10751,8 +10438,7 @@ mod clock_tests {
     /// whatever the span, and a non-routine cannot carry checks.
     #[test]
     fn soul_a_routine_re_arms_exactly_one_period_per_command() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Rearm");
+        let (mut kernel, clockwork, _) = clock_kernel("Rearm");
         let period = u64::from(
             kernel.state.commitments[&clockwork.farmer][&clockwork.routine]
                 .period
@@ -10801,8 +10487,7 @@ mod clock_tests {
     /// failing dependency at once.
     #[test]
     fn soul_derive_motion_is_pure_and_the_tick_replays_exactly() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Pure");
+        let (mut kernel, clockwork, _) = clock_kernel("Pure");
         let snapshot = kernel.snapshot().unwrap();
         submit_play(
             &mut kernel,
@@ -10888,8 +10573,7 @@ mod clock_tests {
     /// it because no partition holds one.
     #[test]
     fn mismatch_never_appears_in_a_world_commit() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "Separation");
+        let (mut kernel, clockwork, _) = clock_kernel("Separation");
         submit_as(
             &mut kernel,
             play_caller(),
@@ -10942,8 +10626,7 @@ mod clock_tests {
     /// Active with no answer.
     #[test]
     fn the_play_authority_declares_in_active_without_an_answer() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayDeclares");
+        let (mut kernel, clockwork, _) = clock_kernel("PlayDeclares");
         let receipt = submit_as(
             &mut kernel,
             play_caller(),
@@ -10960,8 +10643,7 @@ mod clock_tests {
     /// a confined author cannot do.
     #[test]
     fn the_play_authority_is_unconfined() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayUnconfined");
+        let (mut kernel, clockwork, _) = clock_kernel("PlayUnconfined");
         submit_as(
             &mut kernel,
             play_caller(),
@@ -10975,8 +10657,7 @@ mod clock_tests {
     /// Invariant 5: the play authority advances time, the clock's precedent.
     #[test]
     fn the_play_authority_advances_time() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _clockwork, active) = clock_kernel(directory.path(), "PlayClock");
+        let (mut kernel, _clockwork, active) = clock_kernel("PlayClock");
         let receipt = submit_as(
             &mut kernel,
             play_caller(),
@@ -10992,8 +10673,7 @@ mod clock_tests {
     /// P3.4: a ruled fact is world truth to every subject that knows it.
     #[test]
     fn the_play_authority_rules_a_fact_and_a_witness_knows_it_as_canon() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayRules");
+        let (mut kernel, clockwork, _) = clock_kernel("PlayRules");
         let mut patch = ruled_fact_patch("verdict");
         patch.operations.push(ComponentOp::AcquireKnowledge {
             subject: Ref::Existing(clockwork.reeve),
@@ -11036,10 +10716,8 @@ mod clock_tests {
     /// P3.5: minted quantity balances the ledger, and replay reproduces it.
     #[test]
     fn the_play_authority_mints_and_the_ledger_balances() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (world_id, reeve, grain) = {
-            let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayMints");
+        let (exported, reeve, grain) = {
+            let (mut kernel, clockwork, _) = clock_kernel("PlayMints");
             let grain = resource_named(&kernel, "Winter Grain");
             let before = held(&kernel.state, clockwork.reeve, grain);
             assert_eq!(before, 0);
@@ -11061,9 +10739,9 @@ mod clock_tests {
             .expect("the play authority mints");
             let after = held(&kernel.state, clockwork.reeve, grain);
             assert_eq!(before + 7, after);
-            (kernel.state.world_id, clockwork.reeve, grain)
+            (kernel.export().unwrap(), clockwork.reeve, grain)
         };
-        let replayed = WorldKernel::open(&path, world_id).expect("the minted store replays");
+        let replayed = WorldKernel::open(&exported).expect("the minted export replays");
         assert_eq!(held(&replayed.state, reeve, grain), 7);
     }
 
@@ -11072,8 +10750,7 @@ mod clock_tests {
     /// such an assertion.
     #[test]
     fn a_ruled_fact_cannot_be_known_evidenced() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayEvidenced");
+        let (mut kernel, clockwork, _) = clock_kernel("PlayEvidenced");
         let mut patch = ruled_fact_patch("verdict");
         patch.operations.push(ComponentOp::AcquireKnowledge {
             subject: Ref::Existing(clockwork.reeve),
@@ -11101,8 +10778,7 @@ mod clock_tests {
     /// receipts, so its `Admit` is refused without one.
     #[test]
     fn the_evidence_gate_holds_for_play() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayEvidenceGate");
+        let (mut kernel, clockwork, _) = clock_kernel("PlayEvidenceGate");
         let grain = resource_named(&kernel, "Winter Grain");
 
         // Without a receipt: `Play`'s `Admit` is refused exactly as anyone's.
@@ -11154,10 +10830,8 @@ mod clock_tests {
     /// reproduces both across the digest.
     #[test]
     fn a_journal_holding_a_ruled_fact_and_a_mint_replays() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (world_id, expected) = {
-            let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayReplay");
+        let (exported, expected) = {
+            let (mut kernel, clockwork, _) = clock_kernel("PlayReplay");
             let grain = resource_named(&kernel, "Winter Grain");
             let mut patch = ruled_fact_patch("verdict");
             patch.operations.push(ComponentOp::Mint {
@@ -11173,13 +10847,14 @@ mod clock_tests {
                 },
             )
             .expect("the play authority rules and mints in one patch");
-            (kernel.state.world_id, kernel.snapshot().unwrap())
+            (kernel.export().unwrap(), kernel.snapshot().unwrap())
         };
-        let replayed = WorldKernel::open(&path, world_id).expect("the store replays");
+        let replayed = WorldKernel::open(&exported).expect("the export replays");
         assert_eq!(replayed.snapshot().unwrap(), expected);
+        let exported = replayed.export().unwrap();
         drop(replayed);
         let replayed_again =
-            WorldKernel::open(&path, world_id).expect("the store replays a second time");
+            WorldKernel::open(&exported).expect("the export replays a second time");
         assert_eq!(replayed_again.snapshot().unwrap(), expected);
     }
 
@@ -11210,10 +10885,8 @@ mod clock_tests {
     /// grants and `retired` both survive the round trip.
     #[test]
     fn a_retired_subject_holds_no_grants_across_a_replay() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (world_id, reeve) = {
-            let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "RetireReplay");
+        let (exported, reeve) = {
+            let (mut kernel, clockwork, active) = clock_kernel("RetireReplay");
             assert!(
                 !active
                     .subjects
@@ -11225,9 +10898,9 @@ mod clock_tests {
                 "the reeve holds grants before retirement"
             );
             play_retires(&mut kernel, clockwork.reeve).expect("play retires the reeve");
-            (kernel.state.world_id, clockwork.reeve)
+            (kernel.export().unwrap(), clockwork.reeve)
         };
-        let replayed = WorldKernel::open(&path, world_id).expect("the store replays");
+        let replayed = WorldKernel::open(&exported).expect("the export replays");
         let snapshot = replayed.snapshot().unwrap();
         let subject = snapshot
             .subjects
@@ -11242,8 +10915,7 @@ mod clock_tests {
     /// removed its grants.
     #[test]
     fn a_retired_subject_cannot_act() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireCannotAct");
+        let (mut kernel, clockwork, _) = clock_kernel("RetireCannotAct");
         play_retires(&mut kernel, clockwork.reeve).expect("play retires the reeve");
         let error = exercise(
             &mut kernel,
@@ -11260,8 +10932,7 @@ mod clock_tests {
     /// does.
     #[test]
     fn a_retired_subject_hears_nothing() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireHearsNothing");
+        let (mut kernel, clockwork, _) = clock_kernel("RetireHearsNothing");
         play_retires(&mut kernel, clockwork.reeve).expect("play retires the reeve");
         let mut patch = ruled_fact_patch("news");
         patch.operations.push(ComponentOp::Witness {
@@ -11296,8 +10967,7 @@ mod clock_tests {
     /// retirement untouched.
     #[test]
     fn a_retired_subject_keeps_its_history() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireKeepsHistory");
+        let (mut kernel, clockwork, _) = clock_kernel("RetireKeepsHistory");
         let before_holdings = kernel.state.holdings.get(&clockwork.farmer).cloned();
         let before_commitments = kernel.state.commitments.get(&clockwork.farmer).cloned();
         assert!(before_holdings.is_some());
@@ -11317,8 +10987,7 @@ mod clock_tests {
     /// P4.1: retiring twice is `NoOperationEffect`, not a second retirement.
     #[test]
     fn retiring_twice_is_no_effect() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "RetireTwice");
+        let (mut kernel, clockwork, _) = clock_kernel("RetireTwice");
         play_retires(&mut kernel, clockwork.reeve).expect("the first retirement commits");
         let error = play_retires(&mut kernel, clockwork.reeve).unwrap_err();
         assert!(
@@ -11358,10 +11027,7 @@ mod clock_tests {
     /// verb the same way any owner-authored `GrantAffordance` does.
     #[test]
     fn the_seed_grants_the_player_a_verb_in_draft() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("SeedGrantsDraft"),
+        let mut kernel = WorldKernel::create(creation("SeedGrantsDraft"),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -11405,8 +11071,7 @@ mod clock_tests {
     /// P5.1: Play grants and revokes a verb in Active.
     #[test]
     fn the_play_authority_grants_and_revokes_in_active() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PlayGrantRevoke");
+        let (mut kernel, clockwork, _) = clock_kernel("PlayGrantRevoke");
         submit_as(
             &mut kernel,
             play_caller(),
@@ -11473,14 +11138,12 @@ mod clock_tests {
     /// PA.f31: `verify_state_shape` no longer judges a `DecisionEvent` against
     /// the subject's *present* controller identity. Retiring a subject that
     /// has acted commits, and the history survives a full reopen-and-replay
-    /// (`recover` -> `verify_history` -> `verify_state_shape` for every
+    /// (`open` -> `verify_history` -> `verify_state_shape` for every
     /// commit, per the caller census in the report).
     #[test]
     fn retiring_a_subject_that_acted_survives_reopen_and_replay() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let world_id = {
-            let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf31RetireActed");
+        let exported = {
+            let (mut kernel, clockwork, _) = clock_kernel("PAf31RetireActed");
             exercise(
                 &mut kernel,
                 clockwork.reeve,
@@ -11490,9 +11153,9 @@ mod clock_tests {
             .expect("the threat commits");
             play_retires(&mut kernel, clockwork.reeve)
                 .expect("a subject with history can be retired");
-            kernel.state.world_id
+            kernel.export().unwrap()
         };
-        let reopened = WorldKernel::open(&path, world_id).expect("the store replays");
+        let reopened = WorldKernel::open(&exported).expect("the export replays");
         let retired = reopened
             .snapshot()
             .unwrap()
@@ -11510,10 +11173,8 @@ mod clock_tests {
     /// against the present-day grant set.
     #[test]
     fn revoking_a_used_verb_survives_reopen_and_replay() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let world_id = {
-            let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf31RevokeUsed");
+        let exported = {
+            let (mut kernel, clockwork, _) = clock_kernel("PAf31RevokeUsed");
             exercise(
                 &mut kernel,
                 clockwork.reeve,
@@ -11530,9 +11191,9 @@ mod clock_tests {
                     affordance: Ref::Existing(clockwork.threaten),
                 }]),
             );
-            kernel.state.world_id
+            kernel.export().unwrap()
         };
-        let reopened = WorldKernel::open(&path, world_id).expect("the store replays");
+        let reopened = WorldKernel::open(&exported).expect("the export replays");
         assert_eq!(reopened.state.events.len(), 1);
     }
 
@@ -11543,16 +11204,14 @@ mod clock_tests {
     /// controller roster in Active.
     #[test]
     fn retiring_the_human_in_active_survives_reopen_and_replay() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (world_id, human) = {
-            let (mut kernel, clockwork, active) = clock_kernel(directory.path(), "PAf32ActiveRetire");
+        let (exported, human) = {
+            let (mut kernel, clockwork, active) = clock_kernel("PAf32ActiveRetire");
             let _ = &clockwork;
             let human = human_subject(&active);
             play_retires(&mut kernel, human).expect("play retires the human subject");
-            (kernel.state.world_id, human)
+            (kernel.export().unwrap(), human)
         };
-        let reopened = WorldKernel::open(&path, world_id).expect("the store replays");
+        let reopened = WorldKernel::open(&exported).expect("the export replays");
         let retired = reopened
             .snapshot()
             .unwrap()
@@ -11570,8 +11229,7 @@ mod clock_tests {
     /// knowledge from a telling into that channel.
     #[test]
     fn channel_audience_excludes_a_retired_member() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf33Audience");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf33Audience");
         play_retires(&mut kernel, clockwork.reeve).expect("retire");
         let mut patch = ruled_fact_patch("news");
         patch.declarations.push(Declaration::Channel(ChannelDeclaration {
@@ -11604,8 +11262,7 @@ mod clock_tests {
     /// controller.
     #[test]
     fn a_retired_subject_cannot_speak_through_a_channel() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf33RetiredSpeaks");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf33RetiredSpeaks");
         let mut declare = ruled_fact_patch("wire-decl");
         declare.declarations.push(Declaration::Channel(ChannelDeclaration {
             handle: DraftHandle::new("wire"),
@@ -11640,10 +11297,7 @@ mod clock_tests {
     /// respects — one statement of reach, one fix.
     #[test]
     fn a_retired_subject_is_unreachable_through_can_reach() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("PAf33CanReach"),
+        let mut kernel = WorldKernel::create(creation("PAf33CanReach"),
             &auth_principal(owner()),
         )
         .expect("a created world")
@@ -11676,8 +11330,7 @@ mod clock_tests {
     /// PA.f34: `AcquireKnowledge` refuses a retired subject.
     #[test]
     fn a_retired_subject_cannot_acquire_knowledge() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf34Acquire");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf34Acquire");
         play_retires(&mut kernel, clockwork.reeve).expect("retire");
         let mut patch = ruled_fact_patch("news");
         patch.operations.push(ComponentOp::AcquireKnowledge {
@@ -11698,8 +11351,7 @@ mod clock_tests {
     /// PA.f34: `Forget` refuses a retired subject.
     #[test]
     fn a_retired_subject_cannot_forget() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf34Forget");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf34Forget");
         let mut declare = ruled_fact_patch("news");
         declare.operations.push(ComponentOp::AcquireKnowledge {
             subject: Ref::Existing(clockwork.reeve),
@@ -11726,8 +11378,7 @@ mod clock_tests {
     /// PA.f34: `InstallIncumbent` refuses a retired subject as incumbent.
     #[test]
     fn a_retired_subject_cannot_take_office() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf34Office");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf34Office");
         play_retires(&mut kernel, clockwork.farmer).expect("retire");
         let before = kernel.snapshot().unwrap();
         let error = reject_play(
@@ -11753,8 +11404,7 @@ mod clock_tests {
     /// still be looted after it stops acting.
     #[test]
     fn holdings_are_still_transferable_from_a_retired_holder() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf34Loot");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf34Loot");
         play_retires(&mut kernel, clockwork.farmer).expect("retire");
         let before = kernel.snapshot().unwrap();
         let grain = *kernel
@@ -11788,8 +11438,7 @@ mod clock_tests {
     /// retired subject.
     #[test]
     fn retiring_then_relocating_in_one_patch_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf35RetireRelocate");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf35RetireRelocate");
         let stair = *kernel
             .state
             .edges
@@ -11818,8 +11467,7 @@ mod clock_tests {
     /// re-resolving.
     #[test]
     fn retiring_the_same_subject_twice_in_one_patch_is_a_noop_the_second_time() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf35DoubleRetire");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf35DoubleRetire");
         let before = kernel.snapshot().unwrap();
         let error = reject_play(
             &mut kernel,
@@ -11839,8 +11487,7 @@ mod clock_tests {
     /// office incumbent draws.
     #[test]
     fn a_retired_subject_cannot_be_a_promisor() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf37Promisor");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf37Promisor");
         play_retires(&mut kernel, clockwork.farmer).expect("retire");
         let before = kernel.snapshot().unwrap();
         let error = reject_play(
@@ -11868,8 +11515,7 @@ mod clock_tests {
     /// they were the moment it retired.
     #[test]
     fn after_retirement_a_tick_moves_none_of_the_retired_subjects_commitments() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf37Frozen");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf37Frozen");
         let snapshot = kernel.snapshot().unwrap();
         submit_play(
             &mut kernel,
@@ -11937,8 +11583,7 @@ mod clock_tests {
     /// exercises, since the farmer it retires holds no dependency.
     #[test]
     fn after_retirement_a_tick_moves_none_of_the_retired_subjects_goal_or_dependency() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf37FrozenDep");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf37FrozenDep");
         let snapshot = kernel.snapshot().unwrap();
         submit_play(
             &mut kernel,
@@ -11993,20 +11638,18 @@ mod clock_tests {
     /// every other retirement effect in this batch does.
     #[test]
     fn a_retired_subjects_frozen_commitments_survive_reopen_and_replay() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (world_id, farmer, routine, obligation) = {
-            let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf37Replay");
+        let (exported, farmer, routine, obligation) = {
+            let (mut kernel, clockwork, _) = clock_kernel("PAf37Replay");
             play_retires(&mut kernel, clockwork.farmer).expect("retire the farmer");
             tick(&mut kernel, ROUTINE_DUE as u32 + LATE_DUE as u32).expect("the tick commits");
             (
-                kernel.state.world_id,
+                kernel.export().unwrap(),
                 clockwork.farmer,
                 clockwork.routine,
                 clockwork.obligation,
             )
         };
-        let reopened = WorldKernel::open(&path, world_id).expect("the store replays");
+        let reopened = WorldKernel::open(&exported).expect("the export replays");
         assert_eq!(
             due(&reopened, farmer, routine),
             FictionalMinutes(ROUTINE_DUE),
@@ -12036,8 +11679,7 @@ mod clock_tests {
     /// too.
     #[test]
     fn a_retired_subject_cannot_acquire_evidenced_knowledge() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf39Evidenced");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf39Evidenced");
         play_retires(&mut kernel, clockwork.farmer).expect("retire");
         let patch = WorldPatch {
             declarations: vec![Declaration::Fact(FactDeclaration {
@@ -12077,8 +11719,7 @@ mod clock_tests {
     /// and kills a mutation that removes `audience()`'s retired filter.
     #[test]
     fn a_retired_placeless_subject_is_unreachable_through_a_subjects_channel() {
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, clockwork, _) = clock_kernel(directory.path(), "PAf39S2");
+        let (mut kernel, clockwork, _) = clock_kernel("PAf39S2");
         let speak = super::tests::speak_entry(&kernel);
         submit_as(
             &mut kernel,
@@ -12198,16 +11839,12 @@ mod agency_tests {
     };
     use super::*;
 
-    fn world(title: &str) -> (tempfile::TempDir, std::path::PathBuf, WorldKernel) {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (kernel, _) = WorldKernel::create(
-            &path,
-            creation(title),
+    fn world(title: &str) -> WorldKernel {
+        let (kernel, _) = WorldKernel::create(creation(title),
             &auth_principal(owner()),
         )
         .unwrap();
-        (directory, path, kernel)
+        kernel
     }
 
     fn declare_place_patch(handle: &str) -> WorldPatch {
@@ -12225,7 +11862,7 @@ mod agency_tests {
 
     #[test]
     fn after_genesis_only_play_writes() {
-        let (_directory, _path, mut kernel) = world("PlayOnly");
+        let mut kernel = world("PlayOnly");
         let snapshot = kernel.snapshot().unwrap();
         let human = subject_by_label(&kernel.state, "The Human");
         let persona = subject_by_label(&kernel.state, "The Witness");
@@ -12302,7 +11939,7 @@ mod agency_tests {
 
     #[test]
     fn apply_effect_re_decides_play() {
-        let (_directory, _path, kernel) = world("ReDecide");
+        let kernel = world("ReDecide");
         let state = &kernel.state;
         let command_id = CommandId::issue();
         let human = subject_by_label(state, "The Human");
@@ -12357,7 +11994,7 @@ mod agency_tests {
     /// grant for, both come back Unauthorized.
     #[test]
     fn a_non_play_caller_is_refused_before_the_world_is_read() {
-        let (_directory, _path, mut kernel) = world("Blind");
+        let mut kernel = world("Blind");
         let snapshot = kernel.snapshot().unwrap();
         let persona = subject_by_label(&kernel.state, "The Witness");
         let ungranted = affordance_named(&snapshot, "convene");
@@ -12391,18 +12028,19 @@ mod agency_tests {
 
     #[test]
     fn a_world_is_born_active() {
-        let (_directory, path, mut kernel) = world("BornActive");
+        let mut kernel = world("BornActive");
         let snapshot = kernel.snapshot().unwrap();
         assert_eq!(snapshot.revision, 0);
         let human = subject_by_label(&kernel.state, "The Human");
         act(&mut kernel, human, speak(first_grant(&snapshot, human), "At once.")).unwrap();
         let accepted = kernel.snapshot().unwrap();
         assert_eq!(accepted.revision, 1);
+        let exported = kernel.export().unwrap();
         drop(kernel);
-        let reopened = WorldKernel::open(&path, accepted.world_id).unwrap();
+        let reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
 
-        let (_other, _path, mut kernel) = world("BornActiveClock");
+        let mut kernel = world("BornActiveClock");
         let genesis = kernel.snapshot().unwrap();
         submit_play(&mut kernel, &genesis, tick_body(1));
         assert_eq!(kernel.snapshot().unwrap().revision, 1);
@@ -12443,7 +12081,7 @@ mod agency_tests {
     /// Retire sets the flag `is_retired` reads, and nothing else retires.
     #[test]
     fn retirement_lives_on_the_subject() {
-        let (_directory, path, mut kernel) = world("RetireFlag");
+        let mut kernel = world("RetireFlag");
         let snapshot = kernel.snapshot().unwrap();
         let persona = subject_by_label(&kernel.state, "The Witness");
         assert!(!is_retired(&kernel.state, persona));
@@ -12460,8 +12098,9 @@ mod agency_tests {
         assert!(!kernel.state.affordance_grants.contains_key(&persona));
         let after = kernel.snapshot().unwrap();
         assert!(after.subjects.iter().find(|s| s.id == persona).unwrap().retired);
+        let exported = kernel.export().unwrap();
         drop(kernel);
-        let reopened = WorldKernel::open(&path, after.world_id).unwrap();
+        let reopened = WorldKernel::open(&exported).unwrap();
         assert!(is_retired(&reopened.state, persona));
         assert_eq!(reopened.snapshot().unwrap(), after);
     }
@@ -12490,7 +12129,7 @@ mod agency_tests {
 
     #[test]
     fn a_revoke_may_leave_a_subject_with_no_verbs() {
-        let (_directory, path, mut kernel) = world("Mute");
+        let mut kernel = world("Mute");
         let snapshot = kernel.snapshot().unwrap();
         let persona = subject_by_label(&kernel.state, "The Witness");
         let only = first_grant(&snapshot, persona);
@@ -12513,9 +12152,10 @@ mod agency_tests {
         assert!(matches!(error, KernelError::AffordanceDenied), "{error:?}");
         journal::verify_state_shape(&kernel.state).expect("a mute subject is a legal shape");
         let accepted = kernel.snapshot().unwrap();
+        let exported = kernel.export().unwrap();
         drop(kernel);
         assert_eq!(
-            WorldKernel::open(&path, accepted.world_id)
+            WorldKernel::open(&exported)
                 .unwrap()
                 .snapshot()
                 .unwrap(),
@@ -12535,12 +12175,9 @@ mod agency_tests {
                 import_key: None,
             })
         };
-        let directory = tempfile::tempdir().unwrap();
         let mut input = creation("Mutes");
         input.patch.declarations.push(mute("born-mute"));
-        let (mut kernel, _) = WorldKernel::create(
-            directory.path().join("world.cc"),
-            input,
+        let (mut kernel, _) = WorldKernel::create(input,
             &auth_principal(owner()),
         )
         .unwrap();
@@ -12585,7 +12222,7 @@ mod agency_tests {
 
     #[test]
     fn a_retired_subject_takes_no_grant() {
-        let (_directory, _path, mut kernel) = world("RetiredGrants");
+        let mut kernel = world("RetiredGrants");
         let snapshot = kernel.snapshot().unwrap();
         let persona = subject_by_label(&kernel.state, "The Witness");
         let convene = affordance_named(&snapshot, "convene");
@@ -12622,7 +12259,7 @@ mod agency_tests {
 
     #[test]
     fn retire_applies_to_every_subject() {
-        let (_directory, path, mut kernel) = world("RetireAll");
+        let mut kernel = world("RetireAll");
         let snapshot = kernel.snapshot().unwrap();
         let everyone = ["The Human", "The Witness", "The Council"]
             .map(|label| subject_by_label(&kernel.state, label));
@@ -12646,9 +12283,10 @@ mod agency_tests {
             assert!(subject.position.is_none());
         }
         assert!(kernel.state.affordance_grants.is_empty());
+        let exported = kernel.export().unwrap();
         drop(kernel);
         assert_eq!(
-            WorldKernel::open(&path, after.world_id)
+            WorldKernel::open(&exported)
                 .unwrap()
                 .snapshot()
                 .unwrap(),
@@ -12661,7 +12299,7 @@ mod agency_tests {
     /// at apply rather than leaving a grant row the shape check calls corrupt.
     #[test]
     fn apply_refuses_a_grant_to_a_retired_subject() {
-        let (_directory, _path, mut kernel) = world("ForgedGrant");
+        let mut kernel = world("ForgedGrant");
         let snapshot = kernel.snapshot().unwrap();
         let persona = subject_by_label(&kernel.state, "The Witness");
         let convene = affordance_named(&snapshot, "convene");

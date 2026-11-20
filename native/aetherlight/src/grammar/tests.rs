@@ -84,16 +84,8 @@ fn rejected(result: Result<impl Sized, KernelError>) -> Vec<Mismatch> {
     }
 }
 
-/// Each call gets its own store path: kernels are created, not reopened.
-fn create(world: CreateWorld) -> (tempfile::TempDir, Result<WorldKernel, KernelError>) {
-    let directory = tempfile::tempdir().unwrap();
-    let result = WorldKernel::create(
-        directory.path().join("world.cc"),
-        world,
-        &auth_principal(owner()),
-    )
-    .map(|(kernel, _)| kernel);
-    (directory, result)
+fn create(world: CreateWorld) -> Result<WorldKernel, KernelError> {
+    WorldKernel::create(world, &auth_principal(owner())).map(|(kernel, _)| kernel)
 }
 
 fn admit(kernel: &mut WorldKernel, patch: WorldPatch) -> Result<CommitReceipt, KernelError> {
@@ -135,12 +127,12 @@ fn grammar_world_refuses_an_affordance_kind_outside_the_grammar() {
     // Genesis: a declared kind the binding lacks is refused.
     let mut world = bound(Some(grammar_with(&[])), "Outside");
     world.patch.declarations.push(declare("wave", "wave", &[]));
-    assert_eq!(rejected(create(world).1), not_in_grammar("wave"));
+    assert_eq!(rejected(create(world)), not_in_grammar("wave"));
 
     // A later AdmitPatch: the same kind is refused, and a verb the grammar
     // does carry is admitted by the same path.
     let extra = [("hail", verb(RenderPath::Conversation, &[]))];
-    let (_dir, kernel) = create(bound(Some(grammar_with(&extra)), "Outside"));
+    let kernel = create(bound(Some(grammar_with(&extra)), "Outside"));
     let mut kernel = kernel.unwrap();
     assert_eq!(
         rejected(admit(
@@ -168,7 +160,7 @@ fn grammar_world_refuses_a_role_signature_the_grammar_does_not_carry() {
         ),
         ("hail", verb(RenderPath::Conversation, &[])),
     ];
-    let (_dir, kernel) = create(bound(Some(grammar_with(&extra)), "Signatures"));
+    let kernel = create(bound(Some(grammar_with(&extra)), "Signatures"));
     let mut kernel = kernel.unwrap();
     for (label, roles) in [
         ("renamed", vec![("whom", person()), ("where_", place())]),
@@ -226,7 +218,7 @@ fn each_grammar_referent_kind_admits_exactly_its_own_kernel_kind() {
     for (referent, own) in &kinds {
         let extra = [("act", verb(RenderPath::ShipAction, &[("with", *referent)]))];
         for (_, offered) in &kinds {
-            let (_dir, kernel) = create(bound(Some(grammar_with(&extra)), "Referents"));
+            let kernel = create(bound(Some(grammar_with(&extra)), "Referents"));
             let mut kernel = kernel.unwrap();
             let result = admit(
                 &mut kernel,
@@ -257,7 +249,7 @@ fn grammar_world_without_speak_refuses_the_kernel_speak_grant() {
     )
     .unwrap();
     assert_eq!(
-        rejected(create(bound(Some(no_speak), "Mute")).1),
+        rejected(create(bound(Some(no_speak), "Mute"))),
         not_in_grammar(crate::patch::KERNEL_SPEAK_HANDLE)
     );
 
@@ -278,7 +270,7 @@ fn grammar_world_without_speak_refuses_the_kernel_speak_grant() {
     )
     .unwrap();
     assert_eq!(
-        rejected(create(bound(Some(loud), "Loud")).1),
+        rejected(create(bound(Some(loud), "Loud"))),
         disagrees(crate::patch::KERNEL_SPEAK_HANDLE)
     );
 }
@@ -290,7 +282,7 @@ fn unbound_world_keeps_the_open_catalog() {
         .patch
         .declarations
         .push(declare("wave", "wave", &[("at", person())]));
-    let (_dir, kernel) = create(world);
+    let kernel = create(world);
     let mut kernel = kernel.unwrap();
     let receipt = admit(
         &mut kernel,
@@ -317,7 +309,7 @@ fn a_bound_world_reports_its_grammar_and_derives_render_paths_from_it() {
     let extra = [("dock", verb(RenderPath::ShipAction, &[]))];
     let grammar = grammar_with(&extra);
     let identity = grammar.identity();
-    let (_dir, kernel) = create(bound(Some(grammar), "Reports"));
+    let kernel = create(bound(Some(grammar), "Reports"));
     let mut kernel = kernel.unwrap();
     admit(&mut kernel, patch_of(vec![declare("dock", "dock", &[])])).unwrap();
     let snapshot = kernel.snapshot().unwrap();
@@ -339,11 +331,11 @@ fn a_bound_world_reports_its_grammar_and_derives_render_paths_from_it() {
 fn a_reopened_grammar_world_still_holds_its_grammar() {
     let grammar = grammar_with(&[]);
     let identity = grammar.identity();
-    let (directory, kernel) = create(bound(Some(grammar), "Reopened"));
+    let kernel = create(bound(Some(grammar), "Reopened"));
     let kernel = kernel.unwrap();
-    let world_id = kernel.snapshot().unwrap().world_id;
+    let exported = kernel.export().unwrap();
     drop(kernel);
-    let mut reopened = WorldKernel::open(directory.path().join("world.cc"), world_id).unwrap();
+    let mut reopened = WorldKernel::open(&exported).unwrap();
     assert_eq!(reopened.snapshot().unwrap().grammar, Some(identity));
     assert_eq!(
         rejected(admit(
@@ -356,7 +348,7 @@ fn a_reopened_grammar_world_still_holds_its_grammar() {
 
 #[test]
 fn the_bound_grammar_is_part_of_the_world_state_digest() {
-    let (_dir, kernel) = create(bound(Some(grammar_with(&[])), "Digested"));
+    let kernel = create(bound(Some(grammar_with(&[])), "Digested"));
     let kernel = kernel.unwrap();
     let bound_digest = crate::state_digest(&kernel.state).unwrap();
     let mut state = kernel.state.clone();
@@ -500,9 +492,9 @@ fn submit_as(
 
 /// A bound world whose revision has moved past genesis: one Play patch
 /// that adds a dead-end place.
-fn advanced_grammar_world() -> (tempfile::TempDir, WorldKernel, crate::EntityId) {
+fn advanced_grammar_world() -> (WorldKernel, crate::EntityId) {
     let extra = [("hail", verb(RenderPath::Conversation, &[]))];
-    let (dir, kernel) = create(bound(Some(grammar_with(&extra)), "Advanced"));
+    let kernel = create(bound(Some(grammar_with(&extra)), "Advanced"));
     let mut kernel = kernel.unwrap();
     let commons = *kernel.state.entities.keys().next().unwrap();
     admit(
@@ -532,7 +524,7 @@ fn advanced_grammar_world() -> (tempfile::TempDir, WorldKernel, crate::EntityId)
         .find(|(_, record)| record.label == "The Unwalked Road")
         .map(|(id, _)| id)
         .unwrap();
-    (dir, kernel, dead_end)
+    (kernel, dead_end)
 }
 
 type Door = (&'static str, CallerId);
@@ -563,7 +555,7 @@ fn refuse_at_each_door(kernel: &mut WorldKernel, doors: Vec<Door>) {
 
 #[test]
 fn play_refuses_outside_the_grammar_after_the_revision_has_moved() {
-    let (_dir, mut kernel, _) = advanced_grammar_world();
+    let (mut kernel, _) = advanced_grammar_world();
     assert_eq!(kernel.state.revision, 1);
     refuse_at_each_door(&mut kernel, vec![("play", CallerId::Play)]);
     // The same path admits what the grammar carries, so the refusals above are
@@ -591,7 +583,7 @@ fn a_grammar_that_binds_speak_as_anything_but_conversation_is_refused_at_bind() 
         .unwrap()
     };
     assert_eq!(
-        rejected(create(bound(Some(ship(&[])), "Filmed speech")).1),
+        rejected(create(bound(Some(ship(&[])), "Filmed speech"))),
         vec![Mismatch::SpeakRenderPathDisagreesWithGrammar {
             handle: DraftHandle::new(crate::patch::KERNEL_SPEAK_HANDLE),
         }]
@@ -604,12 +596,11 @@ fn a_grammar_that_binds_speak_as_anything_but_conversation_is_refused_at_bind() 
                 Some(ship(&[("to", GrammarReferentKind::Person)])),
                 "Loud"
             ))
-            .1
         ),
         disagrees(crate::patch::KERNEL_SPEAK_HANDLE)
     );
     // The control: Conversation speak binds.
-    assert!(create(bound(Some(grammar_with(&[])), "Spoken")).1.is_ok());
+    assert!(create(bound(Some(grammar_with(&[])), "Spoken")).is_ok());
 }
 
 /// `apply_effect` re-decides an effect it is handed. An effect resolved against
@@ -627,7 +618,7 @@ fn an_effect_resolved_elsewhere_cannot_install_an_entry_outside_the_grammar() {
         ),
         ("hail", verb(RenderPath::Conversation, &[])),
     ];
-    let (_dir, kernel) = create(bound(Some(grammar_with(&extra)), "Forged"));
+    let kernel = create(bound(Some(grammar_with(&extra)), "Forged"));
     let kernel = kernel.unwrap();
     let mut twin = kernel.state.clone();
     twin.grammar = None;

@@ -1039,8 +1039,8 @@ mod tests {
         shutter: EdgeId,
     }
 
-    fn bench(directory: &std::path::Path, title: &str) -> Bench {
-        let mut kernel = custody_kernel(directory, title);
+    fn bench(title: &str) -> Bench {
+        let mut kernel = custody_kernel(title);
         let (topology, custody, active) = custody_world(&mut kernel);
         let carry = affordance_named(&active, "carry");
         Bench {
@@ -1184,8 +1184,7 @@ mod tests {
 
     #[test]
     fn a_missing_present_precondition_names_itself() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "Present");
+        let bench = bench("Present");
         let before = bench.kernel.state.clone();
 
         // The clerk stands in the yard, so a Carry bound to the gate fails the
@@ -1201,8 +1200,7 @@ mod tests {
 
     #[test]
     fn spending_more_than_held_fails_the_holds_precondition() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "Holds");
+        let bench = bench("Holds");
         let greedy = bench.variant(&bench.carry(1, bench.yard), "carry_greedy");
         assert_eq!(
             bench.rejections(&greedy),
@@ -1222,8 +1220,7 @@ mod tests {
     /// spends down to one ingot-equivalent, and `carry_holds` asks for one.
     #[test]
     fn holding_exactly_the_threshold_satisfies_holds() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = bench(directory.path(), "HoldsBoundary");
+        let mut bench = bench("HoldsBoundary");
         for _ in 0..2 {
             bench.commit(bench.carry(3, bench.yard));
             bench.refresh();
@@ -1245,8 +1242,7 @@ mod tests {
 
     #[test]
     fn a_reachable_precondition_reads_only_open_public_routes() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = bench(directory.path(), "Reachable");
+        let mut bench = bench("Reachable");
         // Yard to gate over open public routes is the ramp (12) plus the span
         // (7): the shutter is closed and the toll stair is restricted. A budget
         // of NEAR_REACH covers only the shutter, FAR_REACH covers the two-hop
@@ -1291,8 +1287,7 @@ mod tests {
 
     #[test]
     fn an_unbound_or_miskinded_role_is_rejected_with_the_complete_set() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "Roles");
+        let bench = bench("Roles");
         let mut invocation = bench.carry(1, bench.yard);
         // Drop `recipient`, add an undeclared role, and bind `resource` to a
         // place: one rejection carrying all three, sorted.
@@ -1321,8 +1316,7 @@ mod tests {
 
     #[test]
     fn a_duplicated_or_unknown_binding_target_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "Bindings");
+        let bench = bench("Bindings");
         let mut twice = bench.carry(1, bench.yard);
         twice
             .bindings
@@ -1348,8 +1342,7 @@ mod tests {
 
     #[test]
     fn a_magnitude_over_its_slot_ceiling_is_rejected_and_within_it_commits() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = bench(directory.path(), "Ceiling");
+        let mut bench = bench("Ceiling");
         assert_eq!(
             bench.rejections(&bench.carry(4, bench.yard)),
             vec![ActionMismatch::MagnitudeOverCeiling { slot: 0 }]
@@ -1370,8 +1363,7 @@ mod tests {
 
     #[test]
     fn a_magnitude_of_the_wrong_shape_or_zero_is_rejected() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "Shape");
+        let bench = bench("Shape");
         for magnitude in [Magnitude::Cost(Cost(2)), Magnitude::None] {
             let mut invocation = bench.carry(1, bench.yard);
             invocation.proposed[0].magnitude = magnitude;
@@ -1388,8 +1380,7 @@ mod tests {
 
     #[test]
     fn every_slot_must_be_proposed_exactly_once() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "Slots");
+        let bench = bench("Slots");
         let mut missing = bench.carry(1, bench.yard);
         missing.proposed.clear();
         assert_eq!(
@@ -1417,8 +1408,7 @@ mod tests {
 
     #[test]
     fn speech_is_required_exactly_when_the_entry_carries_it() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "Speech");
+        let bench = bench("Speech");
         let mut spoken_carry = bench.carry(1, bench.yard);
         spoken_carry.speech = Some(Statement::new("Take it.").unwrap());
         assert_eq!(
@@ -1450,8 +1440,7 @@ mod tests {
 
     #[test]
     fn the_same_command_id_always_selects_the_same_band() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "Bands");
+        let bench = bench("Bands");
         // Three equally weighted bands, so the draw alone decides.
         let invocation = bench.variant(&bench.carry(1, bench.yard), "carry_chance");
         let draw = |command_id: CommandId, invocation: &DecisionInvocation| {
@@ -1488,8 +1477,7 @@ mod tests {
 
     #[test]
     fn a_zero_effect_band_commits_nothing_but_the_event() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = bench(directory.path(), "EmptyBand");
+        let mut bench = bench("EmptyBand");
         let idle = bench.variant(&bench.carry(3, bench.yard), "carry_idle");
 
         let holdings = bench.kernel.state.holdings.clone();
@@ -1514,8 +1502,7 @@ mod tests {
 
     #[test]
     fn a_committed_event_carries_the_exact_lowered_operations() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = bench(directory.path(), "Lowering");
+        let mut bench = bench("Lowering");
         let receipt = bench.commit(bench.carry(2, bench.yard));
         assert!(receipt.resulting_revision > 0);
         let event = bench
@@ -1546,8 +1533,7 @@ mod tests {
     /// passes by never being taken.
     #[test]
     fn soul_only_the_selected_bands_effects_are_committed() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = bench(directory.path(), "SelectedBand");
+        let mut bench = bench("SelectedBand");
         let split_id = affordance_named(&bench.active, "carry_split");
         let split = DecisionInvocation {
             affordance: split_id,
@@ -1633,8 +1619,7 @@ mod tests {
     /// wrong. The fixture catalog carries four such roles.
     #[test]
     fn soul_a_stored_role_spec_over_an_optional_subject_kind_round_trips() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "OptionalSubjectKind");
+        let bench = bench("OptionalSubjectKind");
         let entry = bench
             .kernel
             .state
@@ -1661,8 +1646,7 @@ mod tests {
 
     #[test]
     fn a_forged_band_or_forged_effect_does_not_apply() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "ForgedAction");
+        let bench = bench("ForgedAction");
         let command_id = CommandId::issue();
         let invocation = bench.carry(2, bench.yard);
         let honest = draw_once(&bench.kernel.state, command_id, bench.clerk, &invocation).unwrap();
@@ -1735,8 +1719,7 @@ mod tests {
 
     #[test]
     fn the_kernel_speak_entry_commits_its_utterance_and_no_operation() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut kernel = custody_kernel(directory.path(), "SpeakEntry");
+        let mut kernel = custody_kernel("SpeakEntry");
         let _topology = kernel.snapshot().unwrap();
         let active = kernel.snapshot().unwrap();
         let speak = affordance_named(&active, "speak");
@@ -1781,8 +1764,8 @@ mod tests {
         civic: Civic,
     }
 
-    fn civics(directory: &std::path::Path, title: &str) -> Civics {
-        let mut kernel = custody_kernel(directory, title);
+    fn civics(title: &str) -> Civics {
+        let mut kernel = custody_kernel(title);
         let (topology, civic, active) = civic_world(&mut kernel);
         Civics {
             kernel,
@@ -1929,8 +1912,7 @@ mod tests {
     /// exact failed precondition and no allocation.
     #[test]
     fn an_unauthorized_actor_names_the_failed_precondition() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = civics(directory.path(), "Unauthorized");
+        let bench = civics("Unauthorized");
         let before = bench.kernel.state.clone();
         assert_eq!(
             bench.rejected_as(bench.civic.farmer, &bench.levy(bench.civic.reeve, 1)),
@@ -1946,8 +1928,7 @@ mod tests {
     /// being authorized without any digest moving.
     #[test]
     fn place_jurisdiction_reaches_a_containment_subtree_and_stops_at_its_edge() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "Subtree");
+        let mut bench = civics("Subtree");
         let treasury = bench.civic.treasury;
         let farmer = bench.civic.farmer;
 
@@ -1996,8 +1977,7 @@ mod tests {
     /// it back: the act is refused at admission.
     #[test]
     fn office_delegation_grants_and_vacating_revokes() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "Office");
+        let mut bench = civics("Office");
         let reeve = bench.civic.reeve;
         let farmer = bench.civic.farmer;
         assert!(bench.kernel.state.authority.get(&reeve).is_none());
@@ -2024,8 +2004,7 @@ mod tests {
     /// a catalog entry may not declare it.
     #[test]
     fn a_levy_cannot_be_directed_away_from_the_actor() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = civics(directory.path(), "ActorRole");
+        let bench = civics("ActorRole");
         let mut redirected = bench.levy(bench.civic.farmer, 1);
         redirected
             .bindings
@@ -2036,8 +2015,7 @@ mod tests {
         );
 
         // The declaration half runs at genesis, so it runs against a fresh world.
-        let draft_directory = tempfile::tempdir().unwrap();
-        let mut draft = custody_kernel(draft_directory.path(), "ReservedRole");
+        let mut draft = custody_kernel("ReservedRole");
         let before = draft.snapshot().unwrap();
         let handle = DraftHandle::new("thief");
         let rejected = reject_play(
@@ -2074,8 +2052,7 @@ mod tests {
     /// declared ceiling passes every affordance check and dies in the ledger.
     #[test]
     fn an_over_levy_fails_in_the_ledger_not_in_the_contract() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = civics(directory.path(), "OverLevy");
+        let bench = civics("OverLevy");
         let error = bench
             .try_as(bench.civic.treasury, &bench.levy(bench.civic.farmer, 9))
             .unwrap_err();
@@ -2092,8 +2069,7 @@ mod tests {
     /// does mint is still subject to disjointness.
     #[test]
     fn a_delegated_grant_may_not_exceed_the_granter() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "Monotone");
+        let mut bench = civics("Monotone");
         let treasury = bench.civic.treasury;
         let outsider = bench.civic.outsider;
 
@@ -2148,8 +2124,7 @@ mod tests {
     /// what it may otherwise touch.
     #[test]
     fn revoking_a_grant_requires_covering_authority_over_its_ground() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "RevokeEnvelope");
+        let mut bench = civics("RevokeEnvelope");
         let treasury = bench.civic.treasury;
         let farmer = bench.civic.farmer;
         let hall = bench.civic.hall;
@@ -2184,8 +2159,7 @@ mod tests {
     /// fails the same `Authorized` precondition every other civic act reads.
     #[test]
     fn deploy_relocates_a_subordinate_under_command_and_refuses_one_outside_it() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "Deploy");
+        let mut bench = civics("Deploy");
         let treasury = bench.civic.treasury;
         let farmer = bench.civic.farmer;
         let outsider = bench.civic.outsider;
@@ -2228,8 +2202,7 @@ mod tests {
     /// the forum's target, and closing the forum removes the verb's ground.
     #[test]
     fn a_petition_requires_standing() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "Petition");
+        let mut bench = civics("Petition");
         let petition = bench.call(
             "petition",
             Vec::new(),
@@ -2269,8 +2242,7 @@ mod tests {
     /// same-patch grant then move resolves through the candidate shadow.
     #[test]
     fn a_restricted_route_admits_exactly_its_named_authority() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "Restricted");
+        let mut bench = civics("Restricted");
         let walker = bench.topology.walker;
         let step = ComponentOp::Relocate {
             subject: PatchRef::Existing(walker),
@@ -2332,8 +2304,7 @@ mod tests {
     /// someone performs under authority rather than a declared method string.
     #[test]
     fn sanction_and_appoint_reach_the_reducer_under_authority() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "Institutional");
+        let mut bench = civics("Institutional");
         let treasury = bench.civic.treasury;
         let passage = bench.civic.passage;
         let sanction = bench.call(
@@ -2397,8 +2368,7 @@ mod tests {
     /// path reaches it, and the refused act commits nothing.
     #[test]
     fn soul_delegation_not_monotone_reaches_the_real_command_path() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "SoulMonotone");
+        let mut bench = civics("SoulMonotone");
         let treasury = bench.civic.treasury;
         let road = bench.topology.road;
         let outsider = bench.civic.outsider;
@@ -2424,8 +2394,7 @@ mod tests {
     /// operation succeeds the moment the key exists.
     #[test]
     fn soul_a_restricted_relocate_is_refused_by_the_component_writer() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = civics(directory.path(), "SoulReducerGate");
+        let bench = civics("SoulReducerGate");
         let walker = bench.topology.walker;
         let step = ResolvedOp::Relocate {
             subject_id: walker,
@@ -2465,8 +2434,7 @@ mod tests {
     /// admission, and nothing commits.
     #[test]
     fn soul_a_granter_revocation_refuses_the_delegates_act() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "SoulRebind");
+        let mut bench = civics("SoulRebind");
         let reeve = bench.civic.reeve;
         let farmer = bench.civic.farmer;
         let treasury = bench.civic.treasury;
@@ -2497,8 +2465,7 @@ mod tests {
     /// is refused.
     #[test]
     fn soul_a_subject_grant_inside_a_place_grant_is_a_second_source() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "SoulOverlap");
+        let mut bench = civics("SoulOverlap");
         let treasury = bench.civic.treasury;
         let farmer = bench.civic.farmer;
         let hall = bench.civic.hall;
@@ -2533,8 +2500,7 @@ mod tests {
     /// the commit stored. No clock and no draw entropy enter.
     #[test]
     fn soul_reduce_is_pure_for_every_new_civic_arm() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut bench = civics(directory.path(), "SoulReplay");
+        let mut bench = civics("SoulReplay");
         let treasury = bench.civic.treasury;
         let farmer = bench.civic.farmer;
         let outsider = bench.civic.outsider;
@@ -2610,8 +2576,7 @@ mod tests {
     /// author cannot widen either without this assertion naming the change.
     #[test]
     fn no_component_op_kind_lowers_to_a_told_knowledge_write() {
-        let directory = tempfile::tempdir().unwrap();
-        let bench = bench(directory.path(), "AcquireKnowledgeLowering");
+        let bench = bench("AcquireKnowledgeLowering");
         let entry = Affordance {
             kind: AffordanceKindName("witness".into()),
             roles: Vec::new(),

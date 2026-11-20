@@ -1,184 +1,75 @@
 use super::{
-    COMMIT_SCHEMA, CommandId, CommittedCommand, KernelError, STATE_SCHEMA, WorldCommit,
-    WorldEffect, WorldId, WorldState, apply_effect, commit_digest, reduce, state_digest,
+    COMMIT_SCHEMA, CommittedCommand, KernelError, STATE_SCHEMA, WorldCommit, WorldEffect,
+    WorldId, WorldState, apply_effect, commit_digest, reduce, state_digest,
 };
-use chrono::Utc;
-use cultcache_rs::{CacheBackingStore, CultCacheEnvelope, OwnedRedbMessagePackBackingStore};
-use serde::{Serialize, de::DeserializeOwned};
-use std::{
-    cell::Cell,
-    collections::{BTreeMap, BTreeSet},
-    path::Path,
-};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 
-const STATE_ROW: &str = "world_state.elaboration.v1";
-const COMMIT_ROW: &str = "world_commit.elaboration.v1";
+pub(super) const JOURNAL_SCHEMA: &str = "aetherlight.journal.v1";
 
 #[derive(Debug, Error)]
 pub(super) enum JournalError {
-    #[error("opened store contains another world")]
-    WorldMismatch,
-    #[error("world ownership is uncertain after command {command_id:?}; drop and reopen")]
-    RecoveryRequired { command_id: CommandId },
-    #[error("world store path no longer names the owned database")]
-    OwnershipLost,
-    #[error("world store operation failed: {0}")]
-    Store(String),
     #[error("world journal is corrupt: {0}")]
     Corrupt(String),
 }
 
-pub(super) enum JournalOpen {
-    Empty(EmptyWorldJournal),
-    Live {
-        journal: WorldJournal,
-        state: WorldState,
-    },
+/// What an export carries: the schema that names the format, and the commits in
+/// revision order. Nothing else is stored, because nothing else is truth: the
+/// head state is the replay of these commits.
+#[derive(Serialize)]
+struct ExportRef<'a> {
+    schema: &'a str,
+    commits: &'a [WorldCommit],
 }
 
-pub(super) struct EmptyWorldJournal {
-    store: OwnedRedbMessagePackBackingStore,
-    #[cfg(test)]
-    fail_after_durable_initialize: bool,
+#[derive(Serialize, Deserialize)]
+struct Export {
+    schema: String,
+    commits: Vec<WorldCommit>,
 }
 
-#[derive(Clone, Copy)]
-enum JournalHealth {
-    Healthy,
-    RecoveryRequired(CommandId),
-    OwnershipLost,
-}
-
+/// The only record of a world: its commits in revision order, genesis first.
 pub(super) struct WorldJournal {
-    store: OwnedRedbMessagePackBackingStore,
-    state_row: CultCacheEnvelope,
-    commits: BTreeMap<CommandId, WorldCommit>,
-    health: Cell<JournalHealth>,
-    #[cfg(test)]
-    fail_after_durable_commit: bool,
+    commits: Vec<WorldCommit>,
 }
 
 impl WorldJournal {
-    pub(super) fn open_owner(path: &Path) -> Result<JournalOpen, JournalError> {
-        let store = OwnedRedbMessagePackBackingStore::new(path)
-            .map_err(|error| JournalError::Store(error.to_string()))?;
-        store
-            .validate_path_identity()
-            .map_err(|_| JournalError::OwnershipLost)?;
-        let rows = store
-            .pull_all()
-            .map_err(|error| JournalError::Store(error.to_string()))?;
-        store
-            .validate_path_identity()
-            .map_err(|_| JournalError::OwnershipLost)?;
-        if rows.is_empty() {
-            return Ok(JournalOpen::Empty(EmptyWorldJournal {
-                store,
-                #[cfg(test)]
-                fail_after_durable_initialize: false,
-            }));
+    pub(super) fn genesis(genesis: WorldCommit) -> Self {
+        Self {
+            commits: vec![genesis],
         }
-        let (state_row, state, commits) = recover(rows, None)?;
-        Ok(JournalOpen::Live {
-            journal: Self {
-                store,
-                state_row,
-                commits,
-                health: Cell::new(JournalHealth::Healthy),
-                #[cfg(test)]
-                fail_after_durable_commit: false,
-            },
-            state,
-        })
     }
 
-    pub(super) fn open(
-        path: &Path,
-        expected_world_id: WorldId,
-    ) -> Result<(Self, WorldState), JournalError> {
-        let store = OwnedRedbMessagePackBackingStore::new(path)
-            .map_err(|error| JournalError::Store(error.to_string()))?;
-        store
-            .validate_path_identity()
-            .map_err(|_| JournalError::OwnershipLost)?;
-        let rows = store
-            .pull_all()
-            .map_err(|error| JournalError::Store(error.to_string()))?;
-        store
-            .validate_path_identity()
-            .map_err(|_| JournalError::OwnershipLost)?;
-        let (state_row, state, commits) = recover(rows, Some(expected_world_id))?;
+    pub(super) fn append(&mut self, commit: WorldCommit) {
+        self.commits.push(commit);
+    }
+
+    pub(super) fn export(&self) -> Result<Vec<u8>, KernelError> {
+        rmp_serde::to_vec_named(&ExportRef {
+            schema: JOURNAL_SCHEMA,
+            commits: &self.commits,
+        })
+        .map_err(|error| KernelError::Serialization(error.to_string()))
+    }
+
+    /// Decode canonically, then replay: the head state is whatever the chain
+    /// derives, and a chain that does not verify is not a world.
+    pub(super) fn open(bytes: &[u8]) -> Result<(Self, WorldState), JournalError> {
+        let export: Export = decode(bytes)?;
+        if export.schema != JOURNAL_SCHEMA {
+            return Err(JournalError::Corrupt(format!(
+                "export schema {} is not {JOURNAL_SCHEMA}",
+                export.schema
+            )));
+        }
+        let state = verify_history(&export.commits)?;
         Ok((
             Self {
-                store,
-                state_row,
-                commits,
-                health: Cell::new(JournalHealth::Healthy),
-                #[cfg(test)]
-                fail_after_durable_commit: false,
+                commits: export.commits,
             },
             state,
         ))
-    }
-
-    pub(super) fn ensure_healthy(&self) -> Result<(), JournalError> {
-        match self.health.get() {
-            JournalHealth::RecoveryRequired(command_id) => {
-                return Err(JournalError::RecoveryRequired { command_id });
-            }
-            JournalHealth::OwnershipLost => return Err(JournalError::OwnershipLost),
-            JournalHealth::Healthy => {}
-        }
-        if self.store.validate_path_identity().is_err() {
-            self.health.set(JournalHealth::OwnershipLost);
-            return Err(JournalError::OwnershipLost);
-        }
-        Ok(())
-    }
-
-    pub(super) fn commit(
-        &mut self,
-        next: &WorldState,
-        commit: &WorldCommit,
-    ) -> Result<(), JournalError> {
-        self.ensure_healthy()?;
-        let command_id = commit.command.id();
-        if self.commits.contains_key(&command_id) {
-            return Err(JournalError::Corrupt(
-                "single-owner append attempted to duplicate a committed command".into(),
-            ));
-        }
-        let current: WorldState = decode(&self.state_row)?;
-        verify_append(&current, next, commit)?;
-        let next_row = envelope(STATE_ROW, STATE_SCHEMA, next.world_id.key(), next)?;
-        let commit_row = envelope(COMMIT_ROW, COMMIT_SCHEMA, command_id.key(), commit)?;
-        self.health.set(JournalHealth::RecoveryRequired(command_id));
-        let swapped = self.store.compare_and_swap_batch(
-            std::slice::from_ref(&self.state_row),
-            vec![next_row.clone(), commit_row],
-        );
-        match swapped {
-            Ok(true) => {}
-            Ok(false) | Err(_) => {
-                return Err(JournalError::RecoveryRequired { command_id });
-            }
-        }
-        #[cfg(test)]
-        if self.fail_after_durable_commit {
-            return Err(JournalError::RecoveryRequired { command_id });
-        }
-        if self.store.validate_path_identity().is_err() {
-            return Err(JournalError::RecoveryRequired { command_id });
-        }
-        self.state_row = next_row;
-        self.commits.insert(command_id, commit.clone());
-        self.health.set(JournalHealth::Healthy);
-        Ok(())
-    }
-
-    pub(super) fn commit_for(&self, command_id: CommandId) -> Option<&WorldCommit> {
-        self.commits.get(&command_id)
     }
 
     #[cfg(test)]
@@ -186,195 +77,18 @@ impl WorldJournal {
         self.commits.len()
     }
 
-    /// PA.f40: a test outside this module needs the full commit map to forge
-    /// one commit's effect and route the forgery through `verify_history`
-    /// directly, the same way this module's own forgery tests already do via
-    /// `self.commits.clone()`.
     #[cfg(test)]
-    pub(super) fn commits_for_test(&self) -> BTreeMap<CommandId, WorldCommit> {
+    pub(super) fn commits_for_test(&self) -> Vec<WorldCommit> {
         self.commits.clone()
     }
-
-    #[cfg(test)]
-    pub(super) fn fail_after_durable_commit_for_test(&mut self) {
-        self.fail_after_durable_commit = true;
-    }
 }
 
-impl EmptyWorldJournal {
-    #[cfg(test)]
-    pub(super) fn fail_after_durable_initialize_for_test(&mut self) {
-        self.fail_after_durable_initialize = true;
-    }
-
-    pub(super) fn initialize(
-        self,
-        state: &WorldState,
-        genesis: &WorldCommit,
-    ) -> Result<WorldJournal, JournalError> {
-        self.store
-            .validate_path_identity()
-            .map_err(|_| JournalError::OwnershipLost)?;
-        let mut commits = BTreeMap::new();
-        let command_id = genesis.command.id();
-        commits.insert(command_id, genesis.clone());
-        verify_history(state, &commits)?;
-        let state_row = envelope(STATE_ROW, STATE_SCHEMA, state.world_id.key(), state)?;
-        let commit_row = envelope(COMMIT_ROW, COMMIT_SCHEMA, command_id.key(), genesis)?;
-        let inserted = self
-            .store
-            .append_if_snapshot_unchanged(&[], vec![state_row.clone(), commit_row]);
-        if !matches!(inserted, Ok(true)) {
-            return Err(JournalError::RecoveryRequired { command_id });
-        }
-        #[cfg(test)]
-        if self.fail_after_durable_initialize {
-            return Err(JournalError::RecoveryRequired { command_id });
-        }
-        if self.store.validate_path_identity().is_err() {
-            return Err(JournalError::RecoveryRequired { command_id });
-        }
-        Ok(WorldJournal {
-            store: self.store,
-            state_row,
-            commits,
-            health: Cell::new(JournalHealth::Healthy),
-            #[cfg(test)]
-            fail_after_durable_commit: false,
-        })
-    }
-}
-
-fn recover(
-    rows: Vec<CultCacheEnvelope>,
-    expected_world_id: Option<WorldId>,
-) -> Result<
-    (
-        CultCacheEnvelope,
-        WorldState,
-        BTreeMap<CommandId, WorldCommit>,
-    ),
-    JournalError,
-> {
-    let mut state_rows = Vec::new();
-    let mut commits = BTreeMap::new();
-    for row in rows {
-        match row.r#type.as_str() {
-            STATE_ROW => {
-                require_schema(&row, STATE_SCHEMA)?;
-                state_rows.push(row);
-            }
-            COMMIT_ROW => {
-                require_schema(&row, COMMIT_SCHEMA)?;
-                let commit: WorldCommit = decode(&row)?;
-                let command_id = commit.command.id();
-                if row.key != command_id.key() {
-                    return Err(JournalError::Corrupt(
-                        "commit row key does not match command ID".into(),
-                    ));
-                }
-                if commits.insert(command_id, commit).is_some() {
-                    return Err(JournalError::Corrupt("duplicate command commit".into()));
-                }
-            }
-            other => {
-                return Err(JournalError::Corrupt(format!(
-                    "unadmitted row type {other}"
-                )));
-            }
-        }
-    }
-    if state_rows.len() != 1 {
-        return Err(JournalError::Corrupt(format!(
-            "expected one state row, found {}",
-            state_rows.len()
-        )));
-    }
-    let state_row = state_rows.pop().expect("length checked");
-    let state: WorldState = decode(&state_row)?;
-    if state_row.key != state.world_id.key() {
-        return Err(JournalError::Corrupt(
-            "state row key does not match its world ID".into(),
-        ));
-    }
-    if expected_world_id.is_some_and(|expected| state.world_id != expected) {
-        return Err(JournalError::WorldMismatch);
-    }
-    verify_history(&state, &commits)?;
-    Ok((state_row, state, commits))
-}
-
-fn verify_append(
-    current: &WorldState,
-    next: &WorldState,
-    commit: &WorldCommit,
-) -> Result<(), JournalError> {
-    verify_state_shape(current)?;
-    verify_state_shape(next)?;
-    if current.world_id != next.world_id
-        || commit.world_id != current.world_id
-        || commit.schema != COMMIT_SCHEMA
-        || commit.previous_revision != Some(current.revision)
-        || commit.resulting_revision != next.revision
-        || next.revision != current.revision.saturating_add(1)
-        || commit.previous_state_digest.as_deref() != Some(current.state_digest.as_str())
-        || commit.resulting_state_digest != next.state_digest
-        || commit.previous_commit_digest != current.last_commit_digest
-        || next.last_commit_digest.as_deref() != Some(commit.digest.as_str())
-    {
-        return Err(JournalError::Corrupt(
-            "commit does not bind the exact state transition".into(),
-        ));
-    }
-    if state_digest(current).map_err(kernel_error)? != current.state_digest
-        || state_digest(next).map_err(kernel_error)? != next.state_digest
-        || commit_digest(commit).map_err(kernel_error)? != commit.digest
-    {
-        return Err(JournalError::Corrupt("digest mismatch".into()));
-    }
-    let mut replay = current.clone();
-    apply_committed_command(&mut replay, commit)?;
-    replay.revision = next.revision;
-    replay.state_digest = state_digest(&replay).map_err(kernel_error)?;
-    replay.last_commit_digest = Some(commit.digest.clone());
-    if &replay != next {
-        return Err(JournalError::Corrupt(
-            "commit effect does not reproduce next state".into(),
-        ));
-    }
-    Ok(())
-}
-
-/// `pub(super)`, matching `verify_state_shape`: a Soul-style forgery test
-/// outside this module routes its falsification through the same function
-/// that actually judges a committed history, rather than through the
-/// structural-only `verify_state_shape`.
-pub(super) fn verify_history(
-    state: &WorldState,
-    commits: &BTreeMap<CommandId, WorldCommit>,
-) -> Result<(), JournalError> {
-    verify_state_shape(state)?;
-    if commits
-        .iter()
-        .any(|(command_id, commit)| *command_id != commit.command.id())
-    {
-        return Err(JournalError::Corrupt(
-            "commit index does not derive from the persisted command".into(),
-        ));
-    }
-    let expected_commits = usize::try_from(state.revision)
-        .map_err(|_| JournalError::Corrupt("revision does not fit this runtime".into()))?;
-    let expected_commits = expected_commits
-        .checked_add(1)
-        .ok_or_else(|| JournalError::Corrupt("commit count overflow".into()))?;
-    if commits.len() != expected_commits {
-        return Err(JournalError::Corrupt(
-            "commit count does not equal genesis plus head revision".into(),
-        ));
-    }
-    let mut ordered: Vec<_> = commits.values().collect();
-    ordered.sort_by_key(|commit| commit.resulting_revision);
-    let genesis = ordered
+/// The one judge of a stored chain, `pub(super)` so a forgery test outside this
+/// module routes through the same function that `open` does. It replays the
+/// commits in revision order from genesis and returns the head state they
+/// derive; position `i` must hold resulting revision `i`.
+pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, JournalError> {
+    let genesis = commits
         .first()
         .ok_or_else(|| JournalError::Corrupt("world has no genesis commit".into()))?;
     let CommittedCommand::CreateWorld(genesis_command) = &genesis.command else {
@@ -388,9 +102,9 @@ pub(super) fn verify_history(
         ));
     };
     if genesis.schema != COMMIT_SCHEMA
-        || genesis.world_id != state.world_id
         || genesis.previous_revision.is_some()
         || genesis.resulting_revision != 0
+        || genesis.world_id != WorldId::of(genesis_command.id())
         || genesis.previous_state_digest.is_some()
         || genesis.previous_commit_digest.is_some()
         || commit_digest(genesis).map_err(kernel_error)? != genesis.digest
@@ -399,7 +113,7 @@ pub(super) fn verify_history(
             "genesis commit is not canonical or verifiable".into(),
         ));
     }
-    let mut replay = WorldState::genesis(state.world_id, genesis_command, &genesis.effect)
+    let mut replay = WorldState::genesis(genesis.world_id, genesis_command, &genesis.effect)
         .map_err(kernel_error)?;
     verify_state_shape(&replay)?;
     verify_commitments_are_future(&replay, &BTreeMap::new())?;
@@ -410,9 +124,9 @@ pub(super) fn verify_history(
     }
     replay.last_commit_digest = Some(genesis.digest.clone());
 
-    for commit in ordered.into_iter().skip(1) {
+    for commit in &commits[1..] {
         if commit.schema != COMMIT_SCHEMA
-            || commit.world_id != state.world_id
+            || commit.world_id != replay.world_id
             || commit.previous_revision != Some(replay.revision)
             || commit.resulting_revision != replay.revision.saturating_add(1)
             || commit.previous_state_digest.as_deref() != Some(replay.state_digest.as_str())
@@ -428,7 +142,7 @@ pub(super) fn verify_history(
         // Authority is re-decided here for free: `apply_committed_command`
         // re-runs `reduce` against the pre-commit state and requires effect
         // equality, then `apply_effect`, and both of those call
-        // `require_play`. A forged row recording the owner as the caller of
+        // `require_play`. A forged commit recording the owner as the caller of
         // a post-genesis command fails replay rather than being admitted by a
         // reducer that trusts the recorded caller. A third statement of the same rule here would be a
         // third owner of one decision.
@@ -451,12 +165,8 @@ pub(super) fn verify_history(
         }
         replay.last_commit_digest = Some(commit.digest.clone());
     }
-    if &replay != state {
-        return Err(JournalError::Corrupt(
-            "head state does not equal replayed history".into(),
-        ));
-    }
-    Ok(())
+    verify_state_shape(&replay)?;
+    Ok(replay)
 }
 
 /// The replay-side twin of `Mismatch::CommitmentDueInThePast`: every commitment
@@ -918,47 +628,13 @@ fn apply_committed_command(
     .map_err(kernel_error)
 }
 
-fn require_schema(row: &CultCacheEnvelope, schema: &str) -> Result<(), JournalError> {
-    if row.schema_id.as_deref() != Some(schema) {
-        Err(JournalError::Corrupt(format!(
-            "row {}/{} has the wrong schema",
-            row.r#type, row.key
-        )))
-    } else {
-        Ok(())
-    }
-}
-
-fn envelope<T: Serialize>(
-    row_type: &str,
-    schema: &str,
-    key: String,
-    value: &T,
-) -> Result<CultCacheEnvelope, JournalError> {
-    Ok(CultCacheEnvelope {
-        key,
-        r#type: row_type.into(),
-        payload: rmp_serde::to_vec_named(value)
-            .map_err(|error| JournalError::Store(error.to_string()))?,
-        stored_at: Utc::now().to_rfc3339(),
-        schema_id: Some(schema.into()),
-    })
-}
-
-fn decode<T: DeserializeOwned + Serialize>(row: &CultCacheEnvelope) -> Result<T, JournalError> {
-    let value: T = rmp_serde::from_slice(&row.payload).map_err(|error| {
-        JournalError::Corrupt(format!(
-            "could not decode row {}/{}: {error}",
-            row.r#type, row.key
-        ))
-    })?;
+fn decode<T: DeserializeOwned + Serialize>(bytes: &[u8]) -> Result<T, JournalError> {
+    let value: T = rmp_serde::from_slice(bytes)
+        .map_err(|error| JournalError::Corrupt(format!("could not decode the export: {error}")))?;
     let canonical = rmp_serde::to_vec_named(&value)
         .map_err(|error| JournalError::Corrupt(error.to_string()))?;
-    if canonical != row.payload {
-        return Err(JournalError::Corrupt(format!(
-            "row {}/{} is not canonical",
-            row.r#type, row.key
-        )));
+    if canonical != bytes {
+        return Err(JournalError::Corrupt("the export is not canonical".into()));
     }
     Ok(value)
 }
@@ -983,13 +659,36 @@ mod tests {
         value: u8,
     }
 
-    /// The commit a forgery test rewrites: the one the test just committed.
-    pub(super) fn last_commit(commits: &mut BTreeMap<CommandId, WorldCommit>) -> &mut WorldCommit {
-        commits.values_mut().max_by_key(|commit| commit.resulting_revision).unwrap()
+    /// The bytes an honest exporter writes for `commits`, whatever they claim.
+    pub(super) fn export_of(commits: &[WorldCommit]) -> Vec<u8> {
+        WorldJournal {
+            commits: commits.to_vec(),
+        }
+        .export()
+        .unwrap()
     }
 
-    pub(super) fn genesis_commit(commits: &mut BTreeMap<CommandId, WorldCommit>) -> &mut WorldCommit {
-        commits.values_mut().min_by_key(|commit| commit.resulting_revision).unwrap()
+    /// Open a world from forged commits through the door a real export takes:
+    /// canonical decode, then the one replay judge.
+    pub(super) fn reopen(commits: &[WorldCommit]) -> Result<WorldState, JournalError> {
+        WorldJournal::open(&export_of(commits)).map(|(_, state)| state)
+    }
+
+    #[test]
+    fn decode_rejects_an_alternate_messagepack_shape() {
+        let bytes = rmp_serde::to_vec(&CanonicalFixture { value: 7 }).unwrap();
+        assert!(decode::<CanonicalFixture>(&bytes).is_err());
+        let canonical = rmp_serde::to_vec_named(&CanonicalFixture { value: 7 }).unwrap();
+        assert!(decode::<CanonicalFixture>(&canonical).is_ok());
+    }
+
+    /// The commit a forgery test rewrites: the one the test just committed.
+    pub(super) fn last_commit(commits: &mut [WorldCommit]) -> &mut WorldCommit {
+        commits.iter_mut().max_by_key(|commit| commit.resulting_revision).unwrap()
+    }
+
+    pub(super) fn genesis_commit(commits: &mut [WorldCommit]) -> &mut WorldCommit {
+        commits.iter_mut().min_by_key(|commit| commit.resulting_revision).unwrap()
     }
 
     fn owner_patch(subject: SubjectDeclaration) -> WorldPatch {
@@ -1001,21 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn decode_rejects_an_alternate_messagepack_shape() {
-        let row = CultCacheEnvelope {
-            key: "fixture".into(),
-            r#type: "fixture".into(),
-            payload: rmp_serde::to_vec(&CanonicalFixture { value: 7 }).unwrap(),
-            stored_at: Utc::now().to_rfc3339(),
-            schema_id: Some("fixture.v0".into()),
-        };
-        assert!(decode::<CanonicalFixture>(&row).is_err());
-    }
-
-    #[test]
     fn replay_rejects_a_forged_command_or_effect_even_with_valid_hashes() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let owner = PrincipalId::new("owner@example.test");
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
         let creation = CreateWorld {
@@ -1031,7 +716,7 @@ mod tests {
             }),
             grammar: None,
         };
-        let (mut kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
+        let (mut kernel, _) = WorldKernel::create(creation, &authenticated).unwrap();
         let snapshot = kernel.snapshot().unwrap();
         kernel
             .submit(
@@ -1047,7 +732,6 @@ mod tests {
             )
             .unwrap();
 
-        let mut command_forged_head = kernel.state.clone();
         let mut command_forged_commits = kernel.journal.commits.clone();
         let command_forged = last_commit(&mut command_forged_commits);
         let CommittedCommand::WorldCommand(command) = &mut command_forged.command else {
@@ -1057,14 +741,12 @@ mod tests {
             minutes: crate::TickMinutes::new(2).unwrap(),
         };
         command_forged.digest = commit_digest(command_forged).unwrap();
-        command_forged_head.last_commit_digest = Some(command_forged.digest.clone());
 
         assert!(matches!(
-            verify_history(&command_forged_head, &command_forged_commits),
+            reopen(&command_forged_commits),
             Err(JournalError::Corrupt(_))
         ));
 
-        let mut caller_forged_head = kernel.state.clone();
         let mut caller_forged_commits = kernel.journal.commits.clone();
         let caller_forged = last_commit(&mut caller_forged_commits);
         let CommittedCommand::WorldCommand(command) = &mut caller_forged.command else {
@@ -1072,14 +754,12 @@ mod tests {
         };
         command.caller = CallerId::Principal(PrincipalId::new("attacker@example.test"));
         caller_forged.digest = commit_digest(caller_forged).unwrap();
-        caller_forged_head.last_commit_digest = Some(caller_forged.digest.clone());
 
         assert!(matches!(
-            verify_history(&caller_forged_head, &caller_forged_commits),
+            reopen(&caller_forged_commits),
             Err(JournalError::Corrupt(_))
         ));
 
-        let mut effect_forged_head = kernel.state.clone();
         let mut effect_forged_commits = kernel.journal.commits.clone();
         let effect_forged = last_commit(&mut effect_forged_commits);
         let WorldEffect::TimeAdvanced { to, .. } = &mut effect_forged.effect else {
@@ -1087,18 +767,15 @@ mod tests {
         };
         *to = crate::FictionalMinutes(99);
         effect_forged.digest = commit_digest(effect_forged).unwrap();
-        effect_forged_head.last_commit_digest = Some(effect_forged.digest.clone());
 
         assert!(matches!(
-            verify_history(&effect_forged_head, &effect_forged_commits),
+            reopen(&effect_forged_commits),
             Err(JournalError::Corrupt(_))
         ));
     }
 
     #[test]
     fn a_forged_patch_effect_does_not_apply() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let owner = PrincipalId::new("owner@example.test");
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
         let creation = CreateWorld {
@@ -1114,7 +791,7 @@ mod tests {
             }),
             grammar: None,
         };
-        let (mut kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
+        let (mut kernel, _) = WorldKernel::create(creation, &authenticated).unwrap();
         let snapshot = kernel.snapshot().unwrap();
         kernel
             .submit(
@@ -1149,7 +826,6 @@ mod tests {
             )
             .unwrap();
 
-        let mut forged_head = kernel.state.clone();
         let mut forged_commits = kernel.journal.commits.clone();
         let forged = last_commit(&mut forged_commits);
         let WorldEffect::PatchAdmitted { resolved, .. } = &mut forged.effect else {
@@ -1159,106 +835,20 @@ mod tests {
             place: EntityId::issue(),
         });
         forged.digest = commit_digest(forged).unwrap();
-        forged_head.last_commit_digest = Some(forged.digest.clone());
 
         assert!(matches!(
-            verify_history(&forged_head, &forged_commits),
+            reopen(&forged_commits),
             Err(JournalError::Corrupt(_))
         ));
     }
 
-    /// A store written at the schema this pass replaced is refused outright.
-    /// There is no migration adapter, and the refusal is the behaviour.
-    #[test]
-    fn a_store_from_the_knowledge_schema_is_refused() {
-        let row = CultCacheEnvelope {
-            key: "state".into(),
-            r#type: "world_state.knowledge.v1".into(),
-            payload: Vec::new(),
-            stored_at: Utc::now().to_rfc3339(),
-            schema_id: Some("ghostlight.world_state.knowledge.v1".into()),
-        };
-        let error = recover(vec![row], None).unwrap_err();
-        let JournalError::Corrupt(message) = error else {
-            panic!("expected a corrupt store");
-        };
-        assert!(
-            message.contains("unadmitted row type"),
-            "unexpected refusal: {message}"
-        );
-    }
-
-    /// A `Witness` reaches the store through two rows — a commit carries the
-    /// admitted operations and the state row carries the event's effects — so
-    /// both schemas bumped and both prior versions are refused at open. There
-    /// is no migration adapter and no dual read.
-    #[test]
-    fn a_store_written_before_the_witness_schema_is_refused() {
-        for (row_type, schema) in [
-            (STATE_ROW, "ghostlight.world_state.consumer.v1"),
-            (COMMIT_ROW, "ghostlight.world_commit.consumer.v1"),
-        ] {
-            let row = CultCacheEnvelope {
-                key: "state".into(),
-                r#type: row_type.into(),
-                payload: Vec::new(),
-                stored_at: Utc::now().to_rfc3339(),
-                schema_id: Some(schema.into()),
-            };
-            let error = recover(vec![row], None).unwrap_err();
-            let JournalError::Corrupt(message) = error else {
-                panic!("expected a corrupt store for {schema}");
-            };
-            assert!(
-                message.contains("has the wrong schema"),
-                "unexpected refusal for {schema}: {message}"
-            );
-        }
-    }
-
-    /// A store written under an older schema is refused at open: both
-    /// `consumer.v4` strings and the pre-cut `consumer.v6` and `consumer.v8`
-    /// ones. No migration, no dual read.
-    #[test]
-    fn a_store_written_under_an_older_schema_is_refused() {
-        for (row_type, schema) in [
-            (STATE_ROW, "ghostlight.world_state.consumer.v4"),
-            (COMMIT_ROW, "ghostlight.world_commit.consumer.v4"),
-            (STATE_ROW, "ghostlight.world_state.consumer.v6"),
-            (COMMIT_ROW, "ghostlight.world_commit.consumer.v6"),
-            (STATE_ROW, "ghostlight.world_state.consumer.v8"),
-            (COMMIT_ROW, "ghostlight.world_commit.consumer.v8"),
-            (STATE_ROW, "ghostlight.world_state.consumer.v9"),
-            (COMMIT_ROW, "ghostlight.world_commit.consumer.v9"),
-        ] {
-            let row = CultCacheEnvelope {
-                key: "state".into(),
-                r#type: row_type.into(),
-                payload: Vec::new(),
-                stored_at: Utc::now().to_rfc3339(),
-                schema_id: Some(schema.into()),
-            };
-            let error = recover(vec![row], None).unwrap_err();
-            let JournalError::Corrupt(message) = error else {
-                panic!("expected a corrupt store for {schema}");
-            };
-            assert!(
-                message.contains("has the wrong schema"),
-                "unexpected refusal for {schema}: {message}"
-            );
-        }
-    }
-
     /// A world whose history includes a patch and a clock advance, both Play's,
-    /// reopened from its own store rows.
-    fn clock_history() -> (tempfile::TempDir, WorldKernel) {
+    /// reopened from its own export.
+    fn clock_history() -> WorldKernel {
         use crate::tests::{auth_principal, creation, owner, submit_play};
         use crate::TickMinutes;
 
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("Clock History"),
+        let (mut kernel, _) = WorldKernel::create(creation("Clock History"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -1289,38 +879,77 @@ mod tests {
                 minutes: TickMinutes::new(30).unwrap(),
             },
         );
-        (directory, kernel)
-    }
-
-    fn rows_of(state: &WorldState, commits: &[WorldCommit]) -> Vec<CultCacheEnvelope> {
-        let mut rows: Vec<CultCacheEnvelope> = commits
-            .iter()
-            .map(|commit| {
-                envelope(COMMIT_ROW, COMMIT_SCHEMA, commit.command.id().key(), commit).unwrap()
-            })
-            .collect();
-        rows.push(envelope(STATE_ROW, STATE_SCHEMA, state.world_id.key(), state).unwrap());
-        rows
+        kernel
     }
 
     /// Replay re-derives Play's patch and clock advance: the honest history
-    /// reopens to the same state digest and reading, and the store on disk does too.
+    /// reopens to the same state digest and reading, and the exported bytes do too.
     #[test]
     fn a_history_with_a_patch_and_a_clock_advance_replays_exactly() {
-        let (directory, kernel) = clock_history();
-        let honest: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
-        let (_, replayed, commits) =
-            recover(rows_of(&kernel.state, &honest), None).expect("the honest history replays");
-        assert_eq!(commits.len(), honest.len());
+        let kernel = clock_history();
+        let replayed = reopen(&kernel.journal.commits).expect("the honest history replays");
         assert_eq!(replayed.state_digest, kernel.state.state_digest);
         assert_eq!(replayed.now, kernel.state.now);
 
-        let (world_id, digest, now) =
-            (kernel.state.world_id, kernel.state.state_digest.clone(), kernel.state.now);
+        let (digest, now) = (kernel.state.state_digest.clone(), kernel.state.now);
+        let exported = kernel.export().unwrap();
         drop(kernel);
-        let reopened = WorldKernel::open(directory.path().join("world.cc"), world_id).unwrap();
+        let reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.state.state_digest, digest);
         assert_eq!(reopened.state.now, now);
+    }
+
+    /// An export is a claim about a chain, and `open` believes none of it that
+    /// replay does not derive: a chain with a commit missing, repeated or out of
+    /// order, a Ghostlight commit or export schema, and a non-canonical
+    /// encoding of an honest chain are each refused.
+    #[test]
+    fn forged_exports_are_refused() {
+        let kernel = clock_history();
+        let honest = kernel.journal.commits.clone();
+        assert_eq!(honest.len(), 3, "genesis, a patch and a tick");
+        reopen(&honest).expect("the honest chain opens");
+        let refused = |what: &str, commits: &[WorldCommit]| {
+            assert!(
+                matches!(reopen(commits), Err(JournalError::Corrupt(_))),
+                "{what} was admitted"
+            );
+        };
+
+        refused("a missing middle commit", &[honest[0].clone(), honest[2].clone()]);
+        refused("a world without genesis", &honest[1..]);
+        refused("a repeated commit", &[honest[0].clone(), honest[1].clone(), honest[1].clone(), honest[2].clone()]);
+        refused("reordered commits", &[honest[0].clone(), honest[2].clone(), honest[1].clone()]);
+        refused("no commits", &[]);
+
+        let mut ghostlight = honest.clone();
+        ghostlight[1].schema = "ghostlight.world_commit.consumer.v10".into();
+        ghostlight[1].digest = commit_digest(&ghostlight[1]).unwrap();
+        refused("a ghostlight commit schema", &ghostlight);
+
+        let foreign = rmp_serde::to_vec_named(&ExportRef {
+            schema: "ghostlight.world_state.consumer.v10",
+            commits: &honest,
+        })
+        .unwrap();
+        assert!(matches!(
+            WorldJournal::open(&foreign),
+            Err(JournalError::Corrupt(_))
+        ));
+
+        let positional = rmp_serde::to_vec(&ExportRef {
+            schema: JOURNAL_SCHEMA,
+            commits: &honest,
+        })
+        .unwrap();
+        assert!(matches!(
+            WorldJournal::open(&positional),
+            Err(JournalError::Corrupt(_))
+        ));
+        assert!(matches!(
+            WorldJournal::open(&[0xc1]),
+            Err(JournalError::Corrupt(_))
+        ));
     }
 
     /// A stored command is not believed about who made it. The forgery re-seals
@@ -1332,14 +961,14 @@ mod tests {
     fn a_commit_forged_to_the_owner_fails_replay() {
         use crate::tests::owner;
 
-        let (_directory, kernel) = clock_history();
-        let honest: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
+        let kernel = clock_history();
+        let honest: Vec<WorldCommit> = kernel.journal.commits.clone();
         // Re-seals the rewritten commit and every later one around it, so the
         // chain of previous-commit digests agrees and only the caller check is
         // left to refuse the history.
         let forge = |is_row: &dyn Fn(&WorldEffect) -> bool,
                      rewrite: &dyn Fn(&mut WorldCommit)|
-         -> (WorldState, Vec<WorldCommit>) {
+         -> Vec<WorldCommit> {
             let mut forged: Vec<WorldCommit> = honest.clone();
             forged.sort_by_key(|commit| commit.resulting_revision);
             let rows: Vec<usize> = (0..forged.len())
@@ -1354,28 +983,24 @@ mod tests {
                 }
                 forged[index].digest = commit_digest(&forged[index]).unwrap();
             }
-            let mut head = kernel.state.clone();
-            head.last_commit_digest = forged.last().map(|commit| commit.digest.clone());
-            (head, forged)
+            forged
         };
         let patch_row = |effect: &WorldEffect| matches!(effect, WorldEffect::PatchAdmitted { .. });
         let clock_row = |effect: &WorldEffect| matches!(effect, WorldEffect::TimeAdvanced { .. });
 
         for is_row in [&patch_row as &dyn Fn(&WorldEffect) -> bool, &clock_row] {
-            let (head, control) = forge(is_row, &|_| {});
-            recover(rows_of(&head, &control), None)
+            let control = forge(is_row, &|_| {});
+            reopen(&control)
                 .expect("a consistent re-sealed store replays");
 
-            let (head, forged) = forge(is_row, &|commit| {
+            let forged = forge(is_row, &|commit| {
                 if let CommittedCommand::WorldCommand(command) = &mut commit.command {
                     command.caller = CallerId::Principal(owner());
                 }
             });
-            let error = recover(rows_of(&head, &forged), None)
+            let error = reopen(&forged)
                 .expect_err("a commit forged to the owner replayed");
-            let JournalError::Corrupt(_) = error else {
-                panic!("unexpected refusal: {error:?}");
-            };
+            let JournalError::Corrupt(_) = error;
         }
     }
 
@@ -1390,12 +1015,8 @@ mod tests {
             TickMinutes,
         };
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            crate::tests::creation("Chronicle"),
+        let (mut kernel, _) = WorldKernel::create(crate::tests::creation("Chronicle"),
             &authenticated,
         )
         .unwrap();
@@ -1414,7 +1035,6 @@ mod tests {
             )
             .unwrap();
 
-        let mut forged_head = kernel.state.clone();
         let mut forged_commits = kernel.journal.commits.clone();
         let forged = last_commit(&mut forged_commits);
         let WorldEffect::TimeAdvanced { to, .. } = &mut forged.effect else {
@@ -1422,10 +1042,9 @@ mod tests {
         };
         *to = FictionalMinutes(31);
         forged.digest = commit_digest(forged).unwrap();
-        forged_head.last_commit_digest = Some(forged.digest.clone());
 
         assert!(matches!(
-            verify_history(&forged_head, &forged_commits),
+            reopen(&forged_commits),
             Err(JournalError::Corrupt(_))
         ));
     }
@@ -1436,12 +1055,8 @@ mod tests {
     fn a_forged_relocate_effect_does_not_apply() {
         use crate::tests::{admit_topology, auth_principal, command, owner};
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            crate::tests::creation("Kharad"),
+        let (mut kernel, _) = WorldKernel::create(crate::tests::creation("Kharad"),
             &authenticated,
         )
         .unwrap();
@@ -1467,7 +1082,6 @@ mod tests {
             )
             .unwrap();
 
-        let mut forged_head = kernel.state.clone();
         let mut forged_commits = kernel.journal.commits.clone();
         let forged = last_commit(&mut forged_commits);
         let WorldEffect::PatchAdmitted { resolved, .. } = &mut forged.effect else {
@@ -1479,10 +1093,9 @@ mod tests {
         };
         *subject_id = crate::SubjectId::issue();
         forged.digest = commit_digest(forged).unwrap();
-        forged_head.last_commit_digest = Some(forged.digest.clone());
 
         assert!(matches!(
-            verify_history(&forged_head, &forged_commits),
+            reopen(&forged_commits),
             Err(JournalError::Corrupt(_))
         ));
     }
@@ -1505,12 +1118,8 @@ mod tests {
         };
 
         let forge = |kind: &str, mutate: &dyn Fn(&mut crate::DecisionEvent)| {
-            let directory = tempfile::tempdir().unwrap();
-            let path = directory.path().join("world.cc");
             let authenticated = auth_principal(owner());
-            let (mut kernel, _) = WorldKernel::create(
-                &path,
-                crate::tests::creation("ForgedDecision"),
+            let (mut kernel, _) = WorldKernel::create(crate::tests::creation("ForgedDecision"),
                 &authenticated,
             )
             .unwrap();
@@ -1552,35 +1161,29 @@ mod tests {
                 .unwrap();
 
             // The honest journal recovers.
-            assert!(verify_history(&kernel.state, &kernel.journal.commits).is_ok());
+            assert!(reopen(&kernel.journal.commits).is_ok());
 
-            let mut forged_head = kernel.state.clone();
             let mut forged_commits = kernel.journal.commits.clone();
             let forged = last_commit(&mut forged_commits);
             let WorldEffect::Acted { event, .. } = &mut forged.effect else {
                 panic!("expected an acted effect");
             };
             mutate(event);
-            let forged_event = event.clone();
-            *forged_head.events.last_mut().unwrap() = forged_event;
             forged.digest = commit_digest(forged).unwrap();
-            forged_head.last_commit_digest = Some(forged.digest.clone());
-            forged_head.state_digest = String::new();
-            forged_head.state_digest = crate::state_digest(&forged_head).unwrap();
-            (forged_head, forged_commits)
+            forged_commits
         };
 
         // A band the seed did not draw, held inside a chain that verifies.
-        let (head, commits) = forge("carry_chance", &|event| {
+        let commits = forge("carry_chance", &|event| {
             event.band = (event.band + 1) % 3;
         });
         assert!(matches!(
-            verify_history(&head, &commits),
+            reopen(&commits),
             Err(JournalError::Corrupt(_))
         ));
 
         // A magnitude the ceiling admitted but the lowering never produced.
-        let (head, commits) = forge("carry", &|event| {
+        let commits = forge("carry", &|event| {
             let Some(crate::ResolvedOp::Transfer { qty, .. }) = event.effects.first_mut()
             else {
                 panic!("expected a lowered transfer");
@@ -1588,15 +1191,13 @@ mod tests {
             *qty = Quantity(1);
         });
         assert!(matches!(
-            verify_history(&head, &commits),
+            reopen(&commits),
             Err(JournalError::Corrupt(_))
         ));
     }
 
     #[test]
     fn replay_rejects_genesis_that_does_not_derive_from_its_creation_command() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let owner = PrincipalId::new("owner@example.test");
         let authenticated = AuthenticatedCaller::fixture(CallerId::Principal(owner.clone()));
         let creation = CreateWorld {
@@ -1612,8 +1213,7 @@ mod tests {
             }),
             grammar: None,
         };
-        let (kernel, _) = WorldKernel::create(&path, creation, &authenticated).unwrap();
-        let mut forged_head = kernel.state.clone();
+        let (kernel, _) = WorldKernel::create(creation, &authenticated).unwrap();
         let mut forged_commits = kernel.journal.commits.clone();
         let forged = genesis_commit(&mut forged_commits);
         let CommittedCommand::CreateWorld(command) = &mut forged.command else {
@@ -1621,14 +1221,12 @@ mod tests {
         };
         command.title = "Different command".into();
         forged.digest = commit_digest(forged).unwrap();
-        forged_head.last_commit_digest = Some(forged.digest.clone());
 
         assert!(matches!(
-            verify_history(&forged_head, &forged_commits),
+            reopen(&forged_commits),
             Err(JournalError::Corrupt(_))
         ));
 
-        let mut binding_forged_head = kernel.state.clone();
         let mut binding_forged_commits = kernel.journal.commits.clone();
         let binding_forged = genesis_commit(&mut binding_forged_commits);
         let WorldEffect::WorldCreated { resolved, .. } = &mut binding_forged.effect else {
@@ -1636,48 +1234,30 @@ mod tests {
         };
         resolved.subjects[0].subject.label = "Not the creation subject".into();
         binding_forged.digest = commit_digest(binding_forged).unwrap();
-        binding_forged_head.last_commit_digest = Some(binding_forged.digest.clone());
 
         assert!(matches!(
-            verify_history(&binding_forged_head, &binding_forged_commits),
+            reopen(&binding_forged_commits),
             Err(JournalError::Corrupt(_))
         ));
     }
 
     /// Soul falsification: the extended replay shape check is not decoration.
-    /// A forged store row carrying a self-loop, a cost out of range, a
+    /// A forged state carrying a self-loop, a cost out of range, a
     /// non-place endpoint, or a position on a non-place is refused by
-    /// `recover`, which is the path `WorldJournal::open` takes.
+    /// `verify_state_shape`, which `WorldJournal::open` runs on the replayed head.
     #[test]
-    fn soul_forged_topology_store_rows_are_refused_on_recover() {
+    fn soul_forged_topology_states_are_refused_by_the_shape_check() {
         use crate::patch::{AccessKind, Cost, EdgeRecord, MAX_ROUTE_COST};
         use crate::tests::{admit_topology, auth_principal, owner};
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            crate::tests::creation("Forged Rows"),
+        let (mut kernel, _) = WorldKernel::create(crate::tests::creation("Forged Rows"),
             &auth_principal(owner()),
         )
         .unwrap();
         let topology = admit_topology(&mut kernel);
-        let commits: Vec<CultCacheEnvelope> = kernel
-            .journal
-            .commits
-            .values()
-            .map(|commit| {
-                envelope(COMMIT_ROW, COMMIT_SCHEMA, commit.command.id().key(), commit).unwrap()
-            })
-            .collect();
-        let rows_for = |state: &WorldState, row_type: &str| {
-            let mut rows = commits.clone();
-            rows.push(envelope(row_type, STATE_SCHEMA, state.world_id.key(), state).unwrap());
-            rows
-        };
-
         // The honest state recovers.
-        assert!(recover(rows_for(&kernel.state, STATE_ROW), None).is_ok());
+        assert!(verify_state_shape(&kernel.state).is_ok());
+        assert!(reopen(&kernel.journal.commits).is_ok());
 
         let self_loop = {
             let mut state = kernel.state.clone();
@@ -1720,60 +1300,12 @@ mod tests {
             state
         };
         for forged in [self_loop, bad_cost, non_place_endpoint, stray_position] {
-            let error = recover(rows_for(&forged, STATE_ROW), None).unwrap_err();
+            let error = verify_state_shape(&forged).unwrap_err();
             assert!(
                 matches!(error, JournalError::Corrupt(_)),
                 "a forged topology row recovered: {error:?}"
             );
         }
-    }
-
-    /// Soul falsification: a store written before the topology partitions is
-    /// refused outright, with no migration adapter in the path.
-    #[test]
-    fn soul_a_pre_topology_store_row_is_refused() {
-        use crate::tests::{admit_topology, auth_principal, owner};
-
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            crate::tests::creation("Old Store"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        admit_topology(&mut kernel);
-        let mut rows: Vec<CultCacheEnvelope> = kernel
-            .journal
-            .commits
-            .values()
-            .map(|commit| {
-                envelope(
-                    "world_commit.foundation.v2",
-                    COMMIT_SCHEMA,
-                    commit.command.id().key(),
-                    commit,
-                )
-                .unwrap()
-            })
-            .collect();
-        rows.push(
-            envelope(
-                "world_state.foundation.v1",
-                STATE_SCHEMA,
-                kernel.state.world_id.key(),
-                &kernel.state,
-            )
-            .unwrap(),
-        );
-        let error = recover(rows, None).unwrap_err();
-        let JournalError::Corrupt(message) = error else {
-            panic!("expected a corrupt store, got {error:?}");
-        };
-        assert!(
-            message.contains("unadmitted row type"),
-            "unexpected refusal: {message}"
-        );
     }
 
     /// A committed levy survives a restart exactly: the snapshot, the band, the
@@ -1787,11 +1319,7 @@ mod tests {
             Target,
         };
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            crate::tests::creation("Replayed Levy"),
+        let (mut kernel, _) = WorldKernel::create(crate::tests::creation("Replayed Levy"),
             &crate::tests::auth_principal(owner()),
         )
         .unwrap();
@@ -1831,23 +1359,23 @@ mod tests {
             .unwrap();
         let committed = kernel.snapshot().unwrap();
         let event = kernel.state.events.last().expect("the levy event").clone();
-        let world_id = committed.world_id;
+        let exported = kernel.export().unwrap();
         drop(kernel);
 
-        let mut reopened = WorldKernel::open(&path, world_id).unwrap();
+        let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), committed);
         let replayed = reopened.state.events.last().expect("the replayed event");
         assert_eq!(replayed.band, event.band);
         assert_eq!(replayed.effects, event.effects);
         assert!(matches!(
-            reopened .submit(envelope, &AuthenticatedCaller::fixture(caller)),
+            reopened.submit(envelope, &AuthenticatedCaller::fixture(caller)),
             Err(KernelError::RevisionMismatch { .. })
         ));
     }
 
     /// Soul falsification: the civic shape checks are not decoration. A forged
-    /// store row that widens a jurisdiction, doubles an incumbency, seats an
-    /// institution, or empties a delegation is refused by `recover`.
+    /// state that widens a jurisdiction, doubles an incumbency, seats an
+    /// institution, or empties a delegation is refused by the shape check.
     #[test]
     fn a_forged_authority_or_incumbency_is_corrupt() {
         use crate::tests::{
@@ -1857,29 +1385,13 @@ mod tests {
         use crate::{AuthorityGrant, AuthorityTarget, Office};
         use std::collections::BTreeSet;
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            crate::tests::creation("Forged Civics"),
+        let (mut kernel, _) = WorldKernel::create(crate::tests::creation("Forged Civics"),
             &auth_principal(owner()),
         )
         .unwrap();
         let (topology, civic, _) = civic_world(&mut kernel);
-        let commits: Vec<CultCacheEnvelope> = kernel
-            .journal
-            .commits
-            .values()
-            .map(|commit| {
-                envelope(COMMIT_ROW, COMMIT_SCHEMA, commit.command.id().key(), commit).unwrap()
-            })
-            .collect();
-        let rows_for = |state: &WorldState| {
-            let mut rows = commits.clone();
-            rows.push(envelope(STATE_ROW, STATE_SCHEMA, state.world_id.key(), state).unwrap());
-            rows
-        };
-        assert!(recover(rows_for(&kernel.state), None).is_ok());
+        assert!(verify_state_shape(&kernel.state).is_ok());
+        assert!(reopen(&kernel.journal.commits).is_ok());
 
         let widened = {
             let mut state = kernel.state.clone();
@@ -1951,60 +1463,12 @@ mod tests {
             inert_office,
             office_on_person,
         ] {
-            let error = recover(rows_for(&forged), None).unwrap_err();
+            let error = verify_state_shape(&forged).unwrap_err();
             assert!(
                 matches!(error, JournalError::Corrupt(_)),
                 "a forged civic row recovered: {error:?}"
             );
         }
-    }
-
-    /// Soul falsification: a store written before the civic partitions is
-    /// refused outright, with no migration adapter in the path.
-    #[test]
-    fn a_store_from_the_previous_schema_is_refused() {
-        use crate::tests::{auth_principal, civic_world, owner};
-
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            crate::tests::creation("Pre-Authority"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        civic_world(&mut kernel);
-        let mut rows: Vec<CultCacheEnvelope> = kernel
-            .journal
-            .commits
-            .values()
-            .map(|commit| {
-                envelope(
-                    "world_commit.affordance.v1",
-                    COMMIT_SCHEMA,
-                    commit.command.id().key(),
-                    commit,
-                )
-                .unwrap()
-            })
-            .collect();
-        rows.push(
-            envelope(
-                "world_state.affordance.v1",
-                STATE_SCHEMA,
-                kernel.state.world_id.key(),
-                &kernel.state,
-            )
-            .unwrap(),
-        );
-        let error = recover(rows, None).unwrap_err();
-        let JournalError::Corrupt(message) = error else {
-            panic!("expected a corrupt store, got {error:?}");
-        };
-        assert!(
-            message.contains("unadmitted row type"),
-            "unexpected refusal: {message}"
-        );
     }
 
     /// Soul falsification of the structural-overlap decision, updated for the
@@ -2022,11 +1486,7 @@ mod tests {
         };
         use crate::{ComponentOp, Mismatch};
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            crate::tests::creation("Moving Civics"),
+        let (mut kernel, _) = WorldKernel::create(crate::tests::creation("Moving Civics"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2088,8 +1548,9 @@ mod tests {
 
         // The whole history replays, and the reopened world is identical.
         let committed = kernel.snapshot().unwrap();
+        let exported = kernel.export().unwrap();
         drop(kernel);
-        let reopened = WorldKernel::open(&path, committed.world_id).unwrap();
+        let reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), committed);
     }
 }
@@ -2097,7 +1558,7 @@ mod tests {
 #[cfg(test)]
 mod custody_tests {
     use super::*;
-    use super::tests::last_commit;
+    use super::tests::{last_commit, reopen};
     use crate::{
         CallerId, CommandBody, ComponentOp, DependencyRef, EntityKind, Quantity, Ref,
         WorldKernel, WorldPatch,
@@ -2109,11 +1570,9 @@ mod custody_tests {
     /// envelope is idempotent.
     #[test]
     fn restart_replay_after_a_transfer_is_exact() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
         let (mut kernel, _) =
-            WorldKernel::create(&path, creation("Replay"), &authenticated)
+            WorldKernel::create(creation("Replay"), &authenticated)
                 .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
@@ -2137,10 +1596,10 @@ mod custody_tests {
         );
         kernel.submit(envelope.clone(), &crate::AuthenticatedCaller::verified_play()).unwrap();
         let accepted = kernel.snapshot().unwrap();
-        let world_id = accepted.world_id;
+        let exported = kernel.export().unwrap();
         drop(kernel);
 
-        let mut reopened = WorldKernel::open(&path, world_id).unwrap();
+        let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
         assert!(matches!(
             reopened.submit(envelope, &crate::AuthenticatedCaller::verified_play()),
@@ -2156,12 +1615,8 @@ mod custody_tests {
         use crate::tests::{affordance_named, play_caller};
         use crate::{AuthenticatedCaller, Magnitude, ProposedEffect, RoleBinding, Target};
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("ActionReplay"),
+        let (mut kernel, _) = WorldKernel::create(creation("ActionReplay"),
             &authenticated,
         )
         .unwrap();
@@ -2209,40 +1664,19 @@ mod custody_tests {
             .expect("the committed event")
             .clone();
         assert!(!committed.effects.is_empty());
-        let world_id = accepted.world_id;
+        let exported = kernel.export().unwrap();
         drop(kernel);
 
-        let mut reopened = WorldKernel::open(&path, world_id).unwrap();
+        let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
         assert_eq!(
             reopened.state.events.last().expect("the replayed event"),
             &committed
         );
         assert!(matches!(
-            reopened .submit(envelope, &authenticated_controller),
+            reopened.submit(envelope, &authenticated_controller),
             Err(KernelError::RevisionMismatch { .. })
         ));
-    }
-
-    /// A store written at the pass-2 schema is refused outright. There is no
-    /// migration adapter, and the refusal is the behaviour.
-    #[test]
-    fn a_store_from_the_previous_schema_is_refused() {
-        let row = CultCacheEnvelope {
-            key: "state".into(),
-            r#type: "world_state.topology.v1".into(),
-            payload: Vec::new(),
-            stored_at: Utc::now().to_rfc3339(),
-            schema_id: Some("ghostlight.world_state.topology.v1".into()),
-        };
-        let error = recover(vec![row], None).unwrap_err();
-        let JournalError::Corrupt(message) = error else {
-            panic!("expected a corrupt store");
-        };
-        assert!(
-            message.contains("unadmitted row type"),
-            "unexpected refusal: {message}"
-        );
     }
 
     /// The title clause of the shape check refuses an empty title and a
@@ -2251,10 +1685,7 @@ mod custody_tests {
     fn a_forged_empty_or_padded_title_is_corrupt() {
         use crate::tests::{auth_principal, creation, owner};
 
-        let directory = tempfile::tempdir().unwrap();
-        let (kernel, _) = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("Titled"),
+        let (kernel, _) = WorldKernel::create(creation("Titled"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2277,11 +1708,7 @@ mod custody_tests {
         use crate::tests::{auth_principal, creation, owner};
         use crate::{AffordanceId, SubjectId};
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (kernel, _) = WorldKernel::create(
-            &path,
-            creation("GrantRows"),
+        let (kernel, _) = WorldKernel::create(creation("GrantRows"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2323,11 +1750,7 @@ mod custody_tests {
             act, auth_principal, creation, first_grant, owner, speak,
         };
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("ActedChain"),
+        let (mut kernel, _) = WorldKernel::create(creation("ActedChain"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2346,9 +1769,9 @@ mod custody_tests {
         )
         .unwrap();
         let accepted = kernel.snapshot().unwrap();
-        let world_id = accepted.world_id;
+        let exported = kernel.export().unwrap();
         drop(kernel);
-        let reopened = WorldKernel::open(&path, world_id).expect("the acted chain recovers");
+        let reopened = WorldKernel::open(&exported).expect("the acted chain recovers");
         assert_eq!(reopened.snapshot().unwrap(), accepted);
         verify_state_shape(&reopened.state).expect("an honest event passes the shape check");
 
@@ -2367,67 +1790,6 @@ mod custody_tests {
         );
     }
 
-    /// Stores written at the previous schema ids (v8) are refused outright,
-    /// state row and commit row each on their own: reverting either constant
-    /// to v8 would let its half of the store in.
-    #[test]
-    fn ghostlight_state_and_commit_rows_are_refused() {
-        use crate::tests::{act, auth_principal, creation, first_grant, owner, speak};
-
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("SchemaV9"),
-            &auth_principal(owner()),
-        )
-        .unwrap();
-        let active = kernel.snapshot().unwrap();
-        let actor = active.subjects[0].id;
-        act(&mut kernel, actor, speak(first_grant(&active, actor), "Counted.")).unwrap();
-        let commits: Vec<WorldCommit> = kernel.journal.commits.values().cloned().collect();
-        let commit_rows = |schema: &str| -> Vec<CultCacheEnvelope> {
-            commits
-                .iter()
-                .map(|commit| envelope(COMMIT_ROW, schema, commit.command.id().key(), commit).unwrap())
-                .collect()
-        };
-        let state_row = |schema: &str| {
-            envelope(STATE_ROW, schema, kernel.state.world_id.key(), &kernel.state).unwrap()
-        };
-        assert_eq!(STATE_SCHEMA, "aetherlight.world_state.v1");
-        assert_eq!(COMMIT_SCHEMA, "aetherlight.world_commit.v1");
-        recover(
-            [commit_rows(COMMIT_SCHEMA), vec![state_row(STATE_SCHEMA)]].concat(),
-            None,
-        )
-        .expect("the current schema ids recover");
-
-        for (what, rows) in [
-            (
-                "ghostlight state row",
-                [
-                    commit_rows(COMMIT_SCHEMA),
-                    vec![state_row("ghostlight.world_state.consumer.v10")],
-                ]
-                .concat(),
-            ),
-            (
-                "ghostlight commit rows",
-                [
-                    commit_rows("ghostlight.world_commit.consumer.v10"),
-                    vec![state_row(STATE_SCHEMA)],
-                ]
-                .concat(),
-            ),
-        ] {
-            let error = recover(rows, None).unwrap_err();
-            let JournalError::Corrupt(message) = error else {
-                panic!("{what}: expected a corrupt store, got {error:?}");
-            };
-            assert!(message.contains("wrong schema"), "{what}: {message}");
-        }
-    }
-
     /// The event shape check holds for a silent act too: a non-speech event
     /// whose actor is no subject is corrupt, with no minted claim to catch it.
     #[test]
@@ -2438,10 +1800,7 @@ mod custody_tests {
         };
         use crate::{DecisionInvocation, Magnitude, ProposedEffect, Quantity, Role, RoleBinding, Target};
 
-        let directory = tempfile::tempdir().unwrap();
-        let (mut kernel, _) = WorldKernel::create(
-            directory.path().join("world.cc"),
-            creation("SilentForgery"),
+        let (mut kernel, _) = WorldKernel::create(creation("SilentForgery"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2495,11 +1854,9 @@ mod custody_tests {
     /// falsification.
     #[test]
     fn a_zero_or_dangling_holding_is_corrupt() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
         let (mut kernel, _) =
-            WorldKernel::create(&path, creation("Shape"), &authenticated)
+            WorldKernel::create(creation("Shape"), &authenticated)
                 .unwrap();
         let topology = admit_topology(&mut kernel);
         let custody = admit_custody(&mut kernel, &topology);
@@ -2553,12 +1910,8 @@ mod custody_tests {
     /// envelope is idempotent, and the whole chain still verifies.
     #[test]
     fn soul_replay_is_exact_after_every_custody_operation() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("EveryOperation"),
+        let (mut kernel, _) = WorldKernel::create(creation("EveryOperation"),
             &authenticated,
         )
         .unwrap();
@@ -2610,10 +1963,10 @@ mod custody_tests {
         let holdings = kernel.state.holdings.clone();
         let dependencies = kernel.state.dependencies.clone();
         let digest = kernel.state.state_digest.clone();
-        let world_id = accepted.world_id;
+        let exported = kernel.export().unwrap();
         drop(kernel);
 
-        let mut reopened = WorldKernel::open(&path, world_id).unwrap();
+        let mut reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.snapshot().unwrap(), accepted);
         assert_eq!(reopened.state.holdings, holdings);
         assert_eq!(reopened.state.dependencies, dependencies);
@@ -2629,12 +1982,8 @@ mod custody_tests {
     /// referential integrity the operation arm enforces at admission.
     #[test]
     fn soul_a_dependency_on_an_absent_or_wrong_kind_target_is_corrupt() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
         let authenticated = auth_principal(owner());
-        let (mut kernel, _) = WorldKernel::create(
-            &path,
-            creation("DependencyShape"),
+        let (mut kernel, _) = WorldKernel::create(creation("DependencyShape"),
             &authenticated,
         )
         .unwrap();
@@ -2678,7 +2027,7 @@ mod custody_tests {
 
     /// A world with one routine, one past-due goal, and a commit chain that
     /// reaches them: the fixture the two clock-forgery checks below need.
-    fn ticking_world(path: &std::path::Path) -> (WorldKernel, super::super::SubjectId) {
+    fn ticking_world() -> (WorldKernel, super::super::SubjectId) {
         use crate::tests::{auth_principal, command, operations, owner};
         use crate::{
             AuthenticatedCaller, CallerId, CommandBody, CommitmentKind, ComponentOp,
@@ -2687,7 +2036,6 @@ mod custody_tests {
 
         let authenticated = auth_principal(owner());
         let (mut kernel, _) = WorldKernel::create(
-            path,
             crate::tests::creation("Ticking"),
             &authenticated,
         )
@@ -2750,13 +2098,11 @@ mod custody_tests {
     fn soul_a_forged_tick_motion_does_not_replay() {
         use crate::{FictionalMinutes, PressureMagnitude, PressureSource};
 
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (kernel, subject) = ticking_world(&path);
+        let (kernel, subject) = ticking_world();
         let WorldEffect::TimeAdvanced { motion, .. } = &kernel
             .journal
             .commits
-            .values()
+            .iter()
             .max_by_key(|commit| commit.resulting_revision)
             .expect("the tick's commit")
             .effect
@@ -2767,7 +2113,6 @@ mod custody_tests {
         assert!(!motion.pressed.is_empty(), "the past-due goal pressed");
 
         let forge = |rewrite: fn(&mut crate::Motion)| {
-            let mut forged_head = kernel.state.clone();
             let mut forged_commits = kernel.journal.commits.clone();
             let forged = last_commit(&mut forged_commits);
             let WorldEffect::TimeAdvanced { motion, .. } = &mut forged.effect else {
@@ -2775,8 +2120,7 @@ mod custody_tests {
             };
             rewrite(motion);
             forged.digest = commit_digest(forged).unwrap();
-            forged_head.last_commit_digest = Some(forged.digest.clone());
-            verify_history(&forged_head, &forged_commits)
+            reopen(&forged_commits)
         };
 
         let rewrites: [fn(&mut crate::Motion); 4] = [
@@ -2809,9 +2153,7 @@ mod custody_tests {
     /// constructor enforces, so the forged row is refused directly.
     #[test]
     fn soul_a_zero_period_is_refused_by_the_shape_check() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("world.cc");
-        let (kernel, subject) = ticking_world(&path);
+        let (kernel, subject) = ticking_world();
 
         // The forgery an in-crate caller cannot write: `TickMinutes::new`
         // refuses zero, and the field is private, so the only door is serde.
@@ -2838,19 +2180,6 @@ mod custody_tests {
             matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
             "verify_state_shape admitted a period outside 1..=MAX_ROUTE_COST"
         );
-
-        // The commit chain refuses it too.
-        let commits: Vec<CultCacheEnvelope> = kernel
-            .journal
-            .commits
-            .values()
-            .map(|commit| {
-                envelope(COMMIT_ROW, COMMIT_SCHEMA, commit.command.id().key(), commit).unwrap()
-            })
-            .collect();
-        let mut rows = commits;
-        rows.push(envelope(STATE_ROW, STATE_SCHEMA, forged.world_id.key(), &forged).unwrap());
-        assert!(matches!(recover(rows, None), Err(JournalError::Corrupt(_))));
     }
 
 }
