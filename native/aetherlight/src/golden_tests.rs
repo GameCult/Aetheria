@@ -25,7 +25,7 @@ use std::time::Instant;
 /// two-band `toss` is declared, granted to The Human and used three times (so
 /// the band draw is recorded), a Routine is placed on The Witness, thirty minutes roll it, and The Human
 /// invokes `convene`, which it does not hold.
-fn golden_session() -> (WorldKernel, String) {
+pub(super) fn golden_session() -> (WorldKernel, String) {
     let (mut kernel, _) = WorldKernel::create(creation("Golden"), &auth_principal(owner()))
         .expect("the fixture world is created");
     let human = subject_by_label(&kernel.state, "The Human");
@@ -487,4 +487,105 @@ fn clockwork_commit_cost() {
         ticks_ms[2] / ticks_ms[0],
         speeches_ms[2] / speeches_ms[0]
     );
+}
+
+/// A document written back to what it was costs no digest: the transaction
+/// logged it, and folding finds nothing changed. A real change costs two (the
+/// old, subtracted, and the new, added) and moves the accumulator.
+#[test]
+fn a_touched_document_written_back_costs_no_digest() {
+    let (mut kernel, _) = golden_session();
+    let witness = subject_by_label(&kernel.state, "The Witness");
+    let before = kernel.state.accumulator.clone();
+    let digests = || crate::digest::DOC_DIGESTS.with(|count| count.get());
+
+    kernel.state.begin();
+    let now = kernel.state.header.now;
+    kernel.state.header.get_mut().now = now;
+    kernel.state.commitments.get_mut(&witness).expect("the witness holds a routine");
+    crate::digest::DOC_DIGESTS.with(|count| count.set(0));
+    assert_eq!(kernel.state.folded().unwrap(), before);
+    assert_eq!(digests(), 0, "an unchanged document was digested");
+
+    kernel.state.header.get_mut().now = FictionalMinutes(now.0 + 1);
+    crate::digest::DOC_DIGESTS.with(|count| count.set(0));
+    assert_ne!(kernel.state.folded().unwrap(), before);
+    assert_eq!(digests(), 2, "an updated document is its old digest and its new");
+    kernel.state.rollback();
+    assert_eq!(kernel.state.header.now, now);
+}
+
+/// A transaction is never opened over an open one, nor over a stray write.
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "a transaction is open")]
+fn begin_refuses_an_open_header_log() {
+    let (mut kernel, _) = golden_session();
+    kernel.state.header.get_mut();
+    kernel.state.begin();
+}
+
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic]
+fn begin_refuses_an_open_partition_log() {
+    let (mut kernel, _) = golden_session();
+    let witness = subject_by_label(&kernel.state, "The Witness");
+    kernel.state.commitments.get_mut(&witness);
+    kernel.state.begin();
+}
+
+/// The snapshot's `known_by` is the knowledge partition read the other way:
+/// exactly the subjects holding a row for the fact.
+#[test]
+fn a_fact_is_known_by_exactly_the_subjects_holding_a_row() {
+    let (kernel, _) = golden_session();
+    let snapshot = kernel.snapshot().unwrap();
+    assert!(snapshot.facts.iter().any(|fact| !fact.known_by.is_empty()));
+    for fact in &snapshot.facts {
+        let holders: Vec<_> = kernel
+            .state
+            .subjects
+            .keys()
+            .filter(|subject| kernel.state.knowledge.contains_key(&(**subject, fact.id)))
+            .copied()
+            .collect();
+        assert_eq!(fact.known_by, holders);
+    }
+}
+
+/// A knowledge row names a live subject and a canonical fact, each judged on
+/// its own.
+#[test]
+fn a_knowledge_row_without_a_subject_or_a_fact_is_corrupt() {
+    use crate::tests::subject_by_label;
+    let (kernel, _) = golden_session();
+    let witness = subject_by_label(&kernel.state, "The Witness");
+    let (fact, held) = kernel
+        .state
+        .knowledge_of(witness)
+        .next()
+        .map(|(fact, held)| (*fact, *held))
+        .expect("the witness knows something");
+    crate::journal::verify_state_shape(&kernel.state).expect("the honest state passes");
+
+    let mut no_subject = kernel.state.clone();
+    no_subject.knowledge.insert((crate::SubjectId::issue(), fact), held);
+    assert!(crate::journal::verify_state_shape(&no_subject).is_err());
+
+    let mut no_fact = kernel.state.clone();
+    no_fact.knowledge.insert((witness, crate::EntityId::issue()), held);
+    assert!(crate::journal::verify_state_shape(&no_fact).is_err());
+}
+
+/// The text a document is keyed by is the contract the digest hashes: an id's
+/// uuid, a pair's two joined by a slash, a grievance kind's name.
+#[test]
+fn document_keys_are_canonical_text() {
+    use crate::docs::DocKey;
+    let subject = crate::SubjectId::issue();
+    let fact = crate::EntityId::issue();
+    assert_eq!(subject.key_text(), subject.0.to_string());
+    assert_eq!((subject, fact).key_text(), format!("{}/{}", subject.0, fact.0));
+    assert_eq!(crate::patch::GrievanceKindName("theft".into()).key_text(), "theft");
 }

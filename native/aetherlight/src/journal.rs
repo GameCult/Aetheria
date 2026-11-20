@@ -931,6 +931,58 @@ mod tests {
         assert!(matches!(reopen(&v1), Err(JournalError::Corrupt(_))));
     }
 
+    /// The replay-side future check reads only the subjects the transaction
+    /// touched, and a key a subject already held is not newly born.
+    #[test]
+    fn a_commitment_born_due_is_corrupt_only_for_a_touched_new_key() {
+        use crate::tests::subject_by_label;
+        let (kernel, _) = crate::golden_tests::golden_session();
+        let witness = subject_by_label(&kernel.state, "The Witness");
+        let held = kernel
+            .state
+            .commitments
+            .get(&witness)
+            .cloned()
+            .expect("the witness holds a routine");
+        let mut early = kernel.state.clone();
+        early.header.get_mut().now = crate::FictionalMinutes(0);
+        let mut late = kernel.state.clone();
+        late.header.get_mut().now = crate::FictionalMinutes(u64::MAX);
+
+        assert!(verify_commitments_are_future(&early, &[(witness, None)]).is_ok());
+        assert!(matches!(
+            verify_commitments_are_future(&late, &[(witness, None)]),
+            Err(JournalError::Corrupt(_))
+        ));
+        assert!(verify_commitments_are_future(&late, &[(witness, Some(held))]).is_ok());
+        assert!(verify_commitments_are_future(&late, &[]).is_ok());
+    }
+
+    /// A committed command names the exact world and revision it applies to;
+    /// each is judged on its own.
+    #[test]
+    fn a_command_aimed_at_another_world_or_revision_is_corrupt() {
+        let kernel = clock_history();
+        for aim_at_world in [true, false] {
+            let mut forged = kernel.journal.commits.clone();
+            let last = forged.last_mut().unwrap();
+            let CommittedCommand::WorldCommand(command) = &mut last.command else {
+                panic!("the last commit is a world command");
+            };
+            if aim_at_world {
+                command.world_id = WorldId::nil_for_test();
+            } else {
+                command.expected_revision += 1;
+            }
+            last.digest = commit_digest(last).unwrap();
+            assert!(
+                matches!(reopen(&forged), Err(JournalError::Corrupt(_))),
+                "a command aimed at another {} was admitted",
+                if aim_at_world { "world" } else { "revision" }
+            );
+        }
+    }
+
     /// A stored digest is checked against the commit it seals, on its own:
     /// flipping one character of any commit's digest, with nothing re-sealed,
     /// leaves only the digest clause to refuse it (the last commit and a lone
