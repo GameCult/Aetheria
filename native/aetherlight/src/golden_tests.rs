@@ -1566,3 +1566,34 @@ fn releasing_a_dependency_removes_the_pressure_it_raised() {
     let reopened = WorldKernel::open(&kernel.export().unwrap()).expect("the world reopens");
     assert_eq!(reopened.state, kernel.state);
 }
+
+/// A bulk commit (genesis, a large patch, every replayed commit at open) moves
+/// many placements and touches many dependencies at once. Folding the views
+/// for it reads rows in proportion to what the commit changed, not to changed
+/// targets times touched dependencies: every person moves and binds a route in
+/// one transaction, and 1600 persons read under six times the rows of 400.
+#[test]
+fn folding_a_bulk_commit_reads_rows_in_proportion_to_the_change() {
+    use crate::patch::Position;
+    use crate::DependencyTarget;
+    let mut rows = Vec::new();
+    for persons in [400usize, 1600] {
+        let (kernel, people, _) = clockwork_world(persons);
+        let mut state = kernel.state;
+        let route = *state.edges.keys().next().expect("a route");
+        let place = state.positions[&people[0]].place;
+        state.begin();
+        for person in people.iter().filter(|person| state.positions.contains_key(person)).copied().collect::<Vec<_>>() {
+            state.positions.insert(person, Position { place });
+            state.dependencies.entry(person).or_default().insert(DependencyTarget::Route(route));
+        }
+        let mut views = std::mem::take(&mut state.views);
+        let before = crate::docs::rows_read();
+        views.fold(&state);
+        rows.push(crate::docs::rows_read() - before);
+        state.views = views;
+        state.rollback();
+    }
+    assert!(rows[1] > rows[0], "{rows:?}: a bigger commit read no more");
+    assert!(rows[1] < rows[0] * 6, "the fold read {} rows at 400 persons and {} at 1600", rows[0], rows[1]);
+}

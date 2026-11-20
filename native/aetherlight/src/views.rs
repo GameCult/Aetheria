@@ -57,17 +57,6 @@ pub(crate) fn readable(state: &WorldState) -> bool {
         && state.positions.is_clean()
 }
 
-/// The subjects with a dependency on `target`, from the dependencies
-/// partition's `DependsOn` index (true mid-transaction).
-fn dependents(state: &WorldState, target: DependencyTarget) -> Vec<SubjectId> {
-    state
-        .dependencies
-        .indexed(target..=target)
-        .into_iter()
-        .map(|(_, subject)| subject)
-        .collect()
-}
-
 impl Views {
     /// Subjects with a live commitment due at or before `to`.
     pub(crate) fn due_by(&self, to: FictionalMinutes) -> BTreeSet<SubjectId> {
@@ -152,8 +141,11 @@ impl Views {
             .map(|(edge, _, _)| DependencyTarget::Route(*edge))
             .chain(state.positions.changes().map(|(subject, _, _)| DependencyTarget::Subject(*subject)))
             .collect();
+        // A changed dependencies key is already in `rejudged`, so the dependents
+        // left to judge are the unchanged ones, which the committed index names
+        // without walking the log once per target.
         for target in moved {
-            for dependent in dependents(state, target) {
+            for (_, dependent) in state.dependencies.indexed_unchanged(target..=target) {
                 if rejudged.contains(&dependent) {
                     continue;
                 }
@@ -225,7 +217,14 @@ impl Views {
             .collect()
     }
 
+    /// The subjects with a dependency on `target`, from the dependencies
+    /// partition's `DependsOn` index (true mid-transaction).
     pub(crate) fn dependents_of(state: &WorldState, target: DependencyTarget) -> Vec<SubjectId> {
-        dependents(state, target)
+        state
+            .dependencies
+            .indexed(target..=target)
+            .into_iter()
+            .map(|(_, subject)| subject)
+            .collect()
     }
 }
