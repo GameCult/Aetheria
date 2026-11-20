@@ -462,9 +462,63 @@ session, the populated worlds and forty clockwork commits. `indexes_are_derived`
 rebuilds every index from its map after each commit, after reopen and after each
 failed apply; `a_corrupted_index_is_detected` damages each index both ways.
 
-Reads that still scan, each with its owner: `derive_motion`'s dependencies loop and
-`snapshot` (the host's whole-world projection, never on the commit path); the
-resolver's reads of the whole world in `AdmitPatch`
-(`aetherlight-resolver-reads-world`); `aetherlight-cross-partition-views`. The
+Reads that still scan, each with its owner: `snapshot` (the host's whole-world
+projection, never on the commit path); the resolver's reads of the whole world in
+`AdmitPatch` (`aetherlight-resolver-reads-world`). The
 "Timing" paragraph of AL3b above is superseded: the gate it deferred is
 `read_work_is_equal_at_100_and_1600`.
+
+## Cut AL3d-2: cross-partition views
+
+Authority: cut `aetherlight-cross-partition-views` r1 of campaign
+`aetheria-release`; rulings `cultnet-scale-is-not-negotiable`,
+`aetherlight-narrative-state-owner`, `terminus-clockwork-world`,
+`dialogue-is-world-action`. Base `609b3ba5e`. No digested byte moves:
+`fixtures/golden.digests` is identical at every commit of the cut.
+
+Two questions the clock asks are joins, so no one partition's index answers them
+(a `Docs` projection is a pure function of one document). Whether a dependency is
+failing joins `dependencies` with `edges`, `holdings` and `positions`, and two of
+its arms are anti-joins (a resource not held, a subject not placed); whether a due
+commitment is live joins `commitments` with `subjects.retired`. `views.rs` owns
+both as `Views { live_due, failing }`: `live_due` is the subjects with a
+commitment due at each minute, retired subjects excluded, and `failing` is the
+(dependent, target) pairs failing a live dependent.
+
+`Views` is derived state, a sibling of the `Docs` indexes and not a projection: a
+field of `WorldState` outside `partitions()`, so not digested, not encoded and
+never exported; its `PartialEq` is always true, so equality is the documents'.
+Its one writer is `Views::fold`, called by `WorldState::finish` before the logs
+close, from the `changes()` of the six partitions the views join. A subject whose
+commitments or retirement changed loses its due points and regains them if it is
+live; a subject whose dependencies, holdings or retirement changed has its
+failing rows re-judged; a changed route or placement re-judges its dependents,
+which the new `DependsOn` index on `dependencies` names. Rollback never touches
+it, because the view never saw the transaction; genesis and every replayed
+commit close through the same `finish`, so open rebuilds it by replay.
+
+`derive_motion` reads the views only with clean logs (`debug_assert` on the six
+partitions; both callers satisfy it: `reduce`, and `apply_effect`'s
+`TimeAdvanced` arm before its first write). `DueAt` is deleted, so the due
+question has one owner, and `motion_of` no longer walks every dependency row or
+visits retired subjects' past-due routines. Motion is byte-identical. The old
+walks are `cfg(test)`: `derive_motion_by_scan` over every promisor and every
+dependency, and `Views::rebuild`. A test that forges partitions and then calls
+`derive_motion` must close its writes through `finish`; a forged state that never
+finishes has a stale view by design, the same contract as a `Docs` index.
+
+Oracles: `views_are_derived` (the view is the rebuild after every walked commit,
+reopen and failed apply, over a scenario world that closes and reopens a route,
+empties and refills a holding, removes a depended-on subject's position, releases
+a dependency and retires a subject holding past-due routines and a failing
+dependency), `view_reads_equal_reference_scans`, `a_corrupted_view_is_detected`
+and a debug refusal of a read with an open log. View reads are counted where they
+are owned, like `Docs` reads, so the gate sees them.
+
+The gate world grows with them: a dependency per person (to the previous live
+person, so each stays satisfied), two failing (persons 0 and 1 on the last
+place's grain), a forum per place, every routine checking that its person holds
+their place's grain, every tenth person from the 35th retired, and the clock
+moved one period so every routine is past due. The fixed-count pins on
+`dependencies` and `redress` are gone; `read_work_is_equal_at_100_and_1600` now
+asserts the population at scale.

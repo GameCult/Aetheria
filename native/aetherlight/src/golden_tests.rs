@@ -261,15 +261,26 @@ fn incremental_digest_equals_full_recompute() {
 /// listeners. Every partition a read index serves is populated, because an
 /// empty one hides its scan: one route between consecutive places, one
 /// `Reach::Place` channel per place controlled by its first person, one
-/// institution per place with a warden office held by that person, and two
-/// Obligations past due from the first minute, so a tick presses two sources
-/// at every size.
+/// institution per place with a warden office held by that person and a forum
+/// for the place's grievances, and two Obligations past due from the first
+/// minute, so a tick presses two sources at every size.
+///
+/// Dependencies, retirement and checks grow with the world too, because
+/// a partition that stays small hides the walk of it. Every person binds to the
+/// previous live person (a satisfied dependency), and persons 0 and 1 also to
+/// the last place's grain, which they do not hold: two failing dependencies at
+/// every size. Every tenth person from the 35th retires (never a controller or
+/// incumbent, who are place * 10), and every routine checks that its person
+/// holds their place's grain. The clock then moves one period, so every
+/// routine is past due: the live ones roll once, a retired person's stays due
+/// for good, and a one-minute tick from there rolls two routines at every size.
 fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate::AffordanceId) {
     use crate::patch::kernel_speak_grant;
     use crate::patch::{
         AccessKind, AuthoredSource, AuthorityGrantRef, AuthorityTargetRef, ChannelDeclaration,
-        DependencyRef, EntityDeclaration, EvidenceRef, FactDeclaration, FactStandingRef, Quantity,
-        ReachRef, RouteDeclaration, SubjectDeclaration,
+        DependencyRef, EntityDeclaration, EvidenceRef, FactDeclaration, FactStandingRef,
+        GrievanceKindName, PreconditionRef, Quantity, ReachRef, RouteDeclaration,
+        SubjectDeclaration,
     };
     use crate::tests::{LEVY_KIND, TITHE_RECEIPT, WARDEN_OFFICE, authority_kind, office};
     use crate::Confidence;
@@ -338,9 +349,14 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             delegated: BTreeSet::from([authority_kind(LEVY_KIND)]),
         });
         offices.push(ComponentOp::InstallIncumbent {
-            institution: Ref::Draft(institution),
+            institution: Ref::Draft(institution.clone()),
             office: office(WARDEN_OFFICE),
             incumbent: draft_person(place * 10),
+        });
+        offices.push(ComponentOp::OpenForum {
+            grievance: GrievanceKindName(format!("grievance_{place}")),
+            forum: Ref::Draft(institution),
+            standing: AuthorityTargetRef::PlaceSubtree(draft_place(place)),
         });
     }
     for person in 0..persons {
@@ -368,14 +384,26 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             import_key: None,
         }));
     }
-    // Two dependencies, a fixed count: `derive_motion` still walks every
-    // dependency row (follow-up aetherlight-cross-partition-views), so a
-    // dependency per person would grow a tick's reads with the world.
-    for person in 0..2 {
-        offices.push(ComponentOp::Bind {
-            subject: draft_person(person),
-            target: DependencyRef::Subject(draft_person(2)),
-        });
+    let retires = |person: usize| person >= 35 && (person - 35) % 10 == 0;
+    for person in 0..persons {
+        if person > 0 {
+            // The previous person, or the one before when that one retires and
+            // so leaves the topology: the dependency stays satisfied.
+            let previous = if retires(person - 1) { person - 2 } else { person - 1 };
+            offices.push(ComponentOp::Bind {
+                subject: draft_person(person),
+                target: DependencyRef::Subject(draft_person(previous)),
+            });
+        }
+        if person < 2 {
+            offices.push(ComponentOp::Bind {
+                subject: draft_person(person),
+                target: DependencyRef::Resource(Ref::Draft(DraftHandle::new(format!(
+                    "grain-{}",
+                    places - 1
+                )))),
+            });
+        }
     }
     let (mut kernel, _) = WorldKernel::create(
         CreateWorld {
@@ -395,6 +423,13 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
         .map(|person| subject_by_label(&kernel.state, &format!("Person {person}")))
         .collect();
     let period = (persons / 2) as u64;
+    let grain_of_place: std::collections::BTreeMap<String, crate::EntityId> = kernel
+        .state
+        .entities
+        .iter()
+        .filter(|(_, record)| record.kind == EntityKind::Resource)
+        .map(|(id, record)| (record.label.clone(), *id))
+        .collect();
     let mut routines: Vec<ComponentOp> = people
         .iter()
         .enumerate()
@@ -404,7 +439,10 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
             kind: CommitmentKind::Routine,
             due: FictionalMinutes(1 + index as u64 % period),
             period: Some(TickMinutes::new(period as u32).unwrap()),
-            checks: Vec::new(),
+            checks: vec![PreconditionRef::Holds {
+                resource: Ref::Existing(grain_of_place[&format!("Grain {}", index / 10)]),
+                at_least: Quantity(1),
+            }],
             statement: Statement::new("Keeps the hour.").unwrap(),
         })
         .collect();
@@ -426,6 +464,21 @@ fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate
     kernel
         .submit(placing, &AuthenticatedCaller::verified_play())
         .expect("the routines are placed");
+    let retired: Vec<ComponentOp> = (0..persons)
+        .filter(|person| retires(*person))
+        .map(|person| ComponentOp::Retire { subject: Ref::Existing(people[person]) })
+        .collect();
+    if !retired.is_empty() {
+        let envelope = clockwork_envelope(&kernel, operations(retired));
+        kernel
+            .submit(envelope, &AuthenticatedCaller::verified_play())
+            .expect("the retirements land");
+    }
+    // One period on: every routine is past due, the live ones roll once.
+    let envelope = clockwork_envelope(&kernel, tick_body(period as u32));
+    kernel
+        .submit(envelope, &AuthenticatedCaller::verified_play())
+        .expect("the clock moves one period");
     let speak_entry = *kernel
         .state
         .affordance_catalog
@@ -904,17 +957,32 @@ fn read_work_is_equal_at_100_and_1600() {
         let state = &kernel.state;
         assert!(state.holdings.len() >= persons && state.knowledge.len() >= persons);
         assert!(state.facts.len() >= persons / 10 && state.channels.len() == persons / 10);
-        assert!(state.positions.len() >= persons && state.commitments.len() >= persons);
+        let retired: Vec<_> =
+            people.iter().copied().filter(|person| crate::is_retired(state, *person)).collect();
+        assert!(retired.len() >= persons / 20, "{persons} persons: too few retired subjects");
+        assert_eq!(state.positions.len() + retired.len(), persons, "a retired subject has no position");
+        assert!(state.commitments.len() >= persons);
+        for person in &retired {
+            assert!(
+                state.commitments[person].values().any(|commitment| {
+                    commitment.kind == CommitmentKind::Routine && commitment.due <= state.header.now
+                }),
+                "{persons} persons: a retired subject holds no past-due routine"
+            );
+        }
+        for held in state.commitments.values() {
+            for commitment in held.values().filter(|c| c.kind == CommitmentKind::Routine) {
+                assert!(
+                    matches!(commitment.checks.as_slice(), [crate::patch::BoundPrecondition::Holds { .. }]),
+                    "{persons} persons: a routine without its Holds check"
+                );
+            }
+        }
         assert!(state.edges.len() + 1 == persons / 10 && state.selection.len() == persons / 10);
-        // Not at scale, on purpose: `derive_motion` still walks every dependency
-        // row, so a dependency per person would grow a tick's reads. The owner
-        // is follow-up aetherlight-cross-partition-views; when it lands this
-        // count flips to world scale (`>= persons`) so a scan of the partition
-        // is seen.
-        assert_eq!(state.dependencies.len(), 2);
-        // The gate world opens no forum, so `redress` is empty here; the same
-        // follow-up owns populating it at scale beside dependencies.
-        assert_eq!(state.redress.len(), 0);
+        // A dependency per person and a forum per place, so a walk of either
+        // is seen; the clock reads only the two that fail.
+        assert!(state.dependencies.len() >= persons);
+        assert_eq!(state.redress.len(), persons / 10);
         let mut counts = Vec::new();
         for _ in 0..3 {
             counts.push(submit_counting_rows(&mut kernel, tick_body(1)));
@@ -1056,7 +1124,7 @@ fn walked_states() -> Vec<(String, crate::WorldState)> {
             tick_body(1)
         } else {
             CommandBody::Act {
-                actor: people[step],
+                actor: people[step % 30],
                 invocation: speak(speak_entry, &format!("Speech {step}.")),
             }
         };
