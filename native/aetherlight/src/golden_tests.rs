@@ -1518,3 +1518,51 @@ fn a_view_read_with_an_open_log_is_refused() {
     kernel.state.positions.remove(&people[3]);
     crate::clock::derive_motion(&kernel.state, FictionalMinutes(1));
 }
+
+/// A dependency's pressure ends with the dependency: bind to a resource the
+/// subject does not hold, let a tick press it, release it, and the row is gone
+/// and the world still reopens from its export.
+#[test]
+fn releasing_a_dependency_removes_the_pressure_it_raised() {
+    use crate::patch::DependencyRef;
+    use crate::{DependencyTarget, PressureSource};
+    let (mut kernel, people, _) = clockwork_world(20);
+    let grain_1 = *kernel
+        .state
+        .entities
+        .iter()
+        .find(|(_, record)| record.label == "Grain 1")
+        .expect("a declared resource")
+        .0;
+    let target = DependencyTarget::Resource(grain_1);
+    let pressed = PressureSource::Dependency(target);
+    let submit = |kernel: &mut WorldKernel, body| {
+        let envelope = clockwork_envelope(kernel, body);
+        kernel.submit(envelope, &AuthenticatedCaller::verified_play()).expect("the command lands");
+    };
+    submit(
+        &mut kernel,
+        operations(vec![ComponentOp::Bind {
+            subject: Ref::Existing(people[6]),
+            target: DependencyRef::Resource(Ref::Existing(grain_1)),
+        }]),
+    );
+    submit(&mut kernel, tick_body(1));
+    assert!(
+        kernel.state.pressures.get(&people[6]).is_some_and(|held| held.contains_key(&pressed)),
+        "the tick pressed the failing dependency"
+    );
+    submit(
+        &mut kernel,
+        operations(vec![ComponentOp::Release {
+            subject: Ref::Existing(people[6]),
+            target: DependencyRef::Resource(Ref::Existing(grain_1)),
+        }]),
+    );
+    assert!(
+        kernel.state.pressures.get(&people[6]).is_none_or(|held| !held.contains_key(&pressed)),
+        "the released dependency's pressure row stayed"
+    );
+    let reopened = WorldKernel::open(&kernel.export().unwrap()).expect("the world reopens");
+    assert_eq!(reopened.state, kernel.state);
+}
