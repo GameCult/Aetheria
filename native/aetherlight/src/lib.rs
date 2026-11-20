@@ -1676,16 +1676,17 @@ fn admit_resolved(
     apply_operations(state, &resolved.operations, &resolved.evidence, resolves_to)
 }
 
-/// The component writer for every lane: snapshot the before-totals for every
-/// resource the operations name, apply each operation, accumulate the ledger
-/// deltas, and prove conservation once. Declaration admission calls it after its
-/// declaration loops; an exercised affordance's lowered effects call it
-/// directly. One writer, one conservation statement.
+/// The component writer for every lane: apply each operation, accumulate the
+/// ledger deltas, and prove conservation once. Declaration admission calls it
+/// after its declaration loops; an exercised affordance's lowered effects call
+/// it directly. One writer, one conservation statement.
 ///
 /// A forged effect reaches this function without ever passing the resolver, so
-/// conservation is re-derived over the committed partitions, against the same
-/// equation, with `before` read from state rather than from anything the effect
-/// asserts.
+/// conservation and disjointness are re-derived here, from the transaction's own
+/// log: only a holder the operations wrote can change either answer, because
+/// every other holder appears on both sides of the equation and no other
+/// jurisdiction moved. `before` is what each written holder held when this
+/// function was entered, never anything the effect asserts.
 fn apply_operations(
     state: &mut WorldState,
     operations: &[ResolvedOp],
@@ -1695,9 +1696,16 @@ fn apply_operations(
     let mut deltas: BTreeMap<EntityId, LedgerDelta> = BTreeMap::new();
     for operation in operations {
         for resource in operation_resources(operation) {
-            deltas.entry(resource).or_default().before = resource_total(state, resource);
+            deltas.entry(resource).or_default();
         }
     }
+    // Holders already written when the operations begin (the declarations
+    // above, normally none): what they hold now is their `before`.
+    let at_entry: BTreeMap<SubjectId, Option<BTreeMap<EntityId, Quantity>>> = state
+        .holdings
+        .changes()
+        .map(|(holder, _, now)| (*holder, now.cloned()))
+        .collect();
     for operation in operations {
         apply_operation(state, operation, evidence, resolves_to)?;
         match operation {
@@ -1722,15 +1730,25 @@ fn apply_operations(
             _ => {}
         }
     }
-    for (resource, delta) in &mut deltas {
-        delta.after = resource_total(state, *resource);
+    let held_of = |held: Option<&BTreeMap<EntityId, Quantity>>, resource: &EntityId| {
+        held.and_then(|held| held.get(resource)).map_or(0, |quantity| u128::from(quantity.0))
+    };
+    for (holder, logged, now) in state.holdings.changes() {
+        let before = match at_entry.get(holder) {
+            Some(recorded) => recorded.as_ref(),
+            None => logged,
+        };
+        for (resource, delta) in &mut deltas {
+            delta.before += held_of(before, resource);
+            delta.after += held_of(now, resource);
+        }
     }
     if patch::check_ledger(&deltas).is_some() {
         return Err(KernelError::Invariant("custody does not conserve".into()));
     }
-    // Disjointness, re-derived over the committed partitions for the same
-    // reason conservation is: a forged effect reaches this function without
-    // passing the resolver.
+    // Disjointness, re-derived for the same reason conservation is: a forged
+    // effect reaches this function without passing the resolver. Only a holder
+    // the transaction touched can have gained an overlap.
     if operations.iter().any(|operation| {
         matches!(
             operation,
@@ -1738,13 +1756,44 @@ fn apply_operations(
                 | ResolvedOp::OpenOffice { .. }
                 | ResolvedOp::InstallIncumbent { .. }
         )
-    }) && overlapping_holder(state).is_some()
+    }) && touched_holders(state).into_iter().any(|holder| holder_overlaps(state, holder))
     {
         return Err(KernelError::Invariant(
             "one subject holds two overlapping jurisdictions of one kind".into(),
         ));
     }
     Ok(())
+}
+
+/// Every subject whose effective authority the open transaction may have
+/// changed: whose own grants were written, whose offices were written (old
+/// incumbent and new), and the incumbents of an institution whose grants were
+/// written or whose retirement flipped, because an office lends what its
+/// institution holds.
+fn touched_holders(state: &WorldState) -> BTreeSet<SubjectId> {
+    let mut touched = BTreeSet::new();
+    let mut institutions = BTreeSet::new();
+    for (holder, _, _) in state.authority.changes() {
+        touched.insert(*holder);
+        institutions.insert(*holder);
+    }
+    for (institution, old, new) in state.selection.changes() {
+        for offices in [old, new].into_iter().flatten() {
+            touched.extend(offices.values().filter_map(|office| office.incumbent));
+        }
+        institutions.insert(*institution);
+    }
+    for (subject, old, new) in state.subjects.changes() {
+        if old.map(|record| record.retired) != new.map(|record| record.retired) {
+            institutions.insert(*subject);
+        }
+    }
+    for institution in institutions {
+        if let Some(offices) = state.selection.get(&institution) {
+            touched.extend(offices.values().filter_map(|office| office.incumbent));
+        }
+    }
+    touched
 }
 
 /// Every resource an operation names, so `admit_resolved` can read its committed
@@ -1764,7 +1813,10 @@ fn operation_resources(operation: &ResolvedOp) -> Vec<EntityId> {
     }
 }
 
-fn resource_total(state: &WorldState, resource: EntityId) -> u128 {
+/// What `apply_operations` sums before and after: every holder. Conservation
+/// reads only the holders a transaction wrote, and this is the reference.
+#[cfg(test)]
+fn resource_total_by_scan(state: &WorldState, resource: EntityId) -> u128 {
     state
         .holdings
         .values()
@@ -2932,14 +2984,17 @@ fn overlapping_holder(state: &WorldState) -> Option<SubjectId> {
                 .filter_map(|office| office.incumbent),
         )
         .collect();
-    holders.into_iter().find(|holder| {
-        let effective: Vec<AuthorityGrant> =
-            subject_authority(state, *holder).into_iter().collect();
-        effective.iter().enumerate().any(|(index, one)| {
-            effective[index + 1..].iter().any(|other| {
-                one.kind == other.kind
-                    && patch::targets_overlap(&state.entities, one.over, other.over)
-            })
+    holders.into_iter().find(|holder| holder_overlaps(state, *holder))
+}
+
+/// Whether one subject's effective authority holds two grants of one kind over
+/// overlapping ground. The pairwise check `overlapping_holder` runs over every
+/// holder, and `apply_operations` over the holders a transaction touched.
+fn holder_overlaps(state: &WorldState, holder: SubjectId) -> bool {
+    let effective: Vec<AuthorityGrant> = subject_authority(state, holder).into_iter().collect();
+    effective.iter().enumerate().any(|(index, one)| {
+        effective[index + 1..].iter().any(|other| {
+            one.kind == other.kind && patch::targets_overlap(&state.entities, one.over, other.over)
         })
     })
 }
@@ -6145,7 +6200,7 @@ mod custody_tests {
 
         assert_eq!(holding(&kernel, custody.holder, custody.tithe), 4);
         assert_eq!(holding(&kernel, custody.counterparty, custody.tithe), 3);
-        assert_eq!(resource_total(&kernel.state, custody.tithe), 7);
+        assert_eq!(resource_total_by_scan(&kernel.state, custody.tithe), 7);
         assert_eq!(kernel.state.entities, entities);
         assert_eq!(kernel.state.edges, edges);
         assert_eq!(kernel.state.positions, positions);
@@ -6209,8 +6264,8 @@ mod custody_tests {
 
         assert_eq!(holding(&kernel, custody.holder, custody.tithe), 2);
         assert_eq!(holding(&kernel, custody.holder, custody.ingot), 5);
-        assert_eq!(resource_total(&kernel.state, custody.tithe), 2);
-        assert_eq!(resource_total(&kernel.state, custody.ingot), 5);
+        assert_eq!(resource_total_by_scan(&kernel.state, custody.tithe), 2);
+        assert_eq!(resource_total_by_scan(&kernel.state, custody.ingot), 5);
     }
 
     #[test]
@@ -6482,13 +6537,13 @@ mod custody_tests {
         // The opening balance was created by `Admit` alone: before is zero,
         // admitted is the balance, and the total equals the sum of the two.
         assert_eq!(
-            resource_total(&kernel.state, custody.tithe),
+            resource_total_by_scan(&kernel.state, custody.tithe),
             u128::from(OPENING_BALANCE)
         );
-        assert_eq!(resource_total(&kernel.state, custody.ingot), 0);
+        assert_eq!(resource_total_by_scan(&kernel.state, custody.ingot), 0);
 
-        let tithe_before = resource_total(&kernel.state, custody.tithe);
-        let ingot_before = resource_total(&kernel.state, custody.ingot);
+        let tithe_before = resource_total_by_scan(&kernel.state, custody.tithe);
+        let ingot_before = resource_total_by_scan(&kernel.state, custody.ingot);
 
         let receipt = submit_play(
             &mut kernel,
@@ -6518,11 +6573,11 @@ mod custody_tests {
         // Transfer contributes to no term; transform contributes one spent and
         // one gained; consume contributes one consumed. Nothing was admitted.
         assert_eq!(
-            resource_total(&kernel.state, custody.tithe),
+            resource_total_by_scan(&kernel.state, custody.tithe),
             tithe_before - 1 - 2
         );
         assert_eq!(
-            resource_total(&kernel.state, custody.ingot),
+            resource_total_by_scan(&kernel.state, custody.ingot),
             ingot_before + 2
         );
         assert_eq!(holding(&kernel, custody.holder, custody.tithe), 2);
