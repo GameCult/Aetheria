@@ -1225,6 +1225,8 @@ mod tests {
             (COMMIT_ROW, "ghostlight.world_commit.consumer.v6"),
             (STATE_ROW, "ghostlight.world_state.consumer.v8"),
             (COMMIT_ROW, "ghostlight.world_commit.consumer.v8"),
+            (STATE_ROW, "ghostlight.world_state.consumer.v9"),
+            (COMMIT_ROW, "ghostlight.world_commit.consumer.v9"),
         ] {
             let row = CultCacheEnvelope {
                 key: "state".into(),
@@ -2390,13 +2392,13 @@ mod custody_tests {
     /// state row and commit row each on their own: reverting either constant
     /// to v8 would let its half of the store in.
     #[test]
-    fn v8_state_and_commit_rows_are_refused() {
+    fn v9_state_and_commit_rows_are_refused() {
         use crate::tests::{act, auth_principal, creation, first_grant, owner, speak};
 
         let directory = tempfile::tempdir().unwrap();
         let (mut kernel, _) = WorldKernel::create(
             directory.path().join("world.cc"),
-            creation(CommandId::new(), "SchemaV8"),
+            creation(CommandId::new(), "SchemaV9"),
             &auth_principal(owner()),
         )
         .unwrap();
@@ -2413,8 +2415,8 @@ mod custody_tests {
         let state_row = |schema: &str| {
             envelope(STATE_ROW, schema, kernel.state.world_id.key(), &kernel.state).unwrap()
         };
-        assert_eq!(STATE_SCHEMA, "ghostlight.world_state.consumer.v9");
-        assert_eq!(COMMIT_SCHEMA, "ghostlight.world_commit.consumer.v9");
+        assert_eq!(STATE_SCHEMA, "ghostlight.world_state.consumer.v10");
+        assert_eq!(COMMIT_SCHEMA, "ghostlight.world_commit.consumer.v10");
         recover(
             [commit_rows(COMMIT_SCHEMA), vec![state_row(STATE_SCHEMA)]].concat(),
             None,
@@ -2423,17 +2425,17 @@ mod custody_tests {
 
         for (what, rows) in [
             (
-                "v8 state row",
+                "v9 state row",
                 [
                     commit_rows(COMMIT_SCHEMA),
-                    vec![state_row("ghostlight.world_state.consumer.v8")],
+                    vec![state_row("ghostlight.world_state.consumer.v9")],
                 ]
                 .concat(),
             ),
             (
-                "v8 commit rows",
+                "v9 commit rows",
                 [
-                    commit_rows("ghostlight.world_commit.consumer.v8"),
+                    commit_rows("ghostlight.world_commit.consumer.v9"),
                     vec![state_row(STATE_SCHEMA)],
                 ]
                 .concat(),

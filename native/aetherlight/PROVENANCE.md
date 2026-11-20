@@ -181,8 +181,6 @@ Kept untouched for AL2b: controllers and `ControllerMode`, consumers
 `#![allow(dead_code)]` still hides the dead code of a crate with no entry point.
 What the cut deletes is gone; what remains is part B's:
 
-- Controller lane (AL2b-2b's): `resolve_controller`, `controller_mode`,
-  `controller_key`.
 - Authenticated-caller vocabulary: `AuthenticatedCaller::fixture`,
   `verified_principal`, `verified_play`, and
   `requires_owner_restart`; id helpers `text` and `nil_for_test`;
@@ -308,3 +306,19 @@ count of code readers of `state.events` did not rise (idea
 - A cross-crate proof that forged opportunities and ids are refused, equivalent to
   the dropped `tests/external_admission.rs`, against the ABI's surface.
 - Removal of `#![allow(dead_code)]`.
+
+## AL2b-2b: controllers go, retirement on the subject
+
+The subject controller is gone: `ControllerAssignment`, `ControllerId`,
+`ControllerMode`, `NewController`, `DecisionScope`, `SubjectDeclaration.controller`,
+`Mismatch::UnadmittedController`, `validate_assignment`, the snapshot's controller
+fields and `ControllerId::issue`. Retirement is `SubjectState.retired`, and
+`is_retired` is its only statement. `affordance_grants` is keyed by `SubjectId`.
+`admits_human` is `is_genesis`: it says what the from-nothing lane may build (the
+kernel Speak entry and the first subjects), not who may be bound. The schema is
+`consumer.v10`; v9 rows are refused at the schema gate, with no migration.
+
+Not this cut's, and kept: the channel controller (`ChannelRecord.controller`,
+`SetController`, `resolve_controller`), which is dialogue
+(`dialogue-is-world-action`). An earlier version of this file listed
+`resolve_controller` and `controller_key` as AL2b-2b's; that was wrong.

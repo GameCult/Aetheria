@@ -103,8 +103,8 @@ use std::path::Path;
 use thiserror::Error;
 use uuid::Uuid;
 
-pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v9";
-pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v9";
+pub const STATE_SCHEMA: &str = "ghostlight.world_state.consumer.v10";
+pub(crate) const COMMIT_SCHEMA: &str = "ghostlight.world_commit.consumer.v10";
 
 /// Compatibility tag derived from [`STATE_SCHEMA`]: the trailing
 /// `<family>-<version>` pair (e.g. `foundation-v1`). Callers that publish a
@@ -12489,6 +12489,64 @@ mod agency_tests {
         let genesis = kernel.snapshot().unwrap();
         submit_play(&mut kernel, &genesis, tick_body(1));
         assert_eq!(kernel.snapshot().unwrap().revision, 1);
+    }
+
+    /// Retirement is stored once, on the subject, and a live subject's row is
+    /// the shape it had before the flag existed.
+    #[test]
+    fn a_live_subjects_row_is_unchanged_by_the_flag() {
+        let live = SubjectState {
+            label: "Walker".into(),
+            kind: SubjectKind::Person,
+            import_key: None,
+            retired: false,
+        };
+        let live_json = serde_json::to_value(&live).unwrap();
+        assert!(live_json.get("retired").is_none());
+        let retired = SubjectState { retired: true, ..live.clone() };
+        let retired_json = serde_json::to_value(&retired).unwrap();
+        assert_eq!(retired_json["retired"], true);
+        assert_eq!(serde_json::from_value::<SubjectState>(live_json).unwrap(), live);
+        assert_eq!(serde_json::from_value::<SubjectState>(retired_json).unwrap(), retired);
+    }
+
+    #[test]
+    fn a_patch_carrying_a_controller_does_not_decode() {
+        let Declaration::Subject(declared) = crate::tests::subject("walker", "Walker", SubjectKind::Person)
+        else {
+            unreachable!()
+        };
+        let mut json = serde_json::to_value(&declared).unwrap();
+        serde_json::from_value::<SubjectDeclaration>(json.clone())
+            .expect("the declaration decodes as built");
+        json["controller"] = serde_json::json!({"type": "operational_agent"});
+        assert!(serde_json::from_value::<SubjectDeclaration>(json).is_err());
+    }
+
+    /// Retire sets the flag `is_retired` reads, and nothing else retires.
+    #[test]
+    fn retirement_lives_on_the_subject() {
+        let (_directory, path, mut kernel) = world("RetireFlag");
+        let snapshot = kernel.snapshot().unwrap();
+        let persona = subject_by_label(&kernel.state, "The Witness");
+        assert!(!is_retired(&kernel.state, persona));
+        submit_play(
+            &mut kernel,
+            &snapshot,
+            operations(vec![ComponentOp::Retire {
+                subject: Ref::Existing(persona),
+            }]),
+        );
+        assert!(kernel.state.subjects[&persona].retired);
+        assert!(is_retired(&kernel.state, persona));
+        assert!(!kernel.state.positions.contains_key(&persona));
+        assert!(!kernel.state.affordance_grants.contains_key(&persona));
+        let after = kernel.snapshot().unwrap();
+        assert!(after.subjects.iter().find(|s| s.id == persona).unwrap().retired);
+        drop(kernel);
+        let reopened = WorldKernel::open(&path, after.world_id).unwrap();
+        assert!(is_retired(&reopened.state, persona));
+        assert_eq!(reopened.snapshot().unwrap(), after);
     }
 
     #[test]
