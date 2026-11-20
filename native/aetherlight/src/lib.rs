@@ -58,6 +58,8 @@
 
 mod action;
 mod clock;
+#[cfg(test)]
+mod golden_tests;
 mod grammar;
 #[cfg(test)]
 mod import_key_tests;

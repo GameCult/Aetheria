@@ -30,8 +30,8 @@ fixture (removed in AL2a) was binary and no newline rule touched it. Line ranges
 | `Cargo.lock` | `Cargo.lock` | all | pruned by cargo to the dependencies below |
 
 `Cargo.toml` is new: package `aetherlight`, its own `[workspace]`, no features,
-dependencies chrono, cultcache-rs, rmp-serde, serde, serde_json, sha2, thiserror,
-unicode-normalization, unicode-properties, uuid; dev tempfile.
+dependencies rmp-serde, serde, serde_json, sha2, thiserror, unicode-normalization,
+unicode-properties, uuid (serde only); dev uuid with v4 (AL3a).
 
 ## Edits
 
@@ -76,14 +76,8 @@ unicode-normalization, unicode-properties, uuid; dev tempfile.
   `patch.rs`, `journal.rs`, `action.rs`, `grammar/tests.rs` and
   `import_key_tests.rs` lose the symbols and tests listed there.
 
-Not renamed: the `ghostlight.*` schema ids and namespaces in the code
-(`STATE_SCHEMA`, `COMMIT_SCHEMA`, journal schema rows, `ghostlight.speech`). They
-enter derived ids and digests. No test pins their digests since AL2a removed the
-golden replay (see below); AL3/AL5 add Aetherlight's own once ids are derived
-(follow-up `aetherlight-golden-replay-dialogue`). AL2a bumped `STATE_SCHEMA` and
-`COMMIT_SCHEMA` from `consumer.v6` to `consumer.v7` because the state shape lost
-fields, so a pre-cut store is refused at the schema gate (tested with v6 rows).
-AL3 owns the format rename.
+The `ghostlight.*` schema ids were renamed in AL3a (see the last section). The
+golden replay AL2a removed is back as `fixtures/golden.digests` (AL3a).
 
 ## Left behind
 
@@ -111,10 +105,9 @@ binding, preconditions, audience, band selection and lowering (`action.rs`);
 
 ## Dependency pin
 
-`cultcache-rs` is pinned at Ghostlight's rev
-`85f7024a35ea42cf9f0a0199a064526427150191`, the rev that wrote
-Ghostlight's recorded-world fixture (removed in AL2a), not Aetheria's C# CultLib pin. The fork
-reproduces Ghostlight first; AL3 removes cultcache-rs.
+The crate no longer pins CultLib: `cultcache-rs` (Ghostlight's rev
+`85f7024a35ea42cf9f0a0199a064526427150191`) left the manifest in AL3a with the
+redb store it served.
 
 ## Pulling a later Ghostlight fix
 
@@ -182,8 +175,7 @@ Kept untouched for AL2b: controllers and `ControllerMode`, consumers
 What the cut deletes is gone; what remains is part B's:
 
 - Authenticated-caller vocabulary: `AuthenticatedCaller::fixture`,
-  `verified_principal`, `verified_play`, and
-  `requires_owner_restart`; id helpers `text` and `nil_for_test`;
+  `verified_principal` and `verified_play`; id helpers `text` and `nil_for_test`;
   `commits_for_test`; grammar `verbs`. AL4's ABI
   decides which of these it needs.
 - Patch ingress: `decode_patch`, `check_patch_caps`, `PatchDecodeError` and
@@ -322,3 +314,40 @@ Not this cut's, and kept: the channel controller (`ChannelRecord.controller`,
 `SetController`, `resolve_controller`), which is dialogue
 (`dialogue-is-world-action`). An earlier version of this file listed
 `resolve_controller` and `controller_key` as AL2b-2b's; that was wrong.
+
+## Cut AL3a: the journal is in memory; ids are derived
+
+Authority: cut `aetherlight-journal-a` r1 of campaign `aetheria-release`; rulings
+`aetherlight-narrative-state-owner`, `cultnet-scale-is-not-negotiable`,
+`dialogue-is-world-action`. Base `09a1c3256` (spec base `39c50acfc`; no `native/`
+change between them).
+
+Ids. `CommandEnvelope::id()` is the first 16 bytes of sha256 over
+`aetherlight.command.v1`, the world id, the big-endian expected revision and the
+named messagepack of caller and body. `CreateWorld::id()` is the same over
+`aetherlight.create.v1` and the whole creation. `WorldId::of(creation id)` is the
+same over `aetherlight.world.v1`; a genesis commit whose world id is not that is
+refused at open. The `id` fields on `CreateWorld` and `CommandEnvelope`,
+`CommandId::new`/`parse_uuid` and `WorldId::issue` are gone; `CommandId::issue`
+is a test fixture. Retry identity went with them: `SubmitReceipt` collapsed into
+`CommitReceipt`, and a resubmitted applied command is a `RevisionMismatch`.
+`WorldCommit.committed_at` is gone: wall time is the C# store's `stored_at`.
+
+Journal. `WorldJournal { commits }` is the only record of a world. `export()` is
+canonical named messagepack of `{ schema: aetherlight.journal.v1, commits }`;
+`open(bytes)` decodes canonically and replays through `verify_history`, which
+reads the revision-ordered slice and returns the head state it derives. There is
+no state row, no expected world id, no health or ownership check and no
+`verify_append`. `STATE_SCHEMA` and `COMMIT_SCHEMA` are
+`aetherlight.world_state.v1` and `aetherlight.world_commit.v1`; any `ghostlight.*`
+schema is refused at the schema gate and at the commit chain.
+
+Dependencies. chrono, cultcache-rs (and with it redb) and tempfile left the
+manifest; uuid keeps `serde` in `[dependencies]` and `v4` only in
+`[dev-dependencies]`, so no shipped path draws a random id (`cargo build --lib`
+compiles without it).
+
+Not taken from the spec's text: the spec's negative pattern `id: CommandId`
+matches the `command_id: CommandId` parameters of the band draw and derivation
+(the per-command term the spec keeps); the doc comment said `synchronous`, which
+`chrono` matches, and now says `single-threaded`.
