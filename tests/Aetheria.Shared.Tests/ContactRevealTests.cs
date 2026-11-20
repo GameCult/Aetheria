@@ -1991,4 +1991,33 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.False(bystander.IsHostileTo(intruder));
         Assert.DoesNotContain(intruder, bystander.VisibleEnemies);
     }
+
+    // The owner's own map decides whom it permits in its Critical area: with a Friendly entry for the visitor's faction she is
+    // permitted and the patrol holds her no enemy once tracked; with no entry she trespasses and the patrol does (base behaviour).
+    // Kills: the NPC arm of GetFactionRelationship left constant.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RelationsDecidePresenceInOwnedSpace(bool friendly)
+    {
+        var patrol = Add(float3(0, 0, 0), new[] { "Eye", "Gun" });
+        var visitor = Visitor(float3(0, 0, 60), player: false);
+        var owner = patrol.Faction;
+        _openCache.Upsert(owner);
+        var visitorRef = _openCache.Upsert(visitor.Faction);
+        if (friendly)
+        {
+            owner.Relations[visitorRef] = FactionRelationship.Friendly;
+            _openCache.Upsert(owner);
+        }
+        OwnedGalaxy(owner);
+        Tick(.05f);
+        Assert.Equal(friendly, visitor.PresencePermitted.Value);
+
+        patrol.EntityInfoGathered[visitor] = 1f;
+        Tick(.05f);
+
+        Assert.True(patrol.VisibleEntities.Contains(visitor));
+        Assert.Equal(!friendly, patrol.IsHostileTo(visitor));
+    }
 }

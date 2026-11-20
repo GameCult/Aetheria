@@ -49,7 +49,10 @@ public class Faction
 
     // Keys 13 to 15 (overworldMusic, combatMusic, bossMusic) held Wwise ids; retired, never reuse them.
 
-    // Key 16 is reserved for Relations (operator ruling faction-relations-field).
+    // How this faction regards each other faction; absent is Neutral. Directed: this map says how this faction regards them, theirs
+    // says how they regard it. Read only through Entity.Regard (ruling faction-relations-field).
+    [Inspectable, CultReference(typeof(Faction), many: true), JsonProperty("relations"), Key(16)]
+    public Dictionary<CultRecordRef<Faction>, FactionRelationship> Relations = new Dictionary<CultRecordRef<Faction>, FactionRelationship>();
 
     // The faction's rules of engagement; null fights as FactionDoctrine.Default.
     [Inspectable, JsonProperty("doctrine"), Key(17)]
@@ -58,7 +61,7 @@ public class Faction
     // The maker's final assembly: the distribution every lot of theirs draws its own quality from, and the hard ceiling on each
     // of its roles (quality-lean-assembly-hard-ceiling). Null is not authored: a lot of theirs assembles at AssemblyDistribution's
     // defaults. assembly-from-maker derives it once at the part mean plus a tolerance margin (quality-min-tolerance-binned-assembly);
-    // tune it in Studio after that. Key 16 is reserved for Relations and 18 for Livery. Key 20 was assemblyDeviation (retired); never reuse it.
+    // tune it in Studio after that. Key 18 is reserved for Livery. Key 20 was assemblyDeviation (retired); never reuse it.
     [Inspectable, JsonProperty("assembly"), Key(19)]
     public AssemblyDistribution Assembly;
 

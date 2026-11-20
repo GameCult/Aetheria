@@ -857,4 +857,39 @@ public sealed partial class RunStartTests
                     stale.Add(scenario.Name + " names " + retired);
         Assert.True(stale.Count == 0, "scenario briefs naming gear the catalog no longer has: " + string.Join("; ", stale));
     }
+
+    // The ruling's played case: nothing but the catalog's Relations makes two NPC factions fight. Two piloted ships of the cast's
+    // Zhe and Luc sit 400 apart in the arena; with Luc's record Hated toward Zhe the Zhestokost ship is hit or gone inside 60 s,
+    // and without it both keep full armor. Kills: no Hated branch; the relation read from the wrong side; a scenario stance doing
+    // the work.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TwoFactionsFightByRelationAlone(bool hated)
+    {
+        var zhe = _galaxy.ResolveFaction("Zhe");
+        var luc = _galaxy.ResolveFaction("Luc");
+        if (hated)
+        {
+            luc.Relations ??= new Dictionary<CultRecordRef<Faction>, FactionRelationship>();
+            luc.Relations[_cache.RefOf(zhe)] = FactionRelationship.Hated;
+        }
+        Entity zheShip = null, lucShip = null;
+        var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(0, 0));
+            zheShip = stage.Place(stage.Generated("Longinus", zhe), float2(2000, 0), piloted: true);
+            lucShip = stage.Place(stage.Generated("Longinus", luc), float2(2000, 400), piloted: true);
+        }));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        Assert.Same(zhe, zheShip.Faction);
+        Assert.Same(luc, lucShip.Faction);
+
+        for (var tick = 0; tick < 600; tick++) arena.Update(.1f);
+
+        bool Intact(Entity ship) => arena.Entities.Contains(ship) &&
+            ship.Armor.Cast<float>().Sum() >= ship.MaxArmor.Cast<float>().Sum();
+        Assert.Equal(!hated, Intact(zheShip));
+        if (!hated) Assert.True(Intact(lucShip));
+    }
 }
