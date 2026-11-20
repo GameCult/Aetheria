@@ -123,6 +123,12 @@ pub(crate) trait Partition {
     /// The partition as encoded: the bytes a test scans for what must never appear.
     #[cfg(test)]
     fn encoded(&self) -> Vec<u8>;
+    /// How many documents the partition holds.
+    #[cfg(test)]
+    fn rows(&self) -> usize;
+    /// Removes the first document, logged like any write; false when empty.
+    #[cfg(test)]
+    fn remove_first(&mut self) -> bool;
 }
 
 impl<K, V> Partition for Docs<K, V>
@@ -166,6 +172,19 @@ where
     #[cfg(test)]
     fn encoded(&self) -> Vec<u8> {
         rmp_serde::to_vec_named(self).expect("a partition encodes")
+    }
+
+    #[cfg(test)]
+    fn rows(&self) -> usize {
+        self.len()
+    }
+
+    #[cfg(test)]
+    fn remove_first(&mut self) -> bool {
+        let Some(key) = self.keys().next().cloned() else {
+            return false;
+        };
+        self.remove(&key).is_some()
     }
 }
 

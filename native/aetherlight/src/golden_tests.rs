@@ -395,39 +395,185 @@ fn digest_work_is_equal_at_100_and_1600() {
     assert_eq!(worked[0], worked[1], "digest work grew with the world");
 }
 
-/// A failed apply leaves nothing behind: state, accumulator and digest equal
-/// to before, no transaction open, and the next honest command commits. The
-/// failure is the revision overflow a tick meets after it has written the
-/// clock, a routine and its pressure.
+/// The ways a failed apply is injected: the revision overflow a tick meets after
+/// it has written its documents, and the failure after the digest is folded and
+/// the commit sealed, the last point before the world is kept.
+#[derive(Clone, Copy, Debug)]
+enum Failure {
+    RevisionOverflow,
+    AfterDigest,
+}
+
+/// One command to fail, and the world to fail it in.
+struct FailureCase {
+    name: &'static str,
+    kernel: WorldKernel,
+    body: CommandBody,
+}
+
+/// Each case writes what its name says: the two ticks are checked against the
+/// motion the clock derives for them, so a case cannot quietly stop writing.
+fn failure_cases() -> Vec<FailureCase> {
+    let mut cases = Vec::new();
+
+    let (kernel, _, _) = clockwork_world(20);
+    let to = kernel.state.header.now.checked_add(TickMinutes::new(1).unwrap()).unwrap();
+    assert!(!crate::clock::derive_motion(&kernel.state, to).fulfilled.is_empty());
+    cases.push(FailureCase { name: "a tick that rolls routines", kernel, body: tick_body(1) });
+
+    let (kernel, _, _) = crate::clock_tests::clock_kernel("Pressure");
+    let to = kernel.state.header.now.checked_add(TickMinutes::new(200).unwrap()).unwrap();
+    assert!(!crate::clock::derive_motion(&kernel.state, to).pressed.is_empty());
+    cases.push(FailureCase { name: "a tick that writes pressure rows", kernel, body: tick_body(200) });
+
+    let (kernel, _) = golden_session();
+    let human = subject_by_label(&kernel.state, "The Human");
+    let snapshot = kernel.snapshot().unwrap();
+    let body = CommandBody::Act {
+        actor: human,
+        invocation: speak(first_grant(&snapshot, human), "Order, please."),
+    };
+    cases.push(FailureCase { name: "a speech", kernel, body });
+
+    let (kernel, _) = golden_session();
+    let witness = subject_by_label(&kernel.state, "The Witness");
+    let (fact, _) = kernel.state.knowledge_of(witness).next().expect("the witness knows");
+    let body = operations(vec![ComponentOp::Forget {
+        subject: Ref::Existing(witness),
+        fact: Ref::Existing(*fact),
+    }]);
+    cases.push(FailureCase { name: "a forget", kernel, body });
+    cases
+}
+
+/// A failed apply leaves nothing behind: state, accumulator, digest, every
+/// partition's bytes, every log and the journal as before, and the next honest
+/// command commits. Each case is failed twice: by the revision overflow a tick
+/// meets after it has written its documents, and by a failure after the digest
+/// is folded and the commit sealed, the last point before the world is kept.
 #[test]
 fn a_failed_apply_rolls_back() {
-    let (mut kernel, _, _) = clockwork_world(20);
-    let honest_revision = kernel.state.revision;
-    kernel.state.revision = u64::MAX;
-    let before = kernel.state.clone();
-    let commits = kernel.journal.commit_count();
+    for failure in [Failure::RevisionOverflow, Failure::AfterDigest] {
+        for FailureCase { name, mut kernel, body } in failure_cases() {
+            let label = format!("{name}, {failure:?}");
+            let honest_revision = kernel.state.revision;
+            let before = kernel.state.clone();
+            let bytes = before.encoded_documents();
+            let commits = kernel.journal.commit_count();
+            match failure {
+                Failure::RevisionOverflow => kernel.state.revision = u64::MAX,
+                Failure::AfterDigest => crate::INJECT_FAILURE_AFTER_DIGEST.set(true),
+            }
+            let envelope = clockwork_envelope(&kernel, body.clone());
+            let error = kernel
+                .submit(envelope, &AuthenticatedCaller::verified_play())
+                .unwrap_err();
+            crate::INJECT_FAILURE_AFTER_DIGEST.set(false);
+            match failure {
+                Failure::RevisionOverflow => {
+                    assert!(matches!(error, KernelError::Serialization(_)), "{label}: {error:?}");
+                }
+                Failure::AfterDigest => {
+                    assert!(matches!(error, KernelError::Invariant(_)), "{label}: {error:?}");
+                }
+            }
+            kernel.state.revision = honest_revision;
+            assert_eq!(kernel.state, before, "{label}: the failure left writes behind");
+            assert_eq!(kernel.state.encoded_documents(), bytes, "{label}");
+            assert_eq!(kernel.journal.commit_count(), commits, "{label}");
+            assert!(kernel.state.header.is_clean(), "{label}: header log open");
+            for (schema, docs) in kernel.state.partitions() {
+                assert!(docs.is_clean(), "{label}: {schema} log open");
+            }
+            assert_eq!(
+                kernel.state.full_state_digest().unwrap(),
+                kernel.state.state_digest,
+                "{label}: the accumulator no longer matches the documents"
+            );
 
-    let tick = clockwork_envelope(&kernel, tick_body(1));
-    let error = kernel
-        .submit(tick, &AuthenticatedCaller::verified_play())
-        .unwrap_err();
-    assert!(matches!(error, KernelError::Serialization(_)), "{error:?}");
-    assert_eq!(kernel.state, before, "the failed tick left writes behind");
-    assert_eq!(kernel.journal.commit_count(), commits);
-    kernel.state.begin();
-    assert_eq!(kernel.state.folded().unwrap(), kernel.state.accumulator);
-    assert_eq!(
-        kernel.state.accumulator.state_digest(u64::MAX),
-        kernel.state.full_state_digest().unwrap(),
-        "the accumulator no longer matches the documents"
-    );
+            let envelope = clockwork_envelope(&kernel, body);
+            kernel
+                .submit(envelope, &AuthenticatedCaller::verified_play())
+                .unwrap_or_else(|error| panic!("{label}: the next honest command: {error:?}"));
+            assert_eq!(kernel.state.full_state_digest().unwrap(), kernel.state.state_digest);
+        }
+    }
+}
 
-    kernel.state.revision = honest_revision;
-    let tick = clockwork_envelope(&kernel, tick_body(1));
-    kernel
-        .submit(tick, &AuthenticatedCaller::verified_play())
-        .expect("the next honest command commits");
-    assert_eq!(kernel.state.full_state_digest().unwrap(), kernel.state.state_digest);
+/// Worlds that between them hold a document in every partition: the golden
+/// session, the civic, custody and speech benches and the ticked clock bench.
+fn populated_worlds() -> Vec<crate::WorldState> {
+    use crate::tests::{auth_principal, civic_world, creation, custody_world, owner, speech_world};
+    let created = |title: &str| {
+        WorldKernel::create(creation(title), &auth_principal(owner())).unwrap().0
+    };
+    let mut worlds = vec![golden_session().0.state];
+    let mut kernel = created("Civic");
+    civic_world(&mut kernel);
+    worlds.push(kernel.state);
+    let mut kernel = created("Custody");
+    custody_world(&mut kernel);
+    worlds.push(kernel.state);
+    let mut kernel = created("Speech");
+    speech_world(&mut kernel);
+    worlds.push(kernel.state);
+    let (mut kernel, _, _) = crate::clock_tests::clock_kernel("Pressure");
+    let tick = clockwork_envelope(&kernel, tick_body(200));
+    kernel.submit(tick, &AuthenticatedCaller::verified_play()).unwrap();
+    worlds.push(kernel.state);
+    worlds
+}
+
+/// Membership of the partition table is behaviour: for every partition the
+/// declaration names, one written document is in the folded digest and agrees
+/// with the full recompute, is put back by a rollback, and leaves the log empty
+/// and the accumulator at the full recompute when the transaction finishes. The
+/// loop runs over the declaration, so a partition added to it is covered, and a
+/// partition no fixture populates fails here rather than going untested.
+#[test]
+fn every_partition_is_digested_undone_and_finished() {
+    let worlds = populated_worlds();
+    for index in 0..crate::WorldState::PARTITIONS {
+        let schema = worlds[0].partitions()[index].0;
+        let base = worlds
+            .iter()
+            .find(|world| world.partitions()[index].1.rows() > 0)
+            .unwrap_or_else(|| panic!("no fixture world holds a document in {schema}"));
+        let written = |state: &mut crate::WorldState| {
+            state.begin();
+            assert!(state.partitions_mut()[index].1.remove_first(), "{schema}: nothing to write");
+            let folded = state.folded().unwrap();
+            assert_ne!(folded, state.accumulator, "{schema}: the write is not in the digest");
+            assert_eq!(
+                folded.state_digest(state.revision),
+                state.full_state_digest().unwrap(),
+                "{schema}: the folded digest left the full recompute"
+            );
+            folded
+        };
+        let clean = |state: &crate::WorldState| {
+            state.header.is_clean() && state.partitions().iter().all(|(_, docs)| docs.is_clean())
+        };
+
+        let mut state = base.clone();
+        written(&mut state);
+        assert!(!state.partitions()[index].1.is_clean(), "{schema}: the write is not logged");
+        state.rollback();
+        assert_eq!(&state, base, "{schema}: rollback left the write behind");
+        assert_eq!(state.encoded_documents(), base.encoded_documents(), "{schema}");
+        assert!(clean(&state), "{schema}: rollback left a log open");
+
+        let mut state = base.clone();
+        let folded = written(&mut state);
+        state.finish(folded);
+        assert!(clean(&state), "{schema}: finish left a log open");
+        assert_ne!(&state, base, "{schema}: finish dropped the write");
+        assert_eq!(
+            state.accumulator.state_digest(state.revision),
+            state.full_state_digest().unwrap(),
+            "{schema}: the finished accumulator left the full recompute"
+        );
+    }
 }
 
 /// What one tick and one speech cost to commit as the world grows, by the

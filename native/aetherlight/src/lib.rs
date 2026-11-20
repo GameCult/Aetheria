@@ -935,6 +935,13 @@ impl From<journal::JournalError> for KernelError {
     }
 }
 
+// Test seam: when set on this thread, `submit` fails after it has folded the
+// digest and sealed the commit, the last point before the world is kept.
+#[cfg(test)]
+thread_local! {
+    static INJECT_FAILURE_AFTER_DIGEST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 struct WorldKernel {
     state: WorldState,
     journal: journal::WorldJournal,
@@ -1085,6 +1092,10 @@ impl WorldKernel {
                 digest: String::new(),
             };
             commit.digest = commit_digest(&commit)?;
+            #[cfg(test)]
+            if INJECT_FAILURE_AFTER_DIGEST.get() {
+                return Err(KernelError::Invariant("injected failure after the digest".into()));
+            }
             Ok((commit, accumulator))
         })();
         let (commit, accumulator) = match sealed {
@@ -9264,7 +9275,7 @@ mod clock_tests {
         TickMinutes::new(value).expect("a valid span")
     }
 
-    fn clock_kernel(title: &str) -> (WorldKernel, Clockwork, WorldSnapshot) {
+    pub(crate) fn clock_kernel(title: &str) -> (WorldKernel, Clockwork, WorldSnapshot) {
         let mut kernel = WorldKernel::create(creation(title),
             &auth_principal(owner()),
         )
