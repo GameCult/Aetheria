@@ -1047,7 +1047,40 @@ fn walked_states() -> Vec<(String, crate::WorldState)> {
         kernel.submit(envelope, &AuthenticatedCaller::verified_play()).unwrap();
         states.push((format!("clockwork commit {step}"), kernel.state.clone()));
     }
+    states.push(("multivalue world".into(), multivalue_world()));
     states
+}
+
+/// A world where one document sits at several points: a pressure target fed by
+/// three sources, and an institution whose offices have three distinct
+/// incumbents, one of them in two offices. A projection that keeps only the
+/// first or last of a document's points loses a row here and nowhere else.
+fn multivalue_world() -> crate::WorldState {
+    use crate::patch::{Office, PressureMagnitude};
+    use crate::tests::{LEVY_KIND, authority_kind, office};
+    use crate::PressureSource;
+    let (mut kernel, people, _) = clockwork_world(20);
+    kernel
+        .submit(clockwork_envelope(&kernel, tick_body(1)), &AuthenticatedCaller::verified_play())
+        .expect("the tick commits");
+    let mut state = kernel.state;
+    let institution = *state.selection.keys().next().expect("an institution holds offices");
+    state.begin();
+    for source in [people[1], people[2], people[3]] {
+        state
+            .pressures
+            .entry(people[5])
+            .or_default()
+            .insert(PressureSource::Subject(source), PressureMagnitude(1));
+    }
+    let delegated = std::collections::BTreeSet::from([authority_kind(LEVY_KIND)]);
+    let offices = state.selection.get_mut(&institution).unwrap();
+    for (name, incumbent) in [("bailiff", people[3]), ("steward", people[3]), ("reeve", people[4])] {
+        offices.insert(office(name), Office { incumbent: Some(incumbent), delegated: delegated.clone() });
+    }
+    let folded = state.folded().unwrap();
+    state.finish(folded);
+    state
 }
 
 /// Every read index is the projection of its partition and nothing else, after
@@ -1056,6 +1089,9 @@ fn walked_states() -> Vec<(String, crate::WorldState)> {
 fn indexes_are_derived() {
     for (label, state) in walked_states() {
         assert_indexes_derived(&state, &label);
+        // The rebuild above uses the projection itself, so a wrong projection
+        // agrees with its own index; the scans it replaced do not.
+        assert_eq!(reference_scan_disagreement(&state), None, "{label}");
     }
 }
 
