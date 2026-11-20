@@ -3035,7 +3035,7 @@ fn check_against_grammar(
     roles: &[RoleSpec],
     mismatches: &mut Vec<Mismatch>,
 ) {
-    let Some(grammar) = &state.grammar else {
+    let Some(grammar) = &state.header.grammar else {
         return;
     };
     let handle = handle.clone();
@@ -3057,7 +3057,7 @@ pub(super) fn resolve_patch(
     command_id: CommandId,
     patch: &WorldPatch,
 ) -> Result<ResolvedPatch, Vec<Mismatch>> {
-    let world_id = state.world_id;
+    let world_id = state.header.world_id;
     let genesis = super::is_genesis(state.revision, &state.subjects);
     let mut mismatches = Vec::new();
     let mut index: BTreeMap<DraftHandle, RefKind> = BTreeMap::new();
@@ -3651,7 +3651,7 @@ pub(super) fn resolve_patch(
                 }
                 // A promise cannot be born past due: it would press on its
                 // subject on the very next tick with no chance to act.
-                if *due <= state.now {
+                if *due <= state.header.now {
                     mismatches.push(Mismatch::CommitmentDueInThePast {
                         operation: position,
                     });
@@ -6878,7 +6878,7 @@ mod tests {
             &auth_principal(owner()),
         )
         .unwrap();
-        let world_id = kernel.state.world_id;
+        let world_id = kernel.state.header.world_id;
         let command_id = CommandId::issue();
         let handle = DraftHandle::new("a-handle");
         assert_ne!(

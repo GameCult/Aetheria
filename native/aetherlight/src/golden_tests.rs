@@ -281,7 +281,7 @@ fn clockwork_commit_cost() {
             .collect();
         let play = AuthenticatedCaller::verified_play();
         let envelope = |kernel: &WorldKernel, body: CommandBody| CommandEnvelope {
-            world_id: kernel.state.world_id,
+            world_id: kernel.state.header.world_id,
             expected_revision: kernel.state.revision,
             caller: CallerId::Play,
             body,

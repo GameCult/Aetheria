@@ -352,9 +352,9 @@ fn the_bound_grammar_is_part_of_the_world_state_digest() {
     let kernel = kernel.unwrap();
     let bound_digest = crate::state_digest(&kernel.state).unwrap();
     let mut state = kernel.state.clone();
-    state.grammar = None;
+    state.header.get_mut().grammar = None;
     let open_digest = crate::state_digest(&state).unwrap();
-    state.grammar = Some(grammar_with(&[("dock", verb(RenderPath::ShipAction, &[]))]));
+    state.header.get_mut().grammar = Some(grammar_with(&[("dock", verb(RenderPath::ShipAction, &[]))]));
     let other_digest = crate::state_digest(&state).unwrap();
     assert_ne!(bound_digest, open_digest);
     assert_ne!(bound_digest, other_digest);
@@ -621,7 +621,7 @@ fn an_effect_resolved_elsewhere_cannot_install_an_entry_outside_the_grammar() {
     let kernel = create(bound(Some(grammar_with(&extra)), "Forged"));
     let kernel = kernel.unwrap();
     let mut twin = kernel.state.clone();
-    twin.grammar = None;
+    twin.header.get_mut().grammar = None;
     let resolve = |kind: &str, roles: &[(&str, RefKind)]| {
         crate::patch::resolve_patch(
             &twin,

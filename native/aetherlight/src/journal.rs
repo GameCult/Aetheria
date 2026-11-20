@@ -1,7 +1,8 @@
 use super::{
-    COMMIT_SCHEMA, CommittedCommand, KernelError, STATE_SCHEMA, WorldCommit, WorldEffect,
+    COMMIT_SCHEMA, CommittedCommand, KernelError, WorldCommit, WorldEffect,
     WorldId, WorldState, apply_effect, commit_digest, reduce, state_digest,
 };
+use crate::docs::Changed;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
@@ -121,7 +122,8 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
     let mut replay = WorldState::genesis(genesis.world_id, genesis_command, &genesis.effect)
         .map_err(kernel_error)?;
     verify_state_shape(&replay)?;
-    verify_commitments_are_future(&replay, &BTreeMap::new())?;
+    let born: Vec<_> = replay.commitments.keys().map(|subject| (*subject, None)).collect();
+    verify_commitments_are_future(&replay, &born)?;
     if replay.state_digest != genesis.resulting_state_digest {
         return Err(JournalError::Corrupt(
             "genesis resulting state digest is invalid".into(),
@@ -131,7 +133,7 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
 
     for commit in &commits[1..] {
         if commit.schema != COMMIT_SCHEMA
-            || commit.world_id != replay.world_id
+            || commit.world_id != replay.header.world_id
             || commit.previous_revision != Some(replay.revision)
             || commit.resulting_revision != replay.revision.saturating_add(1)
             || commit.previous_state_digest.as_deref() != Some(replay.state_digest.as_str())
@@ -142,8 +144,7 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
                 "commit chain is not contiguous or verifiable".into(),
             ));
         }
-        let previous_now = replay.now;
-        let previous_commitments = replay.commitments.clone();
+        let previous_now = replay.header.now;
         // Authority is re-decided here for free: `apply_committed_command`
         // re-runs `reduce` against the pre-commit state and requires effect
         // equality, then `apply_effect`, and both of those call
@@ -151,16 +152,18 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
         // a post-genesis command fails replay rather than being admitted by a
         // reducer that trusts the recorded caller. A third statement of the same rule here would be a
         // third owner of one decision.
+        replay.begin();
         apply_committed_command(&mut replay, commit)?;
         // Two chain checks one state cannot make: the clock never runs
         // backwards, and it advances only on a tick.
         let advanced = matches!(commit.effect, WorldEffect::TimeAdvanced { .. });
-        if replay.now < previous_now || (replay.now > previous_now) != advanced {
+        if replay.header.now < previous_now || (replay.header.now > previous_now) != advanced {
             return Err(JournalError::Corrupt(
                 "the world clock moved without a time-advanced commit, or ran backwards".into(),
             ));
         }
-        verify_commitments_are_future(&replay, &previous_commitments)?;
+        let touched = replay.finish();
+        verify_commitments_are_future(&replay, &touched)?;
         replay.revision = commit.resulting_revision;
         replay.state_digest = state_digest(&replay).map_err(kernel_error)?;
         if replay.state_digest != commit.resulting_state_digest {
@@ -176,17 +179,21 @@ pub(super) fn verify_history(commits: &[WorldCommit]) -> Result<WorldState, Jour
 
 /// The replay-side twin of `Mismatch::CommitmentDueInThePast`: every commitment
 /// key this commit introduced is due after the post-commit clock. Replay already
-/// reconstructs both sides, so this is a set difference over one partition.
+/// reconstructs both sides, and the transaction's change set names the only subjects
+/// that can hold a new key, with what each held before.
 fn verify_commitments_are_future(
     state: &WorldState,
-    before: &BTreeMap<super::SubjectId, BTreeMap<super::CommitmentKey, super::Commitment>>,
+    touched: &[Changed<super::SubjectId, BTreeMap<super::CommitmentKey, super::Commitment>>],
 ) -> Result<(), JournalError> {
-    for (subject_id, held) in &state.commitments {
+    for (subject_id, before) in touched {
+        let Some(held) = state.commitments.get(subject_id) else {
+            continue;
+        };
         for (key, commitment) in held {
             let existed = before
-                .get(subject_id)
+                .as_ref()
                 .is_some_and(|previous| previous.contains_key(key));
-            if !existed && commitment.due <= state.now {
+            if !existed && commitment.due <= state.header.now {
                 return Err(JournalError::Corrupt(
                     "a commitment was born at or after its own due date".into(),
                 ));
@@ -197,15 +204,12 @@ fn verify_commitments_are_future(
 }
 
 pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError> {
-    if state.schema != STATE_SCHEMA {
-        return Err(JournalError::Corrupt("invalid state schema".into()));
-    }
-    if state.title.trim().is_empty() || state.title.trim() != state.title {
+    if state.header.title.trim().is_empty() || state.header.title.trim() != state.header.title {
         return Err(JournalError::Corrupt(
             "world title is empty or noncanonical".into(),
         ));
     }
-    super::validate_principal(&state.owner).map_err(kernel_error)?;
+    super::validate_principal(&state.header.owner).map_err(kernel_error)?;
     if state.subjects.is_empty() {
         return Err(JournalError::Corrupt("world ontology is empty".into()));
     }
@@ -613,7 +617,7 @@ fn apply_committed_command(
             "creation command appears after world genesis".into(),
         ));
     };
-    if command.world_id != state.world_id || command.expected_revision != state.revision {
+    if command.world_id != state.header.world_id || command.expected_revision != state.revision {
         return Err(JournalError::Corrupt(
             "committed command does not target the exact replay state".into(),
         ));
@@ -894,14 +898,14 @@ mod tests {
         let kernel = clock_history();
         let replayed = reopen(&kernel.journal.commits).expect("the honest history replays");
         assert_eq!(replayed.state_digest, kernel.state.state_digest);
-        assert_eq!(replayed.now, kernel.state.now);
+        assert_eq!(replayed.header.now, kernel.state.header.now);
 
-        let (digest, now) = (kernel.state.state_digest.clone(), kernel.state.now);
+        let (digest, now) = (kernel.state.state_digest.clone(), kernel.state.header.now);
         let exported = kernel.export().unwrap();
         drop(kernel);
         let reopened = WorldKernel::open(&exported).unwrap();
         assert_eq!(reopened.state.state_digest, digest);
-        assert_eq!(reopened.state.now, now);
+        assert_eq!(reopened.state.header.now, now);
     }
 
     /// An export is a claim about a chain, and `open` believes none of it that
@@ -1806,7 +1810,7 @@ mod custody_tests {
         verify_state_shape(&kernel.state).expect("a canonical title passes");
         for title in ["", "  ", " Titled", "Titled "] {
             let mut forged = kernel.state.clone();
-            forged.title = title.into();
+            forged.header.get_mut().title = title.into();
             assert!(
                 matches!(verify_state_shape(&forged), Err(JournalError::Corrupt(_))),
                 "title {title:?} passed the shape check"

@@ -58,6 +58,7 @@
 
 mod action;
 mod clock;
+mod docs;
 #[cfg(test)]
 mod golden_tests;
 mod grammar;
@@ -98,6 +99,7 @@ pub(crate) use patch::{
 };
 use patch::{EdgeRecord, EntityRecord, LedgerDelta, ResolvedOp, ResolvedPatch};
 
+use docs::{Changed, Docs, Tracked};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -426,70 +428,76 @@ pub(crate) struct DecisionEvent {
     pub(crate) effects: Vec<ResolvedOp>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-struct WorldState {
-    schema: String,
+/// The world's own fields: the one document that is not a map row. Tracked like
+/// a partition key, so a tick that advances the clock is one changed document.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WorldHeader {
     world_id: WorldId,
-    revision: u64,
     owner: PrincipalId,
     title: String,
     /// Bound by genesis and never written again; absent from a world with no
     /// grammar, so such a world's state and digests are what they were before
     /// grammars existed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     grammar: Option<GrammarBinding>,
-    subjects: BTreeMap<SubjectId, SubjectState>,
-    entities: BTreeMap<EntityId, EntityRecord>,
-    edges: BTreeMap<EdgeId, EdgeRecord>,
-    positions: BTreeMap<SubjectId, Position>,
+    /// Minutes since genesis. The world's only clock, advanced by exactly one
+    /// command body and read by no wall clock. It is world truth, and it is
+    /// read by no precondition.
+    now: FictionalMinutes,
+}
+
+/// Every partition is a `Docs`: reads see the map, every write is logged, and
+/// `submit` applies in place and either finishes or rolls the log back.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WorldState {
+    header: Tracked<WorldHeader>,
+    revision: u64,
+    subjects: Docs<SubjectId, SubjectState>,
+    entities: Docs<EntityId, EntityRecord>,
+    edges: Docs<EdgeId, EdgeRecord>,
+    positions: Docs<SubjectId, Position>,
     /// What each subject holds. Absence is zero at both levels: no stored
     /// `Quantity(0)` and no empty inner map, so a duplicate holding is
     /// unrepresentable and "nothing" has one shape.
-    holdings: BTreeMap<SubjectId, BTreeMap<EntityId, Quantity>>,
+    holdings: Docs<SubjectId, BTreeMap<EntityId, Quantity>>,
     /// What each subject depends on. Never empty for a present key.
-    dependencies: BTreeMap<SubjectId, BTreeSet<DependencyTarget>>,
+    dependencies: Docs<SubjectId, BTreeSet<DependencyTarget>>,
     /// One row per `EntityKind::Fact` entity, and no orphan either way. Facts
     /// are write-once: declaration and `AssertClaim` are the only writers, and
     /// standing never changes after admission.
-    facts: BTreeMap<EntityId, FactRecord>,
+    facts: Docs<EntityId, FactRecord>,
     /// One row per `EntityKind::Channel` entity, and no orphan either way.
-    channels: BTreeMap<EntityId, ChannelRecord>,
+    channels: Docs<EntityId, ChannelRecord>,
     /// What each subject knows. The sole owner of who-heard-what: `events`
     /// records what was done, and this decides what a subject may act on and
     /// what its projection may contain. Never empty for a present key, and
     /// absence is "knows nothing of it" — forgetting removes the key.
-    knowledge: BTreeMap<SubjectId, BTreeMap<EntityId, Knowledge>>,
+    knowledge: Docs<SubjectId, BTreeMap<EntityId, Knowledge>>,
     /// What ground each subject has jurisdiction over, and under which
     /// world-declared kind. Never empty for a present key. No subject holds two
     /// grants of one kind over overlapping ground, so nothing ever arbitrates
     /// between two sources of one permission.
-    authority: BTreeMap<SubjectId, BTreeSet<AuthorityGrant>>,
+    authority: Docs<SubjectId, BTreeSet<AuthorityGrant>>,
     /// The offices each institution constitutes, and who sits in them. An
     /// incumbent never acts as its institution: an office answers what its
     /// incumbent has jurisdiction over, not who the actor is.
-    selection: BTreeMap<SubjectId, BTreeMap<OfficeName, Office>>,
+    selection: Docs<SubjectId, BTreeMap<OfficeName, Office>>,
     /// Where each kind of grievance goes, and who may bring it. Keyed by
     /// neither a subject nor a referent, so it enters no scope components and
     /// is admission-only state.
-    redress: BTreeMap<GrievanceKindName, Forum>,
+    redress: Docs<GrievanceKindName, Forum>,
     /// What each subject has promised. Never empty for a present key.
-    commitments: BTreeMap<SubjectId, BTreeMap<CommitmentKey, Commitment>>,
-    /// Lived meaning per subject. Read by projection and by nothing that
-    /// decides, so it enters `state_digest` and no scope.
+    commitments: Docs<SubjectId, BTreeMap<CommitmentKey, Commitment>>,
     /// Pressure *on* each subject, keyed target-major then source. Never empty
-    /// for a present key; no stored zero magnitude.
-    pressures: BTreeMap<SubjectId, BTreeMap<PressureSource, PressureMagnitude>>,
-    /// Minutes since genesis. The world's only clock, advanced by exactly one
-    /// command body and read by no wall clock. It enters `state_digest` and no
-    /// scope: it is world truth, and it is read by no precondition.
-    now: FictionalMinutes,
+    /// for a present key; no stored zero magnitude. Lived meaning: read by
+    /// projection and by nothing that decides.
+    pressures: Docs<SubjectId, BTreeMap<PressureSource, PressureMagnitude>>,
     /// What an affordance *is*. World-authored and written by `admit_resolved`
     /// alone.
-    affordance_catalog: BTreeMap<AffordanceId, Affordance>,
+    affordance_catalog: Docs<AffordanceId, Affordance>,
     /// Who may exercise which entry: a row exists if and only if the subject
     /// holds at least one verb. A grant carries no payload, so a duplicate
     /// grant is unrepresentable rather than checked.
-    affordance_grants: BTreeMap<SubjectId, BTreeSet<AffordanceId>>,
+    affordance_grants: Docs<SubjectId, BTreeSet<AffordanceId>>,
     events: Vec<DecisionEvent>,
     state_digest: String,
     last_commit_digest: Option<String>,
@@ -972,7 +980,7 @@ impl WorldKernel {
         authenticated: &AuthenticatedCaller,
     ) -> Result<CommitReceipt, KernelError> {
         let command_id = command.id();
-        if command.world_id != self.state.world_id {
+        if command.world_id != self.state.header.world_id {
             return Err(KernelError::WorldMismatch);
         }
         if command.caller != authenticated.caller {
@@ -986,32 +994,47 @@ impl WorldKernel {
         }
 
         let effect = reduce(&self.state, &command)?;
-        let mut candidate = self.state.clone();
-        apply_effect(&mut candidate, command_id, &command.caller, &effect)?;
-        candidate.revision = candidate
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| KernelError::Serialization("world revision overflow".into()))?;
-        candidate.state_digest = state_digest(&candidate)?;
-
-        let mut commit = WorldCommit {
-            schema: COMMIT_SCHEMA.into(),
-            world_id: self.state.world_id,
-            command: CommittedCommand::WorldCommand(command),
-            previous_revision: Some(self.state.revision),
-            resulting_revision: candidate.revision,
-            previous_state_digest: Some(self.state.state_digest.clone()),
-            resulting_state_digest: candidate.state_digest.clone(),
-            previous_commit_digest: self.state.last_commit_digest.clone(),
-            effect,
-            digest: String::new(),
+        let previous_revision = self.state.revision;
+        let previous_state_digest = self.state.state_digest.clone();
+        let previous_commit_digest = self.state.last_commit_digest.clone();
+        // Applied in place under the partitions' undo logs: the world is never
+        // cloned, and any failure up to the sealed commit puts it back.
+        self.state.begin();
+        let sealed = (|| -> Result<WorldCommit, KernelError> {
+            apply_effect(&mut self.state, command_id, &command.caller, &effect)?;
+            self.state.revision = previous_revision
+                .checked_add(1)
+                .ok_or_else(|| KernelError::Serialization("world revision overflow".into()))?;
+            self.state.state_digest = state_digest(&self.state)?;
+            let mut commit = WorldCommit {
+                schema: COMMIT_SCHEMA.into(),
+                world_id: self.state.header.world_id,
+                command: CommittedCommand::WorldCommand(command),
+                previous_revision: Some(previous_revision),
+                resulting_revision: self.state.revision,
+                previous_state_digest: Some(previous_state_digest.clone()),
+                resulting_state_digest: self.state.state_digest.clone(),
+                previous_commit_digest,
+                effect,
+                digest: String::new(),
+            };
+            commit.digest = commit_digest(&commit)?;
+            Ok(commit)
+        })();
+        let commit = match sealed {
+            Ok(commit) => commit,
+            Err(error) => {
+                self.state.rollback();
+                self.state.revision = previous_revision;
+                self.state.state_digest = previous_state_digest;
+                return Err(error);
+            }
         };
-        commit.digest = commit_digest(&commit)?;
-        candidate.last_commit_digest = Some(commit.digest.clone());
+        self.state.finish();
+        self.state.last_commit_digest = Some(commit.digest.clone());
 
         let receipt = CommitReceipt::from(&commit);
         self.journal.append(commit);
-        self.state = candidate;
         Ok(receipt)
     }
 
@@ -1034,7 +1057,7 @@ fn reduce(state: &WorldState, command: &CommandEnvelope) -> Result<WorldEffect, 
         }
         CommandBody::AdvanceTime { minutes } => {
             let to = state
-                .now
+                .header.now
                 .checked_add(*minutes)
                 .ok_or_else(|| KernelError::Serialization("world clock overflow".into()))?;
             // A tick with an empty motion is still a commit: the clock moved,
@@ -1074,6 +1097,129 @@ fn is_genesis(revision: u64, subjects: &BTreeMap<SubjectId, SubjectState>) -> bo
 }
 
 impl WorldState {
+    /// The encoding the state digest has always hashed: every partition as its
+    /// map, in this order. `sealed` false writes the chain head (the two digest
+    /// fields) as blank, the form the state digest is taken over.
+    fn write_encoded<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        sealed: bool,
+    ) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let header = &*self.header;
+        let fields = if header.grammar.is_some() { 26 } else { 25 };
+        let mut out = serializer.serialize_struct("WorldState", fields)?;
+        out.serialize_field("schema", STATE_SCHEMA)?;
+        out.serialize_field("world_id", &header.world_id)?;
+        out.serialize_field("revision", &self.revision)?;
+        out.serialize_field("owner", &header.owner)?;
+        out.serialize_field("title", &header.title)?;
+        if header.grammar.is_some() {
+            out.serialize_field("grammar", &header.grammar)?;
+        }
+        out.serialize_field("subjects", &self.subjects)?;
+        out.serialize_field("entities", &self.entities)?;
+        out.serialize_field("edges", &self.edges)?;
+        out.serialize_field("positions", &self.positions)?;
+        out.serialize_field("holdings", &self.holdings)?;
+        out.serialize_field("dependencies", &self.dependencies)?;
+        out.serialize_field("facts", &self.facts)?;
+        out.serialize_field("channels", &self.channels)?;
+        out.serialize_field("knowledge", &self.knowledge)?;
+        out.serialize_field("authority", &self.authority)?;
+        out.serialize_field("selection", &self.selection)?;
+        out.serialize_field("redress", &self.redress)?;
+        out.serialize_field("commitments", &self.commitments)?;
+        out.serialize_field("pressures", &self.pressures)?;
+        out.serialize_field("now", &header.now)?;
+        out.serialize_field("affordance_catalog", &self.affordance_catalog)?;
+        out.serialize_field("affordance_grants", &self.affordance_grants)?;
+        out.serialize_field("events", &self.events)?;
+        if sealed {
+            out.serialize_field("state_digest", &self.state_digest)?;
+            out.serialize_field("last_commit_digest", &self.last_commit_digest)?;
+        } else {
+            out.serialize_field("state_digest", "")?;
+            out.serialize_field("last_commit_digest", &None::<String>)?;
+        }
+        out.end()
+    }
+
+    /// Opens a transaction. Every log must be empty: a write outside a
+    /// transaction, or a transaction left open, is a bug here and not state.
+    fn begin(&self) {
+        debug_assert!(self.header.is_clean(), "a transaction is open");
+        debug_assert!(self.subjects.is_clean() && self.entities.is_clean());
+        debug_assert!(self.edges.is_clean() && self.positions.is_clean());
+        debug_assert!(self.holdings.is_clean() && self.dependencies.is_clean());
+        debug_assert!(self.facts.is_clean() && self.channels.is_clean());
+        debug_assert!(self.knowledge.is_clean() && self.authority.is_clean());
+        debug_assert!(self.selection.is_clean() && self.redress.is_clean());
+        debug_assert!(self.commitments.is_clean() && self.pressures.is_clean());
+        debug_assert!(self.affordance_catalog.is_clean() && self.affordance_grants.is_clean());
+    }
+
+    /// Closes the transaction, keeping its writes. Returns the commitments
+    /// subjects that changed, with their old promises, for replay's check that
+    /// every commitment stays in the future.
+    fn finish(&mut self) -> Vec<Changed<SubjectId, BTreeMap<CommitmentKey, Commitment>>> {
+        self.header.finish();
+        self.subjects.finish();
+        self.entities.finish();
+        self.edges.finish();
+        self.positions.finish();
+        self.holdings.finish();
+        self.dependencies.finish();
+        self.facts.finish();
+        self.channels.finish();
+        self.knowledge.finish();
+        self.authority.finish();
+        self.selection.finish();
+        self.redress.finish();
+        self.pressures.finish();
+        self.affordance_catalog.finish();
+        self.affordance_grants.finish();
+        self.commitments.finish()
+    }
+
+    /// Closes the transaction, undoing every write in it.
+    fn rollback(&mut self) {
+        self.header.rollback();
+        self.subjects.rollback();
+        self.entities.rollback();
+        self.edges.rollback();
+        self.positions.rollback();
+        self.holdings.rollback();
+        self.dependencies.rollback();
+        self.facts.rollback();
+        self.channels.rollback();
+        self.knowledge.rollback();
+        self.authority.rollback();
+        self.selection.rollback();
+        self.redress.rollback();
+        self.commitments.rollback();
+        self.pressures.rollback();
+        self.affordance_catalog.rollback();
+        self.affordance_grants.rollback();
+    }
+}
+
+impl Serialize for WorldState {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.write_encoded(serializer, true)
+    }
+}
+
+/// The state with its chain head blanked: what `state_digest` hashes.
+struct Unsealed<'a>(&'a WorldState);
+
+impl Serialize for Unsealed<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.write_encoded(serializer, false)
+    }
+}
+
+impl WorldState {
     /// The world before any structure. Genesis resolves its own patch against
     /// this value, so the genesis lane and `AdmitPatch` share one resolver
     /// signature instead of hand-passing empty partitions.
@@ -1084,29 +1230,30 @@ impl WorldState {
         grammar: Option<GrammarBinding>,
     ) -> Self {
         Self {
-            schema: STATE_SCHEMA.into(),
-            world_id,
+            header: Tracked::absent(WorldHeader {
+                world_id,
+                owner,
+                title,
+                grammar,
+                now: FictionalMinutes::default(),
+            }),
             revision: 0,
-            owner,
-            title,
-            grammar,
-            subjects: BTreeMap::new(),
-            entities: BTreeMap::new(),
-            edges: BTreeMap::new(),
-            positions: BTreeMap::new(),
-            holdings: BTreeMap::new(),
-            dependencies: BTreeMap::new(),
-            facts: BTreeMap::new(),
-            channels: BTreeMap::new(),
-            knowledge: BTreeMap::new(),
-            authority: BTreeMap::new(),
-            selection: BTreeMap::new(),
-            redress: BTreeMap::new(),
-            commitments: BTreeMap::new(),
-            pressures: BTreeMap::new(),
-            now: FictionalMinutes::default(),
-            affordance_catalog: BTreeMap::new(),
-            affordance_grants: BTreeMap::new(),
+            subjects: Docs::default(),
+            entities: Docs::default(),
+            edges: Docs::default(),
+            positions: Docs::default(),
+            holdings: Docs::default(),
+            dependencies: Docs::default(),
+            facts: Docs::default(),
+            channels: Docs::default(),
+            knowledge: Docs::default(),
+            authority: Docs::default(),
+            selection: Docs::default(),
+            redress: Docs::default(),
+            commitments: Docs::default(),
+            pressures: Docs::default(),
+            affordance_catalog: Docs::default(),
+            affordance_grants: Docs::default(),
             events: Vec::new(),
             state_digest: String::new(),
             last_commit_digest: None,
@@ -1158,6 +1305,7 @@ impl WorldState {
         // unlike every later commit, which resolves to `state.revision + 1`.
         let genesis_revision = state.revision;
         admit_resolved(&mut state, resolved, genesis_revision)?;
+        state.finish();
         state.state_digest = state_digest(&state)?;
         Ok(state)
     }
@@ -1239,7 +1387,7 @@ fn admit_resolved(
         // The catalog's only writer holds the same grammar check the resolver
         // runs, so an effect resolved elsewhere cannot install an entry the
         // bound grammar refuses.
-        if state.grammar.as_ref().is_some_and(|grammar| {
+        if state.header.grammar.as_ref().is_some_and(|grammar| {
             grammar
                 .refusal(&entry.affordance.kind, &entry.affordance.roles)
                 .is_some()
@@ -2188,10 +2336,21 @@ fn apply_operation(
                 subject: *subject,
                 key: *key,
             };
-            state.pressures.retain(|_, held| {
-                held.remove(&sourced);
-                !held.is_empty()
-            });
+            let holding: Vec<SubjectId> = state
+                .pressures
+                .iter()
+                .filter(|(_, held)| held.contains_key(&sourced))
+                .map(|(target, _)| *target)
+                .collect();
+            for target in holding {
+                let emptied = state.pressures.get_mut(&target).is_some_and(|held| {
+                    held.remove(&sourced);
+                    held.is_empty()
+                });
+                if emptied {
+                    state.pressures.remove(&target);
+                }
+            }
         }
         ResolvedOp::AdvancePressure { source, target, by }
         | ResolvedOp::ReducePressure { source, target, by } => {
@@ -2315,7 +2474,7 @@ fn commitment_is_live(state: &WorldState, subject: SubjectId, commitment: &Commi
     counterparty_is_live
         && (commitment.kind == CommitmentKind::Routine) == commitment.period.is_some()
         && (commitment.kind == CommitmentKind::Routine || commitment.checks.is_empty())
-        && commitment.due > state.now
+        && commitment.due > state.header.now
         && commitment
             .checks
             .iter()
@@ -2900,7 +3059,7 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
                         due: commitment.due,
                         period: commitment.period,
                         statement: commitment.statement.clone(),
-                        past_due: commitment.due <= state.now,
+                        past_due: commitment.due <= state.header.now,
                     })
                     .collect(),
                 dependencies: components.dependencies.iter().copied().collect(),
@@ -2987,11 +3146,11 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
         })
         .collect();
     Ok(WorldSnapshot {
-        world_id: state.world_id,
+        world_id: state.header.world_id,
         revision: state.revision,
-        owner: state.owner.clone(),
-        title: state.title.clone(),
-        grammar: state.grammar.as_ref().map(GrammarBinding::identity),
+        owner: state.header.owner.clone(),
+        title: state.header.title.clone(),
+        grammar: state.header.grammar.as_ref().map(GrammarBinding::identity),
         subjects,
         affordances: state
             .affordance_catalog
@@ -3000,7 +3159,7 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
                 id: *affordance_id,
                 entry: entry.clone(),
                 render_path: state
-                    .grammar
+                    .header.grammar
                     .as_ref()
                     .and_then(|grammar| grammar.verb(&entry.kind.0))
                     .map(|verb| verb.render_path),
@@ -3011,7 +3170,7 @@ fn snapshot(state: &WorldState) -> Result<WorldSnapshot, KernelError> {
         routes,
         channels,
         facts,
-        now: state.now,
+        now: state.header.now,
         state_digest: state.state_digest.clone(),
         last_commit_digest: state.last_commit_digest.clone(),
     })
@@ -3140,13 +3299,14 @@ fn apply_effect(
                     "acted effect does not derive from the actor's grants".into(),
                 ));
             }
-            state.events.push(event.clone());
             if !event.effects.is_empty() {
                 // `derived != *event` above already proved `event.revision` is
                 // exactly what `resolution_revision(state)` would compute right
                 // now; read it back rather than computing it a second time.
                 apply_operations(state, &event.effects, &[], event.revision)?;
             }
+            // After the writes, so a failed apply leaves nothing to undo here.
+            state.events.push(event.clone());
         }
         WorldEffect::TimeAdvanced {
             minutes,
@@ -3154,7 +3314,7 @@ fn apply_effect(
             motion,
         } => {
             let derived_to = state
-                .now
+                .header.now
                 .checked_add(*minutes)
                 .ok_or_else(|| KernelError::Serialization("world clock overflow".into()))?;
             // The whole motion is re-derived rather than trusted field by
@@ -3165,7 +3325,7 @@ fn apply_effect(
                     "time effect does not derive from the world clock".into(),
                 ));
             }
-            state.now = *to;
+            state.header.get_mut().now = *to;
             for rolled in &motion.fulfilled {
                 let commitment = state
                     .commitments
@@ -3197,10 +3357,7 @@ fn digest<T: Serialize>(value: &T) -> Result<String, KernelError> {
 }
 
 fn state_digest(state: &WorldState) -> Result<String, KernelError> {
-    let mut value = state.clone();
-    value.state_digest.clear();
-    value.last_commit_digest = None;
-    digest(&value)
+    digest(&Unsealed(state))
 }
 
 fn commit_digest(commit: &WorldCommit) -> Result<String, KernelError> {
@@ -4691,10 +4848,10 @@ mod tests {
         let (mut kernel, receipt) = create("Same");
         let (twin, twin_receipt) = create("Same");
         assert_eq!(receipt, twin_receipt);
-        assert_eq!(kernel.state.world_id, twin.state.world_id);
+        assert_eq!(kernel.state.header.world_id, twin.state.header.world_id);
         assert_eq!(receipt.world_id, WorldId::of(receipt.command_id));
         let (other, _) = create("Other");
-        assert_ne!(kernel.state.world_id, other.state.world_id);
+        assert_ne!(kernel.state.header.world_id, other.state.header.world_id);
 
         // The same patch at two revisions is two commands, so the entity it
         // declares is minted twice under two ids.
@@ -7108,7 +7265,7 @@ mod knowledge_tests {
     #[test]
     fn every_canonical_id_comes_from_one_of_two_sites() {
         let (mut kernel, speech, active) = speech_kernel("Allocation");
-        let world_id = kernel.state.world_id;
+        let world_id = kernel.state.header.world_id;
         let caller = play_caller();
         let entities_before = kernel.state.entities.len();
         let whisper = command(
@@ -7986,7 +8143,10 @@ mod soul_knowledge_tests {
         // Those two are the whole of it: strip `facts` and `events` and the
         // rest of the state is silent.
         let mut stripped = kernel.state.clone();
-        stripped.facts.clear();
+        let facts: Vec<_> = stripped.facts.keys().copied().collect();
+        for fact in facts {
+            stripped.facts.remove(&fact);
+        }
         stripped.events.clear();
         let encoded = rmp_serde::to_vec_named(&stripped).unwrap();
         assert!(
@@ -9527,7 +9687,7 @@ mod clock_tests {
         let before = kernel.state.clone();
 
         tick(&mut kernel, 1).expect("the tick commits");
-        assert_eq!(kernel.state.now, FictionalMinutes(1));
+        assert_eq!(kernel.state.header.now, FictionalMinutes(1));
         assert_eq!(kernel.state.revision, before.revision + 1);
         assert!(kernel.state.pressures.is_empty());
         assert_eq!(kernel.state.commitments, before.commitments);
@@ -9536,7 +9696,7 @@ mod clock_tests {
         assert_eq!(kernel.state.events, before.events);
 
         tick(&mut kernel, 2).expect("the tick commits");
-        assert_eq!(kernel.state.now, FictionalMinutes(3));
+        assert_eq!(kernel.state.header.now, FictionalMinutes(3));
     }
 
     /// A closed route in one place becomes political pressure in another without
@@ -9595,7 +9755,7 @@ mod clock_tests {
     fn time_advances_only_through_advance_time() {
         let (mut kernel, clockwork, _) = clock_kernel("OnlyTick");
         tick(&mut kernel, 5).expect("the tick commits");
-        let now = kernel.state.now;
+        let now = kernel.state.header.now;
 
         exercise(
             &mut kernel,
@@ -9604,7 +9764,7 @@ mod clock_tests {
             vec![binding("target", Target::Subject(clockwork.farmer))],
         )
         .expect("the threat commits");
-        assert_eq!(kernel.state.now, now);
+        assert_eq!(kernel.state.header.now, now);
 
         let snapshot = kernel.snapshot().unwrap();
         submit_play(
@@ -9614,7 +9774,7 @@ mod clock_tests {
                 route: Ref::Existing(clockwork.gate),
             }]),
         );
-        assert_eq!(kernel.state.now, now);
+        assert_eq!(kernel.state.header.now, now);
     }
 
     /// Who may tick, when, and how far.
@@ -9659,11 +9819,11 @@ mod clock_tests {
                 minutes: minutes(7),
             },
         );
-        assert_eq!(kernel.state.now, FictionalMinutes(7));
+        assert_eq!(kernel.state.header.now, FictionalMinutes(7));
 
         // And a span that would overflow the clock is refused rather than
         // wrapping.
-        kernel.state.now = FictionalMinutes(u64::MAX);
+        kernel.state.header.get_mut().now = FictionalMinutes(u64::MAX);
         let snapshot = kernel.snapshot().unwrap();
         let error = kernel
             .submit(
@@ -9765,7 +9925,7 @@ mod clock_tests {
             },
         )
         .expect("the honest motion applies");
-        assert_eq!(candidate.now, to);
+        assert_eq!(candidate.header.now, to);
     }
 
     /// Replay across a tick is exact, and every envelope is idempotent.
@@ -10226,11 +10386,11 @@ mod clock_tests {
                 .collect()
         };
         let before = digests(&kernel);
-        let before_now = kernel.state.now;
+        let before_now = kernel.state.header.now;
 
         // Short of every due date in the fixture.
         tick(&mut kernel, 10).expect("the tick commits");
-        assert_eq!(kernel.state.now, FictionalMinutes(before_now.0 + 10));
+        assert_eq!(kernel.state.header.now, FictionalMinutes(before_now.0 + 10));
         assert!(kernel.state.pressures.is_empty());
         assert_eq!(digests(&kernel), before, "the clock entered a scope");
     }
@@ -10541,7 +10701,7 @@ mod clock_tests {
         kernel
             .submit(ticking, &AuthenticatedCaller::fixture(CallerId::Play))
             .expect("the tick commits");
-        assert_eq!(replayed.now, kernel.state.now);
+        assert_eq!(replayed.header.now, kernel.state.header.now);
         assert_eq!(replayed.commitments, kernel.state.commitments);
         assert_eq!(replayed.pressures, kernel.state.pressures);
     }
@@ -10672,7 +10832,7 @@ mod clock_tests {
         )
         .expect("the play authority advances time");
         assert!(receipt.resulting_revision > 0);
-        assert!(kernel.state.now > active.now);
+        assert!(kernel.state.header.now > active.now);
     }
 
     /// P3.4: a ruled fact is world truth to every subject that knows it.
@@ -11953,7 +12113,7 @@ mod agency_tests {
         let granted = require_granted(state, human, affordance).unwrap();
         let event = action::exercise(state, command_id, human, &granted, &invocation).unwrap();
         let minutes = TickMinutes::new(9).unwrap();
-        let to = state.now.checked_add(minutes).unwrap();
+        let to = state.header.now.checked_add(minutes).unwrap();
         let effects = [
             (
                 "patch",

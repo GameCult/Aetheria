@@ -160,7 +160,7 @@ pub(super) fn exercise(
     }
 
     let band = select_band(state, command_id, granted.id, entry)?;
-    let operations = lower(entry, band, actor, state.now, invocation, &bindings)?;
+    let operations = lower(entry, band, actor, state.header.now, invocation, &bindings)?;
     let mut effects = if operations.is_empty() {
         Vec::new()
     } else {
@@ -188,7 +188,7 @@ pub(super) fn exercise(
         (Some(statement), true) => {
             let fact = EntityId(patch::derive_id(
                 patch::ENTITY_NAMESPACE,
-                state.world_id,
+                state.header.world_id,
                 command_id,
                 &patch::DraftHandle::new(SPEECH_HANDLE),
                 Some(SPEECH_INDEX),
@@ -221,7 +221,7 @@ pub(super) fn exercise(
     let display = invocation.display.as_ref().map(|statement| {
         let fact = EntityId(patch::derive_id(
             patch::ENTITY_NAMESPACE,
-            state.world_id,
+            state.header.world_id,
             command_id,
             &patch::DraftHandle::new(SPEECH_HANDLE),
             Some(DISPLAY_INDEX),
@@ -780,7 +780,7 @@ fn select_band(
     entry: &Affordance,
 ) -> Result<usize, KernelError> {
     let draw = digest(&BandPreimage {
-        world_id: state.world_id,
+        world_id: state.header.world_id,
         revision: state.revision,
         command_id,
         affordance,
@@ -1637,14 +1637,13 @@ mod tests {
                 .any(|spec| spec.kind == RefKind::Subject(None))
         );
 
-        // The state row encoder and the digest owner are the same `to_vec_named`
-        // path the store writes through.
-        let encoded = rmp_serde::to_vec_named(&bench.kernel.state).expect("the state encodes");
-        let decoded: WorldState = rmp_serde::from_slice(&encoded).expect("the state decodes");
-        assert_eq!(
-            decoded.affordance_catalog,
-            bench.kernel.state.affordance_catalog
-        );
+        // The affordance document round-trips through the `to_vec_named` path the
+        // state digest hashes.
+        let catalog = rmp_serde::to_vec_named(&bench.kernel.state.affordance_catalog)
+            .expect("the affordance document encodes");
+        let decoded: std::collections::BTreeMap<_, crate::Affordance> =
+            rmp_serde::from_slice(&catalog).expect("the affordance document decodes");
+        assert_eq!(decoded, *bench.kernel.state.affordance_catalog);
         assert!(digest(&bench.kernel.state).is_ok());
     }
 
