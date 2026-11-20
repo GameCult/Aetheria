@@ -556,11 +556,7 @@ public class ActionGameManager : MonoBehaviour
                     {
                         FollowCamera.Follow = x.missile.transform;
                         FollowCamera.LookAt = x.target ? x.target : x.missile.transform;
-                        x.missile.OnKill += () =>
-                        {
-                            FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
-                            FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;
-                        };
+                        x.missile.OnKill += () => FrameFollow(CurrentEntity);
                     });
                 }
             });
@@ -1089,8 +1085,7 @@ public class ActionGameManager : MonoBehaviour
                 if (EventLog != null) EventLog.LogMessage(HaulFeed.Line(gain, ItemManager), gain.Adrift > 0 ? Color.yellow : Color.white);
             }));
         
-        FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
-        FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;
+        FrameFollow(CurrentEntity);
         _articulationGroups = CurrentEntity.Equipment
             .Where(item => item.Behaviors.Any(x => x.Data is WeaponData && !(x.Data is LauncherData)))
             .GroupBy(item => ZoneRenderer.EntityInstances[CurrentEntity]
@@ -1196,6 +1191,20 @@ public class ActionGameManager : MonoBehaviour
         var incoming = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
         incoming.gameObject.SetActive(false);
         _incomingLockIndicator = (incoming, incoming.GetComponent<Rotate>());
+    }
+
+    private CinemachineFramingTransposer _framingTransposer;
+
+    // The one writer of the follow camera's Follow, LookAt and distance for an entity: the distance is
+    // the hull's reach (from its centre of mass, where Follow sits) times the authored ratio.
+    private void FrameFollow(Entity entity)
+    {
+        var instance = ZoneRenderer.EntityInstances[entity];
+        FollowCamera.LookAt = instance.LookAtPoint;
+        FollowCamera.Follow = instance.transform;
+        if (_framingTransposer == null)
+            _framingTransposer = FollowCamera.GetCinemachineComponent<CinemachineFramingTransposer>();
+        _framingTransposer.m_CameraDistance = Settings.FollowCameraDistancePerReach * Contacts.Radius(entity);
     }
 
     private void UpdatePlayerPanel()
