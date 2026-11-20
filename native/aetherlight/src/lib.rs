@@ -67,6 +67,7 @@ mod grammar;
 mod import_key_tests;
 mod journal;
 mod patch;
+mod views;
 
 pub(crate) use action::ActionMismatch;
 pub(crate) use clock::Motion;
@@ -102,6 +103,7 @@ use patch::{EdgeRecord, EntityRecord, LedgerDelta, ResolvedOp, ResolvedPatch};
 
 use digest::{LtHash16, Partition};
 use docs::{Changed, DocKey, Docs, Tracked};
+use views::Views;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -472,6 +474,10 @@ macro_rules! world_state {
             header: Tracked<WorldHeader>,
             revision: u64,
             $($(#[$meta])* $field: Docs<$key, $value $(, $proj)?>,)*
+            /// Derived from the partitions at every `finish`: outside every
+            /// document, so neither digested nor encoded, and equal whatever
+            /// it holds (see `views`).
+            views: Views,
             // The chain head: outside every document.
             accumulator: LtHash16,
             state_digest: String,
@@ -497,6 +503,7 @@ macro_rules! world_state {
                     header,
                     revision: 0,
                     $($field: Docs::default(),)*
+                    views: Views::default(),
                     accumulator: LtHash16::default(),
                     state_digest: String::new(),
                     last_commit_digest: None,
@@ -533,17 +540,15 @@ impl docs::Projection<Position> for StandsAt {
     }
 }
 
-/// `DueAt`: when a subject's commitments fall due, one entry per distinct due.
+/// `DependsOn`: who depends on a target. `Views` reads it to re-judge the
+/// dependents of a route or a placement that changed.
 #[derive(Clone, Debug)]
-struct DueAt;
+struct DependsOn;
 
-impl docs::Projection<BTreeMap<CommitmentKey, Commitment>> for DueAt {
-    type Point = FictionalMinutes;
-    fn points(value: &BTreeMap<CommitmentKey, Commitment>, out: &mut Vec<FictionalMinutes>) {
-        let first = out.len();
-        out.extend(value.values().map(|commitment| commitment.due));
-        out[first..].sort();
-        out.dedup();
+impl docs::Projection<BTreeSet<DependencyTarget>> for DependsOn {
+    type Point = DependencyTarget;
+    fn points(value: &BTreeSet<DependencyTarget>, out: &mut Vec<DependencyTarget>) {
+        out.extend(value.iter().copied());
     }
 }
 
@@ -611,7 +616,7 @@ world_state! {
     /// unrepresentable and "nothing" has one shape.
     holdings: Docs<SubjectId, BTreeMap<EntityId, Quantity>> = "aetherlight.holdings.v1";
     /// What each subject depends on. Never empty for a present key.
-    dependencies: Docs<SubjectId, BTreeSet<DependencyTarget>> = "aetherlight.dependencies.v1";
+    dependencies: Docs<SubjectId, BTreeSet<DependencyTarget>, DependsOn> = "aetherlight.dependencies.v1";
     /// One row per `EntityKind::Fact` entity, and no orphan either way. Facts
     /// are write-once: declaration and `AssertClaim` are the only writers, and
     /// standing never changes after admission.
@@ -637,7 +642,7 @@ world_state! {
     /// is admission-only state.
     redress: Docs<GrievanceKindName, Forum> = "aetherlight.redress.v1";
     /// What each subject has promised. Never empty for a present key.
-    commitments: Docs<SubjectId, BTreeMap<CommitmentKey, Commitment>, DueAt> = "aetherlight.commitments.v1";
+    commitments: Docs<SubjectId, BTreeMap<CommitmentKey, Commitment>> = "aetherlight.commitments.v1";
     /// Pressure *on* each subject, keyed target-major then source. Never empty
     /// for a present key; no stored zero magnitude. Lived meaning: read by
     /// projection and by nothing that decides.
@@ -1308,6 +1313,10 @@ impl WorldState {
     ) -> Vec<Changed<SubjectId, BTreeMap<CommitmentKey, Commitment>>> {
         self.accumulator = accumulator;
         self.header.finish();
+        // The views fold from the open logs, so they come before the logs close.
+        let mut views = std::mem::take(&mut self.views);
+        views.fold(self);
+        self.views = views;
         let commitments = self.commitments.finish();
         for (_, docs) in self.partitions_mut() {
             docs.finish_log();

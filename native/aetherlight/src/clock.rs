@@ -7,7 +7,9 @@
 //! the span.
 
 use super::patch::{Commitment, CommitmentKey, CommitmentKind, DependencyTarget, MAX_ROUTE_COST};
-use super::{PressureMagnitude, PressureSource, SubjectId, WorldState, action, is_retired};
+use super::{PressureMagnitude, PressureSource, SubjectId, WorldState, action, views};
+#[cfg(test)]
+use super::is_retired;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -110,45 +112,47 @@ mod step {
 /// and one thousand-minute tick over the same span produce different
 /// magnitudes. The kernel stays an exact function of the command sequence, and
 /// the tick cadence is one operational constant in `runtime.rs`.
+///
+/// What is due, and which dependencies fail, is read from `Views` (the one owner
+/// of both questions: a live subject's due commitments and a live subject's
+/// unavailable dependencies), so a tick reads the work it does and not the
+/// world. A view is true only with clean logs, so both callers (`reduce`, and
+/// `apply_effect`'s `TimeAdvanced` arm before its first write) call it clean.
 pub(super) fn derive_motion(state: &WorldState, to: FictionalMinutes) -> Motion {
-    // Only subjects with something due: the commitments index answers it
-    // without walking every promise in the world.
-    let due: std::collections::BTreeSet<SubjectId> = state
-        .commitments
-        .indexed(..=to)
-        .into_iter()
-        .map(|(_, subject)| subject)
-        .collect();
-    motion_of(state, to, due)
+    debug_assert!(views::readable(state), "the views are read with an open log");
+    motion_of(state, to, &state.views.due_by(to), state.views.failing().copied())
 }
 
-/// What `derive_motion` was before the index: every subject holding a promise.
-/// The index read must derive the same motion.
+/// What `derive_motion` was before the views: every subject holding a promise
+/// and every dependency row, with retirement and availability judged on the
+/// spot. The view reads must derive the same motion.
 #[cfg(test)]
 pub(super) fn derive_motion_by_scan(state: &WorldState, to: FictionalMinutes) -> Motion {
-    motion_of(state, to, state.commitments.keys().copied().collect())
+    let live = |subject: &SubjectId| !is_retired(state, *subject);
+    let promisors = state.commitments.keys().copied().filter(live).collect();
+    let failing: Vec<_> = state
+        .dependencies
+        .iter()
+        .filter(|(subject, _)| live(subject))
+        .flat_map(|(subject, targets)| targets.iter().map(move |target| (*subject, *target)))
+        .filter(|(subject, target)| dependency_unavailable(state, *subject, *target))
+        .collect();
+    motion_of(state, to, &promisors, failing.into_iter())
 }
 
-/// The motion over `promisors`, which must include every subject with a
-/// commitment due by `to`. The dependencies walk below is still one row per
-/// subject holding a dependency: follow-up aetherlight-cross-partition-views.
+/// The motion over `promisors`, which must hold every live subject with a
+/// commitment due by `to`, and the `failing` dependencies of live subjects.
 fn motion_of(
     state: &WorldState,
     to: FictionalMinutes,
-    promisors: std::collections::BTreeSet<SubjectId>,
+    promisors: &std::collections::BTreeSet<SubjectId>,
+    failing: impl Iterator<Item = (SubjectId, DependencyTarget)>,
 ) -> Motion {
     let mut fulfilled = Vec::new();
     let mut pressed: BTreeMap<(SubjectId, PressureSource), u32> = BTreeMap::new();
 
-    for subject in &promisors {
+    for subject in promisors {
         let held = &state.commitments[subject];
-        // A retired subject cannot act, and neither fulfilling a routine nor
-        // pressing an obligation or goal is anything but that subject acting:
-        // its commitments stay in history, un-discharged and un-deleted, but
-        // the clock stops moving them the moment they are its.
-        if is_retired(state, *subject) {
-            continue;
-        }
         for (key, commitment) in held {
             if commitment.due > to {
                 continue;
@@ -179,16 +183,9 @@ fn motion_of(
         }
     }
 
-    for (subject, targets) in &state.dependencies {
-        if is_retired(state, *subject) {
-            continue;
-        }
-        for target in targets {
-            if dependency_unavailable(state, *subject, *target) {
-                let source = PressureSource::Dependency(*target);
-                *pressed.entry((*subject, source)).or_default() += step::DEPENDENCY_UNAVAILABLE;
-            }
-        }
+    for (subject, target) in failing {
+        let source = PressureSource::Dependency(target);
+        *pressed.entry((subject, source)).or_default() += step::DEPENDENCY_UNAVAILABLE;
     }
 
     Motion {
