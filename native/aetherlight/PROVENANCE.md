@@ -614,3 +614,15 @@ called `apply_operation` directly, moved into the gate.
 
 Reads that still scan: `snapshot` (follow-up `aetherlight-snapshot-history-fold`)
 and `verify_state_shape` at open, by design.
+
+Fix batch (verdict s1). `apply_operations` sums the union of the holders written at
+entry and the holders the log reports, so a holder written before the operations and
+restored to its start value still counts. Three missed mutants were not equivalent
+and are pinned by `golden_tests::within_one_patch`; `random_patch_sequences_agree_with_the_scan_references`
+runs seeded random patches through the kernel and holds resolver, apply and the scan
+references to one answer. The retirement-flip clause of `touched_holders` is gone
+(a retirement only removes lent authority). Accepted, not fixed
+(`counter-blind-sizes`): the read gates count rows through the counted API, which
+point reads bypass by design, and wire patches are capped at 128 operations
+(`MAX_PATCH_OPERATIONS`), so the flat-read gates measure patches no larger than that;
+nothing measures a patch whose operation count grows with the world.
