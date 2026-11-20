@@ -522,3 +522,25 @@ their place's grain, every tenth person from the 35th retired, and the clock
 moved one period so every routine is past due. The fixed-count pins on
 `dependencies` and `redress` are gone; `read_work_is_equal_at_100_and_1600` now
 asserts the population at scale.
+
+Soul pass 1 (fix batch). The fold's moved-targets arm reads the dependencies
+`DependsOn` index through `Docs::indexed_unchanged`, which names the committed
+entries of keys the open log did not change and does not walk the log; a changed
+dependencies key is already re-judged whole, so a bulk commit (genesis, every
+replayed commit at open) folds in rows proportional to what it changed
+(`folding_a_bulk_commit_reads_rows_in_proportion_to_the_change`). The clean-log
+check on a view read is an `assert!`, not a `debug_assert!`: six flag tests, held
+in every build. `Release` now clears the pressure its dependency raised through
+`set_pressure`; before, a pressed dependency's pressure row outlived it and the
+export failed to reopen (pre-existing at `609b3ba5e`). A seeded differential test
+(`views_equal_their_rebuild_and_the_scans_over_random_commands`) holds the views
+to their rebuild and the motion to the scans over random bind, release, route,
+holding, relocate, retire, tick, speech and refused commands, reopening every 50.
+
+Not defended by the gate, on purpose: a tick's cost is linear in the number of
+failing dependencies, because each failing dependency presses a pressure row each
+tick. The gate world pins failing at two, so growth in failing is not seen; that
+cost is inherent to pressing and is not a read of the world. `open` of a large
+world is superlinear in rows from readers outside this cut (the resolver's reads
+of the whole world at genesis, owner `aetherlight-resolver-reads-world`);
+`open_cost` reports it.

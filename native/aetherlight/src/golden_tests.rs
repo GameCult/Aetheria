@@ -1629,3 +1629,159 @@ fn folding_a_bulk_commit_reads_rows_in_proportion_to_the_change() {
     assert!(rows[1] > rows[0], "{rows:?}: a bigger commit read no more");
     assert!(rows[1] < rows[0] * 6, "the fold read {} rows at 400 persons and {} at 1600", rows[0], rows[1]);
 }
+
+/// Every kind of command that moves what the views join, drawn at random from a
+/// seeded stream over the clockwork world (bind and release on a subject, a
+/// route and a resource; routes closed and opened; holdings emptied and filled;
+/// subjects relocated and retired; ticks and speech; refused commands), with the
+/// world reopened from its export every 50 commits. After every commit, kept or
+/// refused, the views are what a scan of the documents builds and the motion
+/// they derive is the motion the scans derive, over short and long spans; each
+/// reopened world holds the live views. Seeds are fixed, so a failure replays.
+#[test]
+fn views_equal_their_rebuild_and_the_scans_over_random_commands() {
+    use crate::patch::{DependencyRef, EvidenceRef, Quantity};
+    use crate::tests::TITHE_RECEIPT;
+    use crate::DependencyTarget;
+    use std::collections::BTreeMap;
+
+    let mut kept: BTreeMap<&'static str, usize> = BTreeMap::new();
+    for seed in [1u64, 2, 3] {
+        let (mut kernel, people, speak_entry) = clockwork_world(40);
+        let routes: Vec<_> = kernel.state.edges.keys().copied().collect();
+        let grains: Vec<_> = (0..4)
+            .map(|place| {
+                *kernel
+                    .state
+                    .entities
+                    .iter()
+                    .find(|(_, record)| record.label == format!("Grain {place}"))
+                    .expect("a declared resource")
+                    .0
+            })
+            .collect();
+        let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        let mut next = move |bound: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % bound as u64) as usize
+        };
+        for step in 0..150 {
+            let person = people[next(people.len())];
+            let route = routes[next(routes.len())];
+            let grain = grains[next(grains.len())];
+            let target = match next(3) {
+                0 => DependencyRef::Subject(Ref::Existing(people[next(people.len())])),
+                1 => DependencyRef::Route(Ref::Existing(route)),
+                _ => DependencyRef::Resource(Ref::Existing(grain)),
+            };
+            let ops = |op| operations(vec![op]);
+            let (name, body) = match next(16) {
+                0 | 1 => ("bind", ops(ComponentOp::Bind { subject: Ref::Existing(person), target })),
+                2 | 3 => {
+                    // Release something that is bound, so releases succeed.
+                    let bound: Vec<_> = kernel
+                        .state
+                        .dependencies
+                        .iter()
+                        .flat_map(|(subject, held)| held.iter().map(|target| (*subject, *target)))
+                        .collect();
+                    if bound.is_empty() {
+                        ("tick", tick_body(1))
+                    } else {
+                        let (subject, held) = bound[next(bound.len())];
+                        let target = match held {
+                            DependencyTarget::Subject(other) => DependencyRef::Subject(Ref::Existing(other)),
+                            DependencyTarget::Route(edge) => DependencyRef::Route(Ref::Existing(edge)),
+                            DependencyTarget::Resource(entity) => DependencyRef::Resource(Ref::Existing(entity)),
+                        };
+                        ("release", ops(ComponentOp::Release { subject: Ref::Existing(subject), target }))
+                    }
+                }
+                4 => ("close", ops(ComponentOp::CloseRoute { route: Ref::Existing(route) })),
+                5 => ("open", ops(ComponentOp::OpenRoute { route: Ref::Existing(route) })),
+                6 => (
+                    "consume",
+                    ops(ComponentOp::Consume {
+                        holder: Ref::Existing(person),
+                        resource: Ref::Existing(grain),
+                        qty: Quantity(1),
+                    }),
+                ),
+                7 => (
+                    "admit",
+                    CommandBody::AdmitPatch {
+                        patch: WorldPatch {
+                            declarations: Vec::new(),
+                            operations: vec![ComponentOp::Admit {
+                                holder: Ref::Existing(person),
+                                resource: Ref::Existing(grain),
+                                qty: Quantity(1),
+                                evidence: EvidenceRef::new(TITHE_RECEIPT),
+                            }],
+                            evidence: vec![EvidenceRef::new(TITHE_RECEIPT)],
+                        },
+                    },
+                ),
+                8 => {
+                    // Along a route that touches where the subject stands.
+                    let here = kernel.state.positions.get(&person).map(|position| position.place);
+                    let via = kernel
+                        .state
+                        .edges
+                        .iter()
+                        .find(|(_, edge)| {
+                            let (from, to) = edge.endpoints();
+                            here.is_some_and(|place| place == from || place == to)
+                        })
+                        .map(|(edge, _)| *edge)
+                        .unwrap_or(route);
+                    ("relocate", ops(ComponentOp::Relocate { subject: Ref::Existing(person), via: Ref::Existing(via) }))
+                }
+                9 if next(5) == 0 => ("retire", ops(ComponentOp::Retire { subject: Ref::Existing(person) })),
+                13 => (
+                    "speech",
+                    CommandBody::Act {
+                        actor: person,
+                        invocation: speak(speak_entry, &format!("Speech {step}.")),
+                    },
+                ),
+                14 => (
+                    "refused",
+                    ops(ComponentOp::Bind {
+                        subject: Ref::Existing(person),
+                        target: DependencyRef::Subject(Ref::Existing(person)),
+                    }),
+                ),
+                _ => ("tick", tick_body(1 + next(25) as u32)),
+            };
+            let envelope = clockwork_envelope(&kernel, body);
+            if kernel.submit(envelope, &AuthenticatedCaller::verified_play()).is_ok() {
+                *kept.entry(name).or_default() += 1;
+            }
+            let label = format!("seed {seed}, commit {step} ({name})");
+            assert!(
+                kernel.state.views.same_as(&crate::views::Views::rebuild(&kernel.state)),
+                "{label}: the views left their documents"
+            );
+            for minutes in [1, 30, 5_000] {
+                let to = FictionalMinutes(kernel.state.header.now.0 + minutes);
+                assert_eq!(
+                    crate::clock::derive_motion(&kernel.state, to),
+                    crate::clock::derive_motion_by_scan(&kernel.state, to),
+                    "{label}: motion over {minutes} minutes"
+                );
+            }
+            if step % 50 == 49 {
+                let reopened = WorldKernel::open(&kernel.export().unwrap())
+                    .unwrap_or_else(|error| panic!("{label}: the world does not reopen: {error:?}"));
+                assert_eq!(reopened.state, kernel.state, "{label}: reopened state");
+                assert!(reopened.state.views.same_as(&kernel.state.views), "{label}: reopened views");
+            }
+        }
+    }
+    for name in ["bind", "release", "close", "open", "consume", "admit", "relocate", "retire", "speech", "tick"] {
+        assert!(kept.get(name).copied().unwrap_or(0) > 0, "no {name} ever landed: {kept:?}");
+    }
+}
