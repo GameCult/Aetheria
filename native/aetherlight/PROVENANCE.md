@@ -364,3 +364,59 @@ Host contracts (AL3a, from Soul's pass):
 - The band draw is grindable through the command id (it hashes the body, so the
   text, a magnitude or the revision re-roll it). Only Play submits acts after
   genesis and Play is trusted, so it is not an authority hole.
+
+## Cut AL3b: partitions are tracked documents, the state digest is a set digest
+
+Authority: cut `aetherlight-journal-b` r1 of campaign `aetheria-release`; rulings
+`aetherlight-narrative-state-owner`, `cultnet-scale-is-not-negotiable`,
+`terminus-clockwork-world`. Base `36d1d2507`.
+
+Tracked documents. Each partition of `WorldState` is a `Docs<K, V>` (`docs.rs`):
+a map whose every write method records the key's value as it stood when the
+transaction first touched it. `finish` reports the keys whose value really
+changed with their old value; `rollback` puts the touched keys back. The world's
+own fields (id, owner, title, grammar, clock) are one `Tracked<WorldHeader>`.
+`revision`, the accumulator, `state_digest` and `last_commit_digest` are the
+chain head, outside every document. `submit` checks, reduces, opens a
+transaction, applies to the live state, then folds the change set and seals the
+commit; any error before the commit is sealed rolls the state back. There is no
+candidate clone, and replay uses the same begin, apply, finish path, so opening
+a world costs what its commits touched.
+
+Set digest. A document digest is sha256 over `u64be len(schema)`, schema,
+`u64be len(key)`, key and the named messagepack of the value. The accumulator is
+LtHash16 (Lewi et al. 2019): a document digest is expanded to 2048 bytes by
+sha256(digest, block) for blocks 0 to 63, read as 1024 little-endian `u16`
+lanes, and added (or subtracted) with wrapping. An updated document subtracts
+its old digest and adds its new one. `state_digest` is `sha256:` plus the hex of
+sha256 over `aetherlight.world_state.v2`, `u64be revision` and the lanes. It
+depends on the set of documents alone, never on write order.
+
+Document names are `aetherlight.<name>.v1` for world, subject, entity, edge,
+position, holdings, dependencies, fact, channel, knowledge, authority,
+selection, redress, commitments, pressures, affordance and affordance_grants.
+Keys are the id's uuid text; redress is keyed by the grievance name and knowledge
+by `subject/fact`. These schema ids exist only as digest input.
+
+Schemas. `aetherlight.world_state.v2` and `aetherlight.world_commit.v2`. An
+export whose commits carry v1 is refused. Every state digest, every commit
+digest and the export hash moved; `fixtures/golden.digests` was regenerated and
+reproduces on Linux.
+
+Events and knowledge. `WorldState` no longer holds events: an event lives once,
+in the `Acted` effect of the commit that applied it. `snapshot` folds
+`minted_at` and `last_acted_at` over the journal (still one O(history) pass; an
+index is the follow-up's). `verify_state_shape` no longer judges events; replay
+re-derives each through `action::exercise` in `apply_effect`. Knowledge is one
+document per (subject, fact), so a subject's knowledge is a range over the key
+and forgetting removes one key. `WorldState` has no `Serialize` or `Deserialize`:
+only documents are encoded, one at a time.
+
+The change set is transient here. AL3c records it through the CultLib type.
+
+Timing. The ratio of 1600 to 100 persons is not gated by this cut: the world
+reads a commit makes (`audience`, `derive_motion`, the snapshot) are still
+O(world), and follow-up `aetherlight-read-indexes-timing-gate` owns the gate. What
+this cut owns is the work it does for the digest, which
+`golden_tests::digest_work_is_equal_at_100_and_1600` pins: document digests per
+commit equal at both sizes and equal to Added + Removed + 2 x Updated.

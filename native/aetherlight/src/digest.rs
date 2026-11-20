@@ -181,3 +181,78 @@ pub(crate) fn fold_header<T: Clone + PartialEq + Serialize>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn documents(count: u32) -> Vec<DocDigest> {
+        (0..count)
+            .map(|index| doc_digest("aetherlight.test.v1", &index.to_string(), &index).unwrap())
+            .collect()
+    }
+
+    /// Order never matters and a subtraction undoes an addition, so the digest
+    /// is a function of the set of documents alone.
+    #[test]
+    fn lthash_add_then_subtract_is_zero() {
+        let docs = documents(300);
+        let mut acc = LtHash16::default();
+        for doc in &docs {
+            acc.add(doc);
+        }
+        assert_ne!(acc, LtHash16::default());
+
+        let mut backwards = LtHash16::default();
+        for doc in docs.iter().rev() {
+            backwards.add(doc);
+        }
+        assert_eq!(acc, backwards, "equal sets in two orders differ");
+
+        let mut strided = LtHash16::default();
+        for index in (0..docs.len()).map(|step| (step * 7) % docs.len()) {
+            strided.add(&docs[index]);
+        }
+        assert_eq!(acc, strided, "equal sets in a third order differ");
+
+        for index in (0..docs.len()).map(|step| (step * 11) % docs.len()) {
+            acc.subtract(&docs[index]);
+        }
+        assert_eq!(acc, LtHash16::default(), "add then subtract left a residue");
+    }
+
+    /// A lane that carries must wrap: 40 additions of one document overflow
+    /// nearly every lane of a `u16`, and the subtractions still return to zero.
+    #[test]
+    fn lanes_wrap_instead_of_saturating() {
+        let doc = documents(1)[0];
+        let mut acc = LtHash16::default();
+        for _ in 0..40 {
+            acc.add(&doc);
+        }
+        for _ in 0..40 {
+            acc.subtract(&doc);
+        }
+        assert_eq!(acc, LtHash16::default());
+    }
+
+    #[test]
+    fn the_state_digest_seals_the_revision_and_every_lane() {
+        let docs = documents(3);
+        let mut acc = LtHash16::default();
+        docs.iter().for_each(|doc| acc.add(doc));
+        assert_ne!(acc.state_digest(1), acc.state_digest(2), "the revision is not sealed");
+        let mut other = acc.clone();
+        other.0[1023] = other.0[1023].wrapping_add(1);
+        assert_ne!(acc.state_digest(1), other.state_digest(1), "the last lane is not hashed");
+    }
+
+    #[test]
+    fn a_document_digest_separates_schema_key_and_value() {
+        let one = doc_digest("ab", "c", &1u8).unwrap();
+        assert_ne!(one, doc_digest("a", "bc", &1u8).unwrap(), "schema and key run together");
+        assert_ne!(one, doc_digest("ab", "c", &2u8).unwrap());
+        assert_ne!(one, doc_digest("ab", "d", &1u8).unwrap());
+        assert_eq!(one, doc_digest("ab", "c", &1u8).unwrap());
+    }
+}

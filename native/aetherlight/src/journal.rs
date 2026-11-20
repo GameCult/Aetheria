@@ -914,6 +914,23 @@ mod tests {
         ));
     }
 
+    /// A chain written under the whole-state digest is refused: its commits carry
+    /// the v1 schema, re-sealed end to end so the schema is the only thing wrong.
+    #[test]
+    fn a_v1_commit_is_refused() {
+        let kernel = clock_history();
+        let mut v1 = kernel.journal.commits.clone();
+        reopen(&v1).expect("the honest chain opens");
+        for index in 0..v1.len() {
+            v1[index].schema = "aetherlight.world_commit.v1".into();
+            if index > 0 {
+                v1[index].previous_commit_digest = Some(v1[index - 1].digest.clone());
+            }
+            v1[index].digest = commit_digest(&v1[index]).unwrap();
+        }
+        assert!(matches!(reopen(&v1), Err(JournalError::Corrupt(_))));
+    }
+
     /// A stored digest is checked against the commit it seals, on its own:
     /// flipping one character of any commit's digest, with nothing re-sealed,
     /// leaves only the digest clause to refuse it (the last commit and a lone

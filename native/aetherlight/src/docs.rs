@@ -211,3 +211,110 @@ impl<A: DocKey, B: DocKey> DocKey for (A, B) {
         format!("{}/{}", self.0.key_text(), self.1.key_text())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Rows = Docs<u8, u8>;
+
+    fn rows(held: &[(u8, u8)]) -> Rows {
+        let mut docs = Rows::default();
+        for (key, value) in held {
+            docs.insert(*key, *value);
+        }
+        docs.finish();
+        docs
+    }
+
+    fn contents(docs: &Rows) -> Vec<(u8, u8)> {
+        docs.iter().map(|(key, value)| (*key, *value)).collect()
+    }
+
+    #[test]
+    fn a_write_is_reported_with_the_value_the_transaction_began_with() {
+        let mut docs = rows(&[(1, 10), (2, 20)]);
+        docs.insert(1, 11);
+        docs.insert(1, 12);
+        docs.insert(3, 30);
+        docs.remove(&2);
+        let mut changed = docs.finish();
+        changed.sort();
+        assert_eq!(changed, vec![(1, Some(10)), (2, Some(20)), (3, None)]);
+        assert!(docs.finish().is_empty(), "finish empties the log");
+        assert!(docs.is_clean());
+    }
+
+    #[test]
+    fn a_key_written_back_to_what_it_was_is_not_a_change() {
+        let mut docs = rows(&[(1, 10), (2, 20)]);
+        docs.insert(1, 11);
+        docs.insert(1, 10);
+        docs.insert(3, 30);
+        docs.remove(&3);
+        *docs.get_mut(&2).unwrap() = 20;
+        *docs.entry(2).or_insert(0) = 20;
+        assert!(docs.changes().next().is_none());
+        assert!(docs.finish().is_empty());
+    }
+
+    #[test]
+    fn a_get_mut_that_misses_touches_nothing() {
+        let mut docs = rows(&[(1, 10)]);
+        assert!(docs.get_mut(&9).is_none());
+        assert!(docs.is_clean());
+        *docs.get_mut(&1).unwrap() += 1;
+        assert!(!docs.is_clean());
+        assert_eq!(docs.finish(), vec![(1, Some(10))]);
+    }
+
+    #[test]
+    fn an_entry_that_adds_a_row_is_a_change_and_one_that_finds_it_is_not() {
+        let mut docs = rows(&[(1, 10)]);
+        docs.entry(1).or_insert(99);
+        docs.entry(2).or_insert(20);
+        assert_eq!(docs.finish(), vec![(2, None)]);
+        assert_eq!(contents(&docs), vec![(1, 10), (2, 20)]);
+    }
+
+    #[test]
+    fn rollback_restores_every_touched_key_and_empties_the_log() {
+        let mut docs = rows(&[(1, 10), (2, 20), (3, 30)]);
+        docs.insert(1, 11);
+        docs.insert(4, 40);
+        docs.remove(&2);
+        *docs.get_mut(&3).unwrap() = 31;
+        *docs.entry(5).or_insert(0) = 50;
+        docs.rollback();
+        assert_eq!(contents(&docs), vec![(1, 10), (2, 20), (3, 30)]);
+        assert!(docs.is_clean());
+    }
+
+    #[test]
+    fn equality_is_the_documents_and_not_the_log() {
+        let mut open = rows(&[(1, 10)]);
+        open.insert(1, 11);
+        open.insert(1, 10);
+        assert_eq!(open, rows(&[(1, 10)]));
+    }
+
+    #[test]
+    fn the_header_is_logged_once_and_a_genesis_value_is_an_addition() {
+        let mut header = Tracked::absent(5u8);
+        assert_eq!(header.finish(), Some(None), "genesis adds the header");
+
+        *header.get_mut() = 6;
+        *header.get_mut() = 7;
+        assert_eq!(header.finish(), Some(Some(5)));
+        assert!(header.is_clean());
+
+        *header.get_mut() = 8;
+        *header.get_mut() = 7;
+        assert_eq!(header.finish(), None, "written back is not a change");
+
+        *header.get_mut() = 9;
+        header.rollback();
+        assert_eq!(*header, 7);
+        assert!(header.is_clean());
+    }
+}

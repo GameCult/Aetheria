@@ -212,116 +212,279 @@ fn export_open_round_trip_is_exact() {
     assert_eq!(original.export().unwrap(), reopened.export().unwrap());
 }
 
-/// What one tick and one speech cost to commit as the world grows: ten persons
-/// to a place, one Routine each with period 60, due staggered over the hour.
-/// Run on its own, in release, to read the numbers; no threshold is asserted.
+/// The digest is what a replay or a fresh recompute would derive, at every
+/// revision of the golden session and after reopening it, and also across a
+/// removal, which the session itself never makes.
+#[test]
+fn incremental_digest_equals_full_recompute() {
+    let (mut kernel, _) = golden_session();
+    let commits = kernel.journal.commits_for_test();
+    for (index, commit) in commits.iter().enumerate() {
+        let replayed = crate::journal::verify_history(&commits[..=index]).unwrap();
+        assert_eq!(
+            replayed.full_state_digest().unwrap(),
+            commit.resulting_state_digest,
+            "revision {index}: the incremental digest left the full recompute"
+        );
+    }
+    assert_eq!(kernel.state.full_state_digest().unwrap(), kernel.state.state_digest);
+
+    // A removal: the witness forgets what it was told.
+    let witness = subject_by_label(&kernel.state, "The Witness");
+    let (fact, _) = kernel
+        .state
+        .knowledge_of(witness)
+        .next()
+        .expect("the witness knows something");
+    let fact = *fact;
+    let rows = kernel.state.knowledge.len();
+    let snapshot = kernel.snapshot().unwrap();
+    submit_play(
+        &mut kernel,
+        &snapshot,
+        operations(vec![ComponentOp::Forget {
+            subject: Ref::Existing(witness),
+            fact: Ref::Existing(fact),
+        }]),
+    );
+    assert_eq!(kernel.state.knowledge.len(), rows - 1, "a row was removed");
+    assert_eq!(kernel.state.full_state_digest().unwrap(), kernel.state.state_digest);
+
+    let reopened = WorldKernel::open(&kernel.export().unwrap()).unwrap();
+    assert_eq!(reopened.state.full_state_digest().unwrap(), reopened.state.state_digest);
+    assert_eq!(reopened.state.accumulator, kernel.state.accumulator);
+}
+
+/// The clockwork world: `persons` persons, ten to a place, one Routine each
+/// with period `persons / 2`, due `1 + i mod (persons / 2)`, so a one-minute
+/// tick rolls two routines at every size and a speech reaches the same nine
+/// listeners.
+fn clockwork_world(persons: usize) -> (WorldKernel, Vec<crate::SubjectId>, crate::AffordanceId) {
+    use crate::patch::kernel_speak_grant;
+    use crate::patch::{EntityDeclaration, SubjectDeclaration};
+    use crate::{CallerId, CommandEnvelope, CreateWorld, EntityKind, SubjectKind};
+
+    let places = persons / 10;
+    let mut declarations = Vec::new();
+    for place in 0..places {
+        declarations.push(Declaration::Entity(EntityDeclaration {
+            handle: DraftHandle::new(format!("place-{place}")),
+            label: format!("Place {place}"),
+            kind: EntityKind::Place,
+            container: None,
+        }));
+    }
+    for person in 0..persons {
+        declarations.push(Declaration::Subject(SubjectDeclaration {
+            handle: DraftHandle::new(format!("person-{person}")),
+            label: format!("Person {person}"),
+            kind: SubjectKind::Person,
+            affordances: kernel_speak_grant(),
+            position: Some(Ref::Draft(DraftHandle::new(format!("place-{}", person / 10)))),
+            import_key: None,
+        }));
+    }
+    let (mut kernel, _) = WorldKernel::create(
+        CreateWorld {
+            owner: owner(),
+            title: "Clockwork".into(),
+            patch: WorldPatch {
+                declarations,
+                operations: Vec::new(),
+                evidence: Vec::new(),
+            },
+            grammar: None,
+        },
+        &auth_principal(owner()),
+    )
+    .expect("the clockwork world is created");
+    let people: Vec<_> = (0..persons)
+        .map(|person| subject_by_label(&kernel.state, &format!("Person {person}")))
+        .collect();
+    let period = (persons / 2) as u64;
+    let routines = people
+        .iter()
+        .enumerate()
+        .map(|(index, subject)| ComponentOp::CreateCommitment {
+            subject: Ref::Existing(*subject),
+            counterparty: None,
+            kind: CommitmentKind::Routine,
+            due: FictionalMinutes(1 + index as u64 % period),
+            period: Some(TickMinutes::new(period as u32).unwrap()),
+            checks: Vec::new(),
+            statement: Statement::new("Keeps the hour.").unwrap(),
+        })
+        .collect();
+    let placing = CommandEnvelope {
+        world_id: kernel.state.header.world_id,
+        expected_revision: kernel.state.revision,
+        caller: CallerId::Play,
+        body: operations(routines),
+    };
+    kernel
+        .submit(placing, &AuthenticatedCaller::verified_play())
+        .expect("the routines are placed");
+    let speak_entry = *kernel
+        .state
+        .affordance_catalog
+        .iter()
+        .find(|(_, entry)| entry.kind.0 == "speak")
+        .map(|(id, _)| id)
+        .expect("genesis admits Speak");
+    (kernel, people, speak_entry)
+}
+
+fn clockwork_envelope(kernel: &WorldKernel, body: CommandBody) -> crate::CommandEnvelope {
+    crate::CommandEnvelope {
+        world_id: kernel.state.header.world_id,
+        expected_revision: kernel.state.revision,
+        caller: crate::CallerId::Play,
+        body,
+    }
+}
+
+/// Submits and reports the document digests the commit computed beside the
+/// ones its change set implies: added + removed + 2 x updated, counted by
+/// enumerating every document before and after.
+fn submit_counting_digests(kernel: &mut WorldKernel, body: CommandBody) -> (usize, usize) {
+    let before = kernel.state.documents().unwrap();
+    let envelope = clockwork_envelope(kernel, body);
+    crate::digest::DOC_DIGESTS.with(|count| count.set(0));
+    kernel
+        .submit(envelope, &AuthenticatedCaller::verified_play())
+        .expect("the commit lands");
+    let computed = crate::digest::DOC_DIGESTS.with(|count| count.get());
+    let after = kernel.state.documents().unwrap();
+    let added = after.keys().filter(|key| !before.contains_key(*key)).count();
+    let removed = before.keys().filter(|key| !after.contains_key(*key)).count();
+    let updated = after
+        .iter()
+        .filter(|(key, digest)| before.get(*key).is_some_and(|old| old != *digest))
+        .count();
+    (computed, added + removed + 2 * updated)
+}
+
+/// A commit's digest work is what it changed, not what the world holds: a tick
+/// and a speech cost the same number of document digests at 100 persons and at
+/// 1600, and exactly Added + Removed + 2 x Updated of that commit.
+#[test]
+fn digest_work_is_equal_at_100_and_1600() {
+    let mut worked = Vec::new();
+    for persons in [100usize, 1600] {
+        let (mut kernel, people, speak_entry) = clockwork_world(persons);
+        let mut counts = Vec::new();
+        for _ in 0..3 {
+            counts.push(submit_counting_digests(&mut kernel, tick_body(1)));
+        }
+        for index in 0..3 {
+            let speech = CommandBody::Act {
+                actor: people[index],
+                invocation: speak(speak_entry, &format!("Speech {index}.")),
+            };
+            counts.push(submit_counting_digests(&mut kernel, speech));
+        }
+        for (computed, implied) in &counts {
+            assert!(*computed > 0, "a commit changed documents and digested none");
+            assert_eq!(
+                computed, implied,
+                "{persons} persons: digests != Added + Removed + 2 x Updated"
+            );
+        }
+        worked.push(counts);
+    }
+    assert_eq!(worked[0], worked[1], "digest work grew with the world");
+}
+
+/// A failed apply leaves nothing behind: state, accumulator and digest equal
+/// to before, no transaction open, and the next honest command commits. The
+/// failure is the revision overflow a tick meets after it has written the
+/// clock, a routine and its pressure.
+#[test]
+fn a_failed_apply_rolls_back() {
+    let (mut kernel, _, _) = clockwork_world(20);
+    let honest_revision = kernel.state.revision;
+    kernel.state.revision = u64::MAX;
+    let before = kernel.state.clone();
+    let commits = kernel.journal.commit_count();
+
+    let tick = clockwork_envelope(&kernel, tick_body(1));
+    let error = kernel
+        .submit(tick, &AuthenticatedCaller::verified_play())
+        .unwrap_err();
+    assert!(matches!(error, KernelError::Serialization(_)), "{error:?}");
+    assert_eq!(kernel.state, before, "the failed tick left writes behind");
+    assert_eq!(kernel.journal.commit_count(), commits);
+    kernel.state.begin();
+    assert_eq!(kernel.state.folded().unwrap(), kernel.state.accumulator);
+    assert_eq!(
+        kernel.state.accumulator.state_digest(u64::MAX),
+        kernel.state.full_state_digest().unwrap(),
+        "the accumulator no longer matches the documents"
+    );
+
+    kernel.state.revision = honest_revision;
+    let tick = clockwork_envelope(&kernel, tick_body(1));
+    kernel
+        .submit(tick, &AuthenticatedCaller::verified_play())
+        .expect("the next honest command commits");
+    assert_eq!(kernel.state.full_state_digest().unwrap(), kernel.state.state_digest);
+}
+
+/// What one tick and one speech cost to commit as the world grows, by the
+/// clockwork world above. Run on its own, in release, to read the numbers; no
+/// time is asserted here. The timing gate belongs to the follow-up
+/// `aetherlight-read-indexes-timing-gate`, because the world reads a commit
+/// makes (`audience`, `derive_motion`) are still O(world) and bound the ratio.
+/// `digest_work_is_equal_at_100_and_1600` is the gate on what this commit owns.
 ///
 /// `cargo test --release --lib clockwork_commit_cost -- --ignored --nocapture`
 #[test]
 #[ignore]
 fn clockwork_commit_cost() {
-    use crate::patch::kernel_speak_grant;
-    use crate::patch::{Declaration, DraftHandle, EntityDeclaration, SubjectDeclaration};
-    use crate::{CallerId, CommandEnvelope, CreateWorld, EntityKind, SubjectKind, WorldPatch};
-
-    println!("persons  places  create_ms  tick_mean_ms  speech_mean_ms  revision_after");
+    println!("persons  create_ms  tick_ms  tick_digests  speech_ms  speech_digests");
+    let mut ticks_ms = Vec::new();
+    let mut speeches_ms = Vec::new();
     for persons in [100usize, 400, 1600] {
-        let places = persons / 10;
-        let mut declarations = Vec::new();
-        for place in 0..places {
-            declarations.push(Declaration::Entity(EntityDeclaration {
-                handle: DraftHandle::new(format!("place-{place}")),
-                label: format!("Place {place}"),
-                kind: EntityKind::Place,
-                container: None,
-            }));
-        }
-        for person in 0..persons {
-            declarations.push(Declaration::Subject(SubjectDeclaration {
-                handle: DraftHandle::new(format!("person-{person}")),
-                label: format!("Person {person}"),
-                kind: SubjectKind::Person,
-                affordances: kernel_speak_grant(),
-                position: Some(Ref::Draft(DraftHandle::new(format!("place-{}", person / 10)))),
-                import_key: None,
-            }));
-        }
         let started = Instant::now();
-        let (mut kernel, _) = WorldKernel::create(
-            CreateWorld {
-                owner: owner(),
-                title: "Clockwork".into(),
-                patch: WorldPatch {
-                    declarations,
-                    operations: Vec::new(),
-                    evidence: Vec::new(),
-                },
-                grammar: None,
-            },
-            &auth_principal(owner()),
-        )
-        .expect("the clockwork world is created");
+        let (mut kernel, people, speak_entry) = clockwork_world(persons);
         let create_ms = started.elapsed().as_secs_f64() * 1e3;
-
-        let people: Vec<_> = (0..persons)
-            .map(|person| subject_by_label(&kernel.state, &format!("Person {person}")))
-            .collect();
-        let routines = people
-            .iter()
-            .enumerate()
-            .map(|(index, subject)| ComponentOp::CreateCommitment {
-                subject: Ref::Existing(*subject),
-                counterparty: None,
-                kind: CommitmentKind::Routine,
-                due: FictionalMinutes(1 + (index % 60) as u64),
-                period: Some(TickMinutes::new(60).unwrap()),
-                checks: Vec::new(),
-                statement: Statement::new("Keeps the hour.").unwrap(),
-            })
-            .collect();
         let play = AuthenticatedCaller::verified_play();
-        let envelope = |kernel: &WorldKernel, body: CommandBody| CommandEnvelope {
-            world_id: kernel.state.header.world_id,
-            expected_revision: kernel.state.revision,
-            caller: CallerId::Play,
-            body,
-        };
-        let placing = envelope(&kernel, operations(routines));
-        kernel.submit(placing, &play).expect("the routines are placed");
 
-        let speak_entry = *kernel
-            .state
-            .affordance_catalog
-            .iter()
-            .find(|(_, entry)| entry.kind.0 == "speak")
-            .map(|(id, _)| id)
-            .expect("genesis admits Speak");
-
-        let mut ticks = 0.0;
+        let (mut ticks, mut tick_digests) = (0.0, 0);
         for _ in 0..30 {
-            let tick = envelope(&kernel, tick_body(1));
+            let tick = clockwork_envelope(&kernel, tick_body(1));
+            crate::digest::DOC_DIGESTS.with(|count| count.set(0));
             let started = Instant::now();
             kernel.submit(tick, &play).expect("the tick commits");
             ticks += started.elapsed().as_secs_f64() * 1e3;
+            tick_digests = crate::digest::DOC_DIGESTS.with(|count| count.get());
         }
-        let mut speeches = 0.0;
+        let (mut speeches, mut speech_digests) = (0.0, 0);
         for index in 0..30 {
-            let act = envelope(
+            let act = clockwork_envelope(
                 &kernel,
                 CommandBody::Act {
                     actor: people[index],
                     invocation: speak(speak_entry, &format!("Speech {index}.")),
                 },
             );
+            crate::digest::DOC_DIGESTS.with(|count| count.set(0));
             let started = Instant::now();
             kernel.submit(act, &play).expect("the speech commits");
             speeches += started.elapsed().as_secs_f64() * 1e3;
+            speech_digests = crate::digest::DOC_DIGESTS.with(|count| count.get());
         }
         println!(
-            "{persons:>7}  {places:>6}  {create_ms:>9.1}  {:>12.2}  {:>14.2}  {:>14}",
+            "{persons:>7}  {create_ms:>9.1}  {:>7.3}  {tick_digests:>12}  {:>9.3}  {speech_digests:>14}",
             ticks / 30.0,
             speeches / 30.0,
-            kernel.state.revision
         );
+        ticks_ms.push(ticks / 30.0);
+        speeches_ms.push(speeches / 30.0);
     }
+    println!(
+        "ratio 1600/100: tick {:.2}  speech {:.2}",
+        ticks_ms[2] / ticks_ms[0],
+        speeches_ms[2] / speeches_ms[0]
+    );
 }
