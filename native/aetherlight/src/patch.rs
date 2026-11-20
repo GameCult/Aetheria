@@ -958,28 +958,19 @@ pub(super) enum ImportKeyFault {
     Duplicate,
 }
 
-/// The keys the subjects hold, retired ones included, so a key is never
-/// reissued. Derived on demand; no stored index.
-pub(super) fn held_import_keys<'a>(
-    subjects: impl IntoIterator<Item = &'a super::SubjectState>,
-) -> BTreeSet<&'a ImportKey> {
-    subjects
-        .into_iter()
-        .filter_map(|subject| subject.import_key.as_ref())
-        .collect()
-}
-
 /// The one decision on a key: malformed, held by a subject already in the
-/// world, or already claimed in `declared` (which it joins). Every door that
-/// admits or loads subjects calls this, so none can decide otherwise.
+/// world (`held` asks the subjects' `ByImportKey` index, retired ones
+/// included, so a key is never reissued), or already claimed in `declared`
+/// (which it joins). Every door that admits or loads subjects calls this, so
+/// none can decide otherwise.
 pub(super) fn import_key_fault<'a>(
     key: &'a ImportKey,
-    held: &BTreeSet<&ImportKey>,
+    held: impl Fn(&ImportKey) -> bool,
     declared: &mut BTreeSet<&'a ImportKey>,
 ) -> Option<ImportKeyFault> {
     if !key.is_canonical() {
         Some(ImportKeyFault::Malformed)
-    } else if held.contains(key) {
+    } else if held(key) {
         Some(ImportKeyFault::Held)
     } else if !declared.insert(key) {
         Some(ImportKeyFault::Duplicate)
@@ -2414,7 +2405,7 @@ fn resolve_affordance(
     site: Site,
     reference: &Ref<AffordanceId>,
     index: &BTreeMap<DraftHandle, RefKind>,
-    catalog: &Docs<AffordanceId, Affordance>,
+    catalog: &Docs<AffordanceId, Affordance, super::ByKind>,
     mismatches: &mut Vec<Mismatch>,
 ) -> Option<Key<AffordanceId>> {
     match reference {
@@ -2726,7 +2717,7 @@ fn resolve_subject(
     site: Site,
     reference: &Ref<SubjectId>,
     index: &BTreeMap<DraftHandle, RefKind>,
-    subjects: &Docs<SubjectId, SubjectState>,
+    subjects: &Docs<SubjectId, SubjectState, super::ByImportKey>,
     mismatches: &mut Vec<Mismatch>,
 ) -> Option<Key<SubjectId>> {
     match reference {
@@ -3083,16 +3074,13 @@ pub(super) fn resolve_patch(
         let speak = kernel_speak_entry();
         check_against_grammar(state, &speak_handle, &speak.kind, &speak.roles, &mut mismatches);
     }
-    let mut kind_names: BTreeSet<AffordanceKindName> = state
-        .affordance_catalog
-        .values()
-        .map(|entry| entry.kind.clone())
-        .collect();
+    // The kinds this patch declares; a kind the catalog already names is asked
+    // of its `ByKind` index.
+    let mut declared_kinds: BTreeSet<AffordanceKindName> = BTreeSet::new();
     if genesis {
-        kind_names.insert(kernel_speak_entry().kind);
+        declared_kinds.insert(kernel_speak_entry().kind);
     }
 
-    let held_keys = held_import_keys(state.subjects.values());
     let mut declared_keys: BTreeSet<&ImportKey> = BTreeSet::new();
     for (position, declaration) in patch.declarations.iter().enumerate() {
         let (handle, label, kind) = match declaration {
@@ -3137,7 +3125,7 @@ pub(super) fn resolve_patch(
             && let Some(key) = &subject.import_key
         {
             let handle = subject.handle.clone();
-            match import_key_fault(key, &held_keys, &mut declared_keys) {
+            match import_key_fault(key, |key| state.import_key_held(key), &mut declared_keys) {
                 Some(ImportKeyFault::Malformed) => {
                     mismatches.push(Mismatch::MalformedImportKey { handle });
                 }
@@ -3166,7 +3154,8 @@ pub(super) fn resolve_patch(
                 &affordance.roles,
                 &mut mismatches,
             );
-            if !kind_names.insert(affordance.kind.clone()) {
+            let taken = state.kind_taken(&affordance.kind);
+            if !declared_kinds.insert(affordance.kind.clone()) || taken {
                 mismatches.push(Mismatch::DuplicateAffordanceKind {
                     handle: affordance.handle.clone(),
                 });

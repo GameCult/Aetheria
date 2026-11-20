@@ -520,10 +520,9 @@ pub(super) fn verify_state_shape(state: &WorldState) -> Result<(), JournalError>
         ));
     }
     let mut declared_keys = BTreeSet::new();
-    let no_held = BTreeSet::new();
     for subject in state.subjects.values() {
         if let Some(key) = &subject.import_key
-            && super::patch::import_key_fault(key, &no_held, &mut declared_keys).is_some()
+            && super::patch::import_key_fault(key, |_| false, &mut declared_keys).is_some()
         {
             return Err(JournalError::Corrupt(
                 "subject import key is malformed or held by two subjects".into(),

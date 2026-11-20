@@ -612,6 +612,16 @@ fn populated_worlds() -> Vec<crate::WorldState> {
         WorldKernel::create(creation(title), &auth_principal(owner())).unwrap().0
     };
     let mut worlds = vec![golden_session().0.state];
+    // Two subjects holding import keys, so the subjects' `ByImportKey` index has
+    // points to read and to damage.
+    let mut keyed = crate::tests::creation("Keyed");
+    for declaration in &mut keyed.patch.declarations {
+        if let Declaration::Subject(subject) = declaration {
+            let record = subject.label.clone();
+            subject.import_key = Some(crate::ImportKey::new("aetherlight.fixture", record));
+        }
+    }
+    worlds.push(WorldKernel::create(keyed, &auth_principal(owner())).unwrap().0.state);
     let mut kernel = created("Civic");
     civic_world(&mut kernel);
     worlds.push(kernel.state);
@@ -1146,6 +1156,28 @@ fn reference_scan_disagreement(state: &crate::WorldState) -> Option<String> {
             }
         }
     }
+    let strange = crate::ImportKey::new("aetherlight.fixture", "held by nobody");
+    for key in state
+        .subjects
+        .values()
+        .filter_map(|subject| subject.import_key.as_ref())
+        .chain(std::iter::once(&strange))
+    {
+        if state.import_key_held(key) != crate::import_key_held_by_scan(state, key) {
+            return Some(format!("import key {key:?} held"));
+        }
+    }
+    let unnamed = crate::patch::AffordanceKindName("no such kind".into());
+    for kind in state
+        .affordance_catalog
+        .values()
+        .map(|entry| &entry.kind)
+        .chain(std::iter::once(&unnamed))
+    {
+        if state.kind_taken(kind) != crate::kind_taken_by_scan(state, kind) {
+            return Some(format!("affordance kind {kind:?} taken"));
+        }
+    }
     for place in &places {
         if crate::under_place(state, *place) != crate::under_place_by_scan(state, *place) {
             return Some(format!("under_place {place:?}"));
@@ -1266,6 +1298,8 @@ fn a_corrupted_index_is_detected() {
         }
     }
     let indexed: BTreeSet<&str> = [
+        "aetherlight.subject.v1",
+        "aetherlight.affordance.v1",
         "aetherlight.entity.v1",
         "aetherlight.edge.v1",
         "aetherlight.position.v1",
