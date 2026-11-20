@@ -2113,3 +2113,114 @@ fn apply_conserves_a_holder_restored_to_its_start_value() {
         .expect("moving the pre-written five on conserves it");
     state.rollback();
 }
+
+/// Patches whose later operations read what earlier ones wrote, judged by the
+/// resolver and committed: each is a legal sequence and must be accepted, or,
+/// where the sequence changes nothing, refused cleanly by the resolver with the
+/// commit never reached.
+mod within_one_patch {
+    use super::{clockwork_envelope, clockwork_world};
+    use crate::patch::{
+        AuthorityGrantRef, AuthorityTargetRef, Declaration, DraftHandle, Mismatch,
+        PressureMagnitude, PressureSourceRef, SubjectDeclaration,
+    };
+    use crate::tests::{LEVY_KIND, authority_kind};
+    use crate::{
+        AuthenticatedCaller, CommandBody, ComponentOp, KernelError, Ref, SubjectKind, SubjectId,
+        WorldKernel, WorldPatch,
+    };
+    use std::collections::BTreeSet;
+
+    fn submit(kernel: &mut WorldKernel, patch: WorldPatch) -> Result<(), KernelError> {
+        let envelope = clockwork_envelope(kernel, CommandBody::AdmitPatch { patch });
+        kernel.submit(envelope, &AuthenticatedCaller::verified_play()).map(|_| ())
+    }
+
+    fn ops(operations: Vec<ComponentOp>) -> WorldPatch {
+        WorldPatch { declarations: vec![], operations, evidence: vec![] }
+    }
+
+    fn levy_over(holder: SubjectId, over: SubjectId) -> ComponentOp {
+        ComponentOp::GrantAuthority {
+            holder: Ref::Existing(holder),
+            grant: AuthorityGrantRef {
+                kind: authority_kind(LEVY_KIND),
+                over: AuthorityTargetRef::Subject(Ref::Existing(over)),
+            },
+        }
+    }
+
+    /// Two jurisdictions of one kind over different subjects are disjoint, so
+    /// one holder may hold both.
+    #[test]
+    fn one_holder_may_hold_one_kind_over_two_subjects() {
+        let (mut kernel, p, _) = clockwork_world(30);
+        submit(&mut kernel, ops(vec![levy_over(p[0], p[5]), levy_over(p[0], p[6])]))
+            .expect("levy over two different subjects does not overlap");
+    }
+
+    fn source(subject: SubjectId) -> PressureSourceRef {
+        PressureSourceRef::Subject(Ref::Existing(subject))
+    }
+
+    /// A pressure advanced by one operation is there for the next to resolve,
+    /// and one reduced to nothing is gone for the next to advance afresh.
+    #[test]
+    fn a_pressure_advanced_in_a_patch_is_read_by_the_next_operation() {
+        let (mut kernel, p, _) = clockwork_world(30);
+        submit(&mut kernel, ops(vec![
+            ComponentOp::AdvancePressure { source: source(p[0]), target: Ref::Existing(p[12]), by: PressureMagnitude(2) },
+            ComponentOp::ResolvePressure { source: source(p[0]), target: Ref::Existing(p[12]) },
+        ]))
+        .expect("advance then resolve the same slot");
+
+        submit(&mut kernel, ops(vec![
+            ComponentOp::AdvancePressure { source: source(p[0]), target: Ref::Existing(p[13]), by: PressureMagnitude(2) },
+            ComponentOp::ReducePressure { source: source(p[0]), target: Ref::Existing(p[13]), by: PressureMagnitude(2) },
+            ComponentOp::AdvancePressure { source: source(p[0]), target: Ref::Existing(p[13]), by: PressureMagnitude(1) },
+        ]))
+        .expect("advance, reduce to nothing, advance again");
+    }
+
+    fn declared(name: &str, affordance: crate::AffordanceId) -> Declaration {
+        Declaration::Subject(SubjectDeclaration {
+            handle: DraftHandle::new(name),
+            label: name.into(),
+            kind: SubjectKind::Person,
+            affordances: BTreeSet::from([Ref::Existing(affordance)]),
+            position: None,
+            import_key: None,
+        })
+    }
+
+    /// A subject declared with an affordance already has it: granting it is no
+    /// change, and the resolver says so itself, rather than admitting what the
+    /// commit then refuses. Revoking it first makes the grant a change.
+    #[test]
+    fn a_declared_affordance_is_known_to_the_operations_that_follow() {
+        let (mut kernel, _, speak) = clockwork_world(30);
+        let draft = |name: &str| Ref::Draft(DraftHandle::new(name));
+
+        let refused = submit(&mut kernel, WorldPatch {
+            declarations: vec![declared("scribe", speak)],
+            operations: vec![ComponentOp::GrantAffordance { subject: draft("scribe"), affordance: Ref::Existing(speak) }],
+            evidence: vec![],
+        })
+        .unwrap_err();
+        assert!(
+            matches!(&refused, KernelError::PatchRejected(m)
+                if m == &[Mismatch::NoOperationEffect { operation: 0 }]),
+            "{refused:?}"
+        );
+
+        submit(&mut kernel, WorldPatch {
+            declarations: vec![declared("scribe2", speak)],
+            operations: vec![
+                ComponentOp::RevokeAffordance { subject: draft("scribe2"), affordance: Ref::Existing(speak) },
+                ComponentOp::GrantAffordance { subject: draft("scribe2"), affordance: Ref::Existing(speak) },
+            ],
+            evidence: vec![],
+        })
+        .expect("revoke then grant is a change");
+    }
+}
