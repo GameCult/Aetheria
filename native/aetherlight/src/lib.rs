@@ -2006,6 +2006,9 @@ fn apply_operation(
                 if empty {
                     state.dependencies.remove(subject);
                 }
+                // The pressure a failing dependency raised is that dependency's
+                // own: it ends with it, or the world fails its shape check at open.
+                set_pressure(state, *subject, PressureSource::Dependency(*target), 0);
             }
         }
         ResolvedOp::GrantAuthority { holder, grant }
