@@ -12,8 +12,9 @@ using float3 = CultMath.float3;
 // Every verb names what it could not do instead of throwing, so one bad name in a script lists every bad name.
 // Designs, hulls and products are named as the catalog names them.
 // ZoneStage is the placement vocabulary and the admission of what it placed; Zone.Admit stays the only admission.
-// RunStart builds a ScenarioStage (a ZoneStage that also stages the player); ZoneStage.Summon builds a ZoneStage for a
-// running zone. A ZoneStage has no Player verb, so a summon placing a player is unrepresentable.
+// RunStart builds a ScenarioStage (a ZoneStage that also stages the player and authors stance); ZoneStage.Summon builds a
+// ZoneStage for a running zone. A ZoneStage has no Player verb and no stance, so a summon placing a player or writing who
+// fights whom is unrepresentable: a summon's stance is the faction rule's and its grudges'.
 public class ZoneStage
 {
     private readonly ItemManager _items;
@@ -52,7 +53,6 @@ public class ZoneStage
     internal sealed class Placement
     {
         public Entity Entity;
-        public ScenarioStance Stance;
         public bool Piloted;
         public AgentTask Task;
         // What the pilot already knows at the start: an entity its sensors hold a track of (Approach). Seeded through the
@@ -122,18 +122,17 @@ public class ZoneStage
         return new ScenarioFit(preset);
     }
 
-    // Anything else in the arena. A stance holds both ways between it and the player. A piloted ship gets the zone's
-    // pilot; an unpiloted entity has none and goes nowhere on its own unless it is placed moving: velocity is the planar
-    // velocity it starts with, and the sim carries it from there. A turret hull stays where it is put.
-    public Entity Place(ScenarioFit fit, float2 at, float2 facing = default, ScenarioStance stance = ScenarioStance.Neutral, bool piloted = false,
-        float2 velocity = default)
+    // Anything else in the arena. A piloted ship gets the zone's pilot; an unpiloted entity has none and goes nowhere on its
+    // own unless it is placed moving: velocity is the planar velocity it starts with, and the sim carries it from there. A
+    // turret hull stays where it is put. It writes no stance: who fights whom is the faction rule's (stance is ScenarioStage's).
+    public Entity Place(ScenarioFit fit, float2 at, float2 facing = default, bool piloted = false, float2 velocity = default)
     {
         var where = $"entity {_placements++}";
         var entity = Build(fit, where, at, facing);
         if (entity == null) return null;
         entity.Velocity = velocity;
         if (piloted && !(entity is Ship)) _failures.Add($"{where}: {entity.Name} is not a ship hull, so it cannot be piloted");
-        _placed.Add(new Placement { Entity = entity, Stance = stance, Piloted = piloted });
+        _placed.Add(new Placement { Entity = entity, Piloted = piloted });
         return entity;
     }
 
@@ -181,17 +180,13 @@ public class ZoneStage
         }
     }
 
-    // Admits what was placed: each entity's stance set both ways with the player, then Zone.Admit with a pilot for each
-    // piloted one. A start state includes what a pilot knows (ruling stage-states-pilot-knowledge): its anchor is tracked
+    // Admits what was placed: Zone.Admit with a pilot for each piloted one. It writes no stance. A start state includes what a pilot knows (ruling stage-states-pilot-knowledge): its anchor is tracked
     // from the first step, by the sensors' own path (info gathered past the detection threshold), so they can lose it
     // like any track. The one owner of admitting placements.
-    private protected void AdmitPlaced(Ship player)
+    private protected void AdmitPlaced()
     {
         foreach (var placed in _placed)
         {
-            var hostile = placed.Stance == ScenarioStance.Hostile;
-            placed.Entity.SetIff(player, hostile);
-            player.SetIff(placed.Entity, hostile);
             Arena.Admit(placed.Entity, placed.Piloted, placed.Task);
         }
         foreach (var placed in _placed)
@@ -200,22 +195,12 @@ public class ZoneStage
     }
 
     // Places ships into a running zone through the admission a run start uses: the script places with the stage's verbs,
-    // and the entities join with their stance toward the player, a pilot when piloted and the knowledge the script stated.
+    // and the entities join with a pilot when piloted and the knowledge the script stated. A summon writes no stance: the
+    // faction rule decides who fights whom, and a grudge (Entity.Provoke) turns the summoned faction on whoever attacks it.
     // Returns the placed entities in order, or null with every failure listed and the zone and the item stream and lot ledger unchanged.
-    // It draws from the live item stream and does not reseed (a reseed would give every summon the same fits). The anchor
-    // is the player's ship: the stance is written against it.
-    public static IReadOnlyList<Entity> Summon(ItemManager items, Zone zone, Ship player, Action<ZoneStage> script, List<string> failures)
+    // It draws from the live item stream and does not reseed (a reseed would give every summon the same fits).
+    public static IReadOnlyList<Entity> Summon(ItemManager items, Zone zone, Action<ZoneStage> script, List<string> failures)
     {
-        if (player == null || !player.IsPlayerShip)
-        {
-            failures.Add("summon: the anchor is not the player's ship");
-            return null;
-        }
-        if (!zone.Entities.Contains(player))
-        {
-            failures.Add("summon: the player is not in this zone");
-            return null;
-        }
         var mark = items.Mark();
         var stage = new ZoneStage(items, zone);
         script(stage);
@@ -226,7 +211,7 @@ public class ZoneStage
             return null;
         }
         stage.StockUnauthoredAmmunition();
-        stage.AdmitPlaced(player);
+        stage.AdmitPlaced();
         return stage._placed.Select(placed => placed.Entity).ToList();
     }
 
@@ -271,7 +256,8 @@ public class ZoneStage
 }
 
 // The run-start stage: a ZoneStage that also stages the player, the credits the run starts with and the hull it
-// starts in. Only RunStart builds one.
+// starts in, and the one place a script authors stance: a Hostile placement is hostile both ways with the player, written
+// once at admission. Neutral writes nothing (the faction rule and grudges decide). Only RunStart builds one.
 public sealed class ScenarioStage : ZoneStage
 {
     internal ScenarioStage(ItemManager items, Zone arena, string startingHull) : base(items, arena)
@@ -284,6 +270,17 @@ public sealed class ScenarioStage : ZoneStage
 
     // What the run starts with: the gameplay settings' starting credits unless the scenario sets another amount.
     public int Credits { get; set; }
+
+    private readonly List<Entity> _hostile = new List<Entity>();
+
+    // Anything else in the arena, as ZoneStage.Place, with a stance toward the player: Hostile holds both ways from the start.
+    public new Entity Place(ScenarioFit fit, float2 at, float2 facing = default, ScenarioStance stance = ScenarioStance.Neutral, bool piloted = false,
+        float2 velocity = default)
+    {
+        var entity = base.Place(fit, at, facing, piloted, velocity);
+        if (entity != null && stance == ScenarioStance.Hostile) _hostile.Add(entity);
+        return entity;
+    }
 
     internal bool PlayerPlaced { get; private set; }
     internal Ship PlayerShip { get; private set; }
@@ -312,7 +309,12 @@ public sealed class ScenarioStage : ZoneStage
         StockUnauthoredAmmunition();
         PlayerShip.IsPlayerShip = true;
         Arena.Admit(PlayerShip, piloted: false);
-        AdmitPlaced(PlayerShip);
+        foreach (var entity in _hostile)
+        {
+            entity.SetIff(PlayerShip, true);
+            PlayerShip.SetIff(entity, true);
+        }
+        AdmitPlaced();
     }
 }
 
