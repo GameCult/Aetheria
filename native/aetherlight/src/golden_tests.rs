@@ -1199,6 +1199,8 @@ fn view_scenario() -> Vec<(String, crate::WorldState)> {
                 },
             },
         ),
+        // A retired dependent never fails: closing the route it names must leave no row.
+        ("a dependent on the route retires", operations(vec![ComponentOp::Retire { subject: Ref::Existing(people[5]) }])),
         ("the route closes again", operations(vec![ComponentOp::CloseRoute { route: Ref::Existing(route) }])),
         ("a long tick", tick_body(30)),
         ("a depended-on subject retires", operations(vec![ComponentOp::Retire { subject: Ref::Existing(people[8]) }])),
