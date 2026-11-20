@@ -33,6 +33,8 @@ public abstract class Scenario
     public abstract void Stage(ScenarioStage stage);
 }
 
+// A run-start placement's stance toward the player. Hostile is written as an override both ways; Neutral writes nothing,
+// so the faction rule and grudges decide.
 public enum ScenarioStance
 {
     Neutral,

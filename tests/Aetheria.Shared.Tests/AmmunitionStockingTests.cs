@@ -113,7 +113,7 @@ public sealed partial class RunStartTests
         var (_, arena, staged, failures) = Launch(new Scripted(false, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0))), Inputs(() => GalaxySeed));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
 
-        var summoned = ZoneStage.Summon(_items, arena, staged.Player, stage =>
+        var summoned = ZoneStage.Summon(_items, arena, stage =>
         {
             stage.Place(stage.Fit(hull, slots), float2(300, 0));
             var authored = stage.Place(stage.Fit(hull, slots), float2(-300, 0));

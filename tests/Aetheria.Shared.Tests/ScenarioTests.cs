@@ -400,9 +400,9 @@ public sealed partial class RunStartTests
     }
 
     // A summon places into a running zone through the stage's admission (ruling ifl-ships-in-demo-as-tactical-view): after a run
-    // has started and stepped, a hostile piloted generated ship that approaches the player is a member with one agent, hostile
-    // both ways, and its pilot knows the player by the sensors' own path. Kills: a summon that skips the stance, the pilot or
-    // the knowledge seed.
+    // has started and stepped, a piloted generated ship that approaches the player is a member with one agent, and its pilot
+    // knows the player by the sensors' own path. It holds no stance either way (ruling summons-follow-faction-logic: the faction
+    // rule decides). Kills: a summon that skips the pilot or the knowledge seed, or that writes any override.
     [Fact]
     public void ASummonJoinsARunningZone()
     {
@@ -411,9 +411,9 @@ public sealed partial class RunStartTests
         for (var tick = 0; tick < 20; tick++) zone.Update(.1f);
 
         var failures = new List<string>();
-        var summoned = ZoneStage.Summon(_items, zone, player, stage =>
+        var summoned = ZoneStage.Summon(_items, zone, stage =>
         {
-            var placed = stage.Place(stage.Generated("Longinus"), float2(400, 0), stance: ScenarioStance.Hostile, piloted: true);
+            var placed = stage.Place(stage.Generated("Longinus"), float2(400, 0), piloted: true);
             stage.Approach(placed, player);
         }, failures);
 
@@ -421,11 +421,48 @@ public sealed partial class RunStartTests
         var raider = Assert.Single(summoned);
         SafeAssert.In(zone, raider, "the summoned ship is admitted");
         Assert.Equal(1, AgentsOf(zone, raider));
-        Assert.True(player.IsHostileTo(raider) && raider.IsHostileTo(player), "hostile both ways");
+        Assert.Null(raider.IffOverride(player));
+        Assert.Null(player.IffOverride(raider));
         Assert.Equal((_items.GameplaySettings.TargetDetectionInfoThreshold + 1f) / 2f, raider.EntityInfoGathered[player]);
         for (var tick = 0; tick < 20; tick++) zone.Update(.1f);
-        Assert.True(player.EntityHostility[raider] && raider.EntityHostility[player], "the live hostility agrees");
         Assert.Equal(1, AgentsOf(zone, raider));
+    }
+
+    // A summon writes no pin, so the grudge a provocation raises still lands (an override already held is never replaced:
+    // Entity.Provoke). Kills: any stance written at summon, which blocks the formation from fighting back.
+    [Fact]
+    public void ASummonedShipAnswersAProvocation()
+    {
+        var zone = Arena(true);
+        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
+        var failures = new List<string>();
+        var placed = Assert.Single(ZoneStage.Summon(_items, zone, stage =>
+            stage.Place(stage.Generated("Longinus"), float2(400, 0), piloted: true), failures));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+
+        placed.Provoke(player);
+
+        Assert.True(placed.IsHostileTo(player), "a provoked summon did not turn on its attacker");
+    }
+
+    // A run-start script's Hostile is the only authored stance: written both ways with the player. Neutral is the absence of
+    // an override, not a pin to false. Kills: Neutral writing false; a Hostile written one way only.
+    [Fact]
+    public void ANeutralPlacementWritesNoOverride()
+    {
+        var staged = Stage(Arena(true), new Scripted(true, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(0, 0));
+            stage.Place(stage.Generated("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
+            stage.Place(stage.Bare("Longinus"), float2(-300, 0), stance: ScenarioStance.Neutral);
+        }));
+        var player = staged.Player;
+        var hostile = staged.Entities[0];
+        var neutral = staged.Entities[1];
+
+        Assert.Null(neutral.IffOverride(player));
+        Assert.Null(player.IffOverride(neutral));
+        Assert.True(hostile.IffOverride(player) == true && player.IffOverride(hostile) == true, "hostile both ways");
     }
 
     // A summon naming a design the catalog lacks admits nothing, and names it. Kills: admitting before the failure check.
@@ -438,34 +475,14 @@ public sealed partial class RunStartTests
         var agents = zone.Agents.ToList();
         var failures = new List<string>();
 
-        var summoned = ZoneStage.Summon(_items, zone, player, stage =>
+        var summoned = ZoneStage.Summon(_items, zone, stage =>
         {
-            stage.Place(stage.Generated("Longinus"), float2(400, 0), stance: ScenarioStance.Hostile, piloted: true);
+            stage.Place(stage.Generated("Longinus"), float2(400, 0), piloted: true);
             stage.Place(stage.Bare("No Such Hull"), float2(-400, 0));
         }, failures);
 
         Assert.Null(summoned);
         Assert.Contains(failures, failure => failure.Contains("No Such Hull"));
-        SafeAssert.Unchanged(zone, entities, agents);
-    }
-
-    // A summon needs the player to be in the zone it summons into: with the player docked it refuses, names why and admits nothing.
-    // Kills: dropping the membership check, which would write stance onto a non-member.
-    [Fact]
-    public void ASummonNeedsThePlayerInTheZone()
-    {
-        var zone = Arena(true);
-        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
-        Assert.True(zone.Remove(player));
-        var entities = zone.Entities.ToList();
-        var agents = zone.Agents.ToList();
-        var failures = new List<string>();
-
-        var summoned = ZoneStage.Summon(_items, zone, player, stage =>
-            stage.Place(stage.Bare("Longinus"), float2(400, 0), stance: ScenarioStance.Hostile), failures);
-
-        Assert.Null(summoned);
-        Assert.Equal(new[] { "summon: the player is not in this zone" }, failures);
         SafeAssert.Unchanged(zone, entities, agents);
     }
 
@@ -481,7 +498,7 @@ public sealed partial class RunStartTests
         var lots = _items.Lots.Lots.Keys.ToList();
         var failures = new List<string>();
 
-        Assert.Null(ZoneStage.Summon(_items, zone, player, stage =>
+        Assert.Null(ZoneStage.Summon(_items, zone, stage =>
         {
             stage.Place(stage.Generated("Longinus"), float2(400, 0));
             stage.Place(stage.Bare("No Such Hull"), float2(-400, 0));
@@ -491,23 +508,6 @@ public sealed partial class RunStartTests
         Assert.Equal(before.NextUInt(), after.NextUInt());
         Assert.Equal(nextLot, _items.Lots.NextLot);
         Assert.Equal(lots.OrderBy(id => id), _items.Lots.Lots.Keys.OrderBy(id => id));
-    }
-
-    // The anchor of a summon is the player's ship, not any ship in the zone. Kills: a summon that takes any zone member as the player.
-    [Fact]
-    public void ASummonNeedsThePlayersShipAsItsAnchor()
-    {
-        var zone = Arena(true);
-        var player = Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0)))).Player;
-        var other = zone.Entities.OfType<Ship>().First(ship => !ship.IsPlayerShip);
-        var entities = zone.Entities.ToList();
-        var agents = zone.Agents.ToList();
-        var failures = new List<string>();
-
-        Assert.Null(ZoneStage.Summon(_items, zone, other, stage => stage.Place(stage.Bare("Longinus"), float2(400, 0), stance: ScenarioStance.Hostile), failures));
-
-        Assert.Equal(new[] { "summon: the anchor is not the player's ship" }, failures);
-        SafeAssert.Unchanged(zone, entities, agents);
     }
 
     // A faction's boss is the zone generator's to place (boss-hulls-exclusive): a preset naming the loadout Loadouts.BossOf
@@ -522,8 +522,8 @@ public sealed partial class RunStartTests
         var agents = zone.Agents.ToList();
         var failures = new List<string>();
 
-        Assert.Null(ZoneStage.Summon(_items, zone, player, stage =>
-            stage.Place(stage.Preset(boss.Name), float2(400, 0), stance: ScenarioStance.Hostile, piloted: true), failures));
+        Assert.Null(ZoneStage.Summon(_items, zone, stage =>
+            stage.Place(stage.Preset(boss.Name), float2(400, 0), piloted: true), failures));
 
         Assert.Contains(failures, failure => failure.Contains(boss.Name) && failure.Contains("boss"));
         SafeAssert.Unchanged(zone, entities, agents);
