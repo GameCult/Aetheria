@@ -922,9 +922,15 @@ mod tests {
         refused("reordered commits", &[honest[0].clone(), honest[2].clone(), honest[1].clone()]);
         refused("no commits", &[]);
 
+        // Re-sealed down the chain, so the schema is the only thing wrong.
         let mut ghostlight = honest.clone();
         ghostlight[1].schema = "ghostlight.world_commit.consumer.v10".into();
-        ghostlight[1].digest = commit_digest(&ghostlight[1]).unwrap();
+        for index in 1..ghostlight.len() {
+            if index > 1 {
+                ghostlight[index].previous_commit_digest = Some(ghostlight[index - 1].digest.clone());
+            }
+            ghostlight[index].digest = commit_digest(&ghostlight[index]).unwrap();
+        }
         refused("a ghostlight commit schema", &ghostlight);
 
         let foreign = rmp_serde::to_vec_named(&ExportRef {
@@ -948,6 +954,54 @@ mod tests {
         ));
         assert!(matches!(
             WorldJournal::open(&[0xc1]),
+            Err(JournalError::Corrupt(_))
+        ));
+    }
+
+    /// Position `i` holds resulting revision `i`: a commit that names a later
+    /// revision than its place, with a state digest honestly computed for that
+    /// revision, is still not the chain's next commit.
+    #[test]
+    fn a_chain_that_skips_a_revision_is_refused() {
+        let kernel = clock_history();
+        let honest = kernel.journal.commits.clone();
+        let mut state = reopen(&honest[..2]).expect("genesis and the patch open");
+        state.revision = 7;
+        let mut forged = vec![honest[0].clone(), honest[1].clone()];
+        forged[1].resulting_revision = 7;
+        forged[1].resulting_state_digest = crate::state_digest(&state).unwrap();
+        forged[1].digest = commit_digest(&forged[1]).unwrap();
+        assert!(matches!(reopen(&forged), Err(JournalError::Corrupt(_))));
+    }
+
+    /// A world is named by its creation: a genesis whose world id is any other
+    /// is refused, however consistently every id under it was derived.
+    #[test]
+    fn a_world_id_not_derived_from_its_creation_is_refused() {
+        use crate::patch::resolve_patch;
+        use crate::tests::{auth_principal, creation, owner};
+        use crate::{CommandId, PreparedCreation};
+
+        let input = creation("Misnamed");
+        let honest = crate::prepare_creation(input.clone(), &auth_principal(owner())).unwrap();
+        let other = WorldId::of(CommandId::issue());
+        assert_ne!(other, honest.world_id);
+        let resolved = resolve_patch(
+            &WorldState::empty(other, input.owner.clone(), honest.title.clone(), None),
+            input.id(),
+            &input.patch,
+        )
+        .unwrap();
+        let (kernel, _) = WorldKernel::initialize(PreparedCreation {
+            command: input,
+            world_id: other,
+            owner: honest.owner,
+            title: honest.title,
+            resolved,
+        })
+        .unwrap();
+        assert!(matches!(
+            reopen(&kernel.journal.commits),
             Err(JournalError::Corrupt(_))
         ));
     }
