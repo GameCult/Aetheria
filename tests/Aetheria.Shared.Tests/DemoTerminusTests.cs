@@ -64,6 +64,8 @@ public sealed partial class RunStartTests
         }, Standing(restored));
         Assert.Equal(Standing(galaxy), Standing(restored));
         Assert.Equal(Array.IndexOf(galaxy.Zones, galaxy.Exit), Array.IndexOf(restored.Zones, restored.Exit));
+        Assert.Equal("Zhestokost", restored.Antagonist.Name);
+        Assert.Equal(_cache.RefOf(galaxy.Antagonist), _cache.RefOf(restored.Antagonist));
         Assert.Equal(
             galaxy.BossZones.Select(boss => (boss.Key.Name, Array.IndexOf(galaxy.Zones, boss.Value))),
             restored.BossZones.Select(boss => (boss.Key.Name, Array.IndexOf(restored.Zones, boss.Value))));
