@@ -72,6 +72,12 @@ public class SavedGame
     // by RunSave.Capture and read only by Galaxy's save constructor, which refuses a save without one (0).
     [Key(17)]
     public float InfluenceScale;
+
+    // Galaxy.Antagonist: the faction whose gate the galaxy has, the scope and source of the demo's raids, which every zone
+    // generated after Continue reads. Written only by RunSave.Capture and read only by Galaxy's save constructor; unset means
+    // no gate antagonist, set but not one of Factions refuses Continue. Keyed by the record, as Standings is.
+    [Key(18)]
+    public CultRecordRef<Faction> Antagonist;
 }
 
 [MessagePackObject]
@@ -127,6 +133,7 @@ public static class RunSave
             Entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance),
             Exit = Array.IndexOf(galaxy.Zones, galaxy.Exit),
             InfluenceScale = galaxy.InfluenceScale,
+            Antagonist = galaxy.Antagonist == null ? default : cache.RefOf(galaxy.Antagonist),
             ActionBarBindings = actionBar,
             Credits = credits,
             Seed = galaxy.Seed

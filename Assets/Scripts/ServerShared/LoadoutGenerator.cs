@@ -64,6 +64,11 @@ public class LoadoutGenerator
         return EntitySerializer.Pack(entity);
     }
 
+    // The ship hulls this faction's generator can draw (its products, with the any-manufacturer fallback a required hull has).
+    public HullData[] OfferedShipHulls() =>
+        AvailableProducts<HullData>(hull => hull.HullType == HullType.Ship, required: true).available
+            .Select(entry => entry.design).Distinct().ToArray();
+
     public OrbitalEntityPack GenerateTurretLoadout()
     {
         var (hullProduct, hullData) = RandomHull(HullType.Turret);

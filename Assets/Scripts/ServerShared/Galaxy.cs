@@ -31,6 +31,11 @@ public class Galaxy
     // 1 for a main galaxy. Carried by the save because every zone generated after Continue reads it.
     public float InfluenceScale { get; }
 
+    // The faction whose gate this galaxy has, null when it has none: the scope and the source of the demo's raids
+    // (ZoneGenerator reads it through DemoPressure). Written only by PlaceGate and the save constructor; carried by the
+    // save because every zone generated after Continue reads it and nothing else persisted regenerates it.
+    public Faction Antagonist { get; private set; }
+
     // The run's seed, minted once by GalaxyStage.SeedFrom and carried by the save (SavedGame.Seed). It seeds
     // generation, the run's item draws (RunStart) and the zone's drop dice (Zone.DropSeed).
     public uint Seed { get; }
@@ -101,6 +106,11 @@ public class Galaxy
         Entrance = Zones[savedGame.Entrance];
         if(savedGame.Exit != -1)
             Exit = Zones[savedGame.Exit];
+
+        // Unset: no gate antagonist (a save from before key 18). Set but not one of the save's factions: refused.
+        if (savedGame.Antagonist.IsSet())
+            Antagonist = Factions.Contains(cultCache.Get(savedGame.Antagonist)) ? cultCache.Get(savedGame.Antagonist)
+                : throw new InvalidOperationException("SavedGame.Antagonist is not one of the save's factions");
 
         // A save from before ore geography has no provinces: it gets them by the rule generation uses.
         BuildProvinces(global::Provinces.DefaultZonesPerProvince, savedGame.Provinces == null ? null : savedZones.Select(zone => zone.Province).ToArray(), savedGame.Provinces);
@@ -195,10 +205,11 @@ public class Galaxy
     private Faction ResolveCast(string field, string name) =>
         ResolveFaction(name) ?? throw new InvalidOperationException($"cast faction {name} ({field}) is not in the catalog");
 
-    // Gives a cast galaxy its gate: the antagonist's home is the boss zone and the exit. The only writer of Exit
-    // besides the constructors.
+    // Gives a cast galaxy its gate: the antagonist's home is the boss zone and the exit. The only writer of Exit and
+    // Antagonist besides the constructors.
     public void PlaceGate(Faction antagonist)
     {
+        Antagonist = antagonist;
         BossZones[antagonist] = HomeZones[antagonist];
         Exit = HomeZones[antagonist];
     }

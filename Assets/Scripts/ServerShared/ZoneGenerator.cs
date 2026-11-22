@@ -292,6 +292,13 @@ public static class ZoneGenerator
         var nearestFactionHomeZone = galaxy.HomeZones[nearestFaction];
         var factionPresence = galaxy.InfluenceOf(nearestFaction) - nearestFactionHomeZone.Distance[galaxyZone] + 1;
 
+        // In a galaxy with a gate antagonist that faction raids by DemoPressure's curve (below); inside its grace its stations and
+        // turrets are as absent as its ships, so the zone's structures belong to the nearest faction that is not the antagonist.
+        var antagonist = galaxy.Antagonist;
+        var structureFaction = antagonist != null && nearestFaction == antagonist && DemoPressure.InGrace(galaxy, galaxyZone)
+            ? galaxy.Factions.Where(f => f != antagonist).MinBy(f => galaxy.HomeZones[f].Distance[galaxyZone])
+            : nearestFaction;
+
         var storyStations = galaxyZone.Locations.Where(story => story.Type == LocationType.Station).ToArray();
         var stationCount = (int)(random.NextFloat() * (factionPresence + 1)) + storyStations.Length;
         // Enemy count below is based on this pre-override value, so the entrance station zone doesn't gain an enemy
@@ -441,13 +448,13 @@ public static class ZoneGenerator
 	        var security = (SecurityLevel) ((int) ((1f - pow(random.NextFloat(), factionPresence / 2f)) * 3f));
 
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
-	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout(
-		        StationKinds.Choose(cache, nearestFaction, $"{seed}:station:{i}", itemManager.Log));
+	        var station = GetLoadoutGenerator(structureFaction).GenerateStationLoadout(
+		        StationKinds.Choose(cache, structureFaction, $"{seed}:station:{i}", itemManager.Log));
 	        if (station == null)
 	        {
 		        if (isEntranceStation)
 			        throw new InvalidOperationException(
-				        $"The entrance station zone must always get a station, but {nearestFaction?.Name} has no station loadout to generate.");
+				        $"The entrance station zone must always get a station, but {structureFaction?.Name} has no station loadout to generate.");
 		        continue;
 	        }
 	        station.Orbit = cache.RefOf(lagrangeOrbit);
@@ -455,7 +462,7 @@ public static class ZoneGenerator
 	        station.SecurityRadius = pack.Radius;
 	        pack.Entities.Add(station);
 
-	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2, StationReach(station), orbit);
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(structureFaction), 2, StationReach(station), orbit);
         }
 
         // A boss zone gets its faction's boss whether or not the zone is ambient: the boss is the run's goal, not
@@ -489,18 +496,36 @@ public static class ZoneGenerator
 
         if (!ambient) return pack;
 
-        var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + baseStationCount;
-        for (int i = 0; i < enemyCount; i++)
+        // A galaxy with a gate antagonist is raided by it in proportion to depth toward the gate (DemoPressure owns the curve);
+        // every other galaxy keeps the nearest faction's presence-sized patrol.
+        if (antagonist != null)
         {
-	        var ship = GetLoadoutGenerator(nearestFaction).GenerateShipLoadout();
-	        if (ship == null) continue;
-	        pack.Entities.Add(ship);
+	        var pressure = DemoPressure.Of(galaxy, galaxyZone);
+	        var raiders = GetLoadoutGenerator(antagonist);
+	        var ceiling = pressure.Hostiles == 0 ? 0 : DemoPressure.PriceCeiling(raiders.OfferedShipHulls().Select(hull => hull.Price).ToArray(), pressure.Tier);
+	        for (int i = 0; i < pressure.Hostiles; i++)
+	        {
+		        var ship = raiders.GenerateShipLoadout(hull => hull.Price <= ceiling);
+		        if (ship == null) continue;
+		        pack.Entities.Add(ship);
+	        }
+        }
+        else
+        {
+	        var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + baseStationCount;
+	        for (int i = 0; i < enemyCount; i++)
+	        {
+		        var ship = GetLoadoutGenerator(nearestFaction).GenerateShipLoadout();
+		        if (ship == null) continue;
+		        pack.Entities.Add(ship);
+	        }
         }
 
         // Neutral wanderers: ships belonging to a faction that neither owns the zone nor is its
         // nearest faction, so existing hostility rules leave them non-hostile to the player.
         // Testing affordance for hand-testing combat/targeting; none spawn if no faction qualifies.
-        var eligibleWandererFactions = EligibleWandererFactions(galaxy.Factions, galaxyZone.Owner, nearestFaction);
+        // The antagonist is no wanderer where DemoPressure raids: its presence is the curve's alone, and it is hostile.
+        var eligibleWandererFactions = EligibleWandererFactions(galaxy.Factions, galaxyZone.Owner, nearestFaction).Where(f => f != antagonist).ToArray();
         if (zoneSettings.NeutralWandererCount > 0 && eligibleWandererFactions.Length > 0)
         {
 	        var wandererFaction = eligibleWandererFactions[random.NextInt(eligibleWandererFactions.Length)];
