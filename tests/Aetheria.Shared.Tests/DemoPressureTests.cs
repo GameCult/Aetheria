@@ -177,6 +177,9 @@ public sealed partial class RunStartTests
                 float e = galaxy.Entrance.Distance[zone], x = galaxy.Exit.Distance[zone];
                 if (e < 2 || e / (e + x) > 0.25f) continue;
                 graced++;
+                // The depth term itself: where no hostile would be drawn anyway (the curve's own ramp is 0 there), grace is
+                // what moves the antagonist's stations and turrets away, so it is asserted, not left to the generated zone.
+                Assert.True(DemoPressure.InGrace(galaxy, zone), $"seed {seed} zone {Array.IndexOf(galaxy.Zones, zone)} (jump {e}, depth {e / (e + x):0.00}) is not in grace");
                 var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStation);
                 var hostile = pack.Entities.Where(entity => IsHated(galaxy, entity.Faction)).Select(entity => entity.GetType().Name + ":" + _items.GetData(entity.Hull).Name).ToArray();
                 Assert.True(hostile.Length == 0, $"seed {seed} zone {Array.IndexOf(galaxy.Zones, zone)} (jump {e}, depth {e / (e + x):0.00}): {string.Join(", ", hostile)}");
