@@ -233,6 +233,22 @@ public sealed class DelaunayTests
         Assert.Equal(new[] { (0, 1), (0, 2), (1, 2) }, Delaunay.Edges(points));
     }
 
+    // Kills: OrientationBound loosened to 1e-30 or 0. The first three points are a wide-exponent triple whose plain double
+    // orientation has the wrong sign, so only the true Shewchuk bound sends it to the exact path; d makes the wrong sign
+    // corrupt a cavity.
+    [Fact]
+    public void AWrongSignedDoubleOrientationIsSentToTheExactPath()
+    {
+        var points = new[]
+        {
+            float2(-6.848652894797524e-11f, 6.064014568263332e-11f),
+            float2(2.7171004335357907e-10f, -1.0525675470107743e-10f),
+            float2(15966.099609375f, -7785.87060546875f),
+            float2(0f, 1f),
+        };
+        AssertDelaunay(points, "wrong-signed double orientation");
+    }
+
     // Kills: the collinear detector skipping the last sorted point. One point off the line sorts last, so a detector
     // that never tests it reads the set as a line and drops the hull edges to it.
     [Fact]
