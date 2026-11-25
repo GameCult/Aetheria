@@ -289,6 +289,39 @@ public sealed partial class RunStartTests
         Assert.Equal(player.Rotation.w, rotation.w);
     }
 
+    // The screen warp is derived from the wormhole animation: nothing before it, rising through the dive, falling through
+    // the exit, nothing once the ship has arrived.
+    [Fact]
+    public void ShipWormholeWarpFollowsTheAnimation()
+    {
+        var (arena, player) = LaunchDuel();
+        var wormhole = player.Position.xz + float2(50, 0);
+        Assert.Equal(0f, player.WormholeWarp);
+        var arrived = false;
+        player.OnEnteredWormhole += () => player.ExitWormhole(wormhole, float2(0, 40));
+        player.OnExitedWormhole += () => arrived = true;
+        player.EnterWormhole(wormhole);
+
+        var peak = 0f;
+        var entering = true;
+        for (var step = 0; step < 2000 && !arrived; step++)
+        {
+            var before = player.WormholeWarp;
+            arena.Update(ClockFrame);
+            var after = player.WormholeWarp;
+            if (arrived) break;
+            Assert.InRange(after, 0f, 1f);
+            if (entering && after < before) entering = false; // the hand-over to the exit half
+            if (entering) Assert.True(after >= before, "the warp rises through the dive");
+            else Assert.True(after <= before, "the warp falls through the exit");
+            peak = Math.Max(peak, after);
+        }
+        Assert.True(arrived, "the ship arrives");
+        Assert.False(entering, "the dive hands over to the exit");
+        Assert.True(peak > .95f, "the warp reaches nearly full depth between the halves");
+        Assert.Equal(0f, player.WormholeWarp);
+    }
+
     // The turn a presenter draws ahead is the turn the next step makes: a ship held in a steady turn, drawn one whole
     // step ahead of the pose it was last given, is where the sim puts that pose next.
     [Fact]

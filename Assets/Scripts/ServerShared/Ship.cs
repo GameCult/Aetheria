@@ -48,6 +48,12 @@ public class Ship : Entity
 
     public bool WormholeAnimationInProgress => _enteringWormhole || _exitingWormhole;
 
+    // How deep into the wormhole the ship is, 0..1: rising while entering, falling while exiting, 0 otherwise. Derived
+    // from the animation; presenters read it (the screen warp) and nothing in the sim does.
+    public float WormholeWarp => _enteringWormhole ? _wormholeAnimationProgress
+        : _exitingWormhole ? 1 - _wormholeAnimationProgress
+        : 0;
+
     public event Action OnExitedWormhole;
     public event Action OnEnteredWormhole;
     

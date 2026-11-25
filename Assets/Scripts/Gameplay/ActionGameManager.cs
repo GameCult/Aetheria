@@ -140,7 +140,6 @@ public class ActionGameManager : MonoBehaviour
     public ZoneRenderer ZoneRenderer;
     public CinemachineVirtualCamera DockCamera;
     public CinemachineVirtualCamera FollowCamera;
-    public CinemachineVirtualCamera WormholeCamera;
     //public SectorRenderer SectorRenderer;
     public SectorMap SectorMap;
     
@@ -701,13 +700,10 @@ public class ActionGameManager : MonoBehaviour
     private void EnterWormhole(Wormhole wormhole)
     {
         if (!(CurrentEntity is Ship ship) || ship.WormholeAnimationInProgress) return;
-        // var wormholeCameraFollow = new GameObject("Wormhole Camera Follow").transform;
-        // wormholeCameraFollow.position = new Vector3(wormhole.Position.x, -50, wormhole.Position.y);
-        // wormholeCameraFollow.rotation = Quaternion.LookRotation(Vector3.down, ship.Aim);
-        // WormholeCamera.enabled = true;
-        // WormholeCamera.Follow = wormholeCameraFollow;
-        // FollowCamera.enabled = false;
         ship.EnterWormhole(wormhole.Position);
+        WormholeWarpPresenter.Begin(ship, wormhole.Position, DeathPost.gameObject.layer,
+            Mathf.Max(DeathPost.priority, HeatstrokePost.priority, HypothermiaPost.priority,
+                SevereHeatstrokePost.priority, SevereHypothermiaPost.priority) + 1);
         ship.OnEnteredWormhole += () =>
         {
             var oldZone = Zone;

@@ -330,6 +330,9 @@ public class ZoneRenderer : MonoBehaviour
     {
         var instance = Instantiate(WormholePrefab);
         instance.position = new Vector3(wormhole.Position.x, 0, wormhole.Position.y);
+        // Its local +z points away from the zone centre, so the beacon prefab child stands beyond the wormhole.
+        if (wormhole.Position.x != 0 || wormhole.Position.y != 0)
+            instance.rotation = Quaternion.LookRotation(new Vector3(wormhole.Position.x, 0, wormhole.Position.y));
         var icon = CompassIconPrototype.Instantiate<CompassIcon>();
         icon.Icon.sprite = WormholeIcon;
         WormholeInstances.Add(wormhole, (instance.gameObject, icon));
