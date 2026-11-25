@@ -1,0 +1,91 @@
+# The one actor that turns .changeset/ files and VERSION into a tag and a forge release (docs/release-checklist.md).
+# Dispatch by hand on the branch to release. Runs on the Starfire runner in host mode, as the operator's Windows user,
+# because the Unity Personal licence lives there. Needs repo secret RELEASE_TOKEN (write:repository), repo variable
+# UNITY_EDITOR (path to Unity.exe 6000.3.24f1) and knope on PATH; CULTLIB_ROOT and CULTMATH_ROOT variables are optional.
+# Nothing is pushed until both players have built: a failed build leaves the forge untouched.
+name: release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: starfire
+    env:
+      UNITY_EDITOR: ${{ vars.UNITY_EDITOR }}
+      CULTLIB_ROOT: ${{ vars.CULTLIB_ROOT }}
+      CULTMATH_ROOT: ${{ vars.CULTMATH_ROOT }}
+      BUILD_NAME: release-${{ github.run_id }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Prepare release
+        id: prepare
+        run: |
+          set -euo pipefail
+          test -n "$UNITY_EDITOR" || { echo "repo variable UNITY_EDITOR is not set"; exit 1; }
+          knope prepare-release
+          version="$(tr -d '\r\n' < VERSION)"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version already exists: no change file asked for a new version"; exit 1
+          fi
+          awk -v heading="## $version " 'index($0, heading) == 1 { found = 1; next } /^## / { if (found) exit } found' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          test -s "$RUNNER_TEMP/notes.md" || { echo "CHANGELOG.md has no section for $version"; exit 1; }
+          git add VERSION CHANGELOG.md .changeset
+          git -c user.name="Aetheria release" -c user.email="release@gamecult.invalid" commit -m "Release $version"
+          git -c user.name="Aetheria release" -c user.email="release@gamecult.invalid" tag -a "v$version" -m "Aetheria $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "notes=$RUNNER_TEMP/notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Build and zip players
+        run: |
+          set -euo pipefail
+          version="${{ steps.prepare.outputs.version }}"
+          build="$(cd .. && pwd)/$BUILD_NAME"
+          mkdir -p "$build/dist"
+          project="$(pwd -W)"
+          for target in win64 linux64; do
+            name="Aetheria-$version-$target"
+            "$UNITY_EDITOR" -batchmode -quit -projectPath "$project" -executeMethod AetheriaBuild.Build \
+              -aetheriaVersion "$version" -aetheriaOut "$(cd "$build" && pwd -W)/$name" -aetheriaTarget "$target" \
+              -logFile "$(cd "$build" && pwd -W)/$target.log"
+            /c/Windows/System32/tar.exe -a -c -f "$build/dist/$name.zip" -C "$build" "$name"
+            size="$(stat -c %s "$build/dist/$name.zip")"
+            test "$size" -le 2147483648 || { echo "$name.zip is $size bytes: over the forge's 2048 MB attachment limit"; exit 1; }
+          done
+
+      - name: Publish tag and release commit
+        run: |
+          set -euo pipefail
+          git push origin "HEAD:refs/heads/${{ github.ref_name }}" "refs/tags/v${{ steps.prepare.outputs.version }}"
+
+      - name: Forge release
+        uses: actions/forgejo-release@v2.13.4
+        with:
+          direction: upload
+          tag: v${{ steps.prepare.outputs.version }}
+          sha: ${{ steps.prepare.outputs.sha }}
+          title: Aetheria ${{ steps.prepare.outputs.version }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+          release-dir: ../${{ env.BUILD_NAME }}/dist
+          release-notes-file: ${{ steps.prepare.outputs.notes }}
+
+      - name: Show build logs on failure
+        if: failure()
+        run: tail -n 40 ../"$BUILD_NAME"/*.log || true
+
+      - name: Remove build directory
+        if: always()
+        run: rm -rf ../"$BUILD_NAME"
