@@ -123,6 +123,16 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                     ""priority"": 0
                 },
                 {
+                    ""name"": ""Zoom"",
+                    ""type"": ""Value"",
+                    ""id"": ""47ee174a-e711-4dd1-885c-f1cfbdd3681e"",
+                    ""expectedControlType"": ""Axis"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": true,
+                    ""priority"": 0
+                },
+                {
                     ""name"": ""Target Reticle"",
                     ""type"": ""Button"",
                     ""id"": ""86f2e6cc-b895-4c55-aa19-70220df477d2"",
@@ -436,6 +446,17 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": ""Keyboard&Mouse"",
                     ""action"": ""Minimap Zoom"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""c2b6406d-0c48-47e1-ad45-9f05fc7b7017"",
+                    ""path"": ""<Mouse>/scroll/y"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""Keyboard&Mouse"",
+                    ""action"": ""Zoom"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 },
@@ -1303,6 +1324,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         m_Player_Move = m_Player.FindAction("Move", throwIfNotFound: true);
         m_Player_Look = m_Player.FindAction("Look", throwIfNotFound: true);
         m_Player_MinimapZoom = m_Player.FindAction("Minimap Zoom", throwIfNotFound: true);
+        m_Player_Zoom = m_Player.FindAction("Zoom", throwIfNotFound: true);
         m_Player_TargetReticle = m_Player.FindAction("Target Reticle", throwIfNotFound: true);
         m_Player_TargetPrevious = m_Player.FindAction("Target Previous", throwIfNotFound: true);
         m_Player_TargetNext = m_Player.FindAction("Target Next", throwIfNotFound: true);
@@ -1422,6 +1444,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Move;
     private readonly InputAction m_Player_Look;
     private readonly InputAction m_Player_MinimapZoom;
+    private readonly InputAction m_Player_Zoom;
     private readonly InputAction m_Player_TargetReticle;
     private readonly InputAction m_Player_TargetPrevious;
     private readonly InputAction m_Player_TargetNext;
@@ -1460,6 +1483,10 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/MinimapZoom".
         /// </summary>
         public InputAction @MinimapZoom => m_Wrapper.m_Player_MinimapZoom;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/Zoom".
+        /// </summary>
+        public InputAction @Zoom => m_Wrapper.m_Player_Zoom;
         /// <summary>
         /// Provides access to the underlying input action "Player/TargetReticle".
         /// </summary>
@@ -1555,6 +1582,9 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
             @MinimapZoom.started += instance.OnMinimapZoom;
             @MinimapZoom.performed += instance.OnMinimapZoom;
             @MinimapZoom.canceled += instance.OnMinimapZoom;
+            @Zoom.started += instance.OnZoom;
+            @Zoom.performed += instance.OnZoom;
+            @Zoom.canceled += instance.OnZoom;
             @TargetReticle.started += instance.OnTargetReticle;
             @TargetReticle.performed += instance.OnTargetReticle;
             @TargetReticle.canceled += instance.OnTargetReticle;
@@ -1620,6 +1650,9 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
             @MinimapZoom.started -= instance.OnMinimapZoom;
             @MinimapZoom.performed -= instance.OnMinimapZoom;
             @MinimapZoom.canceled -= instance.OnMinimapZoom;
+            @Zoom.started -= instance.OnZoom;
+            @Zoom.performed -= instance.OnZoom;
+            @Zoom.canceled -= instance.OnZoom;
             @TargetReticle.started -= instance.OnTargetReticle;
             @TargetReticle.performed -= instance.OnTargetReticle;
             @TargetReticle.canceled -= instance.OnTargetReticle;
@@ -2100,6 +2133,13 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnMinimapZoom(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Zoom" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnZoom(InputAction.CallbackContext context);
         /// <summary>
         /// Method invoked when associated input action "Target Reticle" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>

@@ -410,4 +410,31 @@ public sealed partial class RunStartTests
         Assert.True(all(Close(Axis(turned, float3(0, 1, 0)), upBefore) < tolerance), "the pose's up does not move");
         Assert.True(all(Close(Axis(turned, float3(0, 0, 1)), rodrigues) < tolerance), "the forward axis swings about it by the angle");
     }
+
+    // Rate dilates the real seconds fed, never the step: sixteen frames of one period's real time at Rate 1/16 (all exact in
+    // binary) buy exactly one step, and that step is the same Step.
+    [Fact]
+    public void RateDilatesRealTimeWithoutChangingStep()
+    {
+        var clock = new SimClock(1f / 32, 32) { Rate = 1f / 16 };
+        var passed = new List<float>();
+        for (var frame = 0; frame < 15; frame++) clock.Advance(1f / 32, dt => passed.Add(dt));
+        Assert.Empty(passed);
+        clock.Advance(1f / 32, dt => passed.Add(dt));
+        Assert.Equal(new[] { 1f / 32 }, passed);
+        Assert.Equal(1f / 32, clock.Step);
+
+        // The frame clamp comes first: a hitch at Rate .5 pays MaxFrameSeconds x .5, not the hitch.
+        var hitch = new SimClock(1f / 32, 32) { Rate = .5f };
+        Assert.Equal((int) (SimClock.MaxFrameSeconds * .5f * 32), hitch.Advance(10f, _ => { }));
+
+        // The game's own rate over ten real seconds at Rate .01: a tenth of a sim second of steps, every one GameStep.
+        var game = SimClock.ForGame();
+        game.Rate = .01f;
+        var deltas = new List<float>();
+        for (var frame = 0; frame < 600; frame++) game.Advance(1f / 60, dt => deltas.Add(dt));
+        Assert.InRange(deltas.Count, 2, 4);
+        Assert.All(deltas, dt => Assert.Equal(SimClock.GameStep, dt));
+        Assert.Equal(1f, new SimClock(1f / 60, 60).Rate);
+    }
 }

@@ -37,6 +37,16 @@
                     "priority": 0
                 },
                 {
+                    "name": "Zoom",
+                    "type": "Value",
+                    "id": "47ee174a-e711-4dd1-885c-f1cfbdd3681e",
+                    "expectedControlType": "Axis",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true,
+                    "priority": 0
+                },
+                {
                     "name": "Target Reticle",
                     "type": "Button",
                     "id": "86f2e6cc-b895-4c55-aa19-70220df477d2",
@@ -350,6 +360,17 @@
                     "processors": "",
                     "groups": "Keyboard&Mouse",
                     "action": "Minimap Zoom",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "c2b6406d-0c48-47e1-ad45-9f05fc7b7017",
+                    "path": "<Mouse>/scroll/y",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "Zoom",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

@@ -48,7 +48,7 @@ public class MapPresenter
     private readonly Dictionary<Entity, Icon> _entityIcons = new Dictionary<Entity, Icon>();
     private readonly Material[] _gravityMaterials;
     private readonly int _layer = LayerMask.NameToLayer("Minimap");
-    private float _minimapScale = 1, _mapScreenScale;
+    private float _minimapScale = 1, _mapScreenScale, _tacticalScale;
     private bool _mapScreenOpen;
     private readonly Material _asteroidMaterial;
     private readonly Vector4 _spriteSheet;
@@ -63,8 +63,10 @@ public class MapPresenter
         _asteroidSize = asteroidSize;
     }
 
-    // The icon size: the map screen's scale while it is open, else the minimap's zoom.
-    public float IconSize => _mapScreenOpen ? _mapScreenScale : _minimapScale;
+    // The icon size: the map screen's scale while it is open, else the tactical scale while the schematic shows, else
+    // the minimap's zoom.
+    public float IconSize => _mapScreenOpen ? _mapScreenScale : _tacticalScale > 0 ? _tacticalScale : _minimapScale;
+    public void SetTacticalScale(float scale) => _tacticalScale = scale;
     public void SetMinimapScale(float scale) => _minimapScale = scale;
     public void OpenMapScreen(bool open) => _mapScreenOpen = open;
 

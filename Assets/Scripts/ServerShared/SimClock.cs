@@ -53,11 +53,22 @@ public sealed class SimClock
         _accumulator = 0;
     }
 
+    private float _rate = 1f;
+
+    // Real-time dilation: how much sim time a real second buys, in (0, 1]. It scales the real seconds fed and never
+    // changes Step, so every step and trajectory is the same and only the wall-clock pace differs. Its one writer is
+    // ActionGameManager, from TacticalView.TimeRate.
+    public float Rate
+    {
+        get => _rate;
+        set => _rate = Math.Min(Math.Max(value, float.Epsilon), 1f);
+    }
+
     // Feeds real seconds (negative counts as none, one frame counts at most MaxFrameSeconds) and runs the whole
     // steps they pay for. Returns how many ran.
     public int Advance(float realSeconds, Action<float> step)
     {
-        _accumulator += Math.Min(Math.Max(realSeconds, 0f), MaxFrameSeconds);
+        _accumulator += Math.Min(Math.Max(realSeconds, 0f), MaxFrameSeconds) * (double) Rate;
         var ran = 0;
         _advancing = true;
         try

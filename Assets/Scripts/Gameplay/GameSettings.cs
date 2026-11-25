@@ -24,6 +24,20 @@ public class GameSettings : ScriptableObject
     public int AsteroidMeshCount = 5;
     public float MinimapAsteroidSize = 3;
     public float MinimapIconSize = 1f / 32;
+    // Tactical view (rulings tactical-view-is-zoom-out, tactical-view-in-runs-slow-time): one wheel notch multiplies the
+    // follow camera distance by this.
+    public float TacticalZoomStep = 1.25f;
+    // The camera distance (m) where the scene starts to fade to the schematic, and where it is fully faded.
+    public float TacticalBlendStart = 250;
+    public float TacticalBlendEnd = 1000;
+    // Sim seconds per real second at full fade (about 100x slower).
+    public float TacticalTimeScale = .01f;
+    // The farthest zoom, as a multiple of the zone radius.
+    public float TacticalFitPerRadius = 2;
+    // Schematic icon size as a fraction of the camera distance.
+    public float TacticalIconSize = 1f / 40;
+    // The colour the scene fades toward.
+    public Color TacticalBackground = new Color(.02f, .03f, .05f, 1);
     public float PlanetRotationSpeed = 1;
     public SectorBackgroundSettings CastBackgroundSettings;
     public SectorBackgroundSettings SectorBackgroundSettings;

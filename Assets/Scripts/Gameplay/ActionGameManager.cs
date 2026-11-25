@@ -340,6 +340,30 @@ public class ActionGameManager : MonoBehaviour
             ZoneRenderer.MinimapDistance = Settings.MinimapZoomLevels[_zoomLevelIndex];
         };
 
+        // The tactical view is the camera pulled far out (ruling tactical-view-is-zoom-out): the wheel is the only input,
+        // and TacticalView the one owner of how far.
+        _tactical = new TacticalView(Settings.TacticalZoomStep, Settings.TacticalBlendStart, Settings.TacticalBlendEnd,
+            Settings.TacticalTimeScale, Settings.TacticalFitPerRadius);
+        _tacticalFade = ScriptableObject.CreateInstance<TacticalFade>();
+        _tacticalFade.enabled.Override(true);
+        _tacticalFade.Background.Override(Settings.TacticalBackground);
+        _tacticalVolume = PostProcessManager.instance.QuickVolume(DeathPost.gameObject.layer, 100f, _tacticalFade);
+        _tacticalVolume.weight = 0;
+        var schematic = new GameObject("Tactical Schematic Camera");
+        schematic.transform.SetParent(ZoneRenderer.MainCamera.transform, false);
+        _schematicCamera = schematic.AddComponent<Camera>();
+        _schematicCamera.clearFlags = CameraClearFlags.Depth;
+        _schematicCamera.depth = ZoneRenderer.MainCamera.depth + 1;
+        _schematicCamera.cullingMask = 1 << LayerMask.NameToLayer("Minimap");
+        _schematicCamera.enabled = false;
+        Input.Player.Zoom.performed += context =>
+        {
+            var scroll = context.ReadValue<float>();
+            if (scroll == 0 || !Flying) return;
+            _tactical.Step(-Mathf.Sign(scroll), BaseFollowDistance(CurrentEntity));
+            ApplyFraming(CurrentEntity);
+        };
+
         Input.Global.ZoneMap.performed += context =>
         {
             ToggleMenuTab(MenuTab.Map);
@@ -1080,6 +1104,7 @@ public class ActionGameManager : MonoBehaviour
         }
         
         CurrentEntity = entity;
+        _tactical.Reset(entity.Zone.Pack.Radius);
         DeathPost.weight = 0;
         ZoneRenderer.PerspectiveEntity = CurrentEntity;
         
@@ -1217,6 +1242,14 @@ public class ActionGameManager : MonoBehaviour
     }
 
     private CinemachineFramingTransposer _framingTransposer;
+    private TacticalView _tactical;
+    private TacticalFade _tacticalFade;
+    private PostProcessVolume _tacticalVolume;
+    private Camera _schematicCamera;
+    private float _authoredFarClip;
+
+    // Flying: a ship under the player's hand, not docked. Everything tactical reads 0 otherwise.
+    private bool Flying => RunLive && CurrentEntity != null && DockedEntity == null;
 
     // The one writer of the follow camera's Follow, LookAt and distance for an entity: the distance is
     // the hull's reach (from its centre of mass, where Follow sits) times the authored ratio.
@@ -1225,9 +1258,35 @@ public class ActionGameManager : MonoBehaviour
         var instance = ZoneRenderer.EntityInstances[entity];
         FollowCamera.LookAt = instance.LookAtPoint;
         FollowCamera.Follow = instance.transform;
+        ApplyFraming(entity);
+    }
+
+    private float BaseFollowDistance(Entity entity) => Settings.FollowCameraDistancePerReach * Contacts.Radius(entity);
+
+    // The one writer of the follow camera's distance and far clip: the hull's framed distance times the tactical zoom,
+    // far enough to see the whole zone from there.
+    private void ApplyFraming(Entity entity)
+    {
         if (_framingTransposer == null)
             _framingTransposer = FollowCamera.GetCinemachineComponent<CinemachineFramingTransposer>();
-        _framingTransposer.m_CameraDistance = Settings.FollowCameraDistancePerReach * Contacts.Radius(entity);
+        if (_authoredFarClip == 0) _authoredFarClip = FollowCamera.m_Lens.FarClipPlane;
+        var distance = _tactical.Distance(BaseFollowDistance(entity));
+        _framingTransposer.m_CameraDistance = distance;
+        FollowCamera.m_Lens.FarClipPlane = Mathf.Max(_authoredFarClip, distance + 2 * entity.Zone.Pack.Radius);
+    }
+
+    // Everything the tactical view shows is read off the camera distance: the fade, the schematic, the map icons' size
+    // and the minimap cameras. Time is the Update line that feeds the clock.
+    private float TacticalBlend() => Flying && _framingTransposer != null
+        ? _tactical.Blend(_framingTransposer.m_CameraDistance)
+        : 0f;
+
+    private void ShowTactical(float blend)
+    {
+        _tacticalVolume.weight = blend;
+        _schematicCamera.enabled = blend > 0;
+        ZoneRenderer.Map.SetTacticalScale(blend > 0 ? _framingTransposer.m_CameraDistance * Settings.TacticalIconSize : 0);
+        foreach (var camera in ZoneRenderer.MinimapCameras) camera.enabled = blend == 0;
     }
 
     private void UpdatePlayerPanel()
@@ -1370,6 +1429,8 @@ public class ActionGameManager : MonoBehaviour
 
     void Update()
     {
+        var blend = TacticalBlend();
+        ShowTactical(blend);
         if (!RunLive) return;
         if(!_paused)
         {
@@ -1433,6 +1494,7 @@ public class ActionGameManager : MonoBehaviour
         void EnterNewZone() { if (_zoneEntered) { Clock.Reset(); _zoneEntered = false; } }
         EnterNewZone();
         var steppedZone = Zone;
+        Clock.Rate = _tactical.TimeRate(blend);
         Clock.Advance(_paused ? 0f : Time.deltaTime, delta =>
         {
             if (Zone != steppedZone) return;
@@ -1522,6 +1584,11 @@ public class ActionGameManager : MonoBehaviour
 
     private void LateUpdate()
     {
+        // The schematic camera is the game camera's pose and lens, seeing only the map's layer.
+        var output = ZoneRenderer.MainCamera;
+        _schematicCamera.fieldOfView = output.fieldOfView;
+        _schematicCamera.nearClipPlane = output.nearClipPlane;
+        _schematicCamera.farClipPlane = output.farClipPlane;
         UpdateTargetIndicators();
     }
 
