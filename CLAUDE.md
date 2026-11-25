@@ -22,4 +22,5 @@
 
 ## Releases
 
+- Player-visible means a player of the shipped game could notice it, or a modder using the shipped ModTools could. Needs a change file: gameplay or balance changes, new or changed content, UI or controls, fixes to bugs a player could hit, modding format changes. Needs none: tests, refactors, docs, editor-only tools, build and CI changes, internal data layout that players and modders never see.
 - A player-visible change lands with a `.changeset/` file (bump level and one player-facing line), written by whoever lands it, agents included. Change files decide the release's version bump and changelog; `docs/release-checklist.md` has the format.

@@ -1,8 +1,8 @@
 # The one actor that turns .changeset/ files and VERSION into a tag and a forge release (docs/release-checklist.md).
 # Dispatch by hand on the branch to release. Runs on the Starfire runner in host mode, as the operator's Windows user,
-# because the Unity Personal licence lives there. Needs repo secret RELEASE_TOKEN (write:repository), repo variable
-# UNITY_EDITOR (path to Unity.exe 6000.3.24f1) and knope on PATH; CULTLIB_ROOT and CULTMATH_ROOT variables are optional.
-# Nothing is pushed until both players have built: a failed build leaves the forge untouched.
+# because the Unity Personal licence lives there. Every host prerequisite is checked by the first step, before any build or
+# push (list: docs/release-checklist.md, One-time setup). Nothing is pushed until both players have built: a failed
+# preflight or build leaves the forge untouched. After the push, a failed forge release has a recovery in the checklist.
 name: release
 
 on:
@@ -22,8 +22,25 @@ jobs:
       BUILD_NAME: release-${{ github.run_id }}
     defaults:
       run:
-        shell: bash
+        shell: 'C:\Program Files\Git\bin\bash.exe -e {0}'
     steps:
+      - name: Preflight host prerequisites
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          set -u
+          missing=""
+          note() { missing="$missing"$'\n'"  $1"; }
+          for tool in jq curl knope git tar dotnet; do
+            command -v "$tool" >/dev/null || note "$tool is not on PATH"
+          done
+          test -x /c/Windows/System32/tar.exe || note "C:/Windows/System32/tar.exe is missing"
+          test -n "$RELEASE_TOKEN" || note "secret RELEASE_TOKEN is not set"
+          test -f "$UNITY_EDITOR" || note "repo variable UNITY_EDITOR is unset or not a file: '$UNITY_EDITOR'"
+          test -d "$CULTLIB_ROOT" || note "repo variable CULTLIB_ROOT is unset or not a directory: '$CULTLIB_ROOT'"
+          test -d "$CULTMATH_ROOT" || note "repo variable CULTMATH_ROOT is unset or not a directory: '$CULTMATH_ROOT'"
+          if test -n "$missing"; then echo "release preflight failed, nothing was built or pushed:$missing"; exit 1; fi
+
       - uses: actions/checkout@v4
         with:
           lfs: true
@@ -34,7 +51,6 @@ jobs:
         id: prepare
         run: |
           set -euo pipefail
-          test -n "$UNITY_EDITOR" || { echo "repo variable UNITY_EDITOR is not set"; exit 1; }
           knope prepare-release
           version="$(tr -d '\r\n' < VERSION)"
           if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
@@ -69,7 +85,7 @@ jobs:
       - name: Publish tag and release commit
         run: |
           set -euo pipefail
-          git push origin "HEAD:refs/heads/${{ github.ref_name }}" "refs/tags/v${{ steps.prepare.outputs.version }}"
+          git push --atomic origin "HEAD:refs/heads/${{ github.ref_name }}" "refs/tags/v${{ steps.prepare.outputs.version }}"
 
       - name: Forge release
         uses: actions/forgejo-release@v2.13.4
@@ -87,5 +103,5 @@ jobs:
         run: tail -n 40 ../"$BUILD_NAME"/*.log || true
 
       - name: Remove build directory
-        if: always()
+        if: success()
         run: rm -rf ../"$BUILD_NAME"
