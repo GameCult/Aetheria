@@ -22,14 +22,24 @@ jobs:
       BUILD_NAME: release-${{ github.run_id }}
     defaults:
       run:
-        shell: 'C:\Program Files\Git\bin\bash.exe -e {0}'
+        shell: '"C:/Program Files/Git/bin/bash.exe" -e {0}'
     steps:
+      # The composite forgejo-release action runs its steps with `shell: bash`, resolved through PATH, where System32's WSL
+      # bash.exe can win. Git's bin goes first for every later step of this job.
+      - name: Put Git Bash first on PATH
+        run: printf '%s\n' 'C:\Program Files\Git\bin' >> "$GITHUB_PATH"
+
       - name: Preflight host prerequisites
         env:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           set -u
           missing=""
+          first_bash="$(cmd.exe //c where bash 2>/dev/null | head -n 1 | tr -d '\r')"
+          case "${first_bash//\//}" in
+            "C:/Program Files/Git/"*) ;;
+            *) missing="$missing"$'\n'"  PATH resolves bash to '$first_bash', not Git Bash (the forgejo-release action would run WSL bash)" ;;
+          esac
           note() { missing="$missing"$'\n'"  $1"; }
           for tool in jq curl knope git tar dotnet; do
             command -v "$tool" >/dev/null || note "$tool is not on PATH"
