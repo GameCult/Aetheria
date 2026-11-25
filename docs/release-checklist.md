@@ -33,7 +33,7 @@ nothing. A published version is never edited; a mistake is a new version.
 - Register the runner on Starfire with label `starfire` in host mode, capacity 1, running as the operator's Windows user
   (follow-up `starfire-forge-runner`). Runner prerequisites, all checked by the workflow's preflight: Git for Windows at
   `C:\Program Files\Git` (the workflow pins its `bash.exe`), and on PATH `knope`, `jq` and `curl` (both needed by the forge
-  release action), `git`, `dotnet` (publishes AetherDb) and `tar`; `C:\Windows\System32	ar.exe` makes the zips.
+  release action), `git`, `dotnet` (publishes AetherDb) and `tar`; `C:/Windows/System32/tar.exe` makes the zips.
 - Repo secret `RELEASE_TOKEN` (write:repository); repo variables `UNITY_EDITOR` (Unity.exe, 6000.3.24f1), and `CULTLIB_ROOT`
   and `CULTMATH_ROOT` (checkouts holding the pinned CultLib and CultMath revisions). All are required.
 - Ruling `sbsar-lfs-objects`: prune the 41 `.sbsar` LFS objects from Forgejo's LFS store and the Raven LFS mirror. Git
