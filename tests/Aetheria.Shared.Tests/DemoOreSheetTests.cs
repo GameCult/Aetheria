@@ -54,7 +54,14 @@ public sealed class DemoOreSheetTests : IDisposable
         var now = Cell(yields.Select(y => ((double) y.weight, (double) y.data.Price, (double) y.data.MaxStack)));
         var oldPrice = new Dictionary<string, (double weight, double price)> { ["Regolith"] = (6, 200), ["Nickel-Iron"] = (3, 1000), ["Gold"] = (1, 5000) };
         var before = Cell(yields.Select(y => (oldPrice[y.data.Name].weight, oldPrice[y.data.Name].price, (double) y.data.MaxStack)));
-        Assert.InRange(now, before * .9, before * 1.1);
+        // Bounds (deterministic-bound-margin, by analogy from RenderCheck): the midpoint between the shipped reading and the least claimed mutant on each
+        // side. Shipped 9005 against before 9200 (0.9788). Low side: the old 6/3/1 yields left at price 1 read 8006 (0.8702), so the edge is 8505.5
+        // (0.9245); it also kills Gold 4500 (8505) but not Nickel-Iron 900 (8605) or 5/3/1 (8894). High side: 4/5/1 yields read 10004 (1.0874),
+        // so the edge is 9504.5 (1.033). Neither side reaches the 1.2 separation the ruling asks (1.125 low, 1.111 high): a hold value that is meant to
+        // be 'about' the old one cannot pin the sheet tighter than this. The exact yields are pinned by AsteroidYieldsThreeOresInKeyOrder, and the
+        // price of Regolith by the assertion above.
+        Assert.InRange(now, 8505.5, 9504.5);
+        Assert.Equal(9200, before);
     }
 
     [Fact]
@@ -91,6 +98,20 @@ public sealed class DemoOreSheetTests : IDisposable
             Assert.True(data.Mass > 0, data.Name);
             Assert.True(ship.CargoBays.Single().TryStore(new SimpleCommodity { Data = cache.RefOf<ItemData>(data), Quantity = 1 }), data.Name);
         }
+    }
+
+    // MunitionsFeed names its outputs by name, except the two ores this sheet renames, which it finds by DemoOre's keys: a name lookup refused at head
+    // ("0 items are named 'Rock'"). A dry run at the shipped catalog succeeds and changes nothing.
+    [Fact]
+    public void MunitionsFeedDryRunSucceedsAtHeadAndChangesNothing()
+    {
+        var path = Path.Combine(_root, "Feed.cc");
+        File.Copy(Path.Combine(RestoredHullsTests.FindRepoRoot(), "GameData", "Aetheria.cc"), path);
+        var before = File.ReadAllBytes(path);
+        var output = new StringWriter();
+        Assert.Equal(0, EconomyCommand.Author(path, new List<EconomyBatch> { new MunitionsFeed() }, false, output, TestCatalog.Registry(), _root));
+        Assert.Equal(before, File.ReadAllBytes(path));
+        Assert.DoesNotContain("are named", output.ToString());
     }
 
     [Fact]

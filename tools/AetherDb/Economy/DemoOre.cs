@@ -5,10 +5,12 @@ using GameCult.Caching;
 
 // Interim ore sheet (ruling mining-demo-ore-minimal-yields-now): the Asteroid field kind yields Regolith, Nickel-Iron and Gold, and those
 // three can be held (a 1x1 shape, a mass) and are sold (a price). The economy ores batch may rewrite the yields by element id.
-// Prices are ruling mining-demo-ore-prices-gear-scale, gear-scale so the mine, sell, repair loop closes: a retune is an edit here and a rerun.
+// Prices are ruling regolith-demo-retune (it superseded mining-demo-ore-prices-gear-scale), gear-scale so the mine, sell, repair loop closes: a retune
+// is an edit here and a rerun. When the ores batch lands with the 100x gear rescale its prices take over (aetheria-living-world ruling
+// ore-batch-keeps-prices-gear-rescaled) and this sheet retires.
 // Ruling regolith-demo-retune (rock-becomes-regolith): Rock becomes Regolith at price 1 and New Metals becomes Nickel-Iron; yield shifts toward
 // Nickel-Iron so a full hold sells for about what it did (expected 900.5 a unit against 920). The names and descriptions are the ores batch's.
-// Munitions and MunitionsFeed never rewrite these three commodities, so rerunning them does not clobber this sheet.
+// Munitions and MunitionsFeed never rewrite these three commodities (MunitionsFeed finds the two renamed ores by the keys above), so rerunning them does not clobber this sheet.
 public sealed class DemoOre : EconomyBatch
 {
     private const int RegolithPrice = 1;
@@ -16,8 +18,8 @@ public sealed class DemoOre : EconomyBatch
     private const int GoldPrice = 5000;
 
     // The two renamed records are found by key, so a rerun converges after the rename (the ores batch finds them the same way).
-    private static readonly CultRecordKey RegolithKey = new CultRecordKey("043997a8-0661-4206-ab8a-10215ecf4efc");
-    private static readonly CultRecordKey NickelIronKey = new CultRecordKey("00b5b3b2-2fc5-4adb-a1d7-c1a35d19afd3");
+    public static readonly CultRecordKey RegolithKey = new CultRecordKey("043997a8-0661-4206-ab8a-10215ecf4efc");
+    public static readonly CultRecordKey NickelIronKey = new CultRecordKey("00b5b3b2-2fc5-4adb-a1d7-c1a35d19afd3");
 
     // Authored element ids (the cache takes a hand-written id only as 12 lowercase hex): asteroid regolith, nickel-iron, gold. The ids keep
     // their first names; the ores batch rewrites yields by element id.

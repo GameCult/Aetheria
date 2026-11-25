@@ -17,9 +17,9 @@ public sealed class MunitionsFeed : EconomyBatch
         _a = author;
 
         // Extraction: no inputs, so these are the chain's raw goods.
-        var rock = Make("Rock", "mining", 300, 10, 8,
+        var rock = Make(DemoOre.RegolithKey, "mining", 300, 10, 8,
             "Nobody on a mining station calls it rock; it is the overburden, the slag, the thing the real cargo was buried in. It is also what every smelter, board shop and cement yard starts from, so the cheapest hold in the verse is the one that decides who can build.");
-        var metals = Make("New Metals", "mining", 300, 12, 6,
+        var metals = Make(DemoOre.NickelIronKey, "mining", 300, 12, 6,
             "The ore that built the cities: whoever holds the claim feeds every foundry downstream, which is why mining rights are the one commodity the garrisons will not leave unguarded.");
         var gold = Make("Gold", "mining", 600, 8, 2,
             "Gold has a use besides vanity: it does not corrode in a contact. Boards bound for a hull in a cold or wet corridor are gold-plated, and a prospector who finds a seam sells it to the board shops before the jewellers.");
@@ -61,12 +61,19 @@ public sealed class MunitionsFeed : EconomyBatch
             (steel, 2), (board, 1));
     }
 
+    // The two ores DemoOre renames are named by its keys, so a rerun converges after the rename; every other output by its unique name.
     private CultRecordRef<ItemData> Make(string name, string kind, float cycle, int workforce, int count, string lore,
         params (CultRecordRef<ItemData> Commodity, int Count)[] inputs)
     {
         var named = _a.Catalog.GetAll<ItemData>().Where(i => i.Name == name).ToArray();
         if (named.Length != 1) throw new InvalidOperationException($"{named.Length} items are named '{name}'; the munitions feed needs exactly one.");
-        var output = new CultRecordRef<ItemData>(_a.Catalog.RefOf(named[0]).Key);
+        return Make(_a.Catalog.RefOf(named[0]).Key, kind, cycle, workforce, count, lore, inputs);
+    }
+
+    private CultRecordRef<ItemData> Make(CultRecordKey outputKey, string kind, float cycle, int workforce, int count, string lore,
+        params (CultRecordRef<ItemData> Commodity, int Count)[] inputs)
+    {
+        var output = new CultRecordRef<ItemData>(outputKey);
         _a.Put(new RecipeData
         {
             Output = output,
