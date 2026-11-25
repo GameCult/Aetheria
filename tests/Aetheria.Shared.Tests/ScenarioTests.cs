@@ -147,6 +147,20 @@ public sealed partial class RunStartTests
         Assert.Contains(main.arena.Pack.Entities, entity => entity is ShipPack { IsPlayerShip: false });
     }
 
+    // New Game boots Nibu's simulation, which is never saved; the run its exit launches is a development entry, and
+    // every other scenario is a run that saves.
+    [Fact]
+    public void InfiniteFunLandIsASimulation()
+    {
+        Assert.False(Scenarios.Simulation.Saved);
+        Assert.False(Scenarios.Simulation.Ambient);
+        Assert.NotEqual(0u, Scenarios.Simulation.Seed);
+        Assert.Equal(new[] { Scenarios.Simulation }, Scenarios.Modes);
+        Assert.Contains(Scenarios.Terminus, Scenarios.Development);
+        Assert.All(Scenarios.Modes.Concat(Scenarios.Development).Concat(Scenarios.Tests).Where(scenario => scenario != Scenarios.Simulation),
+            scenario => Assert.True(scenario.Saved, scenario.Id));
+    }
+
     // Everything a galaxy's layout fixes: each zone's name, position, owner, factions and links, the homes, the
     // entrance, the exit and the background.
     private static string Layout(Galaxy galaxy) =>

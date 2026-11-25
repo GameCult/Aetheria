@@ -3,9 +3,14 @@
 // editor and development builds.
 public static class Scenarios
 {
-    public static readonly Scenario[] Modes = { new DemoTerminus() };
+    // New Game boots Nibu's simulation; Terminus is the run its exit launches (a development build lists it too).
+    public static readonly Scenario Simulation = new InfiniteFunLand();
 
-    public static readonly Scenario[] Development = { new MainGalaxy() };
+    public static readonly Scenario Terminus = new DemoTerminus();
+
+    public static readonly Scenario[] Modes = { Simulation };
+
+    public static readonly Scenario[] Development = { new MainGalaxy(), Terminus };
 
     public static readonly Scenario[] Tests =
     {

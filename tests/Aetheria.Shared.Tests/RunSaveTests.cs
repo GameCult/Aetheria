@@ -328,6 +328,95 @@ public sealed class RunSaveTests : IDisposable
         }
     }
 
+    // A simulation starts beside the saved run: while it lives the store holds the saved run and what the simulation
+    // wrote, and discarding it leaves exactly the saved run, which the next open still resumes.
+    [Fact]
+    public void ASimulationNeverTouchesTheSavedRun()
+    {
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0), new ProvenanceLedger());
+        string[] saved;
+        using (var cache = Open())
+            saved = RunKeys(cache);
+
+        using (var cache = Open())
+        {
+            var (started, simulation) = RunSave.Beside(cache, () =>
+            {
+                WriteAnOrbitTheSavedRunLacks(cache);
+                return StageZoneContents(cache);
+            });
+            Assert.NotNull(started);
+            Assert.Equal(saved.Length + 4, RunKeys(cache).Length);
+            Assert.All(saved, key => Assert.Contains(key, RunKeys(cache)));
+            simulation.Discard(cache);
+            Assert.Equal(saved, RunKeys(cache));
+        }
+        using (var cache = Open())
+        {
+            Assert.Equal(saved, RunKeys(cache));
+            Assert.NotNull(cache.GetGlobal<SavedGame>());
+        }
+    }
+
+    // A simulation that does not start, by returning nothing or by throwing, takes away only what it wrote.
+    [Fact]
+    public void AFailedSimulationTakesAwayOnlyWhatItWrote()
+    {
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0), new ProvenanceLedger());
+        string[] saved;
+        using (var cache = Open())
+            saved = RunKeys(cache);
+
+        using (var cache = Open())
+        {
+            var (started, simulation) = RunSave.Beside<ZonePack>(cache, () =>
+            {
+                WriteAnOrbitTheSavedRunLacks(cache);
+                return null;
+            });
+            Assert.Null(started);
+            Assert.Null(simulation);
+            Assert.Equal(saved, RunKeys(cache));
+        }
+        using (var cache = Open())
+        {
+            Assert.Throws<InvalidOperationException>(() => RunSave.Beside<ZonePack>(cache, () =>
+            {
+                WriteAnOrbitTheSavedRunLacks(cache);
+                throw new InvalidOperationException("the arena would not generate");
+            }));
+            Assert.Equal(saved, RunKeys(cache));
+        }
+        using (var cache = Open())
+        {
+            Assert.Equal(saved, RunKeys(cache));
+            Assert.NotNull(cache.GetGlobal<SavedGame>());
+        }
+    }
+
+    // A run started after a discarded simulation replaces the saved run and leaves nothing of the simulation behind.
+    [Fact]
+    public void ARunStartedAfterADiscardedSimulationReplacesOnlyTheSave()
+    {
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0), new ProvenanceLedger());
+
+        ZonePack started;
+        using (var cache = Open())
+        {
+            RunSave.Beside(cache, () => StageZoneContents(cache)).simulation.Discard(cache);
+            started = RunSave.Replace(cache, () => StageZoneContents(cache));
+        }
+        using (var cache = Open())
+        {
+            Assert.Null(cache.GetGlobal<SavedGame>());
+            Assert.Equal(started.Orbits.Select(orbit => orbit.Key.Value).Concat(started.Planets.Select(body => body.Key.Value))
+                .OrderBy(key => key, StringComparer.Ordinal), RunKeys(cache));
+        }
+    }
+
     private static string[] RunKeys(CultCache cache) => cache.AllStoredDocuments
         .Where(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType))
         .Select(stored => stored.Key.Value)

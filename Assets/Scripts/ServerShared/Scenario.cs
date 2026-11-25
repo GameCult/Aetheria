@@ -22,6 +22,11 @@ public abstract class Scenario
     // the scenario's conditions.
     public virtual bool Ambient => true;
 
+    // False: the scenario is a simulation. It starts through RunSave.Beside, so the saved run stays in the store and
+    // stays resumable; it is never captured or committed, and its records are discarded when it ends. The one
+    // declaration: nothing tests a scenario's type to decide saving.
+    public virtual bool Saved => true;
+
     // True: the arena's zone always gets a generated faction station with a docking bay, whatever its seed rolls
     // (ZoneGenerator). False: its stations are rolled like any other zone's.
     public virtual bool EntranceStation => true;

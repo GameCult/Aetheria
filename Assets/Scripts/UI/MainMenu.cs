@@ -237,7 +237,7 @@ public class MainMenu : MonoBehaviour
     // The only way into a new run: generates the scenario's galaxy off the main thread and enters the game, where
     // StartGame has RunStart stage it and only then replaces the saved run. A galaxy that cannot generate is refused
     // here, with the saved run untouched.
-    private void Launch(Scenario scenario)
+    public void Launch(Scenario scenario)
     {
         var generatorState = "Loading Database Contents";
 

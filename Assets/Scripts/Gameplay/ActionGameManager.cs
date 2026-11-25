@@ -273,13 +273,25 @@ public class ActionGameManager : MonoBehaviour
     private void OnApplicationQuit()
     {
         SaveRun();
+        DiscardSimulation();
         SavePlayerSettings();
     }
 
-    // Wormhole arrival and quit save the run; a dead run has no galaxy, so it is not saved.
+    // The live simulation (Scenario.Saved false), or null while a saved run or nothing is live. Whether the session is
+    // saved is derived from it alone: StartScenario is the only setter and DiscardSimulation the only clearer.
+    public static RunSave.Simulation Simulation { get; private set; }
+
+    // Removes what the simulation wrote to the run store, so the saved run and the next run never see it.
+    private void DiscardSimulation()
+    {
+        Simulation?.Discard(CultCache);
+        Simulation = null;
+    }
+
+    // Wormhole arrival and quit save the run; a dead run has no galaxy, so it is not saved, and a simulation never is.
     public void SaveRun()
     {
-        if (CurrentGalaxy != null)
+        if (Simulation == null && CurrentGalaxy != null)
         {
             var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity,
                 _actionBarSlots.Select(s => s.Save()).ToArray(), Credits);
@@ -391,6 +403,15 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var wormhole in ZoneRenderer.WormholeInstances.Keys)
                 {
                     if (!(length(wormhole.Position - CurrentEntity.Position.xz) < Settings.GameplaySettings.WormholeExitRadius)) continue;
+                    if (Simulation != null)
+                    {
+                        // The simulation's wormhole is its exit (ruling ifl-wormhole-exit-standin).
+                        Dialog.Clear();
+                        Dialog.Title.text = "Leave the simulation and start a run?";
+                        Dialog.Show(onConfirm: LeaveSimulation, onCancel: () => { }, confirmText: "Leave", cancelText: "Stay");
+                        Dialog.MoveToCursor();
+                        return;
+                    }
                     if (wormhole.Exit)
                     {
                         // The exit gate leads nowhere: TryWin consults RunGoal and ends the run when the gate is open.
@@ -665,6 +686,12 @@ public class ActionGameManager : MonoBehaviour
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
 
+        ConsoleController.AddCommand("leave", _ =>
+        {
+            if (Simulation == null) Debug.Log("leave: only a simulation can be left; there is no simulation");
+            else LeaveSimulation();
+        });
+
         // Manual IFF override for the player's current target, for hand-testing combat.
         // "iff hostile"/"iff neutral" force a stance; "iff clear" restores the derived faction rule.
         ConsoleController.AddCommand("iff", args =>
@@ -769,6 +796,13 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
+    // The one way out of a simulation: starts the Terminus run. AL7 puts the pilot pick in front of this call.
+    public void LeaveSimulation()
+    {
+        MainMenu.gameObject.SetActive(true); // Launch starts a coroutine on it
+        MainMenu.Launch(Scenarios.Terminus);
+    }
+
     public void PopulateLevel(GalaxyZone galaxyZone)
     {
         if (galaxyZone == null) throw new ArgumentNullException(nameof(galaxyZone));
@@ -858,6 +892,7 @@ public class ActionGameManager : MonoBehaviour
 
     private void StartGame()
     {
+        DiscardSimulation(); // a run's Replace never sees simulation records
         if (CurrentGalaxy != null)
         {
             if (PendingScenario != null) StartScenario();
@@ -889,19 +924,27 @@ public class ActionGameManager : MonoBehaviour
     }
 
     // RunStart owns what a new run starts with (docs/scenarios-cut.md, R.4); this enters and binds. The saved run is
-    // replaced only once the scenario has staged. A start that fails leaves the saved run as it was and says why on
+    // replaced only once the scenario has staged; a simulation starts beside it and never replaces it. A start that fails leaves the saved run as it was and says why on
     // the main menu, where Continue still resumes the saved run.
     private void StartScenario()
     {
         var scenario = PendingScenario;
         PendingScenario = null;
         var failures = new List<string>();
-        var staged = RunStart.Launch(() => RunSave.Replace(CultCache, () =>
+        RunSave.Simulation simulation = null;
+        Func<Staged> start = () =>
         {
             RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
             PopulateLevel(CurrentGalaxy.Entrance);
             return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, failures);
-        }), failures, Debug.LogException);
+        };
+        var staged = RunStart.Launch(() =>
+        {
+            if (scenario.Saved) return RunSave.Replace(CultCache, start);
+            var (started, begun) = RunSave.Beside(CultCache, start);
+            simulation = begun;
+            return started;
+        }, failures, Debug.LogException);
 
         if (staged == null)
         {
@@ -910,6 +953,7 @@ public class ActionGameManager : MonoBehaviour
             MainMenu.Refuse($"{scenario.Name} could not start", string.Join("\n", failures));
             return;
         }
+        Simulation = simulation;
         Credits = staged.Credits;
         SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
         BindToEntity(staged.Player);
@@ -1313,7 +1357,8 @@ public class ActionGameManager : MonoBehaviour
         MainMenu.gameObject.SetActive(true);
         Menu.gameObject.SetActive(false);
         CurrentGalaxy = null;
-        RunSave.Clear(CultCache);
+        if (Simulation != null) DiscardSimulation();
+        else RunSave.Clear(CultCache);
         SavePlayerSettings();
     }
 
@@ -1335,7 +1380,7 @@ public class ActionGameManager : MonoBehaviour
         var deathTime = Time.time;
         EndRun();
         Observable.EveryUpdate()
-            .Where(_ => Time.time - deathTime < DeathPostTransitionTime)
+            .TakeWhile(_ => Time.time - deathTime < DeathPostTransitionTime)
             .Subscribe(_ =>
                 {
                     var t = (Time.time - deathTime) / DeathPostTransitionTime;
@@ -1358,6 +1403,8 @@ public class ActionGameManager : MonoBehaviour
                     HypothermiaPost.weight = 0;
                     SevereHypothermiaPost.weight = 0;
                     DeathPost.weight = 1;
+                    // Every run begins in the simulation (ruling terminus-boots-into-ifl), so death anywhere returns to it.
+                    MainMenu.Launch(Scenarios.Simulation);
                 });
     }
 

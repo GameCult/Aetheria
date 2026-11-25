@@ -270,6 +270,34 @@ public static class RunSave
         return started;
     }
 
+    // A simulation starts beside the saved run and never replaces it. start runs with the saved run still in the store.
+    // When it returns null or throws, the records it wrote go and the saved run stays. When it returns a value, both the
+    // value and the Simulation that discards what start wrote come back; the saved run's records are never removed.
+    public static (T started, Simulation simulation) Beside<T>(CultCache cache, Func<T> start) where T : class
+    {
+        var saved = Records(cache);
+        T started = null;
+        try
+        {
+            started = start();
+        }
+        finally
+        {
+            if (started == null) Remove(cache, Records(cache).Except(saved).ToArray());
+        }
+        return started == null ? (null, null) : (started, new Simulation(saved));
+    }
+
+    // The run-record keys stored when a simulation began: everything else in the run store is the simulation's.
+    public sealed class Simulation
+    {
+        private readonly CultRecordKey[] _saved;
+
+        internal Simulation(CultRecordKey[] saved) => _saved = saved;
+
+        public void Discard(CultCache cache) => Remove(cache, Records(cache).Except(_saved).ToArray());
+    }
+
     private static CultRecordKey[] Records(CultCache cache) =>
         cache.AllStoredDocuments
             .Where(stored => IsRunRecord(stored.Descriptor.DocumentType))
