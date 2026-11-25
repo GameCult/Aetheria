@@ -932,7 +932,7 @@ public class ActionGameManager : MonoBehaviour
         PendingScenario = null;
         var failures = new List<string>();
         RunSave.Simulation simulation = null;
-        Func<Staged> start = () =>
+        Func<RunStart.Staged> start = () =>
         {
             RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
             PopulateLevel(CurrentGalaxy.Entrance);
