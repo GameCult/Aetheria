@@ -53,9 +53,13 @@ artifact: Idunn deploys services to Yggdrasil, not files.
 - **Git LFS and repo size** are part of the problem: the checkout alone is
   1.7 GB. A build path that needs a fresh clone per release has to say so.
 
+## Live state (2026-11-25)
+
+- The release home is the forge release (rulings `auto-release-pipeline`, `starfire-build-trigger`, `version-bump-source`): `.changeset/` files and `VERSION` decide the version and CHANGELOG, `.forgejo/workflows/release.yml` builds the Windows 64-bit and Linux 64-bit players on Starfire and publishes them. `docs/release-checklist.md` is the procedure.
+- The site download page, the version feed and the Yggdrasil serving path above are still targets.
+
 ## Not in scope
 
 - Auto-updating clients, launchers, patching, or delta updates.
-- Platforms other than Windows 64-bit, until one is asked for.
 - Accounts, entitlements, or telemetry. The download is public and anonymous.
 - Selling anything.

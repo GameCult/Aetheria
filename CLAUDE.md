@@ -19,3 +19,7 @@
   `Directory.Build.props` (`Directory.Build.targets` enforces it). When `F:\Projects\CultLib` is elsewhere, point
   `CULTLIB_ROOT` and `CULTMATH_ROOT` at detached worktrees of those revisions; never move the shared checkout.
 - CultCache Studio is the operator's GUI over the same files. It is not an agent path.
+
+## Releases
+
+- A player-visible change lands with a `.changeset/` file (bump level and one player-facing line), written by whoever lands it, agents included. Change files decide the release's version bump and changelog; `docs/release-checklist.md` has the format.
