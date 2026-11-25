@@ -36,7 +36,7 @@ jobs:
           set -u
           missing=""
           first_bash="$(cmd.exe //c where bash 2>/dev/null | head -n 1 | tr -d '\r')"
-          case "${first_bash//\//}" in
+          case "${first_bash//$'\x5c'//}" in
             "C:/Program Files/Git/"*) ;;
             *) missing="$missing"$'\n'"  PATH resolves bash to '$first_bash', not Git Bash (the forgejo-release action would run WSL bash)" ;;
           esac
