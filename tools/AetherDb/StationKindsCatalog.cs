@@ -14,7 +14,7 @@ public static class StationKindsCatalog
 
     private static readonly (string id, string name, string description)[] Table =
     {
-        ("mining", "Mining Station", "Extracts ore (Rock, New Metals, Gold, Potassium) and Diamond from bodies and belts; consumes tools and food."),
+        ("mining", "Mining Station", "Extracts ore (Regolith, Nickel-Iron, Gold, Potassium) and Diamond from bodies and belts; consumes tools and food."),
         ("volatiles", "Volatiles Station", "Skims Methane, Ammonia and Water from gas giants and ice; consumes tools."),
         ("agriculture", "Agriculture Station", "Grows Algae from Water and Potassium; feeds residential."),
         ("processing", "Processing Station", "Refines ore and volatiles into Metals, Alloys and Compounds."),

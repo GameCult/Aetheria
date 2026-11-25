@@ -10,7 +10,7 @@ using Xunit;
 // Asteroid belt holds can be carried and sold, so mine, sell, repair closes on the existing stations.
 public sealed class DemoOreSheetTests : IDisposable
 {
-    private static readonly string[] Ores = { "Rock", "New Metals", "Gold" };
+    private static readonly string[] Ores = { "Regolith", "Nickel-Iron", "Gold" };
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-demoore-" + Guid.NewGuid().ToString("N"));
 
     public DemoOreSheetTests() => Directory.CreateDirectory(_root);
@@ -33,10 +33,28 @@ public sealed class DemoOreSheetTests : IDisposable
         var yield = FieldKinds.Yield(Asteroid(cache), default, cache);
         var amounts = yield.ToDictionary(y => cache.Get(y.Commodity).Name, y => y.Amount);
         Assert.Equal(Ores.OrderBy(n => n).ToArray(), amounts.Keys.OrderBy(n => n).ToArray());
-        Assert.Equal(6f, amounts["Rock"]);
-        Assert.Equal(3f, amounts["New Metals"]);
+        Assert.Equal(5f, amounts["Regolith"]);
+        Assert.Equal(4f, amounts["Nickel-Iron"]);
         Assert.Equal(1f, amounts["Gold"]);
         Assert.Equal(yield.Select(y => y.Commodity.Key.Value).OrderBy(k => k, StringComparer.Ordinal), yield.Select(y => y.Commodity.Key.Value));
+    }
+
+    // Ruling regolith-demo-retune: Regolith sells for 1, and the yield shifts so a full hold is worth about what it was with Rock at 200.
+    // Each unit is drawn by abundance weight, and a hold cell takes MaxStack units, so a cell's value is sum(w x price) / sum(w / MaxStack).
+    [Fact]
+    public void AFullHoldSellsForAboutWhatItDidBeforeRegolith()
+    {
+        using var cache = Shipped();
+        var yields = cache.GetAll<FieldKindData>().Single(k => k.Name == "Asteroid").Yields
+            .Select(y => (data: cache.Get(y.Commodity), weight: y.Abundance)).ToArray();
+        double Cell(IEnumerable<(double weight, double price, double stack)> ores) =>
+            ores.Sum(o => o.weight * o.price) / ores.Sum(o => o.weight / o.stack);
+
+        Assert.Equal(1, yields.Single(y => y.data.Name == "Regolith").data.Price);
+        var now = Cell(yields.Select(y => ((double) y.weight, (double) y.data.Price, (double) y.data.MaxStack)));
+        var oldPrice = new Dictionary<string, (double weight, double price)> { ["Regolith"] = (6, 200), ["Nickel-Iron"] = (3, 1000), ["Gold"] = (1, 5000) };
+        var before = Cell(yields.Select(y => (oldPrice[y.data.Name].weight, oldPrice[y.data.Name].price, (double) y.data.MaxStack)));
+        Assert.InRange(now, before * .9, before * 1.1);
     }
 
     [Fact]

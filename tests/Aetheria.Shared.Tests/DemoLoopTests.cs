@@ -45,7 +45,7 @@ public sealed partial class RunStartTests
         var info = player.ChunkInfo(rock);
         Assert.False(arena.ChunkExists(rock), $"the laser broke the rock: designated {FireControl.Designated(laser, player, rock, out var range)} range {range} info {info} target {player.Target} pos {player.Position} rockpos {arena.ChunkPose(rock.Field, rock.Index)} hp {arena.Settings.AsteroidHitpoints.Evaluate(arena.AsteroidBelts[rock.Field].Data.Asteroids[0].Size)}");
 
-        var ores = new[] { "Rock", "New Metals", "Gold" };
+        var ores = new[] { "Regolith", "Nickel-Iron", "Gold" };
         var held = player.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>().Select(stack => (bay, stack)))
             .Where(h => ores.Contains(_items.GetData(h.stack).Name)).ToArray();
         Assert.NotEmpty(held);
