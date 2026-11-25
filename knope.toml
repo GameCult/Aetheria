@@ -1,0 +1,22 @@
+# Release preparation. Change files in .changeset/ decide the bump and the CHANGELOG; commit subjects are never read.
+# Knope only prepares: it bumps VERSION, writes CHANGELOG.md and consumes the change files. Tagging and publishing
+# are .forgejo/workflows/release.yml (knope cannot upload release assets to this forge).
+
+[package]
+versioned_files = [{ path = "VERSION", regex = '^(?<version>\S+)' }]
+changelog = "CHANGELOG.md"
+
+[changes]
+ignore_conventional_commits = true
+
+[[workflows]]
+name = "document-change"
+
+[[workflows.steps]]
+type = "CreateChangeFile"
+
+[[workflows]]
+name = "prepare-release"
+
+[[workflows.steps]]
+type = "PrepareRelease"
