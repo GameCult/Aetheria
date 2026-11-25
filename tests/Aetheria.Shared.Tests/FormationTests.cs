@@ -19,13 +19,27 @@ public sealed partial class RunStartTests
             stage.Place(stage.Generated("", faction), at, facing, piloted: true);
     }
 
+    // The cast and size each formation is authored with: a literal, so a miscast formation cannot vouch for itself.
+    private static readonly (string Id, string Faction, int Ships)[] Authored =
+    {
+        ("sparring-target", null, 1),
+        ("zhestokost-pair", "Zhestokost", 2),
+        ("pirates-pair", "Pirates", 2),
+        ("lucent-pair", "Lucent Media", 2),
+        ("aeronautics-pair", "Aeronautics Unlimited", 2)
+    };
+
     // Every formation summons into a running zone: no failure, each placed entity is a member with one agent and carries the
-    // formation's faction. Kills: a formation that drops its faction or places nothing.
+    // faction the formation is authored for (a literal, resolved through the catalog as the game does), the ships stand 60 m
+    // apart centred on the summon point. Kills: a formation that drops or miscasts its faction, places nothing, or collapses
+    // its spacing.
     [Fact]
     public void EveryFormationSummons()
     {
+        Assert.Equal(Authored.Select(a => a.Id), Formations.All.Select(formation => formation.Id));
         foreach (var formation in Formations.All)
         {
+            var (_, factionName, ships) = Authored.Single(a => a.Id == formation.Id);
             var zone = Arena(true);
             Stage(zone, new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0))));
             for (var tick = 0; tick < 5; tick++) zone.Update(.1f);
@@ -36,13 +50,26 @@ public sealed partial class RunStartTests
             Assert.True(failures.Count == 0, $"{formation.Id}: {string.Join("; ", failures)}");
             Assert.NotNull(summoned);
             Assert.NotEmpty(summoned);
-            var expected = formation.Faction == null ? null : _galaxy.ResolveFaction(formation.Faction);
-            if (formation.Faction != null) Assert.NotNull(expected);
+            var expected = factionName == null ? null : _galaxy.ResolveFaction(factionName);
+            if (factionName != null)
+            {
+                Assert.NotNull(expected);
+                Assert.Equal(factionName, expected.Name);
+            }
+            Assert.Equal(ships, summoned.Count);
             foreach (var entity in summoned)
             {
                 SafeAssert.In(zone, entity, $"{formation.Id}: the summoned ship is admitted");
                 Assert.Equal(1, AgentsOf(zone, entity));
                 Assert.Same(expected, entity.Faction);
+            }
+            if (ships == 2)
+            {
+                var a = summoned[0].Position.xz;
+                var b = summoned[1].Position.xz;
+                Assert.Equal(60f, length(a - b), 1e-3f);
+                Assert.Equal(400f, (a.x + b.x) / 2, 1e-3f);
+                Assert.Equal(0f, (a.y + b.y) / 2, 1e-3f);
             }
         }
     }
