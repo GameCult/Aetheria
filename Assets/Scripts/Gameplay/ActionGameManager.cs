@@ -701,7 +701,7 @@ public class ActionGameManager : MonoBehaviour
     {
         if (!(CurrentEntity is Ship ship) || ship.WormholeAnimationInProgress) return;
         ship.EnterWormhole(wormhole.Position);
-        WormholeWarpPresenter.Begin(ship, wormhole.Position, DeathPost.gameObject.layer,
+        WormholeWarpPresenter.Begin(ship, DeathPost.gameObject.layer,
             Mathf.Max(DeathPost.priority, HeatstrokePost.priority, HypothermiaPost.priority,
                 SevereHeatstrokePost.priority, SevereHypothermiaPost.priority) + 1);
         ship.OnEnteredWormhole += () =>

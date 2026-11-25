@@ -51,16 +51,14 @@ internal sealed class WormholeWarpRenderer : PostProcessEffectRenderer<WormholeW
 public sealed class WormholeWarpPresenter : MonoBehaviour
 {
     private Ship _ship;
-    private Vector3 _wormhole;
     private PostProcessVolume _volume;
     private WormholeWarp _settings;
     private bool _seenAnimation;
 
-    public static void Begin(Ship ship, CultMath.float2 wormholePosition, int layer, float priority)
+    public static void Begin(Ship ship, int layer, float priority)
     {
         var presenter = new GameObject("Wormhole Warp").AddComponent<WormholeWarpPresenter>();
         presenter._ship = ship;
-        presenter._wormhole = new Vector3(wormholePosition.x, 0, wormholePosition.y);
         presenter._settings = ScriptableObject.CreateInstance<WormholeWarp>();
         presenter._settings.enabled.Override(true);
         presenter._volume = PostProcessManager.instance.QuickVolume(layer, priority, presenter._settings);
@@ -76,7 +74,9 @@ public sealed class WormholeWarpPresenter : MonoBehaviour
         _seenAnimation = true;
         var camera = Camera.main;
         if (camera == null) return;
-        var viewport = camera.WorldToViewportPoint(_wormhole);
+        // The wormhole the ship is at in this half, read from the ship each frame.
+        var wormhole = _ship.WormholePosition;
+        var viewport = camera.WorldToViewportPoint(new Vector3(wormhole.x, 0, wormhole.y));
         _settings.Center.value = new Vector2(viewport.x, viewport.y);
         _settings.Strength.value = _ship.WormholeWarp;
     }

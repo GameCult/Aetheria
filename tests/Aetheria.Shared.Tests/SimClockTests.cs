@@ -322,6 +322,29 @@ public sealed partial class RunStartTests
         Assert.Equal(0f, player.WormholeWarp);
     }
 
+    // The warp centres on the wormhole the ship is at in each half: the one it dives into, then the one it emerges from,
+    // which is a different place in the new zone.
+    [Fact]
+    public void ShipWormholePositionFollowsTheHalf()
+    {
+        var (arena, player) = LaunchDuel();
+        var entered = player.Position.xz + float2(50, 0);
+        var emerging = player.Position.xz + float2(-300, 120);
+        var exiting = false;
+        var arrived = false;
+        player.OnEnteredWormhole += () => { player.ExitWormhole(emerging, float2(0, 40)); exiting = true; };
+        player.OnExitedWormhole += () => arrived = true;
+        player.EnterWormhole(entered);
+        Assert.Equal(entered, player.WormholePosition);
+        for (var step = 0; step < 2000 && !arrived; step++)
+        {
+            arena.Update(ClockFrame);
+            if (arrived) break;
+            Assert.Equal(exiting ? emerging : entered, player.WormholePosition);
+        }
+        Assert.True(arrived && exiting, "the ship dives and emerges");
+    }
+
     // The turn a presenter draws ahead is the turn the next step makes: a ship held in a steady turn, drawn one whole
     // step ahead of the pose it was last given, is where the sim puts that pose next.
     [Fact]

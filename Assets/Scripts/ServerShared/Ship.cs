@@ -54,6 +54,10 @@ public class Ship : Entity
         : _exitingWormhole ? 1 - _wormholeAnimationProgress
         : 0;
 
+    // The wormhole the ship is at in the current half: the one it dives into, then the one it emerges from. Presenters
+    // read it (the screen warp centres on it); it is the sim's own position, so it needs no copy elsewhere.
+    public float2 WormholePosition => _wormholePosition;
+
     public event Action OnExitedWormhole;
     public event Action OnEnteredWormhole;
     
