@@ -572,6 +572,33 @@ public class ActionGameManager : MonoBehaviour
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
                 Zone.Admit(turret, piloted: false);
             });
+        // "summon" lists the formations; "summon <id>" places one 400 m ahead of the current ship, facing back toward it. The
+        // faction rule decides who fights whom: a summon writes no stance.
+        ConsoleController.AddCommand("summon",
+            args =>
+            {
+                var console = ConsoleController.Instance;
+                if (args.Length == 0)
+                {
+                    console.AppendLogLine("Formations: " + string.Join(", ", Formations.All.Select(formation => formation.Id)));
+                    return;
+                }
+                var formation = Formations.ById(args[0]);
+                if (formation == null)
+                {
+                    console.AppendLogLine($"No formation \"{args[0]}\"; summon alone lists them");
+                    return;
+                }
+                if (_currentEntity == null || _currentEntity.Parent != null)
+                {
+                    console.AppendLogLine("Refused: undock first");
+                    return;
+                }
+                var failures = new List<string>();
+                var summoned = formation.Summon(ItemManager, Zone, _currentEntity.Position.xz + _currentEntity.Direction * 400, -_currentEntity.Direction, failures);
+                foreach (var failure in failures) console.AppendLogLine($"summon {formation.Id}: {failure}");
+                if (summoned != null) console.AppendLogLine($"Summoned {formation.Name}: {string.Join(", ", summoned.Select(entity => entity.Name))}");
+            });
         // "fly Djinni": a freshly fitted ship of the named hull beside the current one, and you in it. The ship you leave
         // stays where it is, unpiloted.
         ConsoleController.AddCommand("fly",
