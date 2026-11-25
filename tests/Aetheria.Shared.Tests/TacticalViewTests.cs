@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using System;
 using Xunit;
 
 // TacticalView owns the flight camera's zoom; blend and time rate are derived from the distance, never stored.
@@ -53,6 +54,30 @@ public sealed class TacticalViewTests
         }
         Assert.InRange(view.Blend(Start * 1.01f), 0f, .05f);
         Assert.InRange(view.Blend(End / 1.01f), .95f, 1f);
+    }
+
+    // The band is smoothstep over the logarithm of distance: a quarter, half and three quarters of the way up in ln
+    // are 250 x 4^t m, and the thresholds themselves are the 250 m and 1000 m the operator tunes by eye (GameSettings).
+    [Fact]
+    public void BlendIsSmoothstepOverLogDistanceBetweenTheThresholds()
+    {
+        var view = Make();
+        Assert.Equal(.15625f, view.Blend(250f * MathF.Pow(4, .25f)), 3);
+        Assert.Equal(.5f, view.Blend(500f), 3);
+        Assert.Equal(.84375f, view.Blend(250f * MathF.Pow(4, .75f)), 3);
+        Assert.Equal(0f, view.Blend(249f));
+        Assert.Equal(1f, view.Blend(1001f));
+    }
+
+    [Fact]
+    public void TimeRateIsTheScaleToTheBlendPowerNotLinear()
+    {
+        var view = Make();
+        Assert.Equal(.1f, view.TimeRate(.5f), 5);
+        Assert.Equal(MathF.Pow(.01f, .25f), view.TimeRate(.25f), 5);
+        Assert.Equal(MathF.Pow(.01f, .75f), view.TimeRate(.75f), 5);
+        Assert.Equal(1f, view.TimeRate(-1));
+        Assert.Equal(Scale, view.TimeRate(2), 6);
     }
 
     [Fact]

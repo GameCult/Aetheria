@@ -61,7 +61,13 @@ public sealed class SimClock
     public float Rate
     {
         get => _rate;
-        set => _rate = Math.Min(Math.Max(value, float.Epsilon), 1f);
+        set
+        {
+            // NaN is no rate: it would poison the accumulator for good (only Reset clears it), so it is refused and the
+            // last rate stands. Anything else is clamped into (0, 1]: the sim never runs faster than real time or backward.
+            if (float.IsNaN(value)) return;
+            _rate = Math.Min(Math.Max(value, float.Epsilon), 1f);
+        }
     }
 
     // Feeds real seconds (negative counts as none, one frame counts at most MaxFrameSeconds) and runs the whole

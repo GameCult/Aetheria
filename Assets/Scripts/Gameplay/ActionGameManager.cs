@@ -1246,7 +1246,6 @@ public class ActionGameManager : MonoBehaviour
     private TacticalFade _tacticalFade;
     private PostProcessVolume _tacticalVolume;
     private Camera _schematicCamera;
-    private float _authoredFarClip;
 
     // Flying: a ship under the player's hand, not docked. Everything tactical reads 0 otherwise.
     private bool Flying => RunLive && CurrentEntity != null && DockedEntity == null;
@@ -1263,16 +1262,15 @@ public class ActionGameManager : MonoBehaviour
 
     private float BaseFollowDistance(Entity entity) => Settings.FollowCameraDistancePerReach * Contacts.Radius(entity);
 
-    // The one writer of the follow camera's distance and far clip: the hull's framed distance times the tactical zoom,
-    // far enough to see the whole zone from there.
+    // The one writer of the follow camera's distance: the hull's framed distance times the tactical zoom. It asks
+    // ZoneRenderer, the one writer of the far clip, to see the whole zone from there.
     private void ApplyFraming(Entity entity)
     {
         if (_framingTransposer == null)
             _framingTransposer = FollowCamera.GetCinemachineComponent<CinemachineFramingTransposer>();
-        if (_authoredFarClip == 0) _authoredFarClip = FollowCamera.m_Lens.FarClipPlane;
         var distance = _tactical.Distance(BaseFollowDistance(entity));
         _framingTransposer.m_CameraDistance = distance;
-        FollowCamera.m_Lens.FarClipPlane = Mathf.Max(_authoredFarClip, distance + 2 * entity.Zone.Pack.Radius);
+        ZoneRenderer.FarClipNeeded = distance + 2 * entity.Zone.Pack.Radius;
     }
 
     // Everything the tactical view shows is read off the camera distance: the fade, the schematic, the map icons' size

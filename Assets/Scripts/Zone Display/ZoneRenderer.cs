@@ -144,9 +144,25 @@ public class ZoneRenderer : MonoBehaviour
             _viewDistance = value;
             foreach (var camera in FogCameras)
                 camera.orthographicSize = value;
-            SceneCamera.m_Lens.FarClipPlane = value * FarPlaneDistanceMultiplier;
+            ApplyFarClip();
         }
     }
+
+    // How far the camera must see to take in the whole zone from where the follow camera sits (the tactical view's
+    // reach). The view distance sets the floor; ApplyFarClip is the one writer of the scene camera's far clip.
+    public float FarClipNeeded
+    {
+        set
+        {
+            _farClipNeeded = value;
+            ApplyFarClip();
+        }
+    }
+
+    private float _farClipNeeded;
+
+    private void ApplyFarClip() =>
+        SceneCamera.m_Lens.FarClipPlane = Mathf.Max(_viewDistance * FarPlaneDistanceMultiplier, _farClipNeeded);
 
     public float MinimapDistance
     {

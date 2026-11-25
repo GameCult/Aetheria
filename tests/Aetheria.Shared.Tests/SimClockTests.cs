@@ -414,6 +414,36 @@ public sealed partial class RunStartTests
     // Rate dilates the real seconds fed, never the step: sixteen frames of one period's real time at Rate 1/16 (all exact in
     // binary) buy exactly one step, and that step is the same Step.
     [Fact]
+    public void RateIsHeldInsideZeroExclusiveToOneAndRefusesNaN()
+    {
+        var clock = new SimClock(1f / 60, 60);
+        Assert.Equal(1f, clock.Rate);
+        clock.Rate = .25f;
+        Assert.Equal(.25f, clock.Rate);
+        clock.Rate = float.NaN;
+        Assert.Equal(.25f, clock.Rate); // refused, the last rate stands
+        clock.Rate = 2f;
+        Assert.Equal(1f, clock.Rate);
+        clock.Rate = float.PositiveInfinity;
+        Assert.Equal(1f, clock.Rate);
+        clock.Rate = 0f;
+        Assert.Equal(float.Epsilon, clock.Rate);
+        clock.Rate = -3f;
+        Assert.Equal(float.Epsilon, clock.Rate);
+        clock.Rate = float.NegativeInfinity;
+        Assert.Equal(float.Epsilon, clock.Rate);
+
+        // A refused NaN leaves the clock stepping: none of the accumulator is poisoned.
+        clock.Rate = .5f;
+        clock.Rate = float.NaN;
+        Assert.True(clock.Advance(1f, _ => { }) > 0);
+        clock.Rate = 1f;
+        var before = clock.Steps;
+        clock.Advance(.1f, _ => { });
+        Assert.True(clock.Steps > before);
+    }
+
+    [Fact]
     public void RateDilatesRealTimeWithoutChangingStep()
     {
         var clock = new SimClock(1f / 32, 32) { Rate = 1f / 16 };
