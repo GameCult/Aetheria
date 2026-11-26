@@ -86,4 +86,38 @@ public sealed partial class RunStartTests
         Assert.Equal(0, credits);
         Assert.Contains(stock.piece, hold.Cargo.Keys);
     }
+
+    // What a hold of belt ore earns against what the loop spends it on, on the shipped catalog (aetheria-living-world, ruling
+    // economy-numbers-are-sim-tuned-knobs: the prices are balance knobs tuned from simulation, so this pins only the scale). V is the
+    // belt kind's hold-cell value: a unit is drawn by abundance, a cell takes MaxStack units, so a cell's value is
+    // sum(abundance x price) / sum(abundance / MaxStack), over every yield of the kind. It is set against the repair of the player's hull
+    // with all its armour lost and against the cheapest piece Zenith stocks. The bases are those ratios on the catalog before the ore
+    // batch, at ore and gear prices of one scale: a divisor of ten or a thousand, or a gear type left unscaled, moves a ratio out of
+    // [0.5, 4] x its base.
+    // Measured at d1ff2f78e on belt kind Asteroid: V 9005, repair 5540402, cheapest buy 4705354.
+    private const double BaseRepairRatio = 0.00162533, BaseBuyRatio = 0.00191378;
+
+    [Fact]
+    public void DemoLoopIncomeToCostClosesAfterRescale()
+    {
+        var (_, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => 1));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        var player = staged.Player;
+        var belt = arena.Planets.Single(body => body.Value is AsteroidBeltData);
+        var kind = _cache.Get(((AsteroidBeltData) belt.Value).Kind);
+        var yields = kind.Yields.Select(y => (data: _cache.Get(y.Commodity), weight: (double) y.Abundance)).ToArray();
+        var value = yields.Sum(y => y.weight * y.data.Price) / yields.Sum(y => y.weight / y.data.MaxStack);
+
+        for (var x = 0; x < player.MaxArmor.GetLength(0); x++)
+            for (var y = 0; y < player.MaxArmor.GetLength(1); y++)
+                player.Armor[x, y] = 0;
+        var repair = StationServices.RepairCost(_items, player);
+        var zenith = arena.Entities.Single(entity => entity.HullData.Name == "Zenith");
+        var cheapest = zenith.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<CraftedItemInstance>()).Min(piece => StationServices.BuyPrice(_items, piece));
+        Assert.True(repair > 0 && cheapest > 0);
+
+        var measured = $"belt {kind.Name}: V {value:0.###} per cell, repair {repair}, cheapest buy {cheapest}, V/repair {value / repair:0.######}, V/buy {value / cheapest:0.######}";
+        Assert.True(value / repair >= 0.5 * BaseRepairRatio && value / repair <= 4 * BaseRepairRatio, measured);
+        Assert.True(value / cheapest >= 0.5 * BaseBuyRatio && value / cheapest <= 4 * BaseBuyRatio, measured);
+    }
 }

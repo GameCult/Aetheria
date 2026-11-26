@@ -81,7 +81,7 @@ public sealed class StationServicesTests : IDisposable
     {
         Assert.Equal(.5f, _items.GameplaySettings.SellFraction);
         Assert.Equal(.25f, _items.GameplaySettings.RepairFraction);
-        Assert.Equal(15000000, _items.GameplaySettings.StartingCredits);
+        Assert.Equal(150000, _items.GameplaySettings.StartingCredits);
     }
 
     [Fact]
