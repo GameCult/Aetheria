@@ -132,7 +132,7 @@ public class TrojanSwarmTests
     // C1 (one belt extent rule) with swarms off, over the zones of each seed; both samples draw no lane, so the base is the zone
     // with neither shape: a zone with no swarm is the base zone, and a zone with
     // swarms is the base zone plus them. The per-zone comparison leaves PopulatedRadius out, since a swarm's outer rock may grow it.
-    private static readonly Dictionary<uint, string> BaseDigest = new Dictionary<uint, string>
+    private static readonly Dictionary<uint, string> LinuxBaseDigest = new Dictionary<uint, string>
     {
         [1] = "1873400d50d11b27913a67daca460f0829629aa21dacabac2cfc97a66537a700",
         [2] = "5872680ee91c2019b345925f54c2113303cc2817ee9ea28d26ba839e43d1944e",
@@ -142,6 +142,23 @@ public class TrojanSwarmTests
         [6] = "307dc4b38ff341670a5b5179ab977b6c7c59ba682d529d80dcaf9c4852c21fe2",
     };
 
+    // The generator's zones come out different on Windows than on Linux (measured; the cause is not traced), so the swarmless zones' digests are
+    // per host class (ruling replays-per-host-class); the linux table above was computed on Yggdrasil. The windows table is the
+    // same cut's tree measured on windows-x64 (at d0fc8adb7, where the linux table was set, it measured identically).
+    private static readonly Dictionary<string, Dictionary<uint, string>> BaseDigests = new()
+    {
+        ["linux-x64"] = LinuxBaseDigest,
+        ["windows-x64"] = new Dictionary<uint, string>
+        {
+            [1] = "8ab09122f6c97cbbd24beebb9fab239302a947e039fa6271c2fec32260eeda2b",
+            [2] = "c7471235420889fc8267b14c54cfa91940bd53e9f76b289b7a57f31cef2d5504",
+            [3] = "1b9b7dcf9c4635c0a1efbc2781df4497192fd54488d76bcc312b309b03876e4b",
+            [4] = "72aea7f038281d7188900ccd7c31df409c62020e0fe2c64be1bde17ed08ca919",
+            [5] = "679b83ac406c1eee9c9f8a1c1733fa967a53fbbcce206172dce113abe599a90b",
+            [6] = "5da9181eef4c46a9c41a67936cbb2042e169016e6446477e008ace5ce446d8f0",
+        },
+    };
+
     [Fact]
     public void ASwarmMovesNothingElseInTheZone()
     {
@@ -149,12 +166,14 @@ public class TrojanSwarmTests
         using var live = new ChildrenWithinReachTests.Zones(First, Last, z => z.LaneProbability = 0);
         Assert.Equal(swarmless.All.Count, live.All.Count);
         int swarms = 0, grew = 0;
-        foreach (var seed in BaseDigest.Keys)
+        var host = RunStartTests.HostClass();
+        Assert.True(BaseDigests.TryGetValue(host, out var baseDigest), $"swarmless zone digests: host class {host} has no pin; measured " + string.Join(",", LinuxBaseDigest.Keys.Select(seed => seed + "=" + ZoneFingerprint.Of(swarmless.All.Where(x => x.Seed == seed).Select(x => x.Zone).ToList(), _ => false, _ => false, true))));
+        foreach (var seed in baseDigest.Keys)
         {
             var a = swarmless.All.Where(x => x.Seed == seed).Select(x => x.Zone).ToList();
             var b = live.All.Where(x => x.Seed == seed).Select(x => x.Zone).ToList();
             Assert.Empty(a.SelectMany(z => z.AsteroidBelts.Where(x => x.Value.Data.RidesRail)));
-            Assert.Equal(BaseDigest[seed], ZoneFingerprint.Of(a, _ => false, _ => false, true));
+            Assert.Equal(baseDigest[seed], ZoneFingerprint.Of(a, _ => false, _ => false, true));
             string Swarmed(Zone z) => ZoneFingerprint.Of(new[] { z }, SwarmRails(z).Contains, IsSwarm, false);
             for (var n = 0; n < a.Count; n++)
             {
