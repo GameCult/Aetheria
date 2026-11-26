@@ -63,7 +63,7 @@ public static class EconomyCommand
         { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
-    private const string Usage = "economy report | author <batch>... [apply] | " + EconomyPrices.Usage + "\nA batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
+    private const string Usage = "economy report | author <batch>... [apply] | " + EconomyPrices.Usage + " | balance\nbalance reads the chain and changes nothing. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
 
     public static int Run(string[] args, TextWriter output)
     {
