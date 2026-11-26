@@ -352,10 +352,21 @@ public class ActionGameManager : MonoBehaviour
             ZoneRenderer.MinimapDistance = Settings.MinimapZoomLevels[_zoomLevelIndex];
         };
 
-        // The tactical view is the camera pulled far out (ruling tactical-view-is-zoom-out): the wheel is the only input,
-        // and TacticalView the one owner of how far.
+        // The tactical view is a distinct camera over the grid (ruling tactical-view-distinct-mode): the wheel is one axis
+        // from the chase view through a detent into it, and TacticalView the one owner of where on that axis the camera is.
         _tactical = new TacticalView(Settings.TacticalZoomStep, Settings.TacticalBlendStart, Settings.TacticalBlendEnd,
-            Settings.TacticalTimeScale, Settings.TacticalFitPerRadius);
+            Settings.TacticalTimeScale, Settings.TacticalFitPerRadius, Settings.DetentResistance, Settings.DetentRelaxTime,
+            Settings.ViewEaseTime);
+        // The view rig: the chase camera (child 0) and the tactical camera (child 1) mixed by the blend, built here so the
+        // scene stays as authored. The mix is a function of the eased distance, not a brain blend on a priority switch.
+        var rig = new GameObject("View Rig");
+        _viewRig = rig.AddComponent<CinemachineMixingCamera>();
+        _viewRig.Priority = FollowCamera.Priority;
+        FollowCamera.transform.SetParent(rig.transform, false);
+        FollowCamera.transform.SetAsFirstSibling();
+        var tacticalCamera = new GameObject("Tactical Camera");
+        tacticalCamera.transform.SetParent(rig.transform, false);
+        _tacticalCamera = tacticalCamera.AddComponent<CinemachineVirtualCamera>();
         _tacticalFade = ScriptableObject.CreateInstance<TacticalFade>();
         _tacticalFade.enabled.Override(true);
         _tacticalFade.Background.Override(Settings.TacticalBackground);
@@ -372,8 +383,9 @@ public class ActionGameManager : MonoBehaviour
         {
             var scroll = context.ReadValue<float>();
             if (scroll == 0 || !Flying) return;
-            _tactical.Step(-Mathf.Sign(scroll), BaseFollowDistance(CurrentEntity));
-            ApplyFraming(CurrentEntity);
+            var was = _tactical.Tactical;
+            _tactical.Scroll(-Mathf.Sign(scroll));
+            if (_tactical.Tactical != was) EnablePlayerInput();
         };
 
         Input.Global.ZoneMap.performed += context =>
@@ -761,11 +773,14 @@ public class ActionGameManager : MonoBehaviour
         return success ?? false;
     }
 
+    // The one writer of the cursor lock and the action bar while playing: the tactical view frees the cursor and gives the
+    // mouse buttons to Pan, so the bar is off there. It is re-applied whenever Tactical changes.
     public void EnablePlayerInput()
     {
-        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.lockState = _tactical.Tactical ? CursorLockMode.None : CursorLockMode.Locked;
         Input.Player.Enable();
-        foreach (var a in _actionBarActions) a.Enable();
+        foreach (var a in _actionBarActions)
+            if (_tactical.Tactical) a.Disable(); else a.Enable();
     }
 
     public void DisablePlayerInput()
@@ -999,7 +1014,7 @@ public class ActionGameManager : MonoBehaviour
         ZoneRenderer.PerspectiveEntity = DockedEntity;
         DockingBay = dockingBay;
         DockCamera.enabled = true;
-        FollowCamera.enabled = false;
+        _viewRig.enabled = false;
         var orbital = (OrbitalEntity) entity;
         DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
         var parentOrbit = Zone.Orbits[orbital.OrbitData].Data.Parent.Key;
@@ -1101,7 +1116,6 @@ public class ActionGameManager : MonoBehaviour
         if(_incomingLockIndicator.indicator != null) _incomingLockIndicator.indicator.GetComponent<Prototype>().ReturnToPool();
         _incomingLockIndicator = default;
         DisablePlayerInput();
-        Cursor.lockState = CursorLockMode.None;
         GameplayUI.gameObject.SetActive(false);
         
         foreach(var subscription in _shipSubscriptions) subscription.Dispose();
@@ -1148,7 +1162,7 @@ public class ActionGameManager : MonoBehaviour
         }
         
         CurrentEntity = entity;
-        _tactical.Reset(entity.Zone.Pack.Radius);
+        _tactical.Reset(entity.Zone.Pack.Radius, BaseFollowDistance(entity), DrawAhead.Position(entity, Clock.Lead).xz);
         DeathPost.weight = 0;
         ZoneRenderer.PerspectiveEntity = CurrentEntity;
         
@@ -1156,12 +1170,11 @@ public class ActionGameManager : MonoBehaviour
         DockedEntity = null;
         DockingBay = null;
         DockCamera.enabled = false;
-        FollowCamera.enabled = true;
+        _viewRig.enabled = true;
 
         if (length(CurrentEntity.Direction) > .1f)
             _viewDirection = float3(CurrentEntity.Direction.x,0,CurrentEntity.Direction.y);
-        
-        Cursor.lockState = CursorLockMode.Locked;
+
         EnablePlayerInput();
         GameplayUI.gameObject.SetActive(true);
         ShipPanel.Display(CurrentEntity, true);
@@ -1286,6 +1299,10 @@ public class ActionGameManager : MonoBehaviour
     }
 
     private CinemachineFramingTransposer _framingTransposer;
+    private CinemachineMixingCamera _viewRig;
+    private CinemachineVirtualCamera _tacticalCamera;
+    // The grid point the Pan drag holds under the cursor; one gesture's state, nothing else.
+    private float2? _grab;
     private TacticalView _tactical;
     private TacticalFade _tacticalFade;
     private PostProcessVolume _tacticalVolume;
@@ -1306,28 +1323,56 @@ public class ActionGameManager : MonoBehaviour
 
     private float BaseFollowDistance(Entity entity) => Settings.FollowCameraDistancePerReach * Contacts.Radius(entity);
 
-    // The one writer of the follow camera's distance: the hull's framed distance times the tactical zoom. It asks
-    // ZoneRenderer, the one writer of the far clip, to see the whole zone from there.
+    // The one writer of the follow camera's distance: the eased view distance. It asks ZoneRenderer, the one writer of the
+    // far clip, to see the whole zone from there.
     private void ApplyFraming(Entity entity)
     {
         if (_framingTransposer == null)
             _framingTransposer = FollowCamera.GetCinemachineComponent<CinemachineFramingTransposer>();
-        var distance = _tactical.Distance(BaseFollowDistance(entity));
+        var distance = _tactical.Distance;
         _framingTransposer.m_CameraDistance = distance;
         ZoneRenderer.FarClipNeeded = distance + 2 * entity.Zone.Pack.Radius;
     }
 
-    // Everything the tactical view shows is read off the camera distance: the fade, the schematic, the map icons' size
-    // and the minimap cameras. Time is the Update line that feeds the clock.
-    private float TacticalBlend() => Flying && _framingTransposer != null
-        ? _tactical.Blend(_framingTransposer.m_CameraDistance)
-        : 0f;
+    // The one writer of the tactical camera: three-quarters top-down over the view target on the grid surface, the chase
+    // view's yaw held, at the eased distance. Its lens is the chase camera's, so the far clip is the one writer's.
+    private void PoseTactical()
+    {
+        var target = _tactical.Target;
+        var target3 = new Vector3(target.x, DrawAhead.Height(CurrentEntity.Zone, target, Clock.Lead), target.y);
+        var rotation = Quaternion.Euler(Settings.TacticalPitch, _entityYawPitch.x * Mathf.Rad2Deg, 0);
+        _tacticalCamera.transform.SetPositionAndRotation(target3 - rotation * Vector3.forward * _tactical.Distance, rotation);
+        _tacticalCamera.m_Lens = FollowCamera.m_Lens;
+    }
+
+    // Drag: the grid point under the cursor when the button went down stays under it.
+    private void PanTarget()
+    {
+        if (!Input.Player.Pan.IsPressed())
+        {
+            _grab = null;
+            return;
+        }
+        var height = DrawAhead.Height(CurrentEntity.Zone, _tactical.Target, Clock.Lead);
+        var ray = ZoneRenderer.MainCamera.ScreenPointToRay(Input.Player.Point.ReadValue<Vector2>());
+        if (!new Plane(Vector3.up, new Vector3(0, height, 0)).Raycast(ray, out var hit)) return;
+        var point = ray.GetPoint(hit);
+        var ground = float2(point.x, point.z);
+        if (_grab is { } grab) _tactical.Pan(grab - ground);
+        else _grab = ground;
+    }
+
+    // Everything the tactical view shows is read off the eased camera distance: the fade, the rig's mix, the schematic, the
+    // map icons' size and the minimap cameras. Time is the Update line that feeds the clock.
+    private float TacticalBlend() => Flying ? _tactical.Blend(_tactical.Distance) : 0f;
 
     private void ShowTactical(float blend)
     {
+        _viewRig.SetWeight(0, 1 - blend);
+        _viewRig.SetWeight(1, blend);
         _tacticalVolume.weight = blend;
         _schematicCamera.enabled = blend > 0;
-        ZoneRenderer.Map.SetTacticalScale(blend > 0 ? _framingTransposer.m_CameraDistance * Settings.TacticalIconSize : 0);
+        ZoneRenderer.Map.SetTacticalScale(blend > 0 ? _tactical.Distance * Settings.TacticalIconSize : 0);
         foreach (var camera in ZoneRenderer.MinimapCameras) camera.enabled = blend == 0;
     }
 
@@ -1476,6 +1521,15 @@ public class ActionGameManager : MonoBehaviour
 
     void Update()
     {
+        if (Flying)
+        {
+            _tactical.Tick(Time.unscaledDeltaTime);
+            _tactical.Track(DrawAhead.Position(CurrentEntity, Clock.Lead).xz);
+            if (_tactical.Tactical) PanTarget();
+            else _grab = null;
+            ApplyFraming(CurrentEntity);
+            PoseTactical();
+        }
         var blend = TacticalBlend();
         ShowTactical(blend);
         if (!RunLive) return;
@@ -1499,10 +1553,14 @@ public class ActionGameManager : MonoBehaviour
                     indicator.Value.Place.Target = DrawAhead.Position(indicator.Key, Clock.Lead).ToUnity();
                     PlaceFill(indicator.Value, indicator.Key);
                 }
-                var look = Input.Player.Look.ReadValue<Vector2>();
-                var sensitivity = PlayerSettings.InputSettings.Sensitivity;
-                _entityYawPitch = float2(_entityYawPitch.x + look.x * sensitivity.x, clamp(_entityYawPitch.y + look.y * sensitivity.y, -.45f * PI, .45f * PI));
-                _viewDirection = mul(float3(0, 0, 1), CultMath.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
+                // The tactical view does not steer: the aim and the chase yaw hold while the mouse pans the view.
+                if (!_tactical.Tactical)
+                {
+                    var look = Input.Player.Look.ReadValue<Vector2>();
+                    var sensitivity = PlayerSettings.InputSettings.Sensitivity;
+                    _entityYawPitch = float2(_entityYawPitch.x + look.x * sensitivity.x, clamp(_entityYawPitch.y + look.y * sensitivity.y, -.45f * PI, .45f * PI));
+                    _viewDirection = mul(float3(0, 0, 1), CultMath.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
+                }
                 CurrentEntity.Command.Aim = _viewDirection;
                 HeatstrokePost.weight = saturate(unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));
                 var severeHeatstrokeLerp = saturate(unlerp(Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, 1, CurrentEntity.Heatstroke));

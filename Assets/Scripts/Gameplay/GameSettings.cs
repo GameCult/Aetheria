@@ -24,12 +24,22 @@ public class GameSettings : ScriptableObject
     public int AsteroidMeshCount = 5;
     public float MinimapAsteroidSize = 3;
     public float MinimapIconSize = 1f / 32;
-    // Tactical view (rulings tactical-view-is-zoom-out, tactical-view-in-runs-slow-time): one wheel notch multiplies the
-    // follow camera distance by this.
+    // Tactical view (rulings tactical-view-distinct-mode, tactical-view-in-runs-slow-time): one wheel notch multiplies the
+    // camera distance by this, in either view. Every feel constant here (step, band, detent, ease, pitch) is a placeholder
+    // the operator tunes by eye.
     public float TacticalZoomStep = 1.25f;
-    // The camera distance (m) where the scene starts to fade to the schematic, and where it is fully faded.
+    // The camera distance (m) where the scene starts to fade to the schematic: the chase view's farthest distance and the
+    // detent band's near edge; and where it is fully faded: the tactical view's nearest distance and the band's far edge.
     public float TacticalBlendStart = 250;
     public float TacticalBlendEnd = 1000;
+    // Inside the detent band a notch moves the view this fraction as far as outside it (lower holds harder).
+    public float DetentResistance = .6f;
+    // Seconds, e-folding, for the band to push the view back to the edge it came from.
+    public float DetentRelaxTime = .4f;
+    // Seconds the camera takes to settle on where the wheel put it (critically damped).
+    public float ViewEaseTime = .15f;
+    // The tactical camera's pitch down from the horizon, degrees.
+    public float TacticalPitch = 55;
     // Sim seconds per real second at full fade (about 100x slower).
     public float TacticalTimeScale = .01f;
     // The farthest zoom, as a multiple of the zone radius.
