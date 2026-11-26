@@ -29,6 +29,8 @@ public class MainMenu : MonoBehaviour
     private bool _fadeFromRight;
     private float _fadeLerp;
     private bool _fading;
+    // True from the moment a run is being generated or entered until it fails; the scene reload ends it.
+    public bool Launching { get; private set; }
     private Vector3 _panelPosition;
     //private Task<DatabaseCache> _databaseLoad;
     
@@ -241,6 +243,7 @@ public class MainMenu : MonoBehaviour
     {
         var generatorState = "Loading Database Contents";
 
+        Launching = true;
         Fade(true);
         _nextMenu.panel.gameObject.SetActive(false);
         Dialog.Clear();
@@ -261,6 +264,7 @@ public class MainMenu : MonoBehaviour
                 if (generation.IsFaulted)
                 {
                     Debug.LogException(generation.Exception);
+                    Launching = false;
                     ShowMain();
                     Fade(false);
                     Refuse($"{scenario.Name} could not generate its galaxy", generation.Exception.GetBaseException().Message);
@@ -274,7 +278,11 @@ public class MainMenu : MonoBehaviour
 
     // The one way into the game scene. Mod ship prototypes import asynchronously at boot, so the scene waits for them,
     // and a preload that could not run at all stops here with its reason rather than in the first zone.
-    private void EnterGame() => StartCoroutine(EnterGameWhenModShipsAreReady());
+    private void EnterGame()
+    {
+        Launching = true;
+        StartCoroutine(EnterGameWhenModShipsAreReady());
+    }
 
     private IEnumerator EnterGameWhenModShipsAreReady()
     {
@@ -282,6 +290,7 @@ public class MainMenu : MonoBehaviour
         while (!loading.IsCompleted) yield return null;
         if (loading.IsFaulted)
         {
+            Launching = false;
             if (loading.Exception.GetBaseException() is ShipModShips.ImportFault fault) RefuseMods("Mod ships failed to load", fault.Faults);
             else Refuse("Mod ships failed to load", loading.Exception.GetBaseException().Message);
             yield break;

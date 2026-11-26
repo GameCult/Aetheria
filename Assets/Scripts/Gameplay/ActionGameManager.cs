@@ -1404,8 +1404,10 @@ public class ActionGameManager : MonoBehaviour
                     SevereHypothermiaPost.weight = 0;
                     DeathPost.weight = 1;
                     // Every run begins in the simulation (ruling terminus-boots-into-ifl), so death anywhere returns to it.
-                    MainMenu.Launch(Scenarios.Simulation);
-                });
+                    // A New Game or Continue click during the fade has already launched; the scene reload ends the subscription.
+                    if (!MainMenu.Launching) MainMenu.Launch(Scenarios.Simulation);
+                })
+            .AddTo(this);
     }
 
     // public void ToggleEditMode()
