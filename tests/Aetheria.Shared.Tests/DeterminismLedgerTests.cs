@@ -23,7 +23,6 @@ public sealed partial class RunStartTests
 {
     // The two-AI fight's digest, captured on Yggdrasil. Replays are trusted only on the host class that recorded them
     // (ruling replays-per-host-class), and arenas run on Linux.
-    private const string TwoAiPinnedHostClass = "linux-x64";
     // Repinned twice, and the second repin has two causes (Soul measured the steps: group 1 + seed = f19b9992, + the Follow
     // gate = ce81a426; group 2 without the seed = bf586806).
     // First for the side split: the two fighters are unaffiliated, were one side and each followed itself (1b2ffe51).
@@ -58,7 +57,12 @@ public sealed partial class RunStartTests
     // spread (station-reactor-spread), and that blob alone moved the digest (the same tree with the old catalog measured 52fbb10d;
     // traced: only Notorious Station moves it, because the zone's station Zenith carries a Notorious Station reactor lot whose
     // minted quality changes with the role spread, and Snapshot hashes every zone entity's heat and shield).
-    private const string TwoAiPinnedDigest = "9c70a3ee234fb3b879f721a4a4abf13dd83bf56fd8733690d356b89b8a392258";
+    private static readonly System.Collections.Generic.Dictionary<string, string> TwoAiPinnedDigests = new()
+    {
+        ["linux-x64"] = "9c70a3ee234fb3b879f721a4a4abf13dd83bf56fd8733690d356b89b8a392258",
+        // Measured on windows-x64 at the commit that added this pin (the fight is one history there: TwoAiFightIsOneHistory).
+        ["windows-x64"] = "133e5d76cfc17383384bf0ab639e73c112b7972a62e9979178d5a63954eb2a0f",
+    };
     private const float TwoAiSeconds = 60f;
 
     [Fact]
@@ -276,8 +280,8 @@ public sealed partial class RunStartTests
     {
         var host = HostClass();
         var digest = TwoAiFight().digest;
-        Assert.True(host == TwoAiPinnedHostClass,
-            $"TWO-AI-DIGEST host class {host} has no pin (pinned: {TwoAiPinnedHostClass}); measured digest {digest}");
-        Assert.True(digest == TwoAiPinnedDigest, $"TWO-AI-DIGEST {host} measured {digest}, pinned {TwoAiPinnedDigest}");
+        Assert.True(TwoAiPinnedDigests.TryGetValue(host, out var pinned),
+            $"TWO-AI-DIGEST host class {host} has no pin (pinned: {string.Join(",", TwoAiPinnedDigests.Keys)}); measured digest {digest}");
+        Assert.True(digest == pinned, $"TWO-AI-DIGEST {host} measured {digest}, pinned {pinned}");
     }
 }
