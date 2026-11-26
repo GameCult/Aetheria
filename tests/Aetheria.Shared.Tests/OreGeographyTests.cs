@@ -754,13 +754,16 @@ public sealed class OreGeographyTests : IDisposable
             }).ToArray();
 
         var (cache, _, _) = Shipped();
+        var (bare, _, _) = Shipped();
+        StripShippedProvinces(cache);
+        StripShippedProvinces(bare);
         Province(cache, "one", 2);
         Province(cache, "two", 1);
         var compared = 0;
         foreach (var prelude in new[] {false, true})
             for (uint seed = 1; seed <= 4; seed++)
             {
-                var without = SharedGalaxy(prelude, seed);
+                var without = TryBuild(bare, prelude, seed);
                 var with = TryBuild(cache, prelude, seed);
                 Assert.Equal(without == null, with == null);
                 if (without == null) continue;
@@ -937,6 +940,13 @@ public sealed class OreGeographyTests : IDisposable
 
     private ItemManager Items(CultCache cache) => new ItemManager(1u, cache, new ProvenanceLedger(), Authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
 
+    // The shipped catalog deals six province types (batch OresAndProvinces); a test that draws by provinces it adds, or compares a galaxy dealt
+    // none with one dealt some, takes the shipped ones out first.
+    private static void StripShippedProvinces(CultCache cache)
+    {
+        foreach (var existing in cache.GetAll<ProvinceData>().ToArray()) Assert.True(cache.Remove(cache.RefOf(existing).Key));
+    }
+
     private static void SilenceShippedKinds(CultCache cache)
     {
         foreach (var existing in cache.GetAll<FieldKindData>().ToArray())
@@ -955,6 +965,7 @@ public sealed class OreGeographyTests : IDisposable
         {
             var (cache, _, _) = Shipped();
             SilenceShippedKinds(cache);
+            StripShippedProvinces(cache);
             var a = Kind(cache, "a", 1f);
             var b = Kind(cache, "b", 1f);
             Province(cache, "no-a", 1, new[] {KindFactor(a, 0f)});

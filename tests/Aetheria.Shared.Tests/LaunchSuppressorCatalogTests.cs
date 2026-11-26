@@ -42,8 +42,8 @@ public sealed class LaunchSuppressorCatalogTests
         var computer = Design(cache, "Targeting Computer");
         var designs = new[]
         {
-            (Design: Design(cache, StrongName), Price: 40000, Factor: (.08f, .03f), Heat: (1.4f, .8f), Rated: (310f, 330f)),
-            (Design: Design(cache, MildName), Price: 25000, Factor: (.4f, .2f), Heat: (.8f, .5f), Rated: (310f, 330f)),
+            (Design: Design(cache, StrongName), Price: 400, Factor: (.08f, .03f), Heat: (1.4f, .8f), Rated: (310f, 330f)),
+            (Design: Design(cache, MildName), Price: 250, Factor: (.4f, .2f), Heat: (.8f, .5f), Rated: (310f, 330f)),
         };
         foreach (var (design, price, factor, heat, rated) in designs)
         {

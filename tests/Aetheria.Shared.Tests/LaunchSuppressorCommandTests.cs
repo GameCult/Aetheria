@@ -18,7 +18,7 @@ public sealed class LaunchSuppressorCommandTests : IDisposable
     private string CatalogPath => Path.Combine(_root, "GameData", "Aetheria.cc");
 
     // The designs and products as the shipped catalog holds them, taken before they are removed from the scratch copy.
-    private readonly (string Name, byte[] Bytes)[] _shippedDesigns;
+    private readonly (string Name, int Price, byte[] Bytes)[] _shippedDesigns;
     private readonly string[] _shippedProducts;
 
     private static byte[] Pack(GearData design) =>
@@ -39,7 +39,7 @@ public sealed class LaunchSuppressorCommandTests : IDisposable
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
         var designs = cache.GetAll<GearData>().Where(g => DesignNames.Contains(g.Name)).ToArray();
         Assert.Equal(DesignNames.Length, designs.Length);
-        _shippedDesigns = designs.Select(d => (d.Name, Pack(d))).ToArray();
+        _shippedDesigns = designs.Select(d => (d.Name, d.Price, Pack(d))).ToArray();
         var keys = designs.Select(d => cache.RefOf(d).Key).ToArray();
         var products = cache.GetAll<FactionProductData>().Where(p => keys.Any(k => p.Design.Key.Equals(k))).ToArray();
         _shippedProducts = products.Select(p => Describe(cache, p)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
@@ -89,8 +89,14 @@ public sealed class LaunchSuppressorCommandTests : IDisposable
         Assert.NotEqual(before, landed);
         var (designs, products) = Read();
         // The record keys are CultCache's to mint and differ run to run; the designs and products do not.
-        foreach (var (name, bytes) in _shippedDesigns)
-            Assert.True(bytes.AsSpan().SequenceEqual(Pack(designs.Single(d => d.Name == name))), $"{name} differs from the shipped catalog's record");
+        // The command authors at its own literal price, a hundred times the shipped (GearPrices); everything else is the shipped record.
+        foreach (var (name, price, bytes) in _shippedDesigns)
+        {
+            var landedDesign = designs.Single(d => d.Name == name);
+            Assert.Equal(price, GearPrices.Rescaled(landedDesign.Price));
+            landedDesign.Price = price;
+            Assert.True(bytes.AsSpan().SequenceEqual(Pack(landedDesign)), $"{name} differs from the shipped catalog's record");
+        }
         Assert.Equal(_shippedProducts, products);
 
         // A second apply finds everything authored and writes nothing; so does a dry run.

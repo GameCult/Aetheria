@@ -38,6 +38,7 @@ public sealed class MinorPowersTests : IDisposable
         Assert.Equal(3, gone.Length);
         foreach (var product in cache.GetAll<FactionProductData>().Where(p => gone.Any(g => g.Key.Equals(p.Manufacturer.Key))).ToArray())
             Assert.True(cache.Remove(cache.RefOf(product).Key));
+        TestStationKinds.DropStandInsOf(cache, gone.Select(g => g.Key).ToArray());
         foreach (var reference in gone) Assert.True(cache.Remove(reference.Key));
         foreach (var faction in cache.GetAll<Faction>())
             foreach (var key in faction.Allegiance.Keys.Where(k => gone.Any(g => g.Key.Equals(k.Key))).ToArray())

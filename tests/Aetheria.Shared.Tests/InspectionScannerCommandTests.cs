@@ -19,6 +19,7 @@ public sealed class InspectionScannerCommandTests : IDisposable
 
     // The design and products as the shipped catalog holds them, taken before they are removed from the scratch copy.
     private readonly byte[] _shippedDesign;
+    private readonly int _shippedPrice;
     private readonly string[] _shippedProducts;
 
     private static byte[] Pack(GearData design) =>
@@ -39,6 +40,7 @@ public sealed class InspectionScannerCommandTests : IDisposable
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
         var design = Assert.Single(cache.GetAll<GearData>(), g => g.Name == DesignName);
         _shippedDesign = Pack(design);
+        _shippedPrice = design.Price;
         var key = cache.RefOf(design).Key;
         var products = cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(key)).ToArray();
         _shippedProducts = products.Select(p => Describe(cache, p)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
@@ -88,7 +90,11 @@ public sealed class InspectionScannerCommandTests : IDisposable
         Assert.NotEqual(before, landed);
         var (designs, products) = Read();
         // The record keys are CultCache's to mint and differ run to run; the design and products do not.
-        Assert.True(_shippedDesign.AsSpan().SequenceEqual(Pack(Assert.Single(designs))), "the design differs from the shipped catalog's record");
+        // The command authors at its own literal price, a hundred times the shipped (GearPrices); everything else is the shipped record.
+        var landedDesign = Assert.Single(designs);
+        Assert.Equal(_shippedPrice, GearPrices.Rescaled(landedDesign.Price));
+        landedDesign.Price = _shippedPrice;
+        Assert.True(_shippedDesign.AsSpan().SequenceEqual(Pack(landedDesign)), "the design differs from the shipped catalog's record");
         Assert.Equal(_shippedProducts, products);
 
         // A second apply finds everything authored and writes nothing; so does a dry run.

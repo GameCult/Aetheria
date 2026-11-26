@@ -29,7 +29,9 @@ public sealed class RecipeRoleInputTests
         using var cache = AetheriaStores.Open(TestCatalog.Repo, registry: TestCatalog.Registry());
         var recipes = cache.GetAll<RecipeData>().ToArray();
         Assert.NotEmpty(recipes);
-        Assert.All(recipes, r => { Assert.NotNull(r.RoleInputs); Assert.Empty(r.RoleInputs); });
+        Assert.All(recipes, r => Assert.NotNull(r.RoleInputs));
+        // Only the batch's first smelting step takes a role instead of a commodity: every recipe with Inputs reads an empty list.
+        Assert.All(recipes.Where(r => r.Inputs.Count > 0), r => Assert.Empty(r.RoleInputs));
     }
 
     [Fact]

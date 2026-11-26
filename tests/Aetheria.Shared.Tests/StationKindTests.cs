@@ -13,6 +13,17 @@ using Random = CultMath.Random;
 internal static class TestStationKinds
 {
     public static readonly CultRecordRef<StationKindData> TradeHub = new CultRecordRef<StationKindData>(StationKindData.KeyOf("trade-hub"));
+
+    // A test that takes factions out of a catalog copy takes their stand-ins with them: a stand-in naming a faction the catalog no
+    // longer holds is a refused catalog (StationKinds.Validate), and the shipped catalog stands every faction in on mining.
+    public static void DropStandInsOf(CultCache cache, params CultRecordKey[] factions)
+    {
+        foreach (var kind in cache.GetAll<StationKindData>().Where(k => k.StandIns.Any(s => factions.Contains(s.Faction.Key))).ToArray())
+        {
+            kind.StandIns.RemoveAll(s => factions.Contains(s.Faction.Key));
+            cache.Commit(batch => batch.Upsert(typeof(StationKindData), kind, cache.RefOf(kind).Key));
+        }
+    }
 }
 
 // Station kinds (aetheria-living-world, cut station-kind-datum): the one list of kinds in the catalog, a hull's kind, a
@@ -53,6 +64,8 @@ public sealed class StationKindTests : IDisposable
             host._caches.Add(cache);
             cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(dir, "Aetheria.cc")), AetheriaStores.CatalogTypes);
             cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(dir, "run.cc")), AetheriaStores.RunTypes);
+            // The shipped catalog stands every faction in on mining (batch OresAndProvinces); these worlds hold only the stand-ins a test adds.
+            foreach (var kind in cache.GetAll<StationKindData>().Where(k => k.StandIns.Count > 0).ToArray()) { kind.StandIns.Clear(); cache.Upsert(kind); }
             var world = new World { Cache = cache };
             world.Items = new ItemManager(1u, cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), world.Log.Add);
             world.Zh = cache.GetAll<Faction>().Single(f => f.Name == "Zhestokost");

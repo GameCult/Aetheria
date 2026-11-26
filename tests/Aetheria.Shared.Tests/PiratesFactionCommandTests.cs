@@ -32,6 +32,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
             var ours = cache.RefOf(pirates);
             foreach (var product in cache.GetAll<FactionProductData>().Where(product => product.Manufacturer.Equals(ours)).ToArray())
                 Assert.True(cache.Remove(cache.RefOf(product).Key));
+            TestStationKinds.DropStandInsOf(cache, ours.Key);
             Assert.True(cache.Remove(ours.Key));
             cache.FlushAsync().Wait();
         }

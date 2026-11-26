@@ -53,7 +53,7 @@ public sealed class ConsumablesFirstSetTests
         Assert.Equal(1, overdrive.Shape.Width);
         Assert.Equal(1, overdrive.Shape.Height);
         Assert.Equal(10f, overdrive.Mass);
-        Assert.Equal(18000, overdrive.Price);
+        Assert.Equal(180, overdrive.Price);
         Assert.False(overdrive.Stackable);
         Assert.Equal(6f, overdrive.Duration);
         Assert.Equal(new[] { "propellant", "regulator" }, overdrive.Roles.Select(r => r.Name).ToArray());
@@ -68,7 +68,7 @@ public sealed class ConsumablesFirstSetTests
         Assert.Equal(1, vent.Shape.Width);
         Assert.Equal(1, vent.Shape.Height);
         Assert.Equal(15f, vent.Mass);
-        Assert.Equal(12000, vent.Price);
+        Assert.Equal(120, vent.Price);
         Assert.False(vent.Stackable);
         Assert.Equal(15f, vent.Duration);
         Assert.Equal(new[] { "nozzle", "coolant" }, vent.Roles.Select(r => r.Name).ToArray());
