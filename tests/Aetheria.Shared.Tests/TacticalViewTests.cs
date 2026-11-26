@@ -207,6 +207,7 @@ public sealed class TacticalViewTests
         ToFlightEdge(view);
         Cross(view);
         Assert.True(view.Tactical);
+        Settle(view);
         view.Track(new float2(-900, 900));
         Assert.Equal(new float2(7, 8), view.Target);
         view.Pan(new float2(10, -4));
@@ -276,5 +277,149 @@ public sealed class TacticalViewTests
         }
         // Flying never sees it: every distance at or under the near edge runs at full speed.
         Assert.Equal(1f, view.TimeRate(view.Blend(Start)));
+    }
+
+    // The committed notch count of a held scroll at a rate, ticked between notches; 0 if it never crosses in 200.
+    private static int HeldCrossing(float perSecond)
+    {
+        var view = Make();
+        ToFlightEdge(view);
+        for (var i = 1; i <= 200; i++)
+        {
+            view.Tick(1 / perSecond);
+            view.Scroll(1);
+            if (view.Tactical) return i;
+        }
+        return 0;
+    }
+
+    [Fact]
+    public void TenNotchesASecondHoldsAndFifteenCrosses()
+    {
+        Assert.Equal(0, HeldCrossing(10));
+        Assert.InRange(HeldCrossing(15), 1, 12);
+        // The ruled claim sits clear of the boundary on both sides, so a softened or stiffened detent is red.
+        Assert.Equal(0, HeldCrossing(8));
+        Assert.InRange(HeldCrossing(20), 1, 10);
+    }
+
+    [Fact]
+    public void ACrestAtTheBandsMidpointSplitsATwoNotchPushBothWays()
+    {
+        // One notch into the band stays in flight; the commit lands only past the crest, not after a fixed few notches.
+        var view = Make();
+        ToFlightEdge(view);
+        view.Scroll(1);
+        Assert.False(view.Tactical);
+        Assert.True(view.Commanded > MathF.Log(Start));
+        Assert.True(view.Commanded < (MathF.Log(Start) + MathF.Log(End)) / 2);
+        Assert.Equal(MathF.Log(Start) + LnStep * Resistance, view.Commanded, 3);
+    }
+
+    // Eased from rest, critically damped: ln d(t) = c - offset (1 + wt) e^(-wt), w = 2 / EaseTime.
+    [Fact]
+    public void TheEaseIsACriticallyDampedSpringNotASnap()
+    {
+        var view = Make();
+        var lnBase = MathF.Log(BaseDistance);
+        view.Scroll(2);
+        Assert.Equal(BaseDistance, view.Distance, 4);
+        view.Tick(.05f);
+        var w = 2 / Ease;
+        var expected = lnBase + 2 * LnStep * (1 - (1 + w * .05f) * MathF.Exp(-w * .05f));
+        Assert.Equal(MathF.Exp(expected), view.Distance, 3);
+        Assert.True(view.Distance < BaseDistance * 1.25f * 1.25f);
+        // The same step in two halves lands at the same place: the solution is exact at any dt.
+        var halves = Make();
+        halves.Scroll(2);
+        halves.Tick(.025f);
+        halves.Tick(.025f);
+        Assert.Equal(view.Distance, halves.Distance, 3);
+    }
+
+    [Fact]
+    public void ResetClearsTheEasedPositionAndTheVelocity()
+    {
+        var view = Make();
+        view.Scroll(4);
+        view.Tick(.05f);
+        Assert.NotEqual(BaseDistance, view.Distance);
+        view.Reset(Radius, BaseDistance, new float2(0, 0));
+        Assert.Equal(BaseDistance, view.Distance, 4);
+        Assert.Equal(MathF.Log(BaseDistance), view.Commanded, 5);
+        view.Tick(.1f);
+        Assert.Equal(BaseDistance, view.Distance, 4);
+    }
+
+    [Fact]
+    public void ANonPositiveTickChangesNothing()
+    {
+        var view = Make();
+        ToFlightEdge(view);
+        view.Scroll(1);
+        view.Tick(.02f);
+        var commanded = view.Commanded;
+        var distance = view.Distance;
+        view.Tick(0);
+        view.Tick(-1);
+        Assert.Equal(commanded, view.Commanded, 6);
+        Assert.Equal(distance, view.Distance, 4);
+    }
+
+    // The ruling: everything follows the eased distance. Flicking back from a panned tactical view must not move the
+    // camera's target by the pan offset in one frame; it returns to the ship with the rig's weight.
+    [Fact]
+    public void TargetReturnsToTheShipWithTheEasedCameraNotTheCommandedFlip()
+    {
+        var view = Make();
+        var ship = new float2(100, -50);
+        ToFlightEdge(view);
+        Cross(view);
+        Settle(view);
+        view.Pan(new float2(12000, 0));
+        view.Track(ship);
+        var panned = view.Target;
+        Assert.Equal(12100f, panned.x, 2);
+        view.Track(ship);
+        Assert.Equal(panned, view.Target);
+
+        var last = view.Target;
+        var worst = 0f;
+        // A fast flick back at 20 notches a second, stepped at 5 ms frames, then settled: no frame moves it far.
+        for (var i = 0; i < 40 && view.Tactical; i++)
+        {
+            for (var frame = 0; frame < 10; frame++)
+            {
+                view.Tick(.005f);
+                view.Track(ship);
+                worst = MathF.Max(worst, MathF.Abs(view.Target.x - last.x));
+                last = view.Target;
+            }
+            view.Scroll(-1);
+            worst = MathF.Max(worst, MathF.Abs(view.Target.x - last.x));
+            last = view.Target;
+        }
+        Assert.False(view.Tactical);
+        for (var i = 0; i < 600; i++)
+        {
+            view.Tick(.005f);
+            view.Track(ship);
+            var step = MathF.Abs(view.Target.x - last.x);
+            worst = MathF.Max(worst, step);
+            last = view.Target;
+        }
+        Assert.True(worst < 12000 * .1f, "target stepped " + worst);
+        Assert.Equal(ship, view.Target);
+    }
+
+    [Fact]
+    public void ThePanStartsFromTheShipOnEntry()
+    {
+        var view = Make();
+        ToFlightEdge(view);
+        view.Track(new float2(500, 500));
+        Cross(view);
+        Settle(view);
+        Assert.Equal(new float2(500, 500), view.Target);
     }
 }

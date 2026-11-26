@@ -39,7 +39,11 @@ public sealed class TacticalView
     // Commanded and eased positions and the ease velocity, in ln metres; the grid point the tactical camera looks at.
     public float Commanded { get; private set; }
     private float _eased, _velocity;
-    public float2 Target { get; private set; }
+    private float2 _ship, _pan;
+
+    // The grid point the camera looks at: the ship in flight, the panned grid point in tactical, eased between by the
+    // rig's own weight (the blend of the eased distance), never by the commanded flip.
+    public float2 Target => _ship + (_pan - _ship) * Blend(Distance);
 
     // Derived, never stored: the commanded position is past the detent's crest.
     public bool Tactical => Commanded > _crest;
@@ -55,7 +59,7 @@ public sealed class TacticalView
         _zoneRadius = zoneRadius;
         Commanded = _eased = _lnBase;
         _velocity = 0;
-        Target = shipXZ;
+        _ship = _pan = shipXZ;
     }
 
     // Each notch (positive zooms out) moves the commanded position by ln ZoomStep. Inside a view it moves freely. A notch
@@ -110,19 +114,22 @@ public sealed class TacticalView
         _velocity = (_velocity - w * carried * realSeconds) * decay;
     }
 
-    // The target rides the ship while flying; only a tactical player moves it.
+    // The ship's grid position, every frame. The panned point rides the ship while the eased camera is in flight (to within
+    // float noise of the band's near edge, a weight of about a millionth), so a pan starts from the hull; once the camera
+    // leaves flight it stays where the player put it, and the eased weight carries Target back to the ship on the way home.
     public void Track(float2 shipXZ)
     {
-        if (!Tactical) Target = shipXZ;
+        _ship = shipXZ;
+        if (!Tactical && Distance <= _blendStart * 1.001f) _pan = shipXZ;
     }
 
     // Move the target over the grid by a ground delta, never off the zone.
     public void Pan(float2 groundDelta)
     {
         if (!Tactical) return;
-        var moved = Target + groundDelta;
+        var moved = _pan + groundDelta;
         var reach = length(moved);
-        Target = reach > _zoneRadius && reach > 0 ? moved * (_zoneRadius / reach) : moved;
+        _pan = reach > _zoneRadius && reach > 0 ? moved * (_zoneRadius / reach) : moved;
     }
 
     // 0 at or below the band's near edge, 1 at or above its far edge, smooth in the logarithm of distance between.
