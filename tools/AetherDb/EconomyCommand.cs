@@ -114,7 +114,7 @@ public static class EconomyCommand
         output.WriteLine("\nLinks by wage over the median (output | station kind | labour | price | derived cost | wage | ratio)");
         foreach (var l in report.Links.OrderBy(l => l.WageRatio ?? double.PositiveInfinity).ThenBy(l => l.Output, StringComparer.Ordinal))
             output.WriteLine(string.Format(inv, "  {0} ({7}) | {1} | {2:0.#} | {3:0.##} | {4:0.##} | {5} | {6}", l.Output, l.StationKind, l.Labour, l.Price, l.Cost,
-                l.Wage.HasValue ? l.Wage.Value.ToString("0.#####", inv) : "unpriced", l.WageRatio.HasValue ? l.WageRatio.Value.ToString("0.##", inv) + "x" : "-"));
+                l.Wage.HasValue ? l.Wage.Value.ToString("0.#####", inv) : "unpriced " + l.Unpriced, l.WageRatio.HasValue ? l.WageRatio.Value.ToString("0.##", inv) + "x" : "-", l.Name));
         output.WriteLine("\nBelts (kind: abundance-weighted price and derived cost per unit; each ore: share, extraction wage ratio, price, cost)");
         foreach (var belt in report.Belts)
         {

@@ -4,13 +4,16 @@ using System.Linq;
 using GameCult.Caching;
 
 // One recipe read as a chain link. Wage is the implied credits per worker-second at the authored prices; null when the link
-// is unpriced (an input, filler or output at Price 0) or has no labour. Cost is the derived cost of one output unit.
+// is unpriced (an input, any filler of a role, or the output at Price 0) or has no labour. Cost is the derived cost of one output unit.
 public sealed class BalanceLink
 {
     public string Output, Name, StationKind;
     public double Labour, Price, Cost;
     public double? Wage;
     public double? WageRatio;
+    // Why Wage is null: "output" (the output is at Price 0), "input" (an input, upkeep or role filler is at Price 0), "labour" (no labour);
+    // null when priced. The first that applies, in that order.
+    public string Unpriced;
 }
 
 // One ore a kind of belt holds: its share of the kind's abundance, its extraction link's wage over the median, its price and cost.
@@ -50,29 +53,30 @@ public static class EconomyBalance
         var columns = EconomyChecks.Columns(catalog);
         double Price(string key) => catalog.Get<ItemData>(new CultRecordKey(key))?.Price ?? 0;
 
-        // Authored-price wage per link; the cheapest priced filler fills a role.
-        double? CheapestPriced(string[] fillers) => fillers.Select(Price).Where(p => p > 0).Select(p => (double?) p).Min();
+        // Authored-price wage per link; the cheapest filler fills a role, and a role with any filler at Price 0 leaves the link unpriced.
+        double? CheapestPriced(string[] fillers) => fillers.Length == 0 || fillers.Any(f => Price(f) <= 0) ? (double?) null : fillers.Min(Price);
         var links = new List<BalanceLink>();
         foreach (var c in columns)
         {
             var link = new BalanceLink { Output = c.Output, Name = catalog.Get(c.Recipe.Output)?.Name ?? c.Output, Labour = c.Labour, Price = Price(c.Output), StationKind = catalog.Get(c.Recipe.StationKind)?.Name ?? "no kind" };
             var cost = 0.0;
-            var priced = link.Price > 0 && c.Labour > 0;
+            var inputsPriced = true;
             foreach (var (commodity, count) in c.Inputs.Concat(c.Upkeep))
             {
                 if (count <= 0) continue;
                 var p = Price(commodity);
-                if (p <= 0) priced = false;
+                if (p <= 0) inputsPriced = false;
                 cost += count * p;
             }
             foreach (var slot in c.Slots)
             {
                 if (slot.Count <= 0) continue;
                 var p = CheapestPriced(slot.Fillers);
-                if (p == null) priced = false;
+                if (p == null) inputsPriced = false;
                 else cost += slot.Count * p.Value;
             }
-            if (priced) link.Wage = (c.OutputCount * link.Price - cost) / c.Labour;
+            link.Unpriced = link.Price <= 0 ? "output" : !inputsPriced ? "input" : c.Labour <= 0 ? "labour" : null;
+            if (link.Unpriced == null) link.Wage = (c.OutputCount * link.Price - cost) / c.Labour;
             links.Add(link);
         }
 
@@ -88,6 +92,8 @@ public static class EconomyBalance
         for (var sweep = 0; sweep < SweepCap && !converged; sweep++)
         {
             converged = true;
+            // Two recipes for one output: the cheaper sets its cost, as a role takes its cheapest filler.
+            var best = new Dictionary<string, double>(StringComparer.Ordinal);
             foreach (var c in columns)
             {
                 var sum = reference * c.Labour;
@@ -95,8 +101,12 @@ public static class EconomyBalance
                 foreach (var slot in c.Slots)
                     if (slot.Count > 0 && slot.Fillers.Length > 0) sum += slot.Count * slot.Fillers.Min(Cost);
                 var next = sum / c.OutputCount;
-                if (Math.Abs(next - derived[c.Output]) > 1e-12 * Math.Max(1, Math.Abs(next))) converged = false;
-                derived[c.Output] = next;
+                if (!best.TryGetValue(c.Output, out var held) || next < held) best[c.Output] = next;
+            }
+            foreach (var (output, next) in best)
+            {
+                if (Math.Abs(next - derived[output]) > 1e-12 * Math.Max(1, Math.Abs(next))) converged = false;
+                derived[output] = next;
             }
         }
         foreach (var l in links) l.Cost = derived[l.Output];

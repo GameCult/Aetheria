@@ -108,6 +108,65 @@ public sealed class EconomyBalanceTests
     }
 
     [Fact]
+    public void AnUnpricedLinkNamesWhetherItsOutputOrAnInputIsFree()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore", workforce: 1, cycle: 1);
+        f.Good("bar", inputs: new[] { ("ore", 1) }, workforce: 1, cycle: 1);
+        f.Good("tin", workforce: 1, cycle: 1);
+        Price(f, "commodity:bar", 80);
+        Price(f, "commodity:tin", 7);
+        var report = EconomyBalance.Balance(f.Cache);
+        Assert.Equal("output", Link(report, "commodity:ore").Unpriced);
+        Assert.Equal("input", Link(report, "commodity:bar").Unpriced);
+        Assert.Null(Link(report, "commodity:tin").Unpriced);
+    }
+
+    [Fact]
+    public void AFreeFillerLeavesTheRoleUnpricedEvenWithAPricedOneBesideIt()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore", workforce: 1, cycle: 1);
+        f.Good("a-free", inputs: new[] { ("ore", 1) }, fills: new[] { "Plate" }, workforce: 1, cycle: 1);
+        f.Good("z-priced", inputs: new[] { ("ore", 1) }, fills: new[] { "Plate" }, workforce: 1, cycle: 1);
+        var gear = f.Gear("laser", new[] { ("Plate", 1) });
+        Labour(f, gear, 1, 1);
+        Price(f, "commodity:ore", 10);
+        Price(f, "commodity:z-priced", 30);
+        f.EditItem<GearData>(gear, g => g.Price = 100);
+        var link = Link(EconomyBalance.Balance(f.Cache), gear);
+        Assert.Null(link.Wage);
+        Assert.Equal("input", link.Unpriced);
+    }
+
+    [Fact]
+    public void TwoRecipesForOneOutputTakeTheCheaperDerivedCostInEitherOrder()
+    {
+        foreach (var cheapFirst in new[] { true, false })
+        {
+            using var f = new EconomyFixture();
+            f.Good("ore", workforce: 1, cycle: 1);
+            f.Good("bar", inputs: new[] { ("ore", cheapFirst ? 1 : 3) }, workforce: 1, cycle: 1);
+            f.Good("tin", workforce: 1, cycle: 1);
+            Price(f, "commodity:ore", 10);
+            Price(f, "commodity:bar", 80);
+            Price(f, "commodity:tin", 7);
+            // A second recipe for bar under its own key, written after the first, from a different input count.
+            var first = f.Cache.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:bar")));
+            f.Cache.Upsert(typeof(RecipeData), new RecipeData
+            {
+                Output = first.Output, OutputCount = 1, Cycle = 1, Workforce = 1, StationKind = first.StationKind, LoreHook = "a good",
+                Inputs = new System.Collections.Generic.List<CommodityCount> { new CommodityCount { Commodity = EconomyFixture.Item("commodity:ore"), Count = cheapFirst ? 3 : 1 } }
+            }, new CultRecordKey("recipe:commodity:bar-alt"));
+            var report = EconomyBalance.Balance(f.Cache);
+            // Cost of one bar from one ore: ore cost plus the wage reference for one worker-second.
+            var ore = Link(report, "commodity:ore").Cost;
+            var cheap = ore + report.WageReference;
+            Assert.All(report.Links.Where(l => l.Output == "commodity:bar"), l => Assert.Equal(cheap, l.Cost, 9));
+        }
+    }
+
+    [Fact]
     public void ShippedCatalogBalanceListsTheMaterializedChain()
     {
         using var cache = RestoredHullsTests.OpenCatalog();

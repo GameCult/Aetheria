@@ -335,6 +335,21 @@ public sealed class EconomyCommandTests
     }
 
     [Fact]
+    public void BalanceOnTheShippedCatalogPrintsEveryLinkAndBeltRow()
+    {
+        using var db = AetherDb.Open();
+        var report = EconomyBalance.Balance(db.Cache);
+        var output = new StringWriter();
+        EconomyCommand.Balance(db.Cache, 2, output);
+        var text = output.ToString();
+        Assert.Contains("Links by wage over the median", text);
+        Assert.Contains("Belts (", text);
+        foreach (var l in report.Links) Assert.Contains($"  {l.Output} ({l.Name}) | ", text);
+        foreach (var belt in report.Belts) Assert.Contains($"  {belt.Kind}: price ", text);
+        foreach (var l in report.Links.Where(l => l.Wage == null)) Assert.Contains($"unpriced {l.Unpriced}", text);
+    }
+
+    [Fact]
     public void ReportOnTheShippedCatalogGoesToTheGivenWriterAndNeverToConsole()
     {
         using var db = AetherDb.Open();
