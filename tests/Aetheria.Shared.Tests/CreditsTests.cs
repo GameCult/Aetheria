@@ -285,7 +285,7 @@ namespace Aetheria.Shared.Tests
                 var notice = credits.Single(credit => credit.LicenceFile == creditFile).Notice;
                 var licenceText = Read(creditFile);
                 Assert.Contains(creditFile.Contains("UFL") ? "UBUNTU FONT LICENCE Version 1.0" : "SIL OPEN FONT LICENSE Version 1.1", licenceText);
-                Assert.True(Path.GetDirectoryName(creditFile) == Path.GetDirectoryName(fonts[0]).Replace('\\', '/'), "licence text sits beside its fonts");
+                Assert.True(Path.GetDirectoryName(creditFile).Replace('\\', '/') == Path.GetDirectoryName(fonts[0]).Replace('\\', '/'), "licence text sits beside its fonts");
                 if (creditFile.Contains("OFL")) Assert.Contains(embedded, licenceText);
                 Assert.Contains(embedded, notice);
                 foreach (var font in fonts)
