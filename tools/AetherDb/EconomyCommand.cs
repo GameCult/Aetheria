@@ -53,7 +53,7 @@ public sealed class EconomyAuthor
     }
 }
 
-// economy report | author <batch>... [apply] | prices | rescale: the one writer of economy content and a reader of the catalog's economy report.
+// economy report | author <batch>... [apply] | prices: the one writer of economy content and a reader of the catalog's economy report.
 // EconomyChecks owns every rule; this command only calls it.
 public static class EconomyCommand
 {
@@ -63,7 +63,7 @@ public static class EconomyCommand
         { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
-    private const string Usage = "economy report | author <batch>... [apply] | " + EconomyPrices.Usage + " | " + EconomyRescale.Usage + "\nA batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
+    private const string Usage = "economy report | author <batch>... [apply] | " + EconomyPrices.Usage + "\nA batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
 
     public static int Run(string[] args, TextWriter output)
     {
@@ -73,7 +73,6 @@ public static class EconomyCommand
             return Report(db.Cache, output);
         }
         if (args.Length > 0 && args[0] == "prices") return EconomyPrices.Run(args.Skip(1).ToArray(), output);
-        if (args.Length > 0 && args[0] == "rescale") return EconomyRescale.Run(args.Skip(1).ToArray(), output);
         if (args.Length > 1 && args[0] == "author")
         {
             var apply = args.Contains("apply");
