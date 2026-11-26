@@ -320,9 +320,12 @@ public sealed partial class MiningCut3Tests : IDisposable
     // are trusted only on the host class that recorded them (ruling replays-per-host-class). windows-x64 is the recording the
     // test was written with; linux-x64 is base 12dfcef5 run on Linux, which gives 1039274088 where Windows gave 1039274086 for
     // the second observer, and the current code gives the same bits as that base.
+    // The windows-x64 value for the second observer was 1039274086 when recorded (2026-10-11) and reads 1039274088 now, the
+    // linux bits; at the recording commit c86f28e93, with its own CultLib and CultMath pins, today's Windows host also gives
+    // ...088, and so does the 10.0.6 runtime, so the change is the host (OS or CPU libm), not this repository.
     private static readonly System.Collections.Generic.Dictionary<string, uint[]> ChunkInfoAtBase = new()
     {
-        ["windows-x64"] = new uint[] { 1045120030u, 1039274086u, 1030543422u, 1029120970u, 1036363351u, 1035122917u },
+        ["windows-x64"] = new uint[] { 1045120030u, 1039274088u, 1030543422u, 1029120970u, 1036363351u, 1035122917u },
         ["linux-x64"] = new uint[] { 1045120030u, 1039274088u, 1030543422u, 1029120970u, 1036363351u, 1035122917u },
     };
 
