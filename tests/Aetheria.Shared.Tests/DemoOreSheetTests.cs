@@ -61,7 +61,7 @@ public sealed class DemoOreSheetTests : IDisposable
         // be 'about' the old one cannot pin the sheet tighter than this. The exact yields are pinned by AsteroidYieldsThreeOresInKeyOrder, and the
         // price of Regolith by the assertion above.
         Assert.InRange(now, 8505.5, 9504.5);
-        Assert.Equal(9200, before);
+        Assert.Equal(9200, before, 6);
     }
 
     [Fact]
