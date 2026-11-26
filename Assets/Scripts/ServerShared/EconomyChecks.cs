@@ -315,6 +315,35 @@ public static class EconomyChecks
         return deepest + 1;
     }
 
+    // One recipe's consumption per cycle, unscaled: the one reader of what a recipe takes, for Productive's matrix and EconomyBalance.
+    // Labour is Workforce x Cycle worker-seconds; Slots are the role slots (a role recipe's design roles, or the recipe's RoleInputs)
+    // with every commodity that fills the role.
+    internal sealed class Column
+    {
+        public string Output;
+        public RecipeData Recipe;
+        public bool IsCommodity;
+        public int OutputCount;
+        public double Labour;
+        public List<(string Commodity, int Count)> Inputs;
+        public List<(string Commodity, int Count)> Upkeep;
+        public List<(string Role, int Count, string[] Fillers)> Slots;
+    }
+
+    // Every recipe whose output exists, produces something and has a finite cycle, ordered by output key.
+    internal static List<Column> Columns(CultCache catalog) =>
+        AllRecipes(catalog).Where(p => catalog.Get(p.Recipe.Output) != null && p.Recipe.OutputCount > 0 && float.IsFinite(p.Recipe.Cycle)).Select(p => new Column
+        {
+            Output = p.Recipe.Output.Key.Value,
+            Recipe = p.Recipe,
+            IsCommodity = Recipes.IsCommodity(catalog.Get(p.Recipe.Output)),
+            OutputCount = p.Recipe.OutputCount,
+            Labour = p.Recipe.Workforce * (double) p.Recipe.Cycle,
+            Inputs = p.Recipe.Inputs.Select(i => (i.Commodity.Key.Value, i.Count)).ToList(),
+            Upkeep = p.Recipe.Upkeep.Select(i => (i.Commodity.Key.Value, i.Count)).ToList(),
+            Slots = Recipes.RoleInputsOf(catalog, p.Recipe).Select(r => (r.Name, r.Count, Recipes.Fillers(catalog, r.Name).Select(k => k.Value).ToArray())).ToList()
+        }).ToList();
+
     // Hawkins-Simon over commodities plus one labour good, at the worst single filler of every role slot (a recipe's role inputs): the spectral radius
     // of the requirements matrix stays below one however the roles are filled. The worst fill is the spectral simplex
     // (Nesterov and Protasov 2013) on the matrix nudged strictly positive, then the radius of the chosen matrix is taken exactly.
@@ -323,8 +352,8 @@ public static class EconomyChecks
         load = load ?? new EconomyLoad();
         if (!(load.InputFactor >= 1) || !(load.WorkforceFactor >= 1) || !(load.UpkeepFactor >= 1))
             throw new ArgumentException("Setting factors are at least 1.", nameof(load));
-        var columns = AllRecipes(catalog).Where(p => Recipes.IsCommodity(catalog.Get(p.Recipe.Output)) && p.Recipe.OutputCount > 0 && float.IsFinite(p.Recipe.Cycle)).ToList();
-        var names = columns.Select(p => p.Recipe.Output.Key.Value).ToList();
+        var columns = Columns(catalog).Where(c => c.IsCommodity).ToList();
+        var names = columns.Select(c => c.Output).ToList();
         var index = new Dictionary<string, int>(StringComparer.Ordinal);
         for (var i = 0; i < names.Count; i++) index[names[i]] = i;
         var n = names.Count + 1;
@@ -333,16 +362,16 @@ public static class EconomyChecks
         var slots = new List<(int Column, double Amount, int[] Fillers)>();
         for (var j = 0; j < columns.Count; j++)
         {
-            var recipe = columns[j].Recipe;
-            foreach (var input in recipe.Inputs)
-                if (index.TryGetValue(input.Commodity.Key.Value, out var row) && input.Count > 0) fixedTerms[row, j] += input.Count * load.InputFactor / recipe.OutputCount;
-            foreach (var upkeep in recipe.Upkeep)
-                if (index.TryGetValue(upkeep.Commodity.Key.Value, out var row) && upkeep.Count > 0) fixedTerms[row, j] += upkeep.Count * load.UpkeepFactor / recipe.OutputCount;
-            fixedTerms[labour, j] = recipe.Workforce * (double) recipe.Cycle * load.WorkforceFactor / recipe.OutputCount;
-            foreach (var role in Recipes.RoleInputsOf(catalog, recipe))
+            var column = columns[j];
+            foreach (var input in column.Inputs)
+                if (index.TryGetValue(input.Commodity, out var row) && input.Count > 0) fixedTerms[row, j] += input.Count * load.InputFactor / column.OutputCount;
+            foreach (var upkeep in column.Upkeep)
+                if (index.TryGetValue(upkeep.Commodity, out var row) && upkeep.Count > 0) fixedTerms[row, j] += upkeep.Count * load.UpkeepFactor / column.OutputCount;
+            fixedTerms[labour, j] = column.Labour * load.WorkforceFactor / column.OutputCount;
+            foreach (var slot in column.Slots)
             {
-                var fillers = Recipes.Fillers(catalog, role.Name).Where(k => index.ContainsKey(k.Value)).Select(k => index[k.Value]).ToArray();
-                if (fillers.Length > 0 && role.Count > 0) slots.Add((j, role.Count * load.InputFactor / recipe.OutputCount, fillers));
+                var fillers = slot.Fillers.Where(k => index.ContainsKey(k)).Select(k => index[k]).ToArray();
+                if (fillers.Length > 0 && slot.Count > 0) slots.Add((j, slot.Count * load.InputFactor / column.OutputCount, fillers));
             }
         }
         foreach (var need in load.LabourNeeds)

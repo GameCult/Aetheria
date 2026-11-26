@@ -73,6 +73,12 @@ public static class EconomyCommand
             return Report(db.Cache, output);
         }
         if (args.Length > 0 && args[0] == "prices") return EconomyPrices.Run(args.Skip(1).ToArray(), output);
+        if (args.Length > 0 && args[0] == "balance")
+        {
+            using var db = AetherDb.Open();
+            var spread = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings").EconomyWageSpread;
+            return Balance(db.Cache, spread, output);
+        }
         if (args.Length > 1 && args[0] == "author")
         {
             var apply = args.Contains("apply");
@@ -90,6 +96,33 @@ public static class EconomyCommand
         }
         output.WriteLine(Usage);
         return 1;
+    }
+
+    // The static balance: the median implied wage, the H faults, one line per chain link by wage over the median, then the belts.
+    // Report-only: nothing here is a Shape invariant. Exit 1 when any fault.
+    public static int Balance(CultCache catalog, double wageSpread, TextWriter output)
+    {
+        var report = EconomyBalance.Balance(catalog, wageSpread);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        output.WriteLine($"median implied wage {report.WageReference.ToString("0.#####", inv)} per worker-second, spread {wageSpread.ToString(inv)}, {report.Links.Count} links, {report.Links.Count(l => l.Wage == null)} unpriced");
+        output.WriteLine($"{report.Faults.Count} faults");
+        foreach (var group in report.Faults.GroupBy(f => f.Invariant).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            output.WriteLine($"{group.Key} ({group.Count()})");
+            foreach (var fault in group) output.WriteLine($"  {fault.Record}: {fault.Message}");
+        }
+        output.WriteLine("\nLinks by wage over the median (output | station kind | labour | price | derived cost | wage | ratio)");
+        foreach (var l in report.Links.OrderBy(l => l.WageRatio ?? double.PositiveInfinity).ThenBy(l => l.Output, StringComparer.Ordinal))
+            output.WriteLine(string.Format(inv, "  {0} ({7}) | {1} | {2:0.#} | {3:0.##} | {4:0.##} | {5} | {6}", l.Output, l.StationKind, l.Labour, l.Price, l.Cost,
+                l.Wage.HasValue ? l.Wage.Value.ToString("0.#####", inv) : "unpriced", l.WageRatio.HasValue ? l.WageRatio.Value.ToString("0.##", inv) + "x" : "-"));
+        output.WriteLine("\nBelts (kind: abundance-weighted price and derived cost per unit; each ore: share, extraction wage ratio, price, cost)");
+        foreach (var belt in report.Belts)
+        {
+            output.WriteLine(string.Format(inv, "  {0}: price {1:0.##}, cost {2:0.##}", belt.Kind, belt.Price, belt.Cost));
+            foreach (var y in belt.Yields)
+                output.WriteLine(string.Format(inv, "    {0} {1:P0} | wage {2} | price {3:0.##} | cost {4:0.##}", y.Ore, y.Share, y.WageRatio.HasValue ? y.WageRatio.Value.ToString("0.##", inv) + "x" : "-", y.Price, y.Cost));
+        }
+        return report.Faults.Count == 0 ? 0 : 1;
     }
 
     // Faults grouped by invariant, then one line per good with its depth, then one line per recipe. Fails on any fault.
