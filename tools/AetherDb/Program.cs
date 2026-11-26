@@ -42,7 +42,6 @@ public static class Program
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "ship-authoring": return ShipAuthoringCommands.Run(args.Skip(1).ToArray());
-            case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
             case "pd-gear": return PdGearCatalog(args.Contains("apply"));
             case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
             case "smoke-hull": return SmokeHullCatalog(args.Contains("apply"));
@@ -82,7 +81,7 @@ public static class Program
             case "auto-guns": return AutoGunsCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace] [--boss-of <faction>], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], auto-guns [apply], assembly-from-maker [apply], station-kinds [hull \"<name>\" <kind>] [apply], economy report|author <batch>... [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace] [--boss-of <faction>], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], auto-guns [apply], assembly-from-maker [apply], station-kinds [hull \"<name>\" <kind>] [apply], economy report|author <batch>... [apply]");
                 return 1;
         }
     }
@@ -1558,38 +1557,6 @@ public static class Program
         });
 
         Console.WriteLine($"\nLanded {precisionChanges.Length} Precision changes in Aetheria.cc");
-        return 0;
-    }
-
-    // Mining Cut 3 (docs/mining-cut-refresh.md): the first field kind. A chunk is detected by reflected light, and
-    // its reflectivity comes from its belt's kind, so a catalog with no kind leaves every belt dark. This authors
-    // the one kind Cut 3 needs, "Asteroid"; Cut 7 authors the rest. CrossSection is reflectivity per schematic
-    // cell of chunk area: 5 sits inside the shipped hulls' 2-15 per cell (Longinus, Djinni), so a mid-size rock
-    // (3-6 units across, 7-28 cells) reflects like a small ship. Both numbers are for the operator to review.
-    private static int FieldKindsCatalog(bool apply)
-    {
-        var db = AetherDb.Open(catalogWritable: apply);
-        var kinds = db.Cache.GetAll<FieldKindData>().ToArray();
-        foreach (var kind in kinds)
-            Console.WriteLine($"  {kind.Name,-12} cross-section {kind.CrossSection,5:0.##} per cell, weight {kind.GenerationWeight:0.##}");
-
-        if (kinds.Any(kind => kind.Name == "Asteroid"))
-        {
-            Console.WriteLine("\"Asteroid\" is already authored; nothing to do.");
-            return 0;
-        }
-
-        var asteroid = new FieldKindData { Name = "Asteroid", CrossSection = 5f, GenerationWeight = 1f };
-        Console.WriteLine($"Adds \"Asteroid\": cross-section {asteroid.CrossSection} per cell, weight {asteroid.GenerationWeight}.");
-        if (!apply)
-        {
-            Console.WriteLine("\nDry run. Pass \"apply\" to author it.");
-            return 0;
-        }
-
-        CultRecordRefs.Validate(asteroid);
-        db.Cache.Commit(batch => batch.Upsert(typeof(FieldKindData), asteroid));
-        Console.WriteLine("\nAuthored \"Asteroid\" in Aetheria.cc");
         return 0;
     }
 

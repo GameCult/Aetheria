@@ -56,13 +56,14 @@ public sealed class EconomyReport
 // The one owner of the catalog's economy invariants. Pure: draws nothing, reads no clock, writes nothing. One method per rule.
 public static class EconomyChecks
 {
-    public const string LRecipe = "L-recipe", LOneKindList = "L-one-kind-list", LLore = "L-lore", LSource = "L-source-sink", LProductive = "L-productive", LDemand = "L-consumer-demand";
+    public const string LRecipe = "L-recipe", LOneKindList = "L-one-kind-list", LLore = "L-lore", LSource = "L-source-sink", LProductive = "L-productive", LDemand = "L-consumer-demand", LWeights = "L-weights";
     private const double Margin = 1e-9;
 
     public static EconomyReport Check(CultCache catalog, EconomyLoad load = null)
     {
         var faults = new List<EconomyFault>();
         faults.AddRange(Recipe(catalog));
+        faults.AddRange(Weights(catalog));
         faults.AddRange(Lore(catalog));
         faults.AddRange(SourceSink(catalog));
         faults.AddRange(Productive(catalog, load));
@@ -112,6 +113,48 @@ public static class EconomyChecks
 
     private static IEnumerable<ItemData> Commodities(CultCache catalog) =>
         catalog.GetAll<ItemData>().Where(Recipes.IsCommodity).OrderBy(item => catalog.RefOf(item).Key.Value, StringComparer.Ordinal);
+
+    // Ore geography is weighted draws: a field kind's generation weight and abundances, a province's card count and its kind and ore
+    // weights are finite and not negative, and every yield, kind weight and province ore names a record this catalog holds. A weight of
+    // zero is legal (never drawn); a negative or NaN weight corrupts the weighted pick.
+    public static List<EconomyFault> Weights(CultCache catalog)
+    {
+        var faults = new List<EconomyFault>();
+        void Weight(string record, string field, double value)
+        {
+            if (!double.IsFinite(value) || value < 0) faults.Add(new EconomyFault(LWeights, record, $"{field} is {value}, not a finite number from zero up."));
+        }
+        void Names<T>(string record, string field, CultRecordRef<T> reference) where T : class
+        {
+            if (catalog.Get(reference) == null) faults.Add(new EconomyFault(LWeights, record, $"{field} names no record this catalog holds."));
+        }
+        foreach (var kind in catalog.GetAll<FieldKindData>().OrderBy(k => catalog.RefOf(k).Key.Value, StringComparer.Ordinal))
+        {
+            var key = catalog.RefOf(kind).Key.Value;
+            Weight(key, "GenerationWeight", kind.GenerationWeight);
+            for (var i = 0; i < (kind.Yields?.Count ?? 0); i++)
+            {
+                Weight(key, $"Yields[{i}].Abundance", kind.Yields[i].Abundance);
+                Names(key, $"Yields[{i}].Commodity", kind.Yields[i].Commodity);
+            }
+        }
+        foreach (var province in catalog.GetAll<ProvinceData>().OrderBy(p => catalog.RefOf(p).Key.Value, StringComparer.Ordinal))
+        {
+            var key = catalog.RefOf(province).Key.Value;
+            Weight(key, "GenerationWeight", province.GenerationWeight);
+            for (var i = 0; i < (province.Kinds?.Count ?? 0); i++)
+            {
+                Weight(key, $"Kinds[{i}].Weight", province.Kinds[i].Weight);
+                Names(key, $"Kinds[{i}].Kind", province.Kinds[i].Kind);
+            }
+            for (var i = 0; i < (province.Ores?.Count ?? 0); i++)
+            {
+                Weight(key, $"Ores[{i}].Weight", province.Ores[i].Weight);
+                Names(key, $"Ores[{i}].Commodity", province.Ores[i].Commodity);
+            }
+        }
+        return faults;
+    }
 
     // Every commodity and every offered design (but a Station or Turret hull) has a recipe, and each recipe is well formed.
     public static List<EconomyFault> Recipe(CultCache catalog)

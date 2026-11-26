@@ -8,7 +8,7 @@ using CultMath;
 using UniRx;
 using Xunit;
 
-// The demo loop on the shipped catalog (aetheria-release, mining 5a and the ore sheet): the player's own gun breaks a rock
+// The demo loop on the shipped catalog (aetheria-release, mining 5a): the player's own gun breaks a rock
 // through the trigger, the ore lands in the hold, the Pirates station Zenith buys it, repairs the hull and sells a unit back.
 public sealed partial class RunStartTests
 {
@@ -45,7 +45,7 @@ public sealed partial class RunStartTests
         var info = player.ChunkInfo(rock);
         Assert.False(arena.ChunkExists(rock), $"the laser broke the rock: designated {FireControl.Designated(laser, player, rock, out var range)} range {range} info {info} target {player.Target} pos {player.Position} rockpos {arena.ChunkPose(rock.Field, rock.Index)} hp {arena.Settings.AsteroidHitpoints.Evaluate(arena.AsteroidBelts[rock.Field].Data.Asteroids[0].Size)}");
 
-        var ores = new[] { "Regolith", "Nickel-Iron", "Gold" };
+        var ores = FieldKinds.Yield(((AsteroidBeltData) belt.Value).Kind, default, _cache).Select(yield => _cache.Get(yield.Commodity).Name).ToArray();
         var held = player.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>().Select(stack => (bay, stack)))
             .Where(h => ores.Contains(_items.GetData(h.stack).Name)).ToArray();
         Assert.NotEmpty(held);

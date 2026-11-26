@@ -5,26 +5,29 @@ using GameCult.Caching;
 
 // Economy content, batch 1b: where the munitions chain's raw materials come from. Munitions writes the chain and names its leaves
 // (Water, Methane, Ammonia, Oxygen, Potassium, Diamond, Steel, Cellulose Pulp, Actuator, Circuit Board) without recipes; this batch
-// gives each a source at a station kind whose description already says it does that work: input-free extraction at mining (ore,
-// Gold, Potassium, Diamond) and volatiles (Water, Methane, Ammonia), and processing or fabrication from those goods for the rest.
+// gives each a source at a station kind whose description already says it does that work: input-free extraction at mining (Diamond)
+// and volatiles (Water, Methane, Ammonia), and processing or fabrication from those goods for the rest. Extraction of the ore,
+// Gold and Potassium is OresAndProvinces': this batch holds references to them and writes no recipe for them.
 // Run after Munitions: it edits nothing the other batch writes and every output it names must exist.
 public sealed class MunitionsFeed : EconomyBatch
 {
     private EconomyAuthor _a;
 
+    // The records OresAndProvinces owns, held by key (Regolith and Nickel-Iron keep the keys Rock and New Metals had) or by name.
+    private static readonly CultRecordRef<ItemData> Regolith = new CultRecordRef<ItemData>(new CultRecordKey("043997a8-0661-4206-ab8a-10215ecf4efc"));
+    private static readonly CultRecordRef<ItemData> NickelIron = new CultRecordRef<ItemData>(new CultRecordKey("00b5b3b2-2fc5-4adb-a1d7-c1a35d19afd3"));
+
     public override void Author(EconomyAuthor author)
     {
         _a = author;
 
+        // Ores the chain takes as inputs; their recipes are OresAndProvinces'.
+        var rock = Regolith;
+        var metals = NickelIron;
+        var gold = Named("Gold");
+        var potassium = Named("Potassium");
+
         // Extraction: no inputs, so these are the chain's raw goods.
-        var rock = Make(DemoOre.RegolithKey, "mining", 300, 10, 8,
-            "Nobody on a mining station calls it rock; it is the overburden, the slag, the thing the real cargo was buried in. It is also what every smelter, board shop and cement yard starts from, so the cheapest hold in the verse is the one that decides who can build.");
-        var metals = Make(DemoOre.NickelIronKey, "mining", 300, 12, 6,
-            "The ore that built the cities: whoever holds the claim feeds every foundry downstream, which is why mining rights are the one commodity the garrisons will not leave unguarded.");
-        var gold = Make("Gold", "mining", 600, 8, 2,
-            "Gold has a use besides vanity: it does not corrode in a contact. Boards bound for a hull in a cold or wet corridor are gold-plated, and a prospector who finds a seam sells it to the board shops before the jewellers.");
-        var potassium = Make("Potassium", "mining", 300, 8, 4,
-            "Potash and saltpetre salts turn up in the same evaporite beds that mark old water. Farms want it for fertiliser and the arsenal wants it for powder; the survey crews tag the beds by which buyer reached them first.");
         var diamond = Make("Diamond", "mining", 1200, 12, 1,
             "Industrial stones from the deep kimberlite cores: grit for lining barrels and cutting tools rather than jewellery. A miner who sells one for a ring has wasted a barrel.");
         var water = Make("Water", "volatiles", 300, 8, 6,
@@ -61,19 +64,18 @@ public sealed class MunitionsFeed : EconomyBatch
             (steel, 2), (board, 1));
     }
 
-    // The two ores DemoOre renames are named by its keys, so a rerun converges after the rename; every other output by its unique name.
-    private CultRecordRef<ItemData> Make(string name, string kind, float cycle, int workforce, int count, string lore,
-        params (CultRecordRef<ItemData> Commodity, int Count)[] inputs)
+    // Every item this batch names is found by its unique name.
+    private CultRecordRef<ItemData> Named(string name)
     {
         var named = _a.Catalog.GetAll<ItemData>().Where(i => i.Name == name).ToArray();
         if (named.Length != 1) throw new InvalidOperationException($"{named.Length} items are named '{name}'; the munitions feed needs exactly one.");
-        return Make(_a.Catalog.RefOf(named[0]).Key, kind, cycle, workforce, count, lore, inputs);
+        return new CultRecordRef<ItemData>(_a.Catalog.RefOf(named[0]).Key);
     }
 
-    private CultRecordRef<ItemData> Make(CultRecordKey outputKey, string kind, float cycle, int workforce, int count, string lore,
+    private CultRecordRef<ItemData> Make(string name, string kind, float cycle, int workforce, int count, string lore,
         params (CultRecordRef<ItemData> Commodity, int Count)[] inputs)
     {
-        var output = new CultRecordRef<ItemData>(outputKey);
+        var output = Named(name);
         _a.Put(new RecipeData
         {
             Output = output,

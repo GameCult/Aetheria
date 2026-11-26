@@ -86,6 +86,83 @@ public sealed class EconomyChecksTests
         if (invariant == EconomyChecks.LOneKindList) Assert.DoesNotContain(faults, x => x.Invariant == EconomyChecks.LRecipe);
     }
 
+    private static readonly CultRecordKey StonyKey = new CultRecordKey("field-kind:stony");
+    private static readonly CultRecordKey PlainKey = new CultRecordKey("province:plain");
+
+    // The Healthy catalog with one field kind yielding the ore and one province that draws the kind and the ore.
+    private static EconomyFixture WithGround()
+    {
+        var f = EconomyFixture.Healthy();
+        var ore = new CultRecordRef<SimpleCommodityData>(new CultRecordKey(Ore));
+        f.Cache.Upsert(typeof(FieldKindData), new FieldKindData
+        {
+            Name = "Stony", CrossSection = 5, GenerationWeight = 1,
+            Yields = new List<FieldYield> { new FieldYield { Commodity = ore, Abundance = 2 } }
+        }, StonyKey);
+        f.Cache.Upsert(typeof(ProvinceData), new ProvinceData
+        {
+            Name = "Plain", GenerationWeight = 1,
+            Kinds = new List<ProvinceKindWeight> { new ProvinceKindWeight { Kind = new CultRecordRef<FieldKindData>(StonyKey), Weight = 1 } },
+            Ores = new List<ProvinceOre> { new ProvinceOre { Commodity = ore, Weight = 1 } }
+        }, PlainKey);
+        return f;
+    }
+
+    private static void EditKind(EconomyFixture f, Action<FieldKindData> edit)
+    {
+        var kind = f.Cache.Get<FieldKindData>(StonyKey);
+        edit(kind);
+        f.Cache.Upsert(typeof(FieldKindData), kind, StonyKey);
+    }
+
+    private static void EditProvince(EconomyFixture f, Action<ProvinceData> edit)
+    {
+        var province = f.Cache.Get<ProvinceData>(PlainKey);
+        edit(province);
+        f.Cache.Upsert(typeof(ProvinceData), province, PlainKey);
+    }
+
+    public static IEnumerable<object[]> BadWeights()
+    {
+        object[] Case(string name, Action<EconomyFixture> mutate, string record, string says) => new object[] { name, mutate, record, says };
+        var ghost = new CultRecordKey("commodity:ghost");
+        yield return Case("negative kind weight", f => EditKind(f, k => k.GenerationWeight = -1), StonyKey.Value, "GenerationWeight");
+        yield return Case("NaN kind weight", f => EditKind(f, k => k.GenerationWeight = float.NaN), StonyKey.Value, "GenerationWeight");
+        yield return Case("infinite kind weight", f => EditKind(f, k => k.GenerationWeight = float.PositiveInfinity), StonyKey.Value, "GenerationWeight");
+        yield return Case("negative abundance", f => EditKind(f, k => k.Yields[0].Abundance = -0.5f), StonyKey.Value, "Yields[0].Abundance");
+        yield return Case("a yield naming nothing", f => EditKind(f, k => k.Yields.Add(new FieldYield { Commodity = new CultRecordRef<SimpleCommodityData>(ghost), Abundance = 1 })), StonyKey.Value, "Yields[1].Commodity");
+        yield return Case("an unset yield", f => EditKind(f, k => k.Yields.Add(new FieldYield { Abundance = 1 })), StonyKey.Value, "Yields[1].Commodity");
+        yield return Case("negative province cards", f => EditProvince(f, p => p.GenerationWeight = -1), PlainKey.Value, "GenerationWeight");
+        yield return Case("negative kind factor", f => EditProvince(f, p => p.Kinds[0].Weight = -1), PlainKey.Value, "Kinds[0].Weight");
+        yield return Case("a province kind naming nothing", f => EditProvince(f, p => p.Kinds.Add(new ProvinceKindWeight { Kind = new CultRecordRef<FieldKindData>(new CultRecordKey("field-kind:ghost")), Weight = 1 })), PlainKey.Value, "Kinds[1].Kind");
+        yield return Case("negative ore factor", f => EditProvince(f, p => p.Ores[0].Weight = -1), PlainKey.Value, "Ores[0].Weight");
+        yield return Case("a province ore naming nothing", f => EditProvince(f, p => p.Ores.Add(new ProvinceOre { Commodity = new CultRecordRef<SimpleCommodityData>(ghost), Weight = 1 })), PlainKey.Value, "Ores[1].Commodity");
+    }
+
+    [Theory]
+    [MemberData(nameof(BadWeights))]
+    public void WeightsRefuseBadGround(string name, Action<EconomyFixture> mutate, string record, string says)
+    {
+        using var f = WithGround();
+        Assert.Empty(EconomyChecks.Weights(f.Cache));
+        mutate(f);
+        var faults = EconomyChecks.Weights(f.Cache);
+        var matched = faults.Where(x => x.Invariant == EconomyChecks.LWeights && x.Record == record && x.Message.Contains(says)).ToArray();
+        Assert.True(matched.Length > 0, name + ": " + string.Join(" | ", faults));
+        // The rule is part of Check, and EconomyCommand refuses on it.
+        Assert.Contains(EconomyChecks.Check(f.Cache).Faults, x => x.Invariant == EconomyChecks.LWeights && x.Record == record);
+    }
+
+    // A zero weight is a legal 'never drawn', not a fault.
+    [Fact]
+    public void WeightsAllowZero()
+    {
+        using var f = WithGround();
+        EditKind(f, k => { k.GenerationWeight = 0; k.Yields[0].Abundance = 0; });
+        EditProvince(f, p => { p.GenerationWeight = 0; p.Kinds[0].Weight = 0; p.Ores[0].Weight = 0; });
+        Assert.Empty(EconomyChecks.Weights(f.Cache));
+    }
+
     [Fact]
     public void RecipeRefusesARecipeUnderTheWrongKey()
     {
