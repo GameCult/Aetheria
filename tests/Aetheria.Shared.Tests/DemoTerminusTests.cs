@@ -87,13 +87,12 @@ public sealed partial class RunStartTests
         Assert.Contains(nameof(GalaxyCast.ProtagonistFaction), refusal.Message);
     }
 
-    // The operator's ruling is that the first release is a demo: the one scenario a release build lists says so by name.
+    // The operator's ruling is that the first release is a demo: the run the simulation's exit launches says so by name.
     [Fact]
     public void DemoTerminus_is_named_a_demo()
     {
-        var listed = Assert.Single(Scenarios.Modes);
-        Assert.IsType<DemoTerminus>(listed);
-        Assert.Equal("Terminus (Demo)", listed.Name);
+        Assert.IsType<DemoTerminus>(Scenarios.Terminus);
+        Assert.Equal("Terminus (Demo)", Scenarios.Terminus.Name);
     }
 
     // The run start as New Game runs it: the player is not a Pirate, so the hull is the base Longinus, made by Alakrita,
@@ -188,13 +187,14 @@ public sealed partial class RunStartTests
         Assert.Contains(field, refusal.Message);
     }
 
-    // What a release build lists under New Game is the demo alone; the main galaxy is listed only in
-    // editor and development builds (MainMenu.ShowScenarios), beside the test arenas.
+    // What a release build lists under New Game is the simulation alone (ruling ifl-wormhole-exit-standin): the demo run
+    // is reached through its exit, and the main galaxy is listed only in editor and development builds
+    // (MainMenu.ShowScenarios), with the demo and the test arenas.
     [Fact]
-    public void ReleaseBuildsListOnlyTheDemo()
+    public void ReleaseBuildsListOnlyTheSimulation()
     {
-        Assert.Equal(new[] { typeof(DemoTerminus) }, Scenarios.Modes.Select(scenario => scenario.GetType()));
-        Assert.Equal(new[] { typeof(MainGalaxy) }, Scenarios.Development.Select(scenario => scenario.GetType()));
+        Assert.Equal(new[] { typeof(InfiniteFunLand) }, Scenarios.Modes.Select(scenario => scenario.GetType()));
+        Assert.Equal(new[] { typeof(MainGalaxy), typeof(DemoTerminus) }, Scenarios.Development.Select(scenario => scenario.GetType()));
     }
 
     // The wide test cast at half influence is the galaxy it was before the prelude was retired: its cast, homes, entrance
