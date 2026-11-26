@@ -422,4 +422,39 @@ public sealed class TacticalViewTests
         Settle(view);
         Assert.Equal(new float2(500, 500), view.Target);
     }
+
+    // Ruling tactical-input-hands-off: ActionGameManager takes keyboard flight, toggles, mouse look and fire only while Direct,
+    // so the ship holds its last commands through the tactical view and takes input again on return.
+    [Fact]
+    public void DirectInputIsTakenInFlightPausesInTacticalAndReturnsWithTheFlightView()
+    {
+        var view = Make();
+        Assert.True(view.Direct);
+        Assert.False(view.Tactical);
+
+        Cross(view);
+        Assert.True(view.Tactical);
+        Assert.False(view.Direct);
+        for (var i = 0; i < 40; i++) { view.Tick(.05f); Assert.False(view.Direct); }
+
+        Cross(view, -1);
+        Assert.False(view.Tactical);
+        Assert.True(view.Direct);
+
+        Cross(view);
+        view.Reset(Radius, BaseDistance, new float2(0, 0));
+        Assert.True(view.Direct);
+    }
+
+    [Fact]
+    public void DirectIsPausedExactlyWhereTacticalIsAtEveryNotchOfTheDetent()
+    {
+        var view = Make();
+        for (var i = 0; i < 80; i++)
+        {
+            view.Scroll(i < 40 ? 1 : -1);
+            view.Tick(.02f);
+            Assert.Equal(!view.Tactical, view.Direct);
+        }
+    }
 }

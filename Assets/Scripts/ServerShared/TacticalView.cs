@@ -48,6 +48,10 @@ public sealed class TacticalView
     // Derived, never stored: the commanded position is past the detent's crest.
     public bool Tactical => Commanded > _crest;
 
+    // Whether direct ship input is taken (ruling tactical-input-hands-off): in the tactical view every keyboard, mouse and
+    // toggle input pauses and the ship holds its last commands. The one expression of that gate; nothing else stores it.
+    public bool Direct => !Tactical;
+
     // What the camera is: the eased position.
     public float Distance => exp(_eased);
 
