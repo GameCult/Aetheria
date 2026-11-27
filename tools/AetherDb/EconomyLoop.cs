@@ -66,6 +66,8 @@ public sealed class LoopLadder
     public List<LoopDesign> Designs;
     // Dearest over cheapest, for a category of two or more priced designs; null otherwise.
     public double? Width;
+    // Sorties at the median net it takes to afford the dearest design here; null for a category of one design or with no measured sortie.
+    public double? TopSorties;
 }
 
 public sealed class LoopReport
@@ -74,6 +76,9 @@ public sealed class LoopReport
     // Over the measured samples only.
     public double Median;
     public double Best;
+    // The median net of a measured sortie, and how many sorties it rests on.
+    public double MedianNet;
+    public int MeasuredSorties;
     public int Purse;
     public List<LoopLadder> Ladders;
     public List<EconomyFault> Faults;
@@ -81,7 +86,9 @@ public sealed class LoopReport
 
 public static class EconomyLoop
 {
-    public const string HLoop = "H-loop", HLadder = "H-ladder", HAmmo = "H-ammo", HRig = "H-rig";
+    public const string HLoop = "H-loop", HLadder = "H-ladder", HAfford = "H-afford", HAmmo = "H-ammo", HRig = "H-rig";
+    // The ladder band and the afford band are rulings about weapons and gear only (ladder-band-weapons-and-gear).
+    private static bool Banded(string category) => category.StartsWith("Weapon/", StringComparison.Ordinal) || category.StartsWith("Gear/", StringComparison.Ordinal);
     public static readonly uint[] DefaultSeeds = { 1, 2, 3, 69, 97 };
     // Every belt of every default seed is a sample (11 of them), so the cap is what bounds wall time.
     public const float DefaultCap = 150f;
@@ -246,6 +253,8 @@ public static class EconomyLoop
         var rates = samples.Where(s => s.Measured).Select(s => s.RatePerMinute).OrderBy(r => r).ToList();
         var median = rates.Count == 0 ? 0 : rates.Count % 2 == 1 ? rates[rates.Count / 2] : (rates[rates.Count / 2 - 1] + rates[rates.Count / 2]) / 2;
         var best = rates.Count == 0 ? 0 : rates[rates.Count - 1];
+        var nets = samples.Where(s => s.Measured).Select(s => (double) s.Net).OrderBy(n => n).ToList();
+        var medianNet = nets.Count == 0 ? 0 : nets.Count % 2 == 1 ? nets[nets.Count / 2] : (nets[nets.Count / 2 - 1] + nets[nets.Count / 2]) / 2;
         var derived = EconomyBalance.Prices(catalog, out _);
         double? Minutes(int price, double rate) => rate > 0 ? price / rate : (double?) null;
         double? Width(IEnumerable<double> prices)
@@ -268,7 +277,8 @@ public static class EconomyLoop
             return new LoopLadder
             {
                 Category = g.Key, Designs = designs,
-                Width = Width(designs.Select(d => (double) d.Price))
+                Width = Width(designs.Select(d => (double) d.Price)),
+                TopSorties = designs.Count >= 2 && medianNet > 0 ? designs.Max(d => d.Price) / medianNet : (double?) null
             };
         }).ToList();
 
@@ -285,9 +295,17 @@ public static class EconomyLoop
         }
         var (min, max) = (settings.EconomyLadderMin, settings.EconomyLadderMax);
         if (min > 0 || max > 0)
-            foreach (var ladder in ladders)
+            foreach (var ladder in ladders.Where(l => Banded(l.Category)))
                 if (ladder.Width.HasValue && ((min > 0 && ladder.Width.Value < min) || (max > 0 && ladder.Width.Value > max)))
                     faults.Add(new EconomyFault(HLadder, ladder.Category, $"the ladder is {ladder.Width.Value:0.##}x wide, outside the band {min:0.##} to {max:0.##}."));
-        return new LoopReport { Samples = samples, Median = median, Best = best, Purse = settings.StartingCredits, Ladders = ladders, Faults = faults };
+        var (sortiesMin, sortiesMax) = (settings.EconomySortiesMin, settings.EconomySortiesMax);
+        if (sortiesMin > 0 || sortiesMax > 0)
+            foreach (var ladder in ladders.Where(l => Banded(l.Category) && l.TopSorties.HasValue))
+            {
+                var sorties = ladder.TopSorties.Value;
+                if ((sortiesMin > 0 && sorties < sortiesMin) || (sortiesMax > 0 && sorties > sortiesMax))
+                    faults.Add(new EconomyFault(HAfford, ladder.Category, $"the dearest design takes {sorties:0.#} sorties at the median net of {medianNet:0.#}, outside the band {sortiesMin:0.##} to {sortiesMax:0.##}; this rests on {nets.Count} measured sortie(s)."));
+            }
+        return new LoopReport { Samples = samples, Median = median, Best = best, MedianNet = medianNet, MeasuredSorties = nets.Count, Purse = settings.StartingCredits, Ladders = ladders, Faults = faults };
     }
 }

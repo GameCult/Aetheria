@@ -11,8 +11,8 @@ public sealed class EconomyLoopTests
     private static LoopSample Sample(uint seed, int sell, int ammo, int repair, double seconds, LoopOutcome outcome = LoopOutcome.Capped) =>
         new LoopSample { Seed = seed, Belts = 1, BeltKind = "belt", Weapons = "gun", SimSeconds = seconds, SellValue = sell, AmmoSpent = ammo, Repair = repair, Outcome = outcome, Note = "why" };
 
-    private static GameplaySettings Settings(float min = 0, float max = 0, int purse = 100000) =>
-        new GameplaySettings { StartingCredits = purse, EconomyLadderMin = min, EconomyLadderMax = max };
+    private static GameplaySettings Settings(float min = 0, float max = 0, int purse = 100000, float sortiesMin = 0, float sortiesMax = 0) =>
+        new GameplaySettings { StartingCredits = purse, EconomyLadderMin = min, EconomyLadderMax = max, EconomySortiesMin = sortiesMin, EconomySortiesMax = sortiesMax };
 
     // A gear in `hardpoint` offered at `price`, with a recipe so it is an offered design.
     private static void Offer(EconomyFixture f, string id, HardpointType hardpoint, int price, int plates = 1)
@@ -64,6 +64,53 @@ public sealed class EconomyLoopTests
         Assert.DoesNotContain(EconomyLoop.Report(f.Cache, Settings(0, 200), samples).Faults, x => x.Record == "Gear/Reactor");
     }
 
+    // Ruling ladder-band-weapons-and-gear: hulls, bays, consumables and control modules carry no tier band.
+    [Fact]
+    public void TheLadderBandCoversWeaponsAndGearOnly()
+    {
+        using var f = EconomyFixture.Healthy();
+        Offer(f, "cheap", HardpointType.Reactor, 10);
+        Offer(f, "dear", HardpointType.Reactor, 1000);
+        var hull = f.Hull("big", HullType.Ship, new[] { ("Plate", 1) });
+        f.EditItem<HullData>(hull, h => h.Price = 100000);
+        var report = EconomyLoop.Report(f.Cache, Settings(10, 30), new[] { Sample(1, 1000, 0, 0, 60) });
+        Assert.True(Ladder(report, "Hull/Ship").Width > 30);
+        Assert.Equal(new[] { "Gear/Reactor" }, report.Faults.Where(x => x.Invariant == EconomyLoop.HLadder).Select(x => x.Record).ToArray());
+    }
+
+    // Rulings top-tier-per-item and top-gear-within-one-region-run: about 10-20 sorties at the median net buys the dearest item.
+    [Fact]
+    public void TheAffordBandFaultsADearestDesignOutsideTenToTwentySorties()
+    {
+        using var f = EconomyFixture.Healthy();
+        Offer(f, "cheap", HardpointType.Reactor, 10);
+        Offer(f, "top", HardpointType.Reactor, 1500);
+        // One sortie nets 100: the top design takes 15 sorties.
+        var samples = new[] { Sample(1, 100, 0, 0, 60) };
+        var report = EconomyLoop.Report(f.Cache, Settings(sortiesMin: 10, sortiesMax: 20), samples);
+        Assert.Equal(15, Ladder(report, "Gear/Reactor").TopSorties.Value, 9);
+        Assert.DoesNotContain(report.Faults, x => x.Invariant == EconomyLoop.HAfford);
+        Assert.Contains(EconomyLoop.Report(f.Cache, Settings(sortiesMin: 16, sortiesMax: 20), samples).Faults, x => x.Invariant == EconomyLoop.HAfford && x.Record == "Gear/Reactor");
+        var low = Assert.Single(EconomyLoop.Report(f.Cache, Settings(sortiesMin: 10, sortiesMax: 14), samples).Faults, x => x.Invariant == EconomyLoop.HAfford);
+        Assert.Contains("1 measured sortie", low.Message);
+        Assert.DoesNotContain(EconomyLoop.Report(f.Cache, Settings(), samples).Faults, x => x.Invariant == EconomyLoop.HAfford);
+    }
+
+    // The shipped bands on the shipped catalog: the ballistic ladder and its top gun sit inside them, on the one measured sortie
+    // (seed 1, Metallic belt: sell 1734, repair 183, 150 s) the harness has. Kills a bill trimmed out of the ruled band.
+    [Fact]
+    public void TheBallisticLadderAndItsTopGunSitInsideTheShippedBands()
+    {
+        using var db = AetherDb.Open();
+        var settings = new GameplaySettings();
+        Assert.Equal((10f, 30f, 10f, 20f), (settings.EconomyLadderMin, settings.EconomyLadderMax, settings.EconomySortiesMin, settings.EconomySortiesMax));
+        var report = EconomyLoop.Report(db.Cache, settings, new[] { Sample(1, 1734, 0, 183, 150) });
+        var ladder = Ladder(report, "Weapon/ExplosivelyPropelled");
+        Assert.InRange(ladder.Width.Value, 10, 30);
+        Assert.InRange(ladder.TopSorties.Value, 10, 20);
+        Assert.DoesNotContain(report.Faults, x => x.Record == "Weapon/ExplosivelyPropelled");
+    }
+
     [Fact]
     public void UnsetLadderBandRaisesNoLadderFault()
     {
@@ -71,7 +118,7 @@ public sealed class EconomyLoopTests
         Offer(f, "cheap", HardpointType.Reactor, 10);
         Offer(f, "dear", HardpointType.Reactor, 1000);
         // A settings object nobody tuned: its band is what the field defaults to.
-        var report = EconomyLoop.Report(f.Cache, new GameplaySettings(), new[] { Sample(1, 1000, 0, 0, 60) });
+        var report = EconomyLoop.Report(f.Cache, Settings(), new[] { Sample(1, 1000, 0, 0, 60) });
         Assert.Equal(100, Ladder(report, "Gear/Reactor").Width.Value, 9);
         Assert.DoesNotContain(report.Faults, x => x.Invariant == EconomyLoop.HLadder);
     }

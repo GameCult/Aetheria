@@ -194,9 +194,12 @@ public class GameplaySettings
     public int StartingCredits = 4000;
     // A tuning tolerance, not a price: `economy balance` flags a chain link whose implied wage falls outside [median / k, median x k].
     public float EconomyWageSpread = 2;
-    // Tuning tolerances like it: the band `economy balance --loop` checks the width of an offered gear ladder against (dearest over
-    // cheapest offered design in a category). 0 means unset: the widths are reported and no ladder is a fault.
-    public float EconomyLadderMin = 0, EconomyLadderMax = 0;
+    // Tuning targets like it, not gates: the band `economy balance --loop` checks the width of an offered Weapon or Gear ladder against
+    // (dearest over cheapest offered design in a category; ruling ladder-band-weapons-and-gear, 10-30x), and the band of sorties at the
+    // median net it takes to afford the dearest design of such a category (rulings top-tier-per-item and top-gear-within-one-region-run,
+    // about 10-20 sorties). 0 means unset: the widths and sorties are reported and nothing is a fault.
+    public float EconomyLadderMin = 10, EconomyLadderMax = 30;
+    public float EconomySortiesMin = 10, EconomySortiesMax = 20;
     public float DurabilityQualityExponent = 2;
     public float DurabilityQualityMin = 2;
     public float DurabilityQualityMax = .25f;
