@@ -135,6 +135,17 @@ public sealed class EconomyFixture : IDisposable
             Rows = rows.Select(r => new OutsideMarketRow { Commodity = Item(r.Commodity), Price = 10, Buys = r.Buys, Sells = r.Sells, RatePerHour = 5 }).ToList()
         }, OutsideMarketData.KeyOf("gate"));
 
+    // Every made commodity at the price its chain derives, as economy author leaves it.
+    public void Settle()
+    {
+        foreach (var (key, derived) in EconomyBalance.Prices(Cache))
+        {
+            var item = Cache.Get<ItemData>(new CultRecordKey(key));
+            item.Price = EconomyBalance.Rounded(derived);
+            Cache.Upsert(item.GetType(), item, new CultRecordKey(key));
+        }
+    }
+
     // ore (raw) -> plate (fills Plate) -> a laser and a skiff that each take two plates: no fault anywhere.
     public static EconomyFixture Healthy()
     {
@@ -143,6 +154,7 @@ public sealed class EconomyFixture : IDisposable
         f.Good("plate", inputs: new[] { ("ore", 2) }, fills: new[] { "Plate" });
         f.Gear("laser", new[] { ("Plate", 2) });
         f.Hull("skiff", HullType.Ship, new[] { ("Plate", 1) });
+        f.Settle();
         return f;
     }
 }

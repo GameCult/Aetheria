@@ -42,6 +42,14 @@ public sealed class EconomyAuthor
         Write(named[0].GetType(), named[0], _catalog.RefOf(named[0]).Key);
     }
 
+    // Sets one item's price, written under the type it is held as.
+    public void SetPrice(string key, int price)
+    {
+        var item = _catalog.Get<ItemData>(new CultRecordKey(key));
+        item.Price = price;
+        Write(item.GetType(), item, new CultRecordKey(key));
+    }
+
     private void Write(Type type, object document, CultRecordKey key)
     {
         if (!_touched.Contains(key.Value)) _touched.Add(key.Value);
@@ -60,10 +68,10 @@ public static class EconomyCommand
     // The invariants whose faults the batches introduce refuse them. The rest (a missing sink, no consumer demand, a commodity
     // with no recipe yet) are completeness: reported, and settled by the batch that closes the chain.
     private static readonly string[] Shape =
-        { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights, EconomyChecks.LShape };
+        { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights, EconomyChecks.LShape, EconomyChecks.LPrice };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
-    private const string Usage = "economy report | author <batch>... [apply] | " + EconomyPrices.Usage + " | balance\nbalance reads the chain and changes nothing. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";
+    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance\nbalance reads the chain and changes nothing. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made commodity to the price its chain derives; with no batch it reprices alone.";
 
     public static int Run(string[] args, TextWriter output)
     {
@@ -79,14 +87,14 @@ public static class EconomyCommand
             var spread = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings").EconomyWageSpread;
             return Balance(db.Cache, spread, output);
         }
-        if (args.Length > 1 && args[0] == "author")
+        if (args.Length > 0 && args[0] == "author")
         {
             var apply = args.Contains("apply");
             var names = args.Skip(1).Where(a => a != "apply").ToArray();
             var known = typeof(EconomyBatch).Assembly.GetTypes().Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(EconomyBatch)))
                 .OrderBy(t => t.Name, StringComparer.Ordinal).ToArray();
             var unknown = names.Where(n => known.All(t => !string.Equals(t.Name, n, StringComparison.OrdinalIgnoreCase))).ToArray();
-            if (unknown.Length > 0 || names.Length == 0)
+            if (unknown.Length > 0)
             {
                 output.WriteLine($"{unknown.Length} of the names given match no batch. Batches: {string.Join(", ", known.Select(t => t.Name))}");
                 return 1;
@@ -192,6 +200,7 @@ public static class EconomyCommand
                         batch.Author(author);
                     }
                     running = "";
+                    Reprice(author);
                     StationKinds.Validate(cache);
                 }
                 catch (Exception e)
@@ -255,6 +264,16 @@ public static class EconomyCommand
         finally
         {
             try { Directory.Delete(scratch, true); } catch (IOException) { }
+        }
+    }
+
+    // Every made commodity takes the price its chain derives. The one writer of a made price: batches may set any, this overwrites it.
+    private static void Reprice(EconomyAuthor author)
+    {
+        foreach (var (key, derived) in EconomyBalance.Prices(author.Catalog).OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            var price = EconomyBalance.Rounded(derived);
+            if (author.Catalog.Get<ItemData>(new CultRecordKey(key))?.Price is int held && held != price) author.SetPrice(key, price);
         }
     }
 

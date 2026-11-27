@@ -56,7 +56,7 @@ public sealed class EconomyReport
 // The one owner of the catalog's economy invariants. Pure: draws nothing, reads no clock, writes nothing. One method per rule.
 public static class EconomyChecks
 {
-    public const string LRecipe = "L-recipe", LOneKindList = "L-one-kind-list", LLore = "L-lore", LSource = "L-source-sink", LProductive = "L-productive", LDemand = "L-consumer-demand", LWeights = "L-weights", LShape = "L-shape";
+    public const string LRecipe = "L-recipe", LOneKindList = "L-one-kind-list", LLore = "L-lore", LSource = "L-source-sink", LProductive = "L-productive", LDemand = "L-consumer-demand", LWeights = "L-weights", LShape = "L-shape", LPrice = "L-price";
     private const double Margin = 1e-9;
 
     public static EconomyReport Check(CultCache catalog, EconomyLoad load = null)
@@ -64,6 +64,7 @@ public static class EconomyChecks
         var faults = new List<EconomyFault>();
         faults.AddRange(Recipe(catalog));
         faults.AddRange(Shapes(catalog));
+        faults.AddRange(PriceCheck(catalog));
         faults.AddRange(Weights(catalog));
         faults.AddRange(Lore(catalog));
         faults.AddRange(SourceSink(catalog));
@@ -161,6 +162,22 @@ public static class EconomyChecks
     public static List<EconomyFault> Shapes(CultCache catalog) =>
         Commodities(catalog).Where(item => item.Shape?.Coordinates == null || item.Shape.Coordinates.Length == 0)
             .Select(item => new EconomyFault(LShape, catalog.RefOf(item).Key.Value, $"Commodity '{item.Name}' has no Shape cell: a cargo bay cannot hold it.")).ToList();
+
+    // A made commodity's Price is the price EconomyBalance derives from its chain, rounded to whole credits (at least 1); economy author
+    // writes it, and a stored price off it is drift (an inspector edit) that the next author run repairs.
+    public static List<EconomyFault> PriceCheck(CultCache catalog)
+    {
+        var faults = new List<EconomyFault>();
+        foreach (var (key, derived) in EconomyBalance.Prices(catalog).OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            var item = catalog.Get<ItemData>(new CultRecordKey(key));
+            if (item == null) continue;
+            var want = EconomyBalance.Rounded(derived);
+            if (item.Price != want)
+                faults.Add(new EconomyFault(LPrice, key, $"Commodity '{item.Name}' is priced {item.Price}; its chain derives {want}."));
+        }
+        return faults;
+    }
 
     // Every commodity and every offered design (but a Station or Turret hull) has a recipe, and each recipe is well formed.
     public static List<EconomyFault> Recipe(CultCache catalog)

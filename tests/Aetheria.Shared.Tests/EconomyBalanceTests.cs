@@ -61,10 +61,10 @@ public sealed class EconomyBalanceTests
         Price(f, "commodity:a-dear", 40);
         Price(f, "commodity:z-cheap", 30);
         f.EditItem<GearData>(gear, g => g.Price = 100);
-        // Wages 10, 10, 20, 70: median 15. C: ore 15, a-dear 60, z-cheap 30, laser min(60, 30) + 15 = 45.
+        // The one raw link, the ore, earns 10: that is the wage. Cost: ore 10, a-dear 3 x 10 + 10 = 40, z-cheap 10 + 10 = 20, laser min(40, 20) + 10 = 30.
         var report = EconomyBalance.Balance(f.Cache);
-        Assert.Equal(15, report.WageReference, 9);
-        Assert.Equal(45, Link(report, gear).Cost, 9);
+        Assert.Equal(10, report.WageReference, 9);
+        Assert.Equal(30, Link(report, gear).Cost, 9);
     }
 
     [Fact]

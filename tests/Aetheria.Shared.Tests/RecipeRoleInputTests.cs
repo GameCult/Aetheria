@@ -61,6 +61,7 @@ public sealed class RecipeRoleInputTests
     public void ANullListElsewhereInARecipeLeavesItsRoleInputsToTheRules()
     {
         using var f = Smelter();
+        f.Settle();
         Assert.Empty(EconomyChecks.Check(f.Cache).Faults.Where(x => x.Invariant != EconomyChecks.LRecipe));
         f.EditRecipe(Iron, r => r.Upkeep = null);
         Assert.Empty(EconomyChecks.Check(f.Cache).Faults.Where(x => x.Invariant != EconomyChecks.LRecipe));

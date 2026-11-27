@@ -517,6 +517,7 @@ public sealed class EconomyCommandTests
         var f = EconomyFixture.Healthy();
         f.Good("loopa", inputs: new[] { ("loopb", 1) });
         f.Good("loopb", inputs: new[] { ("loopa", 2) });
+        f.Settle();
         return f;
     }
 

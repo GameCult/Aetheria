@@ -39,32 +39,34 @@ public sealed class BalanceReport
     public List<BeltRow> Belts;
 }
 
-// The static economy balance: a steady-state input-output reading of the authored chain (Leontief 1936; Sraffa 1960 zero-profit
-// prices under one wage; Samuelson 1951: with labour the only primary factor the cheapest filler of a role is demand-independent).
-// Pure: reads the catalog, writes nothing. Its faults are report-only and never a refusal; the authored ItemData.Price stays the
-// only price the game charges.
+// The static economy balance: a steady-state input-output reading of the chain (Leontief 1936; Sraffa 1960 zero-profit prices under
+// one wage; Samuelson 1951: with labour the only primary factor the cheapest filler of a role is demand-independent; Lewis 1954: the
+// extraction sector sets the going wage). Pure: reads the catalog, writes nothing. ItemData.Price stays the one price the game charges;
+// for a made commodity it is the price Prices derives, which economy author writes. Balance's faults are report-only.
 public static class EconomyBalance
 {
     public const string HMargin = "H-margin", HWage = "H-wage", HConverge = "H-converge";
     private const int SweepCap = 10000;
 
-    public static BalanceReport Balance(CultCache catalog, double wageSpread = 2)
-    {
-        var columns = EconomyChecks.Columns(catalog);
-        double Price(string key) => catalog.Get<ItemData>(new CultRecordKey(key))?.Price ?? 0;
+    // The stored price a derived price becomes: whole credits, at least 1. A chain that does not settle diverges; it reads as the largest price.
+    public static int Rounded(double derived) => !(derived < int.MaxValue) ? int.MaxValue : (int) Math.Max(1, Math.Round(derived, MidpointRounding.AwayFromZero));
 
-        // Authored-price wage per link; the cheapest filler fills a role, and a role with any filler at Price 0 leaves the link unpriced.
-        double? CheapestPriced(string[] fillers) => fillers.Length == 0 || fillers.Any(f => Price(f) <= 0) ? (double?) null : fillers.Min(Price);
+    private static double Price(CultCache catalog, string key) => catalog.Get<ItemData>(new CultRecordKey(key))?.Price ?? 0;
+
+    // Authored-price wage per link; the cheapest filler fills a role, and a role with any filler at Price 0 leaves the link unpriced.
+    private static List<BalanceLink> Links(CultCache catalog, List<EconomyChecks.Column> columns)
+    {
+        double? CheapestPriced(string[] fillers) => fillers.Length == 0 || fillers.Any(f => Price(catalog, f) <= 0) ? (double?) null : fillers.Min(f => Price(catalog, f));
         var links = new List<BalanceLink>();
         foreach (var c in columns)
         {
-            var link = new BalanceLink { Output = c.Output, Name = catalog.Get(c.Recipe.Output)?.Name ?? c.Output, Labour = c.Labour, Price = Price(c.Output), StationKind = catalog.Get(c.Recipe.StationKind)?.Name ?? "no kind" };
+            var link = new BalanceLink { Output = c.Output, Name = catalog.Get(c.Recipe.Output)?.Name ?? c.Output, Labour = c.Labour, Price = Price(catalog, c.Output), StationKind = catalog.Get(c.Recipe.StationKind)?.Name ?? "no kind" };
             var cost = 0.0;
             var inputsPriced = true;
             foreach (var (commodity, count) in c.Inputs.Concat(c.Upkeep))
             {
                 if (count <= 0) continue;
-                var p = Price(commodity);
+                var p = Price(catalog, commodity);
                 if (p <= 0) inputsPriced = false;
                 cost += count * p;
             }
@@ -79,24 +81,37 @@ public static class EconomyBalance
             if (link.Unpriced == null) link.Wage = (c.OutputCount * link.Price - cost) / c.Labour;
             links.Add(link);
         }
+        return links;
+    }
 
-        var wages = links.Where(l => l.Wage.HasValue).Select(l => l.Wage.Value).OrderBy(w => w).ToList();
-        var reference = wages.Count == 0 ? 0 : wages.Count % 2 == 1 ? wages[wages.Count / 2] : (wages[wages.Count / 2 - 1] + wages[wages.Count / 2]) / 2;
-        foreach (var l in links) l.WageRatio = reference > 0 ? l.Wage / reference : null;
+    // The going wage: the median implied wage of the priced raw links, 0 when none is priced.
+    private static double RawWage(CultCache catalog, List<EconomyChecks.Column> columns, List<BalanceLink> links)
+    {
+        var wages = links.Where((l, i) => l.Wage.HasValue && columns[i].IsCommodity && Recipes.IsRaw(catalog, columns[i].Recipe)).Select(l => l.Wage.Value).OrderBy(w => w).ToList();
+        return wages.Count == 0 ? 0 : wages.Count % 2 == 1 ? wages[wages.Count / 2] : (wages[wages.Count / 2 - 1] + wages[wages.Count / 2]) / 2;
+    }
 
-        // Derived cost: value iteration from zero. A good with no recipe holds its authored price as a stand-in.
+    public static double Wage(CultCache catalog)
+    {
+        var columns = EconomyChecks.Columns(catalog);
+        return RawWage(catalog, columns, Links(catalog, columns));
+    }
+
+    // Value iteration from zero over every recipe at one wage. A good in fixedOutputs, or with no recipe, holds its authored price.
+    // Two recipes for one output: the cheaper sets its price, as a role takes its cheapest filler.
+    private static Dictionary<string, double> Sweep(CultCache catalog, List<EconomyChecks.Column> columns, double wage, ISet<string> fixedOutputs, out bool converged)
+    {
         var derived = new Dictionary<string, double>(StringComparer.Ordinal);
-        foreach (var c in columns) derived[c.Output] = 0;
-        double Cost(string key) => derived.TryGetValue(key, out var v) ? v : Price(key);
-        var converged = false;
+        foreach (var c in columns) if (!fixedOutputs.Contains(c.Output)) derived[c.Output] = 0;
+        double Cost(string key) => derived.TryGetValue(key, out var v) ? v : Price(catalog, key);
+        converged = false;
         for (var sweep = 0; sweep < SweepCap && !converged; sweep++)
         {
             converged = true;
-            // Two recipes for one output: the cheaper sets its cost, as a role takes its cheapest filler.
             var best = new Dictionary<string, double>(StringComparer.Ordinal);
-            foreach (var c in columns)
+            foreach (var c in columns.Where(c => !fixedOutputs.Contains(c.Output)))
             {
-                var sum = reference * c.Labour;
+                var sum = wage * c.Labour;
                 foreach (var (commodity, count) in c.Inputs.Concat(c.Upkeep)) if (count > 0) sum += count * Cost(commodity);
                 foreach (var slot in c.Slots)
                     if (slot.Count > 0 && slot.Fillers.Length > 0) sum += slot.Count * slot.Fillers.Min(Cost);
@@ -109,6 +124,31 @@ public static class EconomyBalance
                 derived[output] = next;
             }
         }
+        return derived;
+    }
+
+    // The price of every made commodity (a commodity whose recipe is not raw) at the going wage: its inputs, upkeep and cheapest
+    // role fillers at their prices, plus the wage times its labour, over its output count. Raw and recipeless goods keep their
+    // authored price; designs are not priced here.
+    public static Dictionary<string, double> Prices(CultCache catalog)
+    {
+        var columns = EconomyChecks.Columns(catalog);
+        var raw = new HashSet<string>(columns.Where(c => Recipes.IsRaw(catalog, c.Recipe)).Select(c => c.Output), StringComparer.Ordinal);
+        var derived = Sweep(catalog, columns, RawWage(catalog, columns, Links(catalog, columns)), raw, out _);
+        return columns.Where(c => c.IsCommodity && !raw.Contains(c.Output)).Select(c => c.Output).Distinct(StringComparer.Ordinal)
+            .ToDictionary(key => key, key => derived[key], StringComparer.Ordinal);
+    }
+
+    public static BalanceReport Balance(CultCache catalog, double wageSpread = 2)
+    {
+        var columns = EconomyChecks.Columns(catalog);
+        var links = Links(catalog, columns);
+        var reference = RawWage(catalog, columns, links);
+        foreach (var l in links) l.WageRatio = reference > 0 ? l.Wage / reference : null;
+
+        // Derived cost: nothing fixed, so an ore costs its labour; belt rows show price minus cost, the rent.
+        var derived = Sweep(catalog, columns, reference, new HashSet<string>(), out var converged);
+        double Cost(string key) => derived.TryGetValue(key, out var v) ? v : Price(catalog, key);
         foreach (var l in links) l.Cost = derived[l.Output];
 
         var faults = new List<EconomyFault>();
@@ -130,7 +170,7 @@ public static class EconomyBalance
             {
                 var ore = y.Commodity.Key.Value;
                 var share = y.Abundance / total;
-                var yield = new BeltYield { Ore = ore, Share = share, Price = Price(ore), Cost = Cost(ore), WageRatio = links.FirstOrDefault(l => l.Output == ore)?.WageRatio };
+                var yield = new BeltYield { Ore = ore, Share = share, Price = Price(catalog, ore), Cost = Cost(ore), WageRatio = links.FirstOrDefault(l => l.Output == ore)?.WageRatio };
                 row.Price += share * yield.Price;
                 row.Cost += share * yield.Cost;
                 row.Yields.Add(yield);
