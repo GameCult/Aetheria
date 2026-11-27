@@ -701,6 +701,11 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal(0, code);
         Assert.Equal("", error);
         Assert.Equal("station-kind:depot", ShipAuthoringStore.Load(target).Hull.Kind.Key.Value);
+
+        // A station made like Zenith carries no roles; its product still takes none.
+        (code, _, error) = Run("product", target, "Zhestokost", "--name", "Probe Depot");
+        Assert.Equal((0, ""), (code, error));
+        Assert.Empty(ShipAuthoringStore.Load(target).Products.Single().Roles);
     }
 
     // validate judges a finished station package's kind with the rule Compose applies, before compose does.

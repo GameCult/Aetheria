@@ -197,7 +197,8 @@ public static class ShipAuthoringCommands
                             Description = count == 7 ? args[6] : null,
                             Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey(ship.Id)),
                             Manufacturer = new CultRecordRef<Faction>(makerKey),
-                            Roles = hull.Roles.Select(role => new ProductRole { Role = role.Name }).ToList(),
+                            // A hull stored with no roles (Zenith, so a station made --like it) decodes with a null list.
+                            Roles = (hull.Roles ?? new List<ItemRole>()).Select(role => new ProductRole { Role = role.Name }).ToList(),
                             NotOffered = notOffered
                         });
                     cache.FlushAsync().Wait();
