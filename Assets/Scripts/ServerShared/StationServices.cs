@@ -114,10 +114,10 @@ public static class StationServices
         return true;
     }
 
-    // The mined stacks of the bays: simple commodities with a lot whose origin is Extracted. Ammunition and consumables are
-    // simple commodities too, and a bought or staged commodity has Lot 0, which GetLot cannot resolve.
+    // The ore stacks of the bays are the stacks of any design a field kind yields, mined, bought or looted alike (ruling
+    // simple-commodities-fungible); ammunition and other simple goods no belt yields are not ore.
     private static ItemInstance[] OreStacks(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>
-        bays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>().Where(stack => stack.Lot != 0 && items.GetLot(stack).Origin is Extracted).Select(stack => (ItemInstance) stack)).ToArray();
+        bays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>().Where(stack => FieldKinds.IsOre(items.ItemData, items.GetData(stack))).Select(stack => (ItemInstance) stack)).ToArray();
 
     // What the station pays for every mined stack of the bays: the sum of SellPrice over the stacks TrySellOre sells.
     public static int OreValue(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>

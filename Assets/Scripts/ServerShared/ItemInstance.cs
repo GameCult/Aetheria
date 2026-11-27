@@ -25,10 +25,6 @@ public abstract class ItemInstance
     [JsonProperty("data"), Key(0)] public CultRecordRef<ItemData> Data;
     [JsonProperty("rotation"), Key(1)] public ItemRotation Rotation;
 
-    // The lot this unit was minted or mined from: crafted units' design, provenance, workmanship and role fills all
-    // live there; a mined SimpleCommodity names its Extracted lot (zone, belt, ore). Lot 0 is no lot: bought, staged
-    // and loadout commodities, and every save from before the field reached SimpleCommodity.
-    [JsonProperty("lot"), Key(11)] public int Lot;
 }
 
 [Union(0, typeof(CompoundCommodity)),
@@ -38,7 +34,10 @@ public abstract class ItemInstance
 public abstract class CraftedItemInstance : ItemInstance
 {
     // Keys 2 (Quality), 9 (Ingredients) and 10 (Product) belonged to fields moved to Lot; do not reuse them.
-    // Key 11 (Lot) lives on ItemInstance.
+
+    // The lot a crafted unit was minted from: its design, provenance, workmanship and role fills all live there. A
+    // simple commodity has none (ruling simple-commodities-fungible).
+    [JsonProperty("lot"), Key(11)] public int Lot;
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
@@ -47,6 +46,8 @@ public class CompoundCommodity : CraftedItemInstance { }
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class SimpleCommodity : ItemInstance
 {
+    // Key 11 belonged to a lot before ruling simple-commodities-fungible and is never reused; a pre-ruling stack's
+    // slot 11 is skipped on read.
     [JsonProperty("quantity"), Key(2)]  public int Quantity;
 }
 

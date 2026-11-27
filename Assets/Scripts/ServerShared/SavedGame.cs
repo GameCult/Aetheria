@@ -234,11 +234,11 @@ public static class RunSave
             .ToArray();
         game.Zones = keys.Select(key => new CultRecordRef<SavedZone>(key)).ToArray();
         // Every crafted item roots, Lot 0 included: a crafted item with no lot is corruption and Reachable throws on it.
-        // A SimpleCommodity roots only when it names a lot; Lot 0 is bought, staged or loadout stock.
+        // A simple commodity has no lot.
         var roots = zones
             .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())
             .SelectMany(EntitySerializer.Items)
-            .Where(item => item != null && (item is CraftedItemInstance || item.Lot != 0))
+            .OfType<CraftedItemInstance>()
             .Select(item => item.Lot);
         cache.Commit(batch =>
         {

@@ -450,7 +450,7 @@ public class Zone
         FloatingItems.Remove(floating);
         CargoGained.OnNext(new CargoGain
         {
-            Taker = taker, Design = floating.Item.Data, Lot = floating.Item.Lot, Kind = GainKind.Collected,
+            Taker = taker, Design = floating.Item.Data, Kind = GainKind.Collected,
             Stored = stored
         });
         return true;

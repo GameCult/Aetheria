@@ -10,7 +10,6 @@ public struct CargoGain
 {
     public Entity Taker;
     public CultRecordRef<ItemData> Design;
-    public int Lot;
     public int Stored;
     public int Adrift;
     public GainKind Kind;

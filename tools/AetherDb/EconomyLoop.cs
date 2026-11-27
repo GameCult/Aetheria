@@ -223,12 +223,11 @@ public static class EconomyLoop
         }
     }
 
-    // The simple commodities the hold carries that were not mined (a mined stack names an Extracted lot), summed per commodity: ammunition
-    // and consumables. The sampled stack carries the item the price is read from.
+    // The simple commodities the hold carries that are not ore, summed per commodity: ammunition and consumables. The sampled stack carries the item the price is read from.
     private static Dictionary<SimpleCommodityData, (int Quantity, SimpleCommodity Sample)> Ammunition(ItemManager items, Entity player)
     {
         var stacks = player.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>())
-            .Where(stack => stack.Lot == 0 || !(items.GetLot(stack).Origin is Extracted));
+            .Where(stack => !FieldKinds.IsOre(items.ItemData, items.GetData(stack)));
         return stacks.GroupBy(stack => items.GetData(stack)).ToDictionary(g => g.Key, g => (g.Sum(stack => stack.Quantity), g.First()));
     }
 

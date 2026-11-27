@@ -109,11 +109,11 @@ public class RoleFill
     [Key(2)] [CultElementId] public string Id = "";
 }
 
-// Who built a lot, where, and from what. Terminus mints Attributed placeholders; Produced and Extracted are the
-// forward shape for backward generation, next scope.
+// Who built a lot, where, and from what. Terminus mints Attributed placeholders; Produced is the forward shape for
+// backward generation, next scope.
 [Union(0, typeof(Attributed)),
  Union(1, typeof(Produced)),
- Union(2, typeof(Extracted))]
+ Union(2, typeof(RetiredExtracted))]
 public abstract class Provenance { }
 
 // The Terminus placeholder: only the faction is known. No other level of the crafting pyramid is generated yet.
@@ -123,7 +123,8 @@ public class Attributed : Provenance
     [Key(0)] public CultRecordRef<Faction> Faction;
 }
 
-// Built in place at a station, from a factory item's own lot and a set of input lots.
+// Built in place at a station, from a factory item's own lot and a set of input lots. Inputs names the compound input
+// lots; a simple input carries no lot and is not named per unit.
 [MessagePackObject]
 public class Produced : Provenance
 {
@@ -133,12 +134,8 @@ public class Produced : Provenance
     [Key(3)] public int[] Inputs;
 }
 
-// A raw commodity pulled from a zone.
+// Key 2 held a per-source lot on mined simple commodities until ruling simple-commodities-fungible; nothing constructs or
+// reads it. It is declared only because CultUnionGuard refuses an undeclared arm, so a run ledger saved before the ruling
+// still loads, and RunSave.Commit drops those lots because no item roots them. Never reuse key 2.
 [MessagePackObject]
-public class Extracted : Provenance
-{
-    // Zone is the zone's index in galaxy.Zones (SavedGame's convention), -1 with no galaxy; Body is the belt.
-    [Key(0)] public int Zone;
-    [Key(1)] public CultRecordRef<SimpleCommodityData> Commodity;
-    [Key(2)] public CultRecordRef<BodyData> Body;
-}
+public class RetiredExtracted : Provenance { }

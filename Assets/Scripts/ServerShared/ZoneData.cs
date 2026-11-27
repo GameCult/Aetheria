@@ -292,6 +292,14 @@ public static class FieldKinds
             .Where(yield => yield.Amount > 0f)
             .ToArray();
     }
+
+    // Whether the design is raw ore: some field kind yields it. Ore is what a belt can put in a hold; derived on every
+    // call, never stored. The one owner of the raw-ore kind.
+    public static bool IsOre(CultCache catalog, ItemData design)
+    {
+        var key = catalog.RefOf(design).Key;
+        return catalog.GetAll<FieldKindData>().Any(kind => kind.Yields.Any(yield => yield.Commodity.Key.Equals(key)));
+    }
 }
 
 // Ore geography (rulings provinces-within-regions, boss-zone-is-near-side, province-partition-by-size, province-types-dealt-per-region).
