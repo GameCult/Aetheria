@@ -188,7 +188,10 @@ public class GameplaySettings
     public float SellFraction = .5f;
     // What a station charges to restore worn gear, as a fraction of the price of the wear.
     public float RepairFraction = .25f;
-    public int StartingCredits = 150000;
+    // Start rule (a sim-tuned knob, economy-numbers-are-sim-tuned-knobs): the derived price of the cheapest ballistic design above the
+    // starter Light Machine Gun (a Slug Rifle, 3138), rounded up to a thousand. It buys one upgrade, not the ladder
+    // (top-gear-within-one-region-run).
+    public int StartingCredits = 4000;
     // A tuning tolerance, not a price: `economy balance` flags a chain link whose implied wage falls outside [median / k, median x k].
     public float EconomyWageSpread = 2;
     // Tuning tolerances like it: the band `economy balance --loop` checks the width of an offered gear ladder against (dearest over
