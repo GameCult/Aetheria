@@ -64,4 +64,58 @@ public sealed class CommodityShapeTests : IDisposable
         Assert.Contains("L-shape commodity:void", output.ToString());
         Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
     }
+
+    private CultCache Shipped()
+    {
+        var path = Path.Combine(_root, "Aetheria.cc");
+        File.Copy(TestCatalog.Repo, path, true);
+        return AetheriaStores.Open(path, catalogWritable: true, registry: TestCatalog.Registry());
+    }
+
+    // Kills: the data pass skipping compound or raw goods.
+    [Fact]
+    public void EveryShippedCommodityHasAShape()
+    {
+        using var cache = Shipped();
+        var commodities = cache.GetAll<ItemData>().Where(Recipes.IsCommodity).ToArray();
+        Assert.True(commodities.Length > 100);
+        Assert.All(commodities, item => Assert.NotEmpty(item.Shape?.Coordinates ?? Array.Empty<int2>()));
+        Assert.Empty(EconomyChecks.Shapes(cache));
+    }
+
+    // Kills: a zero-cell shape and the null crash on the way into a hold.
+    [Fact]
+    public void EveryShippedSimpleCommodityFitsAnEmptyHold()
+    {
+        using var cache = Shipped();
+        var shape = new Shape(5, 5);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var bay = new Shape(4, 4);
+        foreach (var cell in bay.AllCoordinates) bay[cell] = true;
+        cache.Upsert(new VerseGrammar { Revision = 1 });
+        cache.Upsert(new HullData { Name = "ShapeSkiff", HullType = HullType.Ship, Shape = shape, Price = 1000, Durability = 10, Armor = 10 });
+        cache.Upsert(new CargoBayData { Name = "ShapeBay", Shape = new Shape(), InteriorShape = bay, Price = 20, Durability = 4 });
+        cache.FlushAsync().GetAwaiter().GetResult();
+        var items = new ItemManager(1u, cache, new ProvenanceLedger(), AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings"), _ => { });
+        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        EquippableItem Mint(string design)
+        {
+            var data = cache.GetByName<EquippableItemData>(design);
+            return new EquippableItem
+            {
+                Data = cache.RefOf<ItemData>(data), Durability = data.Durability,
+                Lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(data), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() })
+            };
+        }
+        var ship = new Ship(items, zone, Mint("ShapeSkiff"), new EntitySettings());
+        Assert.True(ship.TryEquip(Mint("ShapeBay"), new int2(1, 1)));
+        var simple = cache.GetAll<SimpleCommodityData>().ToArray();
+        Assert.NotEmpty(simple);
+        foreach (var data in simple)
+        {
+            var hold = ship.CargoBays.Single();
+            Assert.True(hold.TryStore(new SimpleCommodity { Data = cache.RefOf<ItemData>(data), Quantity = 1 }), data.Name);
+            foreach (var held in hold.Cargo.Keys.ToArray()) hold.Remove(held);
+        }
+    }
 }
