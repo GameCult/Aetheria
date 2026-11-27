@@ -1448,19 +1448,7 @@ public abstract class Entity
             Temperature[position.x, position.y] += heat / ThermalMass[position.x, position.y];
     }
 
-    public int CountItemsInCargo(CultRecordKey itemDataID)
-    {
-        int sum = 0;
-        foreach (var x in CargoBays)
-        {
-            if (x.ItemsOfType.ContainsKey(itemDataID))
-            {
-                foreach (var i in x.ItemsOfType[itemDataID]) sum += i is SimpleCommodity simpleCommodity ? simpleCommodity.Quantity : 1;
-            }
-        }
-
-        return sum;
-    }
+    public int CountItemsInCargo(CultRecordKey itemDataID) => CargoBays.Sum(bay => bay.Count(itemDataID));
 
     public EquippedCargoBay FindItemInCargo(CultRecordKey itemDataID)
     {
@@ -2476,38 +2464,39 @@ public class EquippedCargoBay : EquippedItem
     
     public bool TryFindSpace(ItemInstance item)
     {
-        if (item is SimpleCommodity simpleCommodity)
-            return TryFindSpace(simpleCommodity, out _);
+        if (item is ICommodityStack)
+            return TryFindStackSpace(item, out _);
         if (item is CraftedItemInstance craftedItem)
-            return TryFindSpace(craftedItem, out _);
+            return TryFindUnitSpace(craftedItem, out _);
         return false;
     }
 
-    // Tries to find a place to put the given items in the inventory
-    // Will attempt to fill existing item stacks first
-    // Returns true only when ALL of the items have places to go
-    public bool TryFindSpace(SimpleCommodity item, out List<int2> positions)
+    // Tries to find a place to put the given stack in the inventory
+    // Will attempt to fill existing stacks it StacksWith first
+    // Returns true only when ALL of the units have places to go
+    private bool TryFindStackSpace(ItemInstance item, out List<int2> positions)
     {
         positions = new List<int2>();
-        var itemData = ItemManager.GetData(item);
-        var remainingQuantity = item.Quantity;
-        
-        // For simple commodities, search for existing item stacks to add to
+        var stack = (ICommodityStack) item;
+        var maxStack = ItemManager.MaxStack(item);
+        var remainingQuantity = stack.Quantity;
+
+        // Search for existing stacks to add to
         foreach (var cargoItem in Cargo.Keys)
         {
-            if (!item.Data.Key.Equals(cargoItem.Data.Key)) continue;
-            
-            var cargoCommodity = (SimpleCommodity) cargoItem;
-            if (cargoCommodity.Quantity >= itemData.MaxStack) continue;
-            
+            if (!stack.StacksWith(cargoItem)) continue;
+
+            var held = (ICommodityStack) cargoItem;
+            if (held.Quantity >= maxStack) continue;
+
             // Subtract remaining space in existing stack from remaining quantity
-            remainingQuantity -= min(itemData.MaxStack - cargoCommodity.Quantity, remainingQuantity);
+            remainingQuantity -= min(maxStack - held.Quantity, remainingQuantity);
             positions.Add(Cargo[cargoItem]);
-            
+
             // If we've moved all of the items into existing stacks, no need to search for empty space!
             if (remainingQuantity == 0) return true;
         }
-        
+
         // TODO: Try alternate item rotations / use Shape.FitsWithin
         // Search all the space in the cargo bay for an empty space where the item fits
         foreach (var cargoCoord in Data.InteriorShape.Coordinates)
@@ -2523,7 +2512,7 @@ public class EquippedCargoBay : EquippedItem
     }
 
     // Searches the cargo bay for a position where the item will fit, returns true when found
-    public bool TryFindSpace(CraftedItemInstance item, out int2 position)
+    private bool TryFindUnitSpace(CraftedItemInstance item, out int2 position)
     {
         // Search all the space in the cargo bay for an empty space where the item fits
         foreach (var cargoCoord in Data.InteriorShape.Coordinates)
@@ -2538,48 +2527,50 @@ public class EquippedCargoBay : EquippedItem
         position = int2.zero;
         return false;
     }
-    
+
     public bool TryStore(ItemInstance item)
     {
-        if (item is SimpleCommodity simpleCommodity)
-            return TryStore(simpleCommodity);
+        if (item is ICommodityStack)
+            return TryStoreStack(item);
         if (item is CraftedItemInstance craftedItem)
-            return TryStore(craftedItem);
+            return TryStoreUnit(craftedItem);
         return false;
     }
 
     public bool TryStore(ItemInstance item, int2 cargoCoord)
     {
-        if (item is SimpleCommodity simpleCommodity)
-            return TryStore(simpleCommodity, cargoCoord);
+        if (item is ICommodityStack)
+            return TryStoreStack(item, cargoCoord);
         if (item is CraftedItemInstance craftedItem)
-            return TryStore(craftedItem, cargoCoord);
+            return TryStoreUnit(craftedItem, cargoCoord);
         return false;
     }
 
-    // Attempts to store all of the given item anywhere in the inventory
-    // Will attempt to fill existing item stacks first
-    // Returns true only when ALL of the items are successfully stored
-    public bool TryStore(SimpleCommodity item)
+    // Attempts to store all of the given stack anywhere in the inventory
+    // Will attempt to fill existing stacks first
+    // Returns true only when ALL of the units are successfully stored
+    private bool TryStoreStack(ItemInstance item)
     {
-        if (!TryFindSpace(item, out var positions)) return false;
+        if (!TryFindStackSpace(item, out var positions)) return false;
         foreach (var position in positions)
         {
-            if (TryStore(item, position)) return true;
+            if (TryStoreStack(item, position)) return true;
         }
 
         return false;
     }
 
-    // Try to store the given commodity at the given position
-    // If there's a stack at the given position it will be added to
-    // Returns true only when ALL of the items are successfully stored
+    // Try to store the given stack at the given position
+    // If there's a stack it StacksWith at the given position it will be added to
+    // Returns true only when ALL of the units are successfully stored
     // The bay decides what quantity may sit in it: a stack below one unit or above its design's MaxStack is refused with
     // the bay as it was, so no caller, loot, pickup or restore has to check for it.
-    public bool TryStore(SimpleCommodity item, int2 cargoCoord)
+    private bool TryStoreStack(ItemInstance item, int2 cargoCoord)
     {
+        var stack = (ICommodityStack) item;
         var itemData = ItemManager.GetData(item);
-        if (item.Quantity < 1 || item.Quantity > itemData.MaxStack) return false;
+        var maxStack = ItemManager.MaxStack(item);
+        if (stack.Quantity < 1 || stack.Quantity > maxStack) return false;
         if (ItemFits(item, cargoCoord))
         {
             foreach (var p in itemData.Shape.Coordinates)
@@ -2588,43 +2579,43 @@ public class EquippedCargoBay : EquippedItem
                 Occupancy[pos.x, pos.y] = item;
             }
             Cargo[item] = cargoCoord;
-            
+
             if(!ItemsOfType.ContainsKey(item.Data.Key))
                 ItemsOfType[item.Data.Key] = new List<ItemInstance>();
             ItemsOfType[item.Data.Key].Add(item);
         }
-        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data.Key.Equals(item.Data.Key))
+        else if (Occupancy[cargoCoord.x, cargoCoord.y] is ICommodityStack held && stack.StacksWith(Occupancy[cargoCoord.x, cargoCoord.y]))
         {
-            if (cargoCommodity.Quantity + item.Quantity <= itemData.MaxStack)
+            if (held.Quantity + stack.Quantity <= maxStack)
             {
-                cargoCommodity.Quantity += item.Quantity;
+                held.Quantity += stack.Quantity;
             }
             else
             {
-                var quantityTransferred = itemData.MaxStack - cargoCommodity.Quantity;
-                item.Quantity -= quantityTransferred;
-                cargoCommodity.Quantity = itemData.MaxStack;
-                
+                var quantityTransferred = maxStack - held.Quantity;
+                stack.Quantity -= quantityTransferred;
+                held.Quantity = maxStack;
+
                 Mass += itemData.Mass * quantityTransferred;
                 ThermalMass += itemData.Mass * itemData.SpecificHeat * quantityTransferred;
                 return false;
             }
         }
         else return false;
-        
+
         Mass += ItemManager.GetMass(item);
         ThermalMass += ItemManager.GetThermalMass(item);
         return true;
     }
 
     // Try to store the given item anywhere it will fit, returns true when the item was successfully stored
-    public bool TryStore(CraftedItemInstance item) => TryFindSpace(item, out var position) && TryStore(item, position);
+    private bool TryStoreUnit(CraftedItemInstance item) => TryFindUnitSpace(item, out var position) && TryStoreUnit(item, position);
 
     // Try to store the given item at the given position, returns true when the item was successfully stored
-    public bool TryStore(CraftedItemInstance item, int2 cargoCoord)
+    private bool TryStoreUnit(CraftedItemInstance item, int2 cargoCoord)
     {
         if (!ItemFits(item, cargoCoord)) return false;
-        
+
         var itemData = ItemManager.GetData(item);
         foreach (var p in itemData.Shape.Coordinates)
         {
@@ -2632,19 +2623,26 @@ public class EquippedCargoBay : EquippedItem
             Occupancy[pos.x, pos.y] = item;
         }
         Cargo[item] = cargoCoord;
-        
+
         if(!ItemsOfType.ContainsKey(item.Data.Key))
             ItemsOfType[item.Data.Key] = new List<ItemInstance>();
         ItemsOfType[item.Data.Key].Add(item);
-        
+
         Mass += ItemManager.GetMass(item);
         ThermalMass += ItemManager.GetThermalMass(item);
 
         return true;
     }
 
-    // The part removed: null, with the bay as it was, when the item is not here or the quantity is below one unit.
-    public SimpleCommodity Remove(SimpleCommodity item, int quantity)
+    // The units of a design in the bay: a stack counts its Quantity, any other item one. The one reader of how many
+    // units a bay holds; Entity.CountItemsInCargo and the trade menu's Owned column derive from it.
+    public int Count(CultRecordKey design) =>
+        ItemsOfType.TryGetValue(design, out var items) ? items.Sum(i => i is ICommodityStack stack ? stack.Quantity : 1) : 0;
+
+    // The part removed: null, with the bay as it was, when the item is not here or the quantity is below one unit. A
+    // stack gives up `quantity` units through its own Split (the stack itself, whole, when it holds no more); a unit
+    // leaves whole for any quantity of one or more.
+    public ItemInstance Remove(ItemInstance item, int quantity)
     {
         if (quantity < 1) return null;
         if (!Cargo.ContainsKey(item))
@@ -2652,60 +2650,46 @@ public class EquippedCargoBay : EquippedItem
             ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
             return null;
         }
-        var itemData = ItemManager.GetData(item);
-        if(quantity >= item.Quantity)
+        if (item is ICommodityStack stack && quantity < stack.Quantity)
         {
-            foreach(var v in Data.InteriorShape.Coordinates)
-                if (Occupancy[v.x, v.y] == item)
-                    Occupancy[v.x, v.y] = null;
-
-            Cargo.Remove(item);
-            ItemsOfType[item.Data.Key].Remove(item);
-            if (!ItemsOfType[item.Data.Key].Any())
-                ItemsOfType.Remove(item.Data.Key);
-
-            Mass -= ItemManager.GetMass(item);
-            ThermalMass -= ItemManager.GetThermalMass(item);
-
-            return item;
+            var itemData = ItemManager.GetData(item);
+            stack.Quantity -= quantity;
+            Mass -= itemData.Mass * quantity;
+            ThermalMass -= itemData.Mass * itemData.SpecificHeat * quantity;
+            return stack.Split(quantity);
         }
 
-        item.Quantity -= quantity;
-        Mass -= itemData.Mass * quantity;
-        ThermalMass -= itemData.Mass * itemData.SpecificHeat * quantity;
-        return new SimpleCommodity{Data = item.Data, Quantity = quantity, Rotation = item.Rotation};
-    }
-
-    public void Remove(CraftedItemInstance item)
-    {
-        if (!Cargo.ContainsKey(item))
-        {
-            ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
-            return;
-        }
-        var itemData = ItemManager.GetData(item);
-        foreach(var v in Data.InteriorShape.Coordinates)
-            if (Occupancy[v.x, v.y] == item)
-                Occupancy[v.x, v.y] = null;
-        
-        Cargo.Remove(item);
-        ItemsOfType[item.Data.Key].Remove(item);
-        if (!ItemsOfType[item.Data.Key].Any())
-            ItemsOfType.Remove(item.Data.Key);
-        
-        Mass -= ItemManager.GetMass(item);
-        ThermalMass -= ItemManager.GetThermalMass(item);
+        RemoveWhole(item);
+        return item;
     }
 
     public void Remove(ItemInstance item)
     {
-        if (item is SimpleCommodity simpleCommodity)
-            Remove(simpleCommodity, simpleCommodity.Quantity);
-        if (item is CraftedItemInstance craftedItem)
-            Remove(craftedItem);
+        if (item is ICommodityStack stack)
+            Remove(item, stack.Quantity);
+        else if (item is CraftedItemInstance)
+            Remove(item, 1);
     }
-    
-    public bool TryTransferItem(EquippedCargoBay target, SimpleCommodity item, int quantity)
+
+    // The item, with everything it holds, leaves the bay: the one place a cell is freed.
+    private void RemoveWhole(ItemInstance item)
+    {
+        foreach(var v in Data.InteriorShape.Coordinates)
+            if (Occupancy[v.x, v.y] == item)
+                Occupancy[v.x, v.y] = null;
+
+        Cargo.Remove(item);
+        ItemsOfType[item.Data.Key].Remove(item);
+        if (!ItemsOfType[item.Data.Key].Any())
+            ItemsOfType.Remove(item.Data.Key);
+
+        Mass -= ItemManager.GetMass(item);
+        ThermalMass -= ItemManager.GetThermalMass(item);
+    }
+
+    // Moves `quantity` units of a stack, or the one unit, to the target bay. The part goes across, never the stack left
+    // behind; whole or nothing: a refusal puts the part back where it came from.
+    public bool TryTransferItem(EquippedCargoBay target, ItemInstance item, int quantity)
     {
         if (quantity < 1) return false;
         if (!Cargo.ContainsKey(item))
@@ -2714,25 +2698,15 @@ public class EquippedCargoBay : EquippedItem
             return false;
         }
 
-        var oldPos = Cargo[item];
-        var newItem = Remove(item, quantity);
-
-        // The part removed goes across, never the stack left behind.
-        if (target.TryStore(newItem)) return true;
-
-        // Whole or nothing: TryStore takes all of the part or none of it, so a refusal puts the part back where it came from.
-        TryStore(newItem, oldPos);
-        return false;
-    }
-    
-    public bool TryTransferItem(EquippedCargoBay target, CraftedItemInstance item)
-    {
-        if (!Cargo.ContainsKey(item))
+        if (item is ICommodityStack)
         {
-            ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
+            var oldPos = Cargo[item];
+            var part = Remove(item, quantity);
+            if (target.TryStore(part)) return true;
+            TryStore(part, oldPos);
             return false;
         }
-        
+
         if (!target.TryStore(item)) return false;
         Remove(item);
         return true;

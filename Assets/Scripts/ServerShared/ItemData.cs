@@ -360,6 +360,10 @@ public class CompoundCommodityData : CraftedItemData
 {
     // MessagePack keys 10 and 11 belonged to the removed demand weights and classification; do not reuse them.
 
+    // The most units of one lot a cargo cell holds. A sim-tuned knob; records written before it existed read 10.
+    [Inspectable, JsonProperty("maxStackSize"), Key(12)]
+    public int MaxStack = 10;
+
     // A commodity is one cell unless authored otherwise: crate size is a balance knob, and a cargo bay reads Shape to store the good.
     public CompoundCommodityData() => Shape = new Shape();
 }

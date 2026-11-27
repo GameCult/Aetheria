@@ -23,7 +23,8 @@ public enum GiveEnd
 public sealed class GiveOrder
 {
     public readonly Entity Receiver;
-    // A commodity order is for any stack of this item's design in the giver's bays; a crafted order is for this instance.
+    // A stack order is for any stack the item StacksWith in the giver's bays (the same design, and for a compound
+    // commodity the same lot); a unit order is for this instance.
     public readonly ItemInstance Item;
     // Units still to move.
     public int Remaining { get; internal set; }
@@ -99,27 +100,25 @@ public static class CargoTransfer
         }
     }
 
-    // Where the next unit comes from: the first stack of the order's design in the giver's bays, or the crafted instance.
+    // Where the next unit comes from: the first stack in the giver's bays the order's item StacksWith, or the unit itself.
     private static (EquippedCargoBay Bay, ItemInstance Item) Source(Entity giver, GiveOrder order)
     {
         foreach (var bay in giver.CargoBays)
         {
-            if (order.Item is CraftedItemInstance crafted)
+            if (order.Item is ICommodityStack wanted)
             {
-                if (bay.Cargo.ContainsKey(crafted)) return (bay, crafted);
+                if (bay.ItemsOfType.TryGetValue(order.Item.Data.Key, out var stacks))
+                {
+                    var stack = stacks.FirstOrDefault(wanted.StacksWith);
+                    if (stack != null) return (bay, stack);
+                }
             }
-            else if (bay.ItemsOfType.TryGetValue(order.Item.Data.Key, out var stacks))
-            {
-                var stack = stacks.OfType<SimpleCommodity>().FirstOrDefault();
-                if (stack != null) return (bay, stack);
-            }
+            else if (bay.Cargo.ContainsKey(order.Item)) return (bay, order.Item);
         }
         return (null, null);
     }
 
-    // One unit of a commodity, or the crafted item, into the first receiver bay that takes it.
+    // One unit of a stack, or the unit itself, into the first receiver bay that takes it.
     private static bool Move(EquippedCargoBay from, ItemInstance item, Entity receiver) =>
-        item is SimpleCommodity commodity
-            ? receiver.CargoBays.Any(bay => from.TryTransferItem(bay, commodity, 1))
-            : receiver.CargoBays.Any(bay => from.TryTransferItem(bay, (CraftedItemInstance) item));
+        receiver.CargoBays.Any(bay => from.TryTransferItem(bay, item, 1));
 }

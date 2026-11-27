@@ -211,18 +211,14 @@ public class TradeMenu : MonoBehaviour
             {
                 if (x.data is HullData)
                     return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.Key.Equals(GameManager.ItemManager.ItemData.RefOf(x.data).Key) && s is Ship {IsPlayerShip: true}).ToString();
-                if(x.data is SimpleCommodityData)
-                    return (_targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(x.data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(x.data).Key].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
-                return (_targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(x.data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(x.data).Key].Count : 0).ToString();
+                return _targetCargo.Count(GameManager.ItemManager.ItemData.RefOf(x.data).Key).ToString();
             }, 
             x =>
             {
                 var data = x.data;
                 if (data is HullData)
                     return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.Key.Equals(GameManager.ItemManager.ItemData.RefOf(data).Key) && s is Ship {IsPlayerShip: true});
-                if(data is SimpleCommodityData)
-                    return _targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(data).Key].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
-                return _targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(data).Key].Count : 0;
+                return _targetCargo.Count(GameManager.ItemManager.ItemData.RefOf(data).Key);
             }));
         
         Spreadsheet.ShowData(
@@ -241,11 +237,11 @@ public class TradeMenu : MonoBehaviour
                     if (_selling) return;
                     switch (i.item)
                     {
+                        case ICommodityStack _:
+                            Buy(i.item, 1);
+                            break;
                         case CraftedItemInstance c:
                             Buy(c);
-                            break;
-                        case SimpleCommodity s:
-                            Buy(s, 1);
                             break;
                     }
 
@@ -259,7 +255,7 @@ public class TradeMenu : MonoBehaviour
                         ContextMenu.AddOption($"Sell ({StationServices.SellPrice(GameManager.ItemManager, i.item):N0})", () => Sell(i.item));
                         ContextMenu.Show();
                     }
-                    else if (i.item is SimpleCommodity s)
+                    else if (i.item is ICommodityStack)
                     {
                         ContextMenu.Clear();
                         ContextMenu.AddOption("Buy Quantity",
@@ -270,10 +266,10 @@ public class TradeMenu : MonoBehaviour
                                 Dialog.Title.text = $"Buying {GameManager.ItemManager.Title(i.item)}";
                                 Dialog.AddField("Quantity", 
                                     () => quantity, 
-                                    q => quantity = StationServices.BuyableQuantity(GameManager.ItemManager, s, q, GameManager.Credits));
+                                    q => quantity = StationServices.BuyableQuantity(GameManager.ItemManager, i.item, q, GameManager.Credits));
                                 Dialog.Show(() =>
                                 {
-                                    Buy(s,quantity);
+                                    Buy(i.item, quantity);
 
                                     Populate();
                                 });
@@ -348,14 +344,14 @@ public class TradeMenu : MonoBehaviour
                 GameManager.CommissionShip(item as EquippableItem);
                 return true;
             }
-            return Inventory.TryTransferItem(_targetCargo, item);
+            return Inventory.TryTransferItem(_targetCargo, item, 1);
         }));
     }
 
-    private void Buy(SimpleCommodity simpleCommodity, int quantity)
+    private void Buy(ItemInstance stock, int quantity)
     {
-        Bought(StationServices.TryBuyLots(GameManager.ItemManager, simpleCommodity, quantity, ref GameManager.Credits,
-            lot => Inventory.TryTransferItem(_targetCargo, simpleCommodity, lot)));
+        Bought(StationServices.TryBuyLots(GameManager.ItemManager, stock, quantity, ref GameManager.Credits,
+            lot => Inventory.TryTransferItem(_targetCargo, stock, lot)));
     }
 
     // Refreshes the credits after a purchase, or tells the player why the station refused it.

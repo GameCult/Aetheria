@@ -40,15 +40,45 @@ public abstract class CraftedItemInstance : ItemInstance
     [JsonProperty("lot"), Key(11)] public int Lot;
 }
 
+// A commodity that stacks: the one owner of which units are interchangeable (StacksWith) and of what a split carries
+// (Split). The cargo bay applies it at every merge and ItemManager.MaxStack bounds it; nothing else decides either.
+public interface ICommodityStack
+{
+    int Quantity { get; set; }
+
+    // True when `other` is a unit this stack may merge with.
+    bool StacksWith(ItemInstance other);
+
+    // A new stack of `quantity` units interchangeable with this one; this stack is left as it was.
+    ItemInstance Split(int quantity);
+}
+
+// Units of a compound commodity merge only within one lot (ruling compound-commodities-stack-by-lot): the lot is the
+// units' provenance, workmanship and role fills.
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
-public class CompoundCommodity : CraftedItemInstance { }
+public class CompoundCommodity : CraftedItemInstance, ICommodityStack
+{
+    // Keys 2, 9, 10 and 11 are CraftedItemInstance's and 12 EquippableItem's. A unit saved before Quantity existed has
+    // no slot 13 and reads one.
+    [JsonProperty("quantity"), Key(13)] public int Quantity { get; set; } = 1;
+
+    public bool StacksWith(ItemInstance other) =>
+        other is CompoundCommodity compound && compound.Data.Key.Equals(Data.Key) && compound.Lot == Lot;
+
+    public ItemInstance Split(int quantity) =>
+        new CompoundCommodity { Data = Data, Rotation = Rotation, Lot = Lot, Quantity = quantity };
+}
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
-public class SimpleCommodity : ItemInstance
+public class SimpleCommodity : ItemInstance, ICommodityStack
 {
     // Key 11 belonged to a lot before ruling simple-commodities-fungible and is never reused; a pre-ruling stack's
     // slot 11 is skipped on read.
-    [JsonProperty("quantity"), Key(2)]  public int Quantity;
+    [JsonProperty("quantity"), Key(2)]  public int Quantity { get; set; }
+
+    public bool StacksWith(ItemInstance other) => other is SimpleCommodity && other.Data.Key.Equals(Data.Key);
+
+    public ItemInstance Split(int quantity) => new SimpleCommodity { Data = Data, Rotation = Rotation, Quantity = quantity };
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]

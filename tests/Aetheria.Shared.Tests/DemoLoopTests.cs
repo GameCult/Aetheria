@@ -82,7 +82,7 @@ public sealed partial class RunStartTests
         var stock = zenith.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<CraftedItemInstance>().Select(piece => (bay, piece))).Single();
         credits = StationServices.BuyPrice(_items, stock.piece);
         Assert.Equal(BuyResult.Bought, StationServices.TryBuy(_items, stock.piece, 1, ref credits,
-            () => stock.bay.TryTransferItem(hold, stock.piece)));
+            () => stock.bay.TryTransferItem(hold, stock.piece, 1)));
         Assert.Equal(0, credits);
         Assert.Contains(stock.piece, hold.Cargo.Keys);
     }

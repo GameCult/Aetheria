@@ -8,12 +8,14 @@ using System.Linq;
 // durabilities exactly as they were.
 public static class StationServices
 {
-    // What the station charges for the item, or for `quantity` units of a commodity (a crafted item is one unit). The
-    // number TradeMenu shows, checks against the run's credits and charges.
+    // What the station charges for the item, or for `quantity` units of a commodity, simple or compound (a crafted item
+    // is one unit). The number TradeMenu shows, checks against the run's credits and charges.
     public static int BuyPrice(ItemManager items, ItemInstance item, int quantity = 1)
     {
         switch (item)
         {
+            case CompoundCommodity compound:
+                return (int) Math.Min((long) items.GetPrice(compound) * quantity, int.MaxValue);
             case CraftedItemInstance crafted:
                 return items.GetPrice(crafted);
             case SimpleCommodity commodity:
@@ -24,12 +26,14 @@ public static class StationServices
     }
 
     // What the station pays for the item: its price, scaled by SellFraction and by its condition. A commodity has no
-    // wear, so it sells at the fraction alone; a simple commodity's price is per unit.
+    // wear, so it sells at the fraction alone; a commodity's price, simple or compound, is per unit.
     public static int SellPrice(ItemManager items, ItemInstance item)
     {
         var fraction = (double) items.GameplaySettings.SellFraction;
         switch (item)
         {
+            case CompoundCommodity compound:
+                return (int) Math.Floor((long) items.GetPrice(compound) * compound.Quantity * fraction);
             case CraftedItemInstance crafted:
                 return SellValue(items.GetPrice(crafted), fraction, Condition(items, crafted));
             case SimpleCommodity commodity:
@@ -83,33 +87,35 @@ public static class StationServices
     // design's MaxStack, so a stack the station holds is a lot already; a stack above it comes from outside a bay and is
     // refused, as is a purchase of more than the stack holds or of a stack that holds nothing. All of that is refused
     // before anything moves, so `deliver` moves units the station has and the charge is for the units it delivered.
-    public static BuyResult TryBuyLots(ItemManager items, SimpleCommodity stock, int quantity, ref int credits, Func<int, bool> deliver)
+    public static BuyResult TryBuyLots(ItemManager items, ItemInstance stock, int quantity, ref int credits, Func<int, bool> deliver)
     {
-        if (quantity < 1 || quantity > stock.Quantity || stock.Quantity > items.GetData(stock).MaxStack) return BuyResult.NoRoom;
+        if (!(stock is ICommodityStack stack) || quantity < 1 || quantity > stack.Quantity || stack.Quantity > items.MaxStack(stock))
+            return BuyResult.NoRoom;
         return TryBuy(items, stock, quantity, ref credits, () => deliver(quantity));
     }
 
     // The quantity a Buy Quantity field may hold: what was typed, at most what the credits cover and what the station
     // has, and never below one unit (a price the credits do not cover is then refused as short of credits).
-    public static int BuyableQuantity(ItemManager items, SimpleCommodity stock, int typed, int credits) =>
-        Math.Max(1, Math.Min(Math.Min(typed, credits / BuyPrice(items, stock)), stock.Quantity));
+    public static int BuyableQuantity(ItemManager items, ItemInstance stock, int typed, int credits) =>
+        Math.Max(1, Math.Min(Math.Min(typed, credits / BuyPrice(items, stock)), stock is ICommodityStack stack ? stack.Quantity : 1));
 
     // The sale: the item leaves the bay and the station pays SellPrice. A crafted item goes to one of the station's
-    // cargo bays; false, with the item in its bay and the credits unchanged, when no bay can take it. A simple
-    // commodity always sells (aetheria-release:ruling:station-market-absorbs-sold-commodity): the bays take as much of
-    // the stack as fits and the market absorbs the rest, at the full price.
+    // cargo bays; false, with the item in its bay and the credits unchanged, when no bay can take it. A commodity stack,
+    // simple or compound, always sells (aetheria-release:ruling:station-market-absorbs-sold-commodity, and
+    // aetheria-living-world:question:compound-stack-sale-absorbs, option absorb): the bays take as much of the stack as
+    // fits and the market absorbs the rest, at the full price.
     public static bool TrySell(EquippedCargoBay from, Entity station, ItemInstance item, ref int credits)
     {
         var price = SellPrice(station.ItemManager, item);
-        if (item is SimpleCommodity commodity)
+        if (item is ICommodityStack stack)
         {
-            if (!from.Cargo.ContainsKey(commodity)) return false;
-            var offered = commodity.Quantity;
+            if (!from.Cargo.ContainsKey(item)) return false;
+            var offered = stack.Quantity;
             for (var quantity = offered; quantity >= 1; quantity--)
-                if (station.CargoBays.Any(bay => from.TryTransferItem(bay, commodity, quantity))) break;
-            if (from.Cargo.ContainsKey(commodity)) from.Remove(commodity, commodity.Quantity);
+                if (station.CargoBays.Any(bay => from.TryTransferItem(bay, item, quantity))) break;
+            if (from.Cargo.ContainsKey(item)) from.Remove(item, stack.Quantity);
         }
-        else if (!station.CargoBays.Any(bay => from.TryTransferItem(bay, (CraftedItemInstance) item))) return false;
+        else if (!station.CargoBays.Any(bay => from.TryTransferItem(bay, item, 1))) return false;
         credits += price;
         return true;
     }

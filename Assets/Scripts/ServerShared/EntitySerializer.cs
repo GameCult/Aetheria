@@ -54,38 +54,38 @@ public static class EntitySerializer
     // first MaxStack units go back where it was and the rest is returned to be placed by SpillOversize once every stack
     // has its own cell, so a spill cannot take a cell a later stack was saved in.
     private static void RestoreStack(ItemManager itemManager, EquippedCargoBay bay, int2 position, ItemInstance item,
-        List<(EquippedCargoBay home, SimpleCommodity rest)> spill)
+        List<(EquippedCargoBay home, ItemInstance rest)> spill)
     {
-        if (item is SimpleCommodity commodity && commodity.Quantity > itemManager.GetData(commodity).MaxStack
-            && itemManager.GetData(commodity).MaxStack >= 1)
+        if (item is ICommodityStack stack && stack.Quantity > itemManager.MaxStack(item) && itemManager.MaxStack(item) >= 1)
         {
-            var maxStack = itemManager.GetData(commodity).MaxStack;
-            var first = new SimpleCommodity { Data = commodity.Data, Rotation = commodity.Rotation, Quantity = maxStack };
-            var rest = new SimpleCommodity { Data = commodity.Data, Rotation = commodity.Rotation, Quantity = commodity.Quantity - maxStack };
-            if (!bay.TryStore(first, position)) rest.Quantity += first.Quantity;
+            var maxStack = itemManager.MaxStack(item);
+            var first = stack.Split(maxStack);
+            var rest = stack.Split(stack.Quantity - maxStack);
+            if (!bay.TryStore(first, position)) ((ICommodityStack) rest).Quantity += maxStack;
             spill.Add((bay, rest));
             return;
         }
         if (bay.TryStore(item, position)) return;
-        var quantity = item is SimpleCommodity c ? $" x{c.Quantity}" : "";
+        var quantity = item is ICommodityStack c ? $" x{c.Quantity}" : "";
         itemManager.Log($"Dropped a saved item the bay refused at {position}: {itemManager.GetData(item).Name}{quantity}");
     }
 
     // Places the units an oversize saved stack left over, in stacks of at most MaxStack: the stack's own bay first, then
     // the entity's other bays. Only the units that fit nowhere are dropped, logged with their design and quantity.
     private static void SpillOversize(ItemManager itemManager, IReadOnlyList<EquippedCargoBay> bays,
-        List<(EquippedCargoBay home, SimpleCommodity rest)> spill)
+        List<(EquippedCargoBay home, ItemInstance rest)> spill)
     {
         foreach (var (home, rest) in spill)
         {
-            var maxStack = itemManager.GetData(rest).MaxStack;
-            var remaining = rest.Quantity;
+            var maxStack = itemManager.MaxStack(rest);
+            var remaining = ((ICommodityStack) rest).Quantity;
             while (remaining > 0)
             {
-                var chunk = new SimpleCommodity { Data = rest.Data, Rotation = rest.Rotation, Quantity = Math.Min(remaining, maxStack) };
+                var chunk = ((ICommodityStack) rest).Split(Math.Min(remaining, maxStack));
+                var chunkStack = (ICommodityStack) chunk;
                 var placed = home.TryStore(chunk) || bays.Where(b => b != home).Any(b => b.TryStore(chunk));
                 // A refused store may still have topped up a stack; what is left in the chunk found no room.
-                remaining -= Math.Min(remaining, maxStack) - (placed ? 0 : chunk.Quantity);
+                remaining -= Math.Min(remaining, maxStack) - (placed ? 0 : chunkStack.Quantity);
                 if (placed) continue;
                 itemManager.Log($"Dropped saved units no bay has room for: {itemManager.GetData(rest).Name} x{remaining}");
                 break;
@@ -147,7 +147,7 @@ public static class EntitySerializer
                 entity.DockingBays[i].DockedShip = entity.Children[pack.DockingBayAssignments[i]] as Ship;
         }
 
-        var spill = new List<(EquippedCargoBay home, SimpleCommodity rest)>();
+        var spill = new List<(EquippedCargoBay home, ItemInstance rest)>();
         for (var bayIndex = 0; bayIndex < pack.CargoContents.Length; bayIndex++)
             if(entity.CargoBays.Count >= bayIndex + 1)
                 foreach (var (position, item) in pack.CargoContents[bayIndex])
@@ -273,10 +273,7 @@ public abstract class EntityPack
             foreach (var (_, item) in t)
             {
                 var itemData = itemManager.GetData(item);
-                if (item is SimpleCommodity s)
-                    _price += itemData.Price * s.Quantity;
-                else
-                    _price += itemData.Price;
+                _price += item is ICommodityStack s ? itemData.Price * s.Quantity : itemData.Price;
             }
         }
 
@@ -285,10 +282,7 @@ public abstract class EntityPack
             foreach (var (_, item) in t)
             {
                 var itemData = itemManager.GetData(item);
-                if (item is SimpleCommodity s)
-                    _price += itemData.Price * s.Quantity;
-                else
-                    _price += itemData.Price;
+                _price += item is ICommodityStack s ? itemData.Price * s.Quantity : itemData.Price;
             }
         }
 

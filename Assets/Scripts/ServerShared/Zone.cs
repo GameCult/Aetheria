@@ -445,7 +445,7 @@ public class Zone
         if (floating == null || (floating.Holder != null && !ReferenceEquals(floating.Holder, taker))) return false;
         // The quantity is read before the store: a store that merges into a part-filled stack and spills the rest into a
         // new cell rewrites the item's Quantity.
-        var stored = floating.Item is SimpleCommodity stack ? stack.Quantity : 1;
+        var stored = floating.Item is ICommodityStack stack ? stack.Quantity : 1;
         if (!taker.CargoBays.Any(bay => bay.TryStore(floating.Item))) return false;
         FloatingItems.Remove(floating);
         CargoGained.OnNext(new CargoGain

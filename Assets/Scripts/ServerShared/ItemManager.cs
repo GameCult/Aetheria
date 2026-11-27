@@ -74,8 +74,8 @@ public class ItemManager
     {
         return item switch
         {
+            ICommodityStack stack => GetData(item).Mass * stack.Quantity,
             CraftedItemInstance _ => GetData(item).Mass,
-            SimpleCommodity commodity => GetData(item).Mass * commodity.Quantity,
             _ => 0
         };
     }
@@ -85,11 +85,20 @@ public class ItemManager
         var data = GetData(item);
         return item switch
         {
+            ICommodityStack stack => data.Mass * data.SpecificHeat * stack.Quantity,
             CraftedItemInstance _ => data.Mass * data.SpecificHeat,
-            SimpleCommodity commodity => data.Mass * data.SpecificHeat * commodity.Quantity,
             _ => 0
         };
     }
+
+    // The most units of the item one cell holds: the design's MaxStack for a commodity, one for anything else. The one
+    // reader of either design's MaxStack outside authoring.
+    public int MaxStack(ItemInstance item) => GetData(item) switch
+    {
+        SimpleCommodityData simple => simple.MaxStack,
+        CompoundCommodityData compound => compound.MaxStack,
+        _ => 1
+    };
 
     // The one path from a crafted instance to its lot; a simple commodity has no lot.
     public Lot GetLot(CraftedItemInstance item) => Lots[item.Lot];

@@ -135,8 +135,8 @@ public sealed class FungibleCommodityTests : IDisposable
 
         var small = MiningCut5aTests.Bay(f.Scene, ship, 1, 1, "Small");
         Assert.True(small.TryStore(Units(f, f.Ore, 90)));
-        Assert.False(small.TryFindSpace(Units(f, shells, 5), out _));
-        Assert.True(small.TryFindSpace(Units(f, f.Ore, 5), out _));
+        Assert.False(small.TryFindSpace(Units(f, shells, 5)));
+        Assert.True(small.TryFindSpace(Units(f, f.Ore, 5)));
         var other = Units(f, shells, 5);
         Assert.False(small.TryStore(other, new int2(0, 0)));
         Assert.Equal(90, Assert.Single(Stacks(small)).Quantity);
@@ -168,7 +168,7 @@ public sealed class FungibleCommodityTests : IDisposable
         Mine(f, zone, ship, 0, 0);
         var stack = Assert.Single(Stacks(bay));
         var part = bay.Remove(stack, 3);
-        Assert.Equal((3, 1), (part.Quantity, stack.Quantity));
+        Assert.Equal((3, 1), (((ICommodityStack) part).Quantity, stack.Quantity));
         Assert.Equal(stack.Data.Key, part.Data.Key);
     }
 

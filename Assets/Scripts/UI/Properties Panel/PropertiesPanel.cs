@@ -364,11 +364,12 @@ public class PropertiesPanel : MonoBehaviour
 		
 		AddProperty(data.Description);
 		
-		if (item is SimpleCommodity simpleCommodity)
-			AddProperty("Quantity", () => simpleCommodity.Quantity.ToString());
+		if (item is ICommodityStack stack)
+			AddProperty("Quantity", () => stack.Quantity.ToString());
 		
 		var sheet = AddStatSheet();
-		// Branding is derived from provenance, not stored on the design; a SimpleCommodity carries no lot and shows none.
+		// Branding is derived from provenance, not stored on the design: a simple commodity carries no lot and shows none,
+		// a compound stack's brand reads its lot below.
 		if (item is CraftedItemInstance crafted)
 		{
 			var (maker, product) = GameManager.ItemManager.Brand(crafted);
