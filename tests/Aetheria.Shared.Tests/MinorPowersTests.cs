@@ -141,7 +141,8 @@ public sealed partial class RunStartTests
 
         var terri = For("Miss Terri's", 1);
         var theirs = _cache.GetAll<FactionProductData>().Where(p => new[] { "Aya", "Megiddo", "Forge" }.Contains(_cache.Get(p.Manufacturer).ShortName)).ToArray();
-        Assert.Equal(10, theirs.Length);
+        // 10 until the shield projectors: Awning (Aya) and Migdal (Megiddo) join their makers' lines.
+        Assert.Equal(12, theirs.Length);
         Assert.All(theirs, product => Assert.False(terri.IsAvailable(product), product.Name));
     }
 }

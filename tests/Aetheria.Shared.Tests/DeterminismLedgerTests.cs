@@ -57,11 +57,14 @@ public sealed partial class RunStartTests
     // spread (station-reactor-spread), and that blob alone moved the digest (the same tree with the old catalog measured 52fbb10d;
     // traced: only Notorious Station moves it, because the zone's station Zenith carries a Notorious Station reactor lot whose
     // minted quality changes with the role spread, and Snapshot hashes every zone entity's heat and shield).
+    // Repinned a tenth time (hardpoint-fit-1): shields are on sale, so the generated Djinnis carry a shield and Snapshot hashes
+    // every zone entity's shield. windows-x64 133e5d76 -> e4a3d6e5, measured on windows-x64. The linux-x64 pin below is NOT moved: no
+    // linux host measured this cut, so it still holds the pre-shield digest and needs a measurement on one.
     private static readonly System.Collections.Generic.Dictionary<string, string> TwoAiPinnedDigests = new()
     {
         ["linux-x64"] = "9c70a3ee234fb3b879f721a4a4abf13dd83bf56fd8733690d356b89b8a392258",
         // Measured on windows-x64 at the commit that added this pin (the fight is one history there: TwoAiFightIsOneHistory).
-        ["windows-x64"] = "133e5d76cfc17383384bf0ab639e73c112b7972a62e9979178d5a63954eb2a0f",
+        ["windows-x64"] = "e4a3d6e5a411b01e73828821260d57d3f52ffdba50f7954f17058792833bb58a",
     };
     private const float TwoAiSeconds = 60f;
 
