@@ -90,7 +90,7 @@ public static class ShipAuthoringPush
     private static byte[] Pack<T>(T value) => MessagePackSerializer.Serialize(value, PackOptions);
 
     // A deep copy by the type's own MessagePack round trip, as HullLike copies a hull: a member added later is copied too.
-    private static T Copy<T>(T value) => MessagePackSerializer.Deserialize<T>(Pack(value), PackOptions);
+    internal static T Copy<T>(T value) => MessagePackSerializer.Deserialize<T>(Pack(value), PackOptions);
 
     // The request that, pushed back unchanged, changes nothing.
     public static int Open(string path, TextWriter output)

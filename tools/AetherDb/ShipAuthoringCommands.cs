@@ -208,18 +208,20 @@ public static class ShipAuthoringCommands
             }
             if (args[0] == "kind" && args.Length == 3)
             {
-                // The one writer of a station package's Kind, beside push (the scene's writer): same loader, one commit. The one
-                // kind rule judges it against the shipped catalog, read-only, before the file is opened writable.
-                var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
-                hull.Kind = new CultRecordRef<StationKindData>(StationKindData.KeyOf(args[2]));
+                // A thin builder over the push core: load through the cache the push loads from, derive the hull with its kind, judge
+                // it by the one kind rule against the shipped catalog (read-only), and commit through Land, the push's compare-exchange
+                // path, so a hull written since the load is refused as stale and the file stays as it was.
+                using var cache = ShipAuthoringStore.Open(args[1], writable: true);
+                var (hull, ship, _) = ShipAuthoringStore.Load(cache, args[1]);
+                var derived = ShipAuthoringPush.Copy(hull);
+                derived.Kind = new CultRecordRef<StationKindData>(StationKindData.KeyOf(args[2]));
                 using (var catalog = AetherDb.Open().Cache)
-                    if (StationKinds.HullKindFault(catalog, hull) is { } fault) throw new InvalidOperationException($"{ship.Id}: {fault}");
-                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
-                {
-                    ShipAuthoringStore.Write(cache, hull, ship);
-                    cache.FlushAsync().Wait();
-                }
-                Console.WriteLine($"{ship.Id}: kind {hull.Kind.Key.Value}.");
+                    if (StationKinds.HullKindFault(catalog, derived) is { } fault) throw new InvalidOperationException($"{ship.Id}: {fault}");
+                var key = ShipModCatalog.HullKey(ship.Id);
+                if (!ShipAuthoringPush.Land(cache, new[] { new ShipAuthoringPush.Write(key, typeof(HullData), hull, derived) }))
+                    throw new InvalidOperationException($"{ship.Id}: the hull was written since it was loaded; nothing was changed.");
+                cache.FlushAsync().Wait();
+                Console.WriteLine($"{ship.Id}: kind {derived.Kind.Key.Value}.");
                 return 0;
             }
             Console.Error.WriteLine(Usage);
