@@ -172,8 +172,7 @@ def package(manifest, manifest_dir, game, packages, openscad, replace):
     aetherdb = game / "ModTools" / "AetherDb.exe"
     if package_dir.exists() and not replace:
         raise Refused(f"{package_dir} exists; pass --replace to re-derive it (this discards edits made since)")
-    if bpy.app.version[:2] != (5, 2):
-        raise Refused(f"This packager is for Blender 5.2; this is {bpy.app.version_string}")
+    print(f"STEP Blender {bpy.app.version_string}", flush=True)
     if package_dir.exists():
         shutil.rmtree(package_dir)
     created.append(package_dir)
