@@ -26,6 +26,8 @@
   <ItemGroup>
     <!-- Tests record reveals through Entity.RecordReveal, the book's one writer -->
     <InternalsVisibleTo Include="Aetheria.Shared.Tests" />
+    <!-- The economy loop harness fires weapons and sets targets as the player's handlers do: Weapon.Activate and Entity.SetTarget -->
+    <InternalsVisibleTo Include="AetherDb" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(CultMathRoot)\packages\cultmath\src\CultMath\CultMath.csproj" />

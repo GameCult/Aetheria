@@ -138,14 +138,16 @@ public static class EconomyBalance
 
     // The price of every made commodity (a commodity whose recipe is not raw) at the going wage: its inputs, upkeep and cheapest
     // role fillers at their prices, plus the wage times its labour, over its output count. Raw and recipeless goods keep their
-    // authored price; designs are not priced here. Unsettled names the goods still moving when the sweep gave up: a cycle of recipes
+    // authored price; designs are not priced here unless asked. Unsettled names the goods still moving when the sweep gave up: a cycle of recipes
     // whose requirements do not shrink has no price, so none of the values are a price.
-    public static Dictionary<string, double> Prices(CultCache catalog, out List<string> unsettled)
+    // With designs, the derived price of every design output that has a recipe is returned too: a reading for the report, never a
+    // price anything writes.
+    public static Dictionary<string, double> Prices(CultCache catalog, out List<string> unsettled, bool designs = false)
     {
         var columns = EconomyChecks.Columns(catalog);
         var raw = new HashSet<string>(columns.Where(c => Recipes.IsRaw(catalog, c.Recipe)).Select(c => c.Output), StringComparer.Ordinal);
         var derived = Sweep(catalog, columns, RawWage(catalog, columns, Links(catalog, columns)), raw, out unsettled);
-        return columns.Where(c => c.IsCommodity && !raw.Contains(c.Output)).Select(c => c.Output).Distinct(StringComparer.Ordinal)
+        return columns.Where(c => (c.IsCommodity || designs) && !raw.Contains(c.Output)).Select(c => c.Output).Distinct(StringComparer.Ordinal)
             .ToDictionary(key => key, key => derived[key], StringComparer.Ordinal);
     }
 

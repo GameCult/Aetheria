@@ -96,7 +96,7 @@ public static class EconomyChecks
             };
 
     // The designs some faction offers, but a Station or Turret hull, distinct and ordered by key: the designs that need a recipe.
-    private static List<ItemData> OfferedDesigns(CultCache catalog)
+    public static List<ItemData> OfferedDesigns(CultCache catalog)
     {
         var designs = new Dictionary<string, ItemData>(StringComparer.Ordinal);
         foreach (var product in catalog.GetAll<FactionProductData>().Where(p => LoadoutGenerator.IsOffered(catalog, p)))
