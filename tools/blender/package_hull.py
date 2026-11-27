@@ -5,11 +5,13 @@
 Environment: GAME_FOLDER (holds GameData/Aetheria.cc and ModTools/AetherDb.exe), CULTLIB_PACKAGES, OPENSCAD. The repo (and so the
 add-on) is found from this file. The manifest is creation input only: once GameData/Mods/<id> exists, ship.cc owns rows, stats and
 product, and a manifest is never read again; --replace re-derives the package and discards edits made since. Without --replace an
-existing package is refused untouched.
+existing package is refused untouched. A run is all or nothing: --replace moves the existing package aside, builds, and deletes the old one
+only when the new one is complete; any failure removes what the run built and puts the old package back as it was.
 
 Order, one owner per step: New Ship --like, the first Save Layout creates ship.cc, AetherDb stats/price/product (the one writer of
 each), hull.scad copied in, Load Layout, Build From Hull Source, Rasterise Hull, the rows through place(), Save Layout, Package Ship.
-The last line is PACKAGE_OK or PACKAGE_FAILED. Everything outside package() is pure Python (test_package_hull.py).
+The last line is PACKAGE_OK (exit 0) or PACKAGE_FAILED (exit 1); a row that does not fit its cell is a failure, never a move.
+Manifest schema and the reproducers: package_hull.md. Everything outside package() is pure Python (test_package_hull.py).
 """
 
 import importlib.util
@@ -19,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import traceback
+from contextlib import contextmanager
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -27,8 +30,6 @@ MANIFEST_KEYS = ("id", "name", "like", "length", "extent", "hull", "maker", "des
 STATS_KEYS = ("mass", "durability", "armor", "drag")
 STATS_OPTIONAL = ("top_speed",)
 ROW_KEYS = ("id", "kind", "cell", "footprint", "rotation", "armor", "arc")
-
-created = []  # package folders this run made; removed on failure, so a refused run leaves an existing package alone
 
 
 class Refused(Exception):
@@ -135,23 +136,43 @@ def cells_of(x, y, footprint):
 
 
 def place(rows, width, height, occupied):
-    """Each row at its cell, or at the nearest cell where its whole footprint is inside the shape and clear of earlier rows."""
+    """Each row at its cell, or Refused naming the row: the manifest's cells are authored against the raster, so a cell off the
+    raster, outside the shape or overlapping an earlier row is a fault in the manifest, not something to move."""
     taken, placed = set(), []
     for mount_id, kind, (x, y), footprint, rotation, armor, arc in rows:
-        def fits(px, py):
-            return all(0 <= cx < width and 0 <= cy < height and occupied(cx, cy) and (cx, cy) not in taken
-                       for cx, cy in cells_of(px, py, footprint))
-        if fits(x, y):
-            at = (x, y)
-        else:
-            candidates = sorted(((px - x) ** 2 + (py - y) ** 2, px, py) for px in range(width) for py in range(height) if fits(px, py))
-            if not candidates:
-                raise Refused(f"No cell fits row {mount_id or kind}")
-            at = candidates[0][1:]
-            print(f"DEVIATION row {mount_id or 'kind ' + kind} moved from {(x, y)} to {at}: outside the shape or overlapping", flush=True)
-        taken.update(cells_of(*at, footprint))
-        placed.append((mount_id, kind, at, footprint, rotation, armor, arc))
+        for cx, cy in cells_of(x, y, footprint):
+            if not (0 <= cx < width and 0 <= cy < height):
+                raise Refused(f"row {mount_id or kind} cell ({cx}, {cy}) is off the {width}x{height} raster")
+            if not occupied(cx, cy):
+                raise Refused(f"row {mount_id or kind} cell ({cx}, {cy}) is outside the hull shape")
+            if (cx, cy) in taken:
+                raise Refused(f"row {mount_id or kind} cell ({cx}, {cy}) overlaps an earlier row")
+        taken.update(cells_of(x, y, footprint))
+        placed.append((mount_id, kind, (x, y), footprint, rotation, armor, arc))
     return placed
+
+
+@contextmanager
+def swap(package_dir, backup, replace):
+    """The all-or-nothing run. An existing package is refused untouched, or with replace moved to backup (same volume, a rename)
+    before the build. On any failure what the run built is removed and the old package moved back; on success the backup goes."""
+    existed = package_dir.exists()
+    if existed and not replace:
+        raise Refused(f"{package_dir} exists; pass --replace to re-derive it (this discards edits made since)")
+    if backup.exists():
+        raise Refused(f"{backup} is left from an interrupted run; restore or delete it first")
+    if existed:
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(package_dir), str(backup))
+    try:
+        yield
+    except BaseException:
+        shutil.rmtree(package_dir, ignore_errors=True)
+        if existed:
+            shutil.move(str(backup), str(package_dir))
+        raise
+    if existed:
+        shutil.rmtree(backup)
 
 
 def rows_of(manifest):
@@ -159,8 +180,8 @@ def rows_of(manifest):
             for row in manifest["rows"]]
 
 
-def package(manifest, manifest_dir, game, packages, openscad, replace):
-    """The Blender half. Leaves GameData/Mods/<id> in place; raises Refused with a message on any failure."""
+def package(manifest, manifest_dir, game, packages, openscad):
+    """The Blender half, run inside swap(). Builds GameData/Mods/<id>; raises Refused with a message on any failure."""
     import addon_utils
     import bmesh
     import bpy
@@ -170,12 +191,7 @@ def package(manifest, manifest_dir, game, packages, openscad, replace):
     package_dir = game / "GameData" / "Mods" / ship_id
     ship_cc_path = package_dir / "ship.cc"
     aetherdb = game / "ModTools" / "AetherDb.exe"
-    if package_dir.exists() and not replace:
-        raise Refused(f"{package_dir} exists; pass --replace to re-derive it (this discards edits made since)")
     print(f"STEP Blender {bpy.app.version_string}", flush=True)
-    if package_dir.exists():
-        shutil.rmtree(package_dir)
-    created.append(package_dir)
 
     def require(condition, message):
         if not condition:
@@ -307,24 +323,27 @@ def main(argv):
         env[key] = os.environ[key]
     manifest_path = Path(paths[0]).resolve()
     manifest = load_manifest(manifest_path)
-    package(manifest, manifest_path.parent, Path(env["GAME_FOLDER"]), env["CULTLIB_PACKAGES"], env["OPENSCAD"], replace)
+    game = Path(env["GAME_FOLDER"])
+    with swap(game / "GameData" / "Mods" / manifest["id"], game / f".hull-packager-backup-{manifest['id']}", replace):
+        package(manifest, manifest_path.parent, game, env["CULTLIB_PACKAGES"], env["OPENSCAD"])
 
 
-if __name__ == "__main__":
+def entry(argv):
+    """The exit status: 0 and PACKAGE_OK, or 1 and PACKAGE_FAILED. swap() has already put the game folder back."""
     try:
-        main(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
+        main(argv)
     except Refused as stop:
         print(f"PACKAGE_FAILED: {stop}", flush=True)
-        code = 1
+        return 1
     except Exception:
         traceback.print_exc()
         print("PACKAGE_FAILED", flush=True)
-        code = 1
-    else:
-        print("PACKAGE_OK", flush=True)
-        code = 0
-    if code:
-        for folder in created:
-            shutil.rmtree(folder, ignore_errors=True)
+        return 1
+    print("PACKAGE_OK", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    code = entry(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     sys.stdout.flush()
     os._exit(code)
