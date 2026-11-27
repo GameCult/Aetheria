@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GameCult.Caching;
 using MessagePack;
 
@@ -35,6 +36,8 @@ public class ProvenanceLedger
 
     // A new ledger holding only lots reachable from roots, closed over Produced.Facility and Produced.Inputs. Never
     // mutates this: the live ledger keeps unreachable lots, because a floor pickup can still be collected after a save.
+    // An input whose lot is RetiredExtracted names a lot RunSave.Commit drops (no item roots it), so the reached copy of
+    // the Produced lot omits it rather than name a lot the saved ledger lacks (finding input-keeps-retired-lot).
     public ProvenanceLedger Reachable(IEnumerable<int> roots)
     {
         var reached = new Dictionary<int, Lot>();
@@ -44,14 +47,22 @@ public class ProvenanceLedger
             var id = pending.Dequeue();
             if (reached.ContainsKey(id)) continue;
             var lot = this[id];
-            reached[id] = lot;
             if (lot.Origin is Produced produced)
             {
+                var inputs = produced.Inputs?.Where(input => !(this[input].Origin is RetiredExtracted)).ToArray();
+                if (inputs != null && inputs.Length != produced.Inputs.Length)
+                    lot = new Lot
+                    {
+                        Design = lot.Design, Quality = lot.Quality, Roles = lot.Roles, Product = lot.Product, Id = lot.Id,
+                        Origin = new Produced { Faction = produced.Faction, Station = produced.Station, Facility = produced.Facility, Inputs = inputs }
+                    };
+                reached[id] = lot;
                 pending.Enqueue(produced.Facility);
-                if (produced.Inputs != null)
-                    foreach (var input in produced.Inputs)
+                if (inputs != null)
+                    foreach (var input in inputs)
                         pending.Enqueue(input);
             }
+            else reached[id] = lot;
         }
 
         return new ProvenanceLedger { NextLot = NextLot, Lots = reached };
@@ -69,7 +80,7 @@ public class Lot
     [Key(3)] public List<RoleFill> Roles;
 
     // The product the lot was made as: the one owner of which product names its units. Unset for unbranded lots
-    // (console give, presets, extracted), which brand their maker only.
+    // (console give, presets), which brand their maker only.
     [Key(4)] public CultRecordRef<FactionProductData> Product;
 
     // The quality a stat reads for one of the design's roles: the part's, capped by the lot's own final assembly

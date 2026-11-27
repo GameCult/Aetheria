@@ -2639,6 +2639,34 @@ public class EquippedCargoBay : EquippedItem
     public int Count(CultRecordKey design) =>
         ItemsOfType.TryGetValue(design, out var items) ? items.Sum(i => i is ICommodityStack stack ? stack.Quantity : 1) : 0;
 
+    // Pours each stack into an earlier stack (InteriorShape.Coordinates order) it StacksWith that has room, through
+    // Remove and TryStore, so Mass and ThermalMass conserve and the merge rule stays StacksWith's. Emptied stacks leave.
+    // Run once after a restore: a saved bay may hold fragments that were stored before the bay merged them.
+    public void Consolidate()
+    {
+        var stacks = new List<ItemInstance>();
+        foreach (var coordinate in Data.InteriorShape.Coordinates)
+            if (Occupancy[coordinate.x, coordinate.y] is ICommodityStack && !stacks.Contains(Occupancy[coordinate.x, coordinate.y]))
+                stacks.Add(Occupancy[coordinate.x, coordinate.y]);
+
+        for (var later = 1; later < stacks.Count; later++)
+        {
+            var from = stacks[later];
+            for (var earlier = 0; earlier < later && Cargo.ContainsKey(from); earlier++)
+            {
+                var into = stacks[earlier];
+                if (!Cargo.ContainsKey(into) || !((ICommodityStack) into).StacksWith(from)) continue;
+                var room = ItemManager.MaxStack(into) - ((ICommodityStack) into).Quantity;
+                if (room < 1) continue;
+
+                var origin = Cargo[from];
+                var part = Remove(from, Math.Min(room, ((ICommodityStack) from).Quantity));
+                // Whole or nothing: the part fits the room it was sized to, and a refusal puts it back where it was.
+                if (!TryStore(part, Cargo[into])) TryStore(part, origin);
+            }
+        }
+    }
+
     // The part removed: null, with the bay as it was, when the item is not here or the quantity is below one unit. A
     // stack gives up `quantity` units through its own Split (the stack itself, whole, when it holds no more); a unit
     // leaves whole for any quantity of one or more.

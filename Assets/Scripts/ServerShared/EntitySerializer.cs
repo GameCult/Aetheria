@@ -158,7 +158,10 @@ public static class EntitySerializer
                 foreach (var (position, item) in pack.DockingBayContents[bayIndex])
                     RestoreStack(itemManager, entity.DockingBays[bayIndex], position, item, spill);
 
-        SpillOversize(itemManager, entity.CargoBays.Cast<EquippedCargoBay>().Concat(entity.DockingBays).ToList(), spill);
+        var bays = entity.CargoBays.Cast<EquippedCargoBay>().Concat(entity.DockingBays).ToList();
+        SpillOversize(itemManager, bays, spill);
+        // Fragments saved before the bay merged them, and the parts a spill placed, fold into the stacks that take them.
+        foreach (var bay in bays) bay.Consolidate();
 
         entity.Temperature = pack.Temperature;
 
