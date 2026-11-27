@@ -209,12 +209,11 @@ public static class ZoneGenerator
 	            gas.SecondOffsetDomainRotationSpeed = -25;
             }
 
-            // A body is named for the first eight characters of the key the cache mints for it
-            var bodyKey = cache.Upsert(planetData).Key;
-            planetData.Name = bodyKey.Value.Substring(0, 8);
-            // Mining Cut 3 (Q16 B): a belt's field kind is chosen here, at generation, and saved with it.
-            if (planetData is AsteroidBeltData generatedBelt) FieldKinds.Ensure($"{seed}:belt:{index}", generatedBelt, cache, galaxyZone.Province?.Type ?? default);
-            return cache.Upsert(planetData);
+            planetData.Site = planetData is AsteroidBeltData ? $"{seed}:belt:{index}" : $"{seed}:body:{index}";
+            planetData.Name = BodyData.NameOf(planetData.Site);
+            var held = cache.Upsert(planetData);
+            if (planetData is AsteroidBeltData generatedBelt) FieldKinds.Ensure(planetData.Site, generatedBelt, cache, galaxyZone.Province?.Type ?? default);
+            return held;
         }).ToList();
 
         // Trojan swarms (rulings trojans-first, trojans-ride-host-period-with-stations): a belt on a copy of its host's rail, its
@@ -237,10 +236,10 @@ public static class ZoneGenerator
                 Asteroids = TrojanRocks(zoneSettings, ref swarmRandom, rail.Distance, rail.Phase)
             };
             BodyData swarmBody = swarm;
-            var swarmKey = cache.Upsert(swarmBody).Key;
-            swarm.Name = swarmKey.Value.Substring(0, 8);
-            FieldKinds.Ensure($"{seed}:swarm:{swarmHosts.Count}", swarm, cache, galaxyZone.Province?.Type ?? default);
+            swarm.Site = $"{seed}:swarm:{swarmHosts.Count}";
+            swarm.Name = BodyData.NameOf(swarm.Site);
             pack.Planets.Add(cache.Upsert(swarmBody));
+            FieldKinds.Ensure(swarm.Site, swarm, cache, galaxyZone.Province?.Type ?? default);
         }
 
         // Laned belts (rulings belt-shapes-direction, lanes-two-sided-visual-margin): a belt candidate that kept its body carries
@@ -266,10 +265,10 @@ public static class ZoneGenerator
                 Asteroids = LaneRocks(zoneSettings, ref laneRandom, host.Mass, rail.Distance, lane, host.SlotInner, host.SlotOuter)
             };
             BodyData lanedBody = laned;
-            var lanedKey = cache.Upsert(lanedBody).Key;
-            laned.Name = lanedKey.Value.Substring(0, 8);
-            FieldKinds.Ensure($"{seed}:lane:{shaped.Count}", laned, cache, galaxyZone.Province?.Type ?? default);
+            laned.Site = $"{seed}:lane:{shaped.Count}";
+            laned.Name = BodyData.NameOf(laned.Site);
             pack.Planets.Add(cache.Upsert(lanedBody));
+            FieldKinds.Ensure(laned.Site, laned, cache, galaxyZone.Province?.Type ?? default);
         }
 
         // The generator's own well tree, for clearance only (the Zone builds its own): what a rail must stay out of is the body's

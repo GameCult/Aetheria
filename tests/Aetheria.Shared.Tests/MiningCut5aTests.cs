@@ -209,10 +209,10 @@ public sealed class MiningCut5aTests : IDisposable
     }
 
     // Every rock broken once; the shooter is not in the zone, so everything floats and the floats are the record.
-    private static (int Rock, int Gold)[] Break(MiningCut3Tests.Scene scene, Zone zone, Ship ship, int rocks, uint seed) =>
+    private static (int Rock, int Gold)[] Break(MiningCut3Tests.Scene scene, Zone zone, Ship ship, int rocks, uint seed, int belt = 0) =>
         Enumerable.Range(0, rocks).Select(rock =>
         {
-            var chunk = new ChunkId(scene.Belts[0], rock);
+            var chunk = new ChunkId(scene.Belts[belt], rock);
             var before = zone.FloatingItems.Select(f => f.Item).ToArray();
             FireControl.Extract(zone, chunk, zone.Wear(chunk, 1e6f), ship, SimulationDice.For(seed, SimulationDice.OreStream, (uint) rock));
             var added = zone.FloatingItems.Select(f => f.Item).Except(before).ToArray();
@@ -226,6 +226,31 @@ public sealed class MiningCut5aTests : IDisposable
         var first = Break(scene, newZone(), ship, 20, 11);
         Assert.Equal(first, Break(scene, newZone(), ship, 20, 11));
         Assert.NotEqual(first, Break(scene, newZone(), ship, 20, 12));
+    }
+
+    // Ore reads the body's Site, not the key the cache minted for it: two belts of one scene (one set of commodities) wear the
+    // same ore under one seed when they share a Site, and with no Site (a save from before sites, or a hand-built belt) the key
+    // stands in and they differ.
+    [Fact]
+    public void TwoBeltsOfOneSiteGiveTheSameOre()
+    {
+        const int rocks = 20;
+        var kind = MiningCut3Tests.Kind("Asteroid", 4f);
+        MiningCut3Tests.BeltSpec Belt() => MiningCut3Tests.Belt(kind,
+            Enumerable.Range(0, rocks).Select(i => MiningCut3Tests.Rock(150f + i, i / (float) rocks, .5f)).ToArray());
+        var scene = _scenes.BuildScene(new[] { kind }, Belt(), Belt());
+        Stock(scene, kind, (Commodity("Rock"), 1f), (Commodity("Gold"), 1f));
+        var settings = MiningCut3Tests.PlanetSettings();
+        settings.ChunkCompositionVariance = 2f;
+        settings.AsteroidYield = new ExponentialLerp { Minimum = 40f, Maximum = 40f, Exponent = 1f };
+        var ship = new Ship(scene.Items, scene.Zone, MiningCut3Tests.Mint(scene, scene.Hull), new EntitySettings());
+        Zone NewZone() => new Zone(scene.Items, settings, scene.Pack, new GalaxyZone { Name = "MiningCut3", Owner = null }, null);
+
+        Assert.NotEqual(Break(scene, NewZone(), ship, rocks, 11, belt: 0), Break(scene, NewZone(), ship, rocks, 11, belt: 1));
+
+        var zone = NewZone();
+        foreach (var key in scene.Belts) zone.AsteroidBelts[key].Data.Site = "7:belt:3";
+        Assert.Equal(Break(scene, zone, ship, rocks, 11, belt: 0), Break(scene, NewZone(), ship, rocks, 11, belt: 1));
     }
 
     // Composition is derived from the rock's identity every call: variance 0 reads the kind's ratio, variance above 0 gives

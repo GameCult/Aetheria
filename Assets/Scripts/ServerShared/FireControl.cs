@@ -1850,7 +1850,7 @@ public static class FireControl
         var total = 0f;
         for (var i = 0; i < ores.Length; i++)
         {
-            var g = $"{chunk.Field.Value}:{chunk.Index}:{ores[i].Commodity.Key.Value}".StableHash() / 2147483648.0 - 1.0;
+            var g = $"{belt.Data.SiteOr(chunk.Field)}:{chunk.Index}:{ores[i].Commodity.Key.Value}".StableHash() / 2147483648.0 - 1.0;
             total += weights[i] = ores[i].Amount * (float) Math.Exp(settings.ChunkCompositionVariance * g);
         }
         var counts = new int[ores.Length];

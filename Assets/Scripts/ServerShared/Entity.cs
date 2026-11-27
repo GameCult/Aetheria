@@ -551,7 +551,7 @@ public abstract class Entity
         foreach (var candidate in _targetCandidates)
             if (candidate.Target.Chunk is ChunkId chunk && ChunkVisible(chunk))
                 into.Add(chunk);
-        into.Sort(ByIndexThenField);
+        into.Sort(ByIndexThenSite);
     }
 
     // The one search every chunk question asks the zone's targeting index: from here, as far as the longest range
@@ -737,8 +737,12 @@ public abstract class Entity
     }
 
     private readonly List<TargetCandidate> _targetCandidates = new List<TargetCandidate>();
-    private static readonly Comparison<ChunkId> ByIndexThenField = (a, b) =>
-        a.Index != b.Index ? a.Index.CompareTo(b.Index) : a.Field.GetHashCode().CompareTo(b.Field.GetHashCode());
+    private int ByIndexThenSite(ChunkId a, ChunkId b)
+    {
+        if (a.Index != b.Index) return a.Index.CompareTo(b.Index);
+        var bySite = string.CompareOrdinal(Zone.AsteroidBelts[a.Field].Data.SiteOr(a.Field), Zone.AsteroidBelts[b.Field].Data.SiteOr(b.Field));
+        return bySite != 0 ? bySite : string.CompareOrdinal(a.Field.Value, b.Field.Value);
+    }
 
     // The planar distance per unit of visibility beyond which no target can pass ChunkVisible's threshold: an upper
     // bound, never a decision. ChunkInfo is saturate(sum_i v s_i c_i(angle) / d / (n k)), linear in v and falling as

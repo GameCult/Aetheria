@@ -88,6 +88,14 @@ public abstract class BodyData
 
     [JsonProperty("bodyRadiusMul")] [Key(5)]
     public float BodyRadiusMultiplier = 1;
+
+    // The body's generation coordinate: the zone seed, its kind and its place in the pack. Written once, by ZoneGenerator.
+    // The key is identity and is minted by the cache; no content hash reads it when a Site exists (SiteOr).
+    [JsonProperty("site"), Key(23)]
+    public string Site;
+
+    public string SiteOr(GameCult.Caching.CultRecordKey key) => string.IsNullOrEmpty(Site) ? key.Value : Site;
+    public static string NameOf(string site) => site.StableHash().ToString("x8");
 }
 
 [CultDocument("aetheria.planetdata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]

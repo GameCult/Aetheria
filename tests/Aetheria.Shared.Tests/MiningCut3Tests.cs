@@ -485,6 +485,29 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.Contains(farther, offered);
     }
 
+    // Chunks of equal index are offered in the order of their belts' Sites, then keys: the minted key's text decides nothing
+    // when a Site exists. The Sites are set against the keys' ordinal order, so a key comparison would offer the other way.
+    [Fact]
+    public void ChunkTieBreakFollowsSiteNotKey()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f)), Belt(kind, Rock(150f)));
+        var byKey = s.Belts.OrderBy(key => key.Value, StringComparer.Ordinal).ToArray();
+        s.Zone.AsteroidBelts[byKey[0]].Data.Site = "site-b";
+        s.Zone.AsteroidBelts[byKey[1]].Data.Site = "site-a";
+        var eyeAt = float2(150, -100);
+        var observer = SpawnShip(s, eyeAt, sensor: true, weaponRanges: new[] { 400f });
+        Tick((observer, eyeAt));
+        var offered = new List<ChunkId>();
+        observer.VisibleChunksInReach(offered);
+        Assert.Equal(new[] { new ChunkId(byKey[1], 0), new ChunkId(byKey[0], 0) }, offered);
+
+        s.Zone.AsteroidBelts[byKey[0]].Data.Site = "site-a";
+        s.Zone.AsteroidBelts[byKey[1]].Data.Site = "site-b";
+        observer.VisibleChunksInReach(offered);
+        Assert.Equal(new[] { new ChunkId(byKey[0], 0), new ChunkId(byKey[1], 0) }, offered);
+    }
+
     // The chunk query returns exactly the chunks within range, from inside the belt's hole, from within the
     // annulus and from outside it -- the belt skip never drops a chunk the brute-force answer would keep -- and it
     // leaves out a broken chunk.

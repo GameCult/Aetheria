@@ -106,7 +106,7 @@ public static class DrawAhead
     }
 
     public static BeltDraw<T> DrawListOf<T>(AsteroidBelt belt, PlanetSettings settings, IReadOnlyList<T> meshes, System.Func<T, float> radius, int keep, CultRecordKey beltKey) =>
-        new(Enumerable.Range(0, belt.Data.Asteroids.Length).Select(i => belt.UndamagedSize(i, settings)).ToArray(), meshes, radius, keep, beltKey.Value);
+        new(Enumerable.Range(0, belt.Data.Asteroids.Length).Select(i => belt.UndamagedSize(i, settings)).ToArray(), meshes, radius, keep, belt.Data.SiteOr(beltKey));
 
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
     // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.

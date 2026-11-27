@@ -1015,7 +1015,7 @@ public sealed class OreGeographyTests : IDisposable
             var settings = RestoredHullsTests.AuthoredPlanetSettings();
             var loaded = new Zone(items, settings, packs[0].Key, inProvince, galaxy);
             foreach (var key in packs[0].Select(g => cache.RefOf(g.Belt).Key))
-                Assert.Equal(FieldKinds.Assign(key.Value, cache, noA).Key.Value, ((AsteroidBeltData) loaded.Planets[key]).Kind.Key.Value);
+                Assert.Equal(FieldKinds.Assign(((AsteroidBeltData) loaded.Planets[key]).SiteOr(key), cache, noA).Key.Value, ((AsteroidBeltData) loaded.Planets[key]).Kind.Key.Value);
             Assert.All(packs[0].Select(g => cache.RefOf(g.Belt).Key), key => Assert.Equal("field-kind:b", ((AsteroidBeltData) loaded.Planets[key]).Kind.Key.Value));
 
             // No GalaxyZone: the unweighted pick.
@@ -1026,7 +1026,7 @@ public sealed class OreGeographyTests : IDisposable
                 foreach (var key in pack.Select(g => cache.RefOf(g.Belt).Key))
                 {
                     var kind = ((AsteroidBeltData) bare.Planets[key]).Kind.Key.Value;
-                    Assert.Equal(FieldKinds.Assign(key.Value, cache, default).Key.Value, kind);
+                    Assert.Equal(FieldKinds.Assign(((AsteroidBeltData) bare.Planets[key]).SiteOr(key), cache, default).Key.Value, kind);
                     if (kind == "field-kind:a") unweighted++;
                 }
             }

@@ -530,6 +530,26 @@ public sealed class DrawnPoseTests : IDisposable
         Assert.Equal(candidates.Select(c => c.Name).ToArray(), Kept("belt-0", 20));
     }
 
+    // The mesh choice reads the belt's Site: whatever key the caller passes, a belt with a Site draws the same meshes, and without
+    // one the key decides (so a belt from before sites draws as it did).
+    [Fact]
+    public void TheDrawFollowsTheSite()
+    {
+        var w = Build();
+        var belt = w.Zone.AsteroidBelts[w.Belt];
+        var candidates = Enumerable.Range(0, 8).Select(i => new Candidate("c" + i, 1f + i)).ToArray();
+        string Drawn(string key)
+        {
+            var list = DrawAhead.DrawListOf(belt, w.Zone.Settings, candidates, c => c.Radius, 3, new CultRecordKey(key));
+            return string.Join(",", MeshOf(list, w.Asteroids.Length).Select(m => list.Meshes[m].Name));
+        }
+        var keys = Enumerable.Range(0, 40).Select(i => "belt-" + i).ToArray();
+        Assert.True(keys.Select(Drawn).Distinct().Count() > 1, "with no Site the key decides");
+        belt.Data.Site = "7:belt:2";
+        var first = Drawn(keys[0]);
+        foreach (var key in keys) Assert.Equal(first, Drawn(key));
+    }
+
     // A mined rock keeps its mesh and only shrinks: the assignment reads the unworn size.
     [Fact]
     public void AMinedRockKeepsItsMesh()
