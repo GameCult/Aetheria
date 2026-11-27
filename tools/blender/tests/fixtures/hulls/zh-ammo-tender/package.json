@@ -1,0 +1,21 @@
+{
+  "id": "smoke.package.tender",
+  "name": "Oboz Tender",
+  "like": "Djinni",
+  "length": 12,
+  "extent": [10.0, 23.4, 2.0],
+  "hull": "hull.scad",
+  "maker": "Zhestokost",
+  "description": "A packager fixture: the Zhestokost ammunition tender with one defensive mount, two drive pods and two radiators.",
+  "offered": true,
+  "price": 1000000,
+  "stats": {"mass": 20000, "durability": 2000, "armor": 20, "drag": 0.35},
+  "rows": [
+    {"id": "Gun.D", "kind": "Ballistic", "cell": [2, 3], "footprint": "#", "rotation": 0, "armor": 20, "arc": 90},
+    {"id": "Th.L", "kind": "Thruster", "cell": [0, 0], "footprint": "#", "rotation": 2, "armor": 20, "arc": 0},
+    {"id": "Th.R", "kind": "Thruster", "cell": [1, 0], "footprint": "#", "rotation": 2, "armor": 20, "arc": 0},
+    {"id": "Ra.L", "kind": "Radiator", "cell": [2, 0], "footprint": "#", "rotation": 0, "armor": 10, "arc": 0},
+    {"id": "Ra.R", "kind": "Radiator", "cell": [3, 0], "footprint": "#", "rotation": 0, "armor": 10, "arc": 0},
+    {"id": "Reactor", "kind": "Reactor", "cell": [1, 1], "footprint": "#", "rotation": 0, "armor": 0, "arc": 0}
+  ]
+}
