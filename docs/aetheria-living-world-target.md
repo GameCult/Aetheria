@@ -1,291 +1,394 @@
-# Aetheria living world: target, revision 2 (the economy)
+# Aetheria living world: target, revision 3 (the economy and its actors)
 
-Date: 2026-10-22. Status: target, drafted by Imagination (session self-2026-10-19-ag7) for Self to admit. Revision 2
-takes in the day's later rulings: consumer goods built from gear's components (`consumer-goods-share-gear-components`),
-DemandProfile deleted in cut 1 (`demandprofile-goes-in-cut-1`), the gate as an exchange (`region-gate-is-an-exchange`),
-zone-local workforce (`workforce-is-zone-local`), the station-kind stand-in (`station-kind-family-stand-in`) and
-give-only transfer (`transfer-is-give-only`).
-Body pinned at `GameCult/Aetheria` origin/master `5c38029e`. This revision covers the economy. The rest of the
-strategic layer arrives in a later revision of this document: holdings changing hands, expansion, the lore institutions
-as damping rules, and the strategic arena's scoring.
+Date: 2026-11-27. Status: target r3, written by Imagination (nibu-imagination, session nibu-self-2026-11-17).
+It supersedes r2 (this file at `d61948f6`). Body read at `GameCult/Aetheria` origin/master `80c3555c7`.
+
+Revision 3 maps the seam between the economy and Aetherlight. It also folds in the 2026-11-27 rulings
+(all `aetheria-living-world:ruling:` unless named):
+
+- `living-world-supersedes-njordr`
+- `installed-gear-decides-what-a-station-buys`
+- `demand-consumed-inputs-processed-by-facilities`
+- `mass-populations-live-in-blooms`
+- `planetary-habitats-are-populations-too`
+- `no-market-absorption`
+- `cluster-syndicates-are-aetherlight-actors`
+- `ethical-sourcing-is-audited-certification`
+- `simple-commodities-fungible`
+- `compound-commodities-stack-by-lot`
+- `no-grade-on-simple-goods`
+- `aetheria-release:ruling:no-ftl-comms`
+- `aetheria-release:ruling:aetherlight-narrative-state-owner`
+
+It closes follow-ups `target-r3-roles-and-home` and `target-r3-commodity-lots`. Ownership change, expansion, the lore
+institutions as damping rules and strategic scoring still wait for a later revision.
 
 ## 1. Why
 
-The operator: "We cannot simulate an economy without "the crafting work". Turning basic stuff into more complex stuff
-while trying to get an edge on your competitors is kinda the whole game." (`crafting-is-the-game`, 2026-10-22).
+The economy is the engine the strategic layer, the arenas and the demo run on (r2, section 1: `crafting-is-the-game`,
+`demo-live-expansion`). Two operator rulings of 2026-11-27 change its shape. First, the actors are not the economy's.
+Aetherlight, already Aetheria's in-process owner of who is alive, who holds whom and who knows what, also owns the
+factions, the sub-factions, the unions and syndicates, their offices, their commitments and their knowledge. The
+economy owns only physical facts: stock, recipes, installed gear, aggregate populations, gates and prices
+(`living-world-supersedes-njordr`). Second, no information crosses a gate except in something that makes the trip
+(`no-ftl-comms`). So an actor knows only what records carried to it say, exactly as the player does.
 
-The demo carries the living world (`demo-live-expansion`, `demo-one-region-living-presence`). Factions act on live needs,
-and the job board posts work from them. Whether the demo ships a Sol-seeded history or a seeded region depends on how
-well this simulation performs (`demo-start-gated-on-sim-quality`). The arenas train on the galaxy generator, extended
-with plausible starting infrastructure (`strategic-start-r2-generator-trains`). So the economy is not decoration on a
-fixed map. It is the engine the strategic layer, the arenas and the demo all run on.
+The physical side changes too:
 
-The rulings fix its shape:
+- A station buys only what its installed gear uses. Facilities process industrial inputs. Crew and habitation modules
+  house the people who consume (`installed-gear-decides-what-a-station-buys`,
+  `demand-consumed-inputs-processed-by-facilities`).
+- Most of those people live in Blooms, and many in planetary habitats (`mass-populations-live-in-blooms`,
+  `planetary-habitats-are-populations-too`).
+- A station never absorbs goods it cannot hold (`no-market-absorption`).
+- Simple goods are fungible counts with no grade. Compound goods carry their lot (`simple-commodities-fungible`,
+  `no-grade-on-simple-goods`, `compound-commodities-stack-by-lot`).
+- Origin trust is a certification that audit can expose (`ethical-sourcing-is-audited-certification`).
 
-- **Chains are deep.** High-end goods sit five or more steps from extraction, with many intermediates, so the
-  station-kind set grows past the 17 kinds the station round authored (`chains-are-deep`).
-- **Recipes.** Every commodity has an authored recipe naming its inputs, the station kind that makes it and a lore hook.
-  Gear and hulls take crafting components by role, permanently. That is what lets a higher-tech component replace an
-  old one without a new gear recipe (`named-recipes-gear-takes-components-by-role`).
-- **Quality.** Stock carries grade from the first chain cut. Each facility's owner sets its good/fast/cheap setting and
-  routes better inputs to premium facilities (`crafting-is-the-game`, `quality-triangle-is-per-facility`). The final
-  assembly bounds what the parts give (`quality-is-assembly-over-supply-chain`, `quality-min-tolerance-binned-assembly`).
-  A maker may bin one design into several products (`maker-design-tiers-allowed`).
-- **Demand.** Demand that is not gear comes from authored needs tables for population and institution kinds. The owning
-  faction issues unmet needs as obligations: quota, purchase order, contract or bounty (`demand-is-obligations`).
-  DemandProfile is obsolete and goes in the first cut. The operator: "DemandProfile was a crude field that this work
-  clearly replaces with much more nuanced push and pull" (`demandprofile-goes-in-cut-1`).
-- **Consumer goods.** The old joke compounds become consumer products. Like gear, they are built by role from the same
-  component commodities gear uses. The operator: "consumers provide predictable demand for compound commodities in the
-  tree. The same cognition substrate that goes in your gear's automation components can also make someone's toaster
-  smart" (`consumer-goods-share-gear-components`). Her examples illustrate; the set is not closed.
-- **The region's edge.** The gate is an exchange with an authored outside market at band prices and a capped rate. A
-  good the region cannot make costs the outside price plus the haul, and a blockade of the gate is felt as shortages
-  (`region-gate-is-an-exchange`).
-- **Allocators.** Faction economies are compiled allocators, one per economy kind (plan, market, project contract,
-  contraband). They all run over one needs-and-stockpile layer (`allocator-per-economy-kind`, `faction-economic-models`).
-- **Labour.** Labour is a typed input, and every workforce kind has its own needs (`typed-workforce`). Zhestokost
-  permits no biodrones and no AGI automation (`faction-economic-models`). Human crews live in residential stations in
-  their facility's own zone; between zones people move only by slow off-screen migration toward work and goods.
-  Biodrones remain cargo (`workforce-is-zone-local`).
-- **Sinks.** Goods leave by consumption, destruction and upkeep. There is no general decay
-  (`sinks-consume-destroy-maintain`). Fights off screen destroy goods by the composition model's expected losses
-  (`matchup-composition-model`).
-- **What the player reads.** The player reads shortages through a floating price band and through records. A record has
-  an issuer, a date and a confidence, and it can be stale, wrong or a lie (`shortages-are-records-and-price-band`).
-- **Cargo is lore.** An intercepted shipment labelled biodrones is a way into the world (`catalog-crafting-chains`).
-- **Stations.** Each faction gets stations for each part of its economy. The hull kinds and the simulation's station
-  kinds are one list (`stations-represent-faction-economy`, `faction-station-models`). A new kind whose faction has no
-  model yet stands in with that faction's model of the nearest existing kind, keeping its own name, facilities and
-  stock (`station-kind-family-stand-in`).
-- **Goods move** on dock, into enclosed bays where the docked entity leaves space (`docking-is-enclosed-bays`), or by
-  the ship-to-ship transfer verb (`tender-transfer-verb`). A transfer is always a give by the holder's own pilot
-  (`transfer-is-give-only`).
+## 2. Body facts (read at origin/master 80c3555c7)
 
-Prior art (`docs/research/2026-10-22-crafting-chains-prior-art.md`) names the failure modes this target is built
-against:
+- **Live economy code is catalog-only.** `RecipeData` (`aetheria.recipedata`, keys 0-9, 9 = `RoleInputs`),
+  `OutsideMarketData` and `EconomyChecks` exist (`Assets/Scripts/ServerShared/Recipes.cs`, `EconomyChecks.cs`).
+  No stock ledger, grade, allocator, obligation, workforce, population or gate flow exists in the running simulation
+  (`docs/aetheria-living-world-map.md`, opening paragraph).
+- **Intermediate commodities already take roles.** `RecipeData.RoleInputs` lets an intermediate take a role (iron takes
+  `iron-ore`, which hematite or ilmenite fills; ruling `ores-fill-metal-roles`, since `30030af6e`).
+  `Recipes.RoleInputsOf` is the one reader of a recipe's role slots. r2's L-recipe and L-roles ("inputs are commodities
+  except in gear, hull and consumer-good recipes") are false of live code.
+- **Facilities are being specified.** Cut spec `cut-recipe-facilities.r1` (in force, unreported) adds `FacilityData` (an
+  inert behaviour on gear), `RecipeData.Facility` (key 10) and `StationKindData.Facilities` (key 3), with check
+  `L-facility`. It demotes `RecipeData.StationKind` to a checked mirror, which follow-up `recipe-station-kind-derived`
+  deletes. `StationKindData` today has keys 0-2: Name, Description and StandIns (`StationKinds.cs:13`).
+- **Factions are catalog records.** `Faction` (`Corporations.cs:14`) carries Personality, Allegiance (key 12), Relations
+  (key 16), Doctrine (key 17) and Places (key 21). No runtime faction state exists.
+- **Aetherlight is sealed.** `native/aetherlight` (Rust, a fork of Ghostlight `c43eb549`; `PROVENANCE.md`) has no entry
+  point yet: "the ABI that creates, opens and drives a world arrives in AL4" (`src/lib.rs` crate docs). Its state
+  partitions (`lib.rs`, `world_state!`) are the following:
+  - subjects, of kind Person, Institution or Population, each with an optional `ImportKey` (a CultCache schema and
+    record key);
+  - entities: places, resources, facts and channels;
+  - routes, positions and holdings (conserved `Quantity` per subject and resource, through Transfer, Transform, Consume
+    and Admit);
+  - dependencies, facts, channels, knowledge (subject and fact; confidence; source Witnessed, Told, Seen or Evidenced);
+  - authority grants (kind over a subject or a place subtree), offices (`selection`: institution, office and incumbent,
+    with delegated authority kinds), redress forums;
+  - commitments (Routine, Obligation or Goal; counterparty, due date, period, checks and statement; key = command id
+    and index; `DischargeCommitment` removes one);
+  - pressures, and the affordance catalog and grants.
 
-- X4's seed-dependent shortages, and consumers stopping once storage is full;
-- by-product backups in Satisfactory;
-- the sink debate over EVE's destruction economy;
-- the Anno deficit spiral;
-- UO's dynamic ecology, which had to be constrained heavily to stay predictable.
+  After genesis only the play table writes: an Act, an AdmitPatch or an AdvanceTime. Ids are derived and never drawn.
+  The clock counts whole fictional minutes; one AdvanceTime spans 1 to 525,600 of them (`clock.rs`).
+- **Only subjects carry import keys.** `EntityDeclaration` (places, resources) and `FactDeclaration` have none
+  (`patch.rs:1007,1034`).
+- **The game clock.** `SimClock` is the one owner of simulation time: 30 steps a second, `GameStep` = 1/30 s
+  (`SimClock.cs:11-24`). `SimulationDice` is the one draw (`SimulationDice.cs:9`).
 
-The Leontief and Hawkins-Simon conditions give the catalog a productivity check that the note found no game applying.
+## 3. The seam (authority map)
 
-## 2. Body facts (read at 5c38029e)
+**Owner split.** Each decision and fact has one owner.
 
-- **Commodity records.** `SimpleCommodityData` (`ItemData.cs:323`) has a `SimpleCommodityCategory` (`Enums.cs:155`):
-  Minerals, Metals, Alloys, Compounds, Organics, Ammo and Consumer. The enum mixes raw goods with processed ones, and its
-  stage is not derivable from anything. `CompoundCommodityData` (`ItemData.cs:353`) carries `DemandProfile`, a Big Five
-  weight map over `PersonalityAttribute`, and `CompoundCommodityCategory`. No code reads `DemandProfile`.
-  `PersonalityAttribute` stays because `Corporations.cs:28` also uses it. The only reader of either category is
-  `TradeMenu` (`UI/Menu/TradeMenu.cs:31-32,65-151,200-216,240-244`): two filter dropdowns and the Type column.
-- **What the catalog holds** (read through `AetheriaStores.Open` on the LFS file at 5c38029e). 13 simple commodities:
-  Minerals (Rock, Hydrogen, Potassium), Metals (New Metals, Uranium, Gold), Compounds (Methane, Water), Organics (Algae,
-  Bacteria, Fungi, Animal Products) and Ammo (one commodity, `Ammo`); no record is Alloys or Consumer. 51 compound
-  commodities, none with roles and none sold by a product. Four carry a DemandProfile (Neural Lace, Sure Bet Sherbet
-  Fountain, Super Tough Toffee, Holo-desk: seven keys in all). By the old category they split into consumer-shaped goods
-  (Wearables 9, Consumables 3, Luxuries 8, Tools 7) and component-shaped ones (Manufacturing 18, such as Circuit Board,
-  Heat Sink Tile, Sheet Metal, Support Strut, Fuel; Assemblies 6, such as Reaction Chamber, Cockpit, Cargo Pod). The
-  content pass in cut 3 reads that split from this list and from git history; the field itself goes in cut 1.
-- **The Ammo commodity is live.** `Weapon.AmmoType` (`Behaviors/Weapon.cs:64`) references it: the Autocannon and the
-  point-defence and flak designs draw it (seven references in the catalog), and `EvasionTrackingTests.cs:362-396` pins
-  that. Its replacement by branded rounds of a calibre belongs to follow-ups `branded-ammo-calibre` and `matrix-rounds`,
-  not to this campaign. Only the `Ammo` value of `SimpleCommodityCategory` goes, with the enum.
-- **No recipes.** No recipe or facility record exists. The five factory designs (Refinery, Assembly Line, Shipyard,
-  Surface and Deep Ore Extractor) were deleted in `653ba490`. The station round's `INDEX.md` still lists them as a
-  source, so it is stale on that point. That file is not in the repo: it is
-  `F:\Projects\eureka-handoff-aux-2026-10-19\hull-bench\round2\briefs\stations\INDEX.md`, line 23.
-- **Provenance.** It has the forward shape and no writer. `Produced {Faction, Station, Facility, Inputs}` and
-  `Extracted {Zone, Commodity}` exist (`Provenance.cs:122-137`), and only tests construct them. Every mint writes an
-  `Attributed` placeholder. `ProvenanceLedger.Reachable` already closes over `Produced.Facility` and `Inputs`.
-- **Quality.** `Lot.Quality` is the assembly. `RoleFill` holds the parts. `QualityForRole` is the minimum of the part
-  and the assembly, and `EffectiveQuality` is the mean of the capped roles (`Provenance.cs:64-98`). `GetTier` bins
-  effective quality by `GameplaySettings.Tiers` (`ItemManager.cs:242`). Lots are minted from a product's distributions
-  on the item stream (`ItemManager.cs:126-170`).
-- **Station stock.** `GenerateStationLoadout` puts `RandomProducts<EquippableItemData>(16, 1, ...)` into a station's
-  cargo once, at zone generation (`LoadoutGenerator.cs:77,126`). The station round's CC6 records that nothing ever
-  restocks a station. Follow-up `station-restock` asks for a restock, and stockpiles supersede it. The trade menu sells
-  from station cargo through `StationServices`, which prices goods from catalog price and lot quality alone
-  (`StationServices.cs:13-40`).
-- **No station kinds.** There is no station-kind datum. `ZoneGenerator` sets a station count from faction presence and
-  draws any `HullType.Station` hull (`ZoneGenerator.cs:290-340,422,443`; follow-up `station-hull-source-fit` item 3).
-- **Only the player's zone ticks.** No job generator exists (`docs/aetheria-arena-target.md` section 2). `HaulingTask`,
-  `Mining`, `StationTowing` and `Survey` are defined, but nothing constructs them.
-- **The lore seed.** It is one file: `AetheriaLore/Aetheria/Economy/Item Hooks/Pallas Strike Maintenance Assemblies.md`.
-  It proposes the VitaForge BioDrone Standard Limiter Interface, the Cephalopod Dry-Operation Harness, the Bloom Manifold
-  Seal Assembly and others, each with candidate parts and performance aspects. It reads as recipes waiting for a schema.
+| Decision or fact | Owner | Notes |
+|---|---|---|
+| Who the actors are: factions, sub-factions, unions, syndicates, councils and the persons in their offices | Aetherlight (subjects) | Seeded at genesis from the catalog (`Faction` records) and from world generation (cluster unions and syndicates, `cluster-syndicates-are-aetherlight-actors`) |
+| Who has jurisdiction over an installation, a facility or a cluster | Aetherlight (authority grants over the installation's place subtree) | The controlling faction of a cluster is authored (`cluster-syndicates-are-aetherlight-actors`) |
+| Which office decides what, and who sits in it | Aetherlight (`selection`) | |
+| What an actor has promised, to whom, and by when | Aetherlight (commitments) | Including obligations posted to haulers and quotas set on facilities |
+| What an actor knows | Aetherlight (knowledge) | Rows arrive only from records that reached the actor's cell (section 3, Knowledge) |
+| Whether a certification claim is honest | Nobody decides it; an audit exposes it | The audit is an actor's act that reads records (section 3, Certification) |
+| Stock: every count of every good outside an entity's hold, and every money balance not carried by an entity | The economy's stock ledger | One writer, the ledger's commit primitive |
+| Recipes, commodities, station kinds, facility and habitation designs | The catalog | Authored; never changed during a run |
+| What is installed where, and what each facility is set to run | The economy (installation state) | It changes only by executing an order |
+| Aggregate populations: size, composition, needs met, migration | The economy's population step | |
+| Prices | The economy, derived each tick from committed stock inside the band the operating actor set | An actor sets a band and a target; it never writes a price |
+| Gate flows | The economy's gate step | |
+| Time | `SimClock`, through the strategic tick | Aetherlight's clock is advanced by exactly each tick's span and decides nothing |
 
-## 3. Invariants
+**What crosses.** The two runtimes share no mutable state. They exchange two documents each strategic tick, and
+nothing else crosses:
 
-These are the ends. Each label is what Soul measures against.
+- **Facts out** (economy to Aetherlight), `F_k`: the records the economy issued at tick `k`, each with its issuer,
+  date, subject and confidence, and the cell it landed in. They include the following:
+  - market reports: settled prices and trades, and stock levels as reported by the installation;
+  - shortage and shortfall reports: a facility idle for want of input, or a population below a need;
+  - delivery receipts, and receipts for settled orders;
+  - population reports: size, needs met, migration;
+  - extraction and certification tallies by operator, which audits read;
+  - and every record a hauler carried into the cell by docking.
+- **Orders in** (Aetherlight to economy), `O_k`: the typed payloads of the acts Aetherlight admitted at tick `k`. They
+  include the following:
+  - a facility setting (which recipe, good/fast/cheap, certify output or not);
+  - a ration on a population's consumption;
+  - an install or removal of gear, which is a build order paid from stock;
+  - a price band and stock target;
+  - a posted obligation, whose reward is escrowed in the ledger;
+  - a haul order, which moves stock between installations;
+  - a strike or withdrawal of labour, which the economy executes as workforce unavailability.
 
-- `L-source-sink`: Every commodity has at least one source and at least one sink. A source is an extraction recipe, a
-  recipe output, or the region gate's outside market selling it. A sink is a recipe input, a role fill, a needs-table
-  entry, an upkeep entry, destruction for gear and hulls, or the outside market buying it. The catalog check refuses a
-  commodity that has either one missing.
-- `L-consumer-demand`: Every component commodity also has a consumer sink. A component commodity is one tagged for a
-  role that some gear or hull recipe names. Its consumer sink is a consumer-good recipe that takes it by role, where a
-  consumer good is a commodity that some population or institution needs table names. The gate does not count here: the
-  demand must be the region's own. The catalog check refuses a component with no consumer sink. The role-fill half is
-  checked from cut 3 and the needs-table half from cut 7.
-  - Why it is enforced rather than reported: the ruling makes consumer demand part of how the economy stays stable, and
-    a catalog-wide property that is only reported rots as content grows. A component that seems military only is a
-    content prompt (a fuze also fires a mining charge), not an exemption. No exemption list exists.
-- `L-productive`: The recipe graph is productive. Its input matrix A has spectral radius below 1 (Hawkins-Simon).
-  - A is augmented with each workforce kind's needs per unit of labour, so the labour, food and labour loop is in the
-    matrix. It also holds every facility's upkeep per unit of output.
-  - The check is measured at the most input-hungry good/fast/cheap setting any facility may choose.
-  - Catalog validation computes it on every catalog build, and a failure names the cycle that carries the eigenvalue.
-- `L-deep`: Every high-end good has a longest path of five or more recipe steps from extraction. The catalog check
-  reports depth per good, and Self names which goods count as high-end in the recipe cut.
-- `L-recipe`: Every commodity has one authored recipe. The recipe names its inputs, its cycle, its workforce need, the
-  station kind that makes it and its lore hook. Every recipe input is a commodity, except in gear, hull and consumer-good
-  recipes, whose inputs are roles. No recipe is generated at runtime.
-- `L-roles`: A gear, hull or consumer-good recipe names roles, never specific component commodities. Any commodity
-  tagged for a role can fill it. A higher-tech component therefore enters a design, or a toaster, without a new recipe.
-- `L-one-stock`: One owner, the stock ledger, holds every count of every good outside an entity's cargo. Station trade,
-  hauling, production, consumption, upkeep and destruction all change counts through its commits and nothing else.
-  Station cargo generated at zone creation is not a second stock.
-- `L-graded`: Stock is held by grade. A production step's output grade is its facility's assembly, as the facility's
-  good/fast/cheap setting gives it, capped by the grades of the inputs it consumed. This is the
-  min-with-tolerance rule, so the best parts cannot rescue a poor assembly. No step other than production writes a
-  grade.
-- `L-lot-at-boundary`: Stock becomes a `Lot` only when it crosses into an entity: on dock, by the transfer verb, by
-  seizure or by loot. The new lot carries a `Produced` or `Extracted` origin that names the station and facility it came
-  from. Its input lots are synthesised to agree with its grade. The ledger never mints a lot for stock that no entity
-  holds.
-- `L-no-omniscience`: The player reads the economy only through the price band at stations they dock at, and through
-  records: obligations, notices, and scanned or seized manifests. Every record has an issuer, a date and a confidence.
-  No player-facing surface reads the stock ledger, needs tables or allocator state directly.
-- `L-obligations`: All demand that is not gear reaches the world as obligations, which the owning faction's allocator
-  issues from unmet needs. Haulers, NPC or player, serve obligations, and the job board lists them. No other writer posts
-  work.
-- `L-allocator`: Each faction names one compiled allocator per economy kind. An allocator reads needs, stock and prices.
-  It issues obligations, sets prices inside the band, sets rations, and chooses recipes and settings for its own
-  faction's facilities. It never writes a stock count.
-- `L-workforce`: A facility's throughput is gated by a workforce of a kind its owning faction permits. Each kind's needs
-  are a needs table like any other. Zhestokost facilities never hold biodrones or AGI automation.
-- `L-zone-crew`: A facility's human crew comes only from residential populations in its own zone. People cross zones
-  only through the population step's migration, which is slow and moves toward work and goods. Biodrones are cargo and
-  move as stock.
-- `L-sinks`: Goods leave only by consumption (needs and recipe inputs), destruction (on screen, or the matchup model's
-  expected losses off screen), upkeep, and export through the region gate. No stock decays with time.
+  Each order names the commitment it executes.
+
+**The allocator becomes an office.** r2's `L-allocator` put a compiled allocator on the faction record, and that
+allocator read needs, stock and prices. In r3 the allocator is the compiled brain of an Aetherlight office: a
+faction's quartermaster, a syndicate's foreman, a Bloom council's supply office.
+
+- **What it reads.** Each tick it reads only its incumbent's own Aetherlight snapshot: the knowledge rows that records
+  brought, its commitments, its pressures and its authority.
+- **What it does.** It proposes acts. Aetherlight admits an act only if the office's delegated authority covers the
+  installation or facility the act names.
+- **What an admitted act does.** It records the commitment, and its payload becomes an order in `O_k`.
+- **What executes the order.** The economy executes it through the ledger's one writer at tick `k+1`. The economy never
+  judges authority, and Aetherlight never touches stock.
+
+The four economy kinds (plan, market, project-contract and contraband) remain four compiled brain families
+(`allocator-per-economy-kind`, `A-compiled`). The catalog names which family each office runs.
+
+Demotions:
+
+- **The faction record is no longer an economic owner.** It is the authored seed Aetherlight imports at genesis.
+- **The allocator is no longer an owner.** It is a brain, and its output is derived into orders only through admitted
+  acts.
+- **`RecipeData.StationKind` is no longer an owner.** The facility decides (cut `cut-recipe-facilities`).
+- **Needs tables are no longer a kind.** A crew or habitation module design carries its consumption table.
+
+**Knowledge arrives by record.** The economy issues every record at an installation. A record lands in that
+installation's comms cell, and Aetherlight adds a knowledge row for each subject whose position or channel reaches that
+cell. The size of a cell is question `comms-cell`.
+
+Between cells a record travels only as cargo. It is a one-cell chip, by `intangibles-are-cargo`, in a hold that makes
+the trip. It lands when that hold docks in another cell. A seized courier's records belong to whoever seized them.
+The region gate's outside market is itself a record: the outside prices as the last courier brought them.
+
+No actor, brain or player surface reads the ledger, the population step or another subject's state. This is r2's
+`L-no-omniscience`, extended to actors.
+
+**Determinism across two runtimes.** One strategic tick `k`, with a span of whole fictional minutes derived from
+`SimClock` steps, runs in this order and no other:
+
+1. The economy step reads its state `S_{k-1}`, the orders `O_{k-1}` and the tick's structured seed. It writes `S_k`
+   and `F_k`.
+2. Aetherlight admits `F_k` as one patch, advances by the tick's span, then runs each office's brain in subject-id
+   order. It writes its journal head `J_k` and the orders `O_k`.
+3. The composite digest is `H(digest(S_k), state_digest(J_k))`.
+
+The strategic-tick driver in ServerShared owns this sequence, and neither runtime calls the other. Feedback always
+takes one tick, so there is no same-tick fixed point and no ordering race. Both steps are pure (`A-pure`), and both
+documents are sorted by id before they cross. The same seed and the same orders give the same `D_k` on Windows and in
+the Linux headless arena. On screen and off screen run the same sequence (`L-one-sim`).
+
+**Cross-runtime names.** The economy names an Aetherlight referent only by `ImportKey`, never by a derived Aetherlight
+id. Those referents are actors, installations (as places) and records (as facts). Aetherlight names an economy fact
+only by its catalog or ledger key, carried in an order payload.
+
+Places and facts need import keys, and acts need a typed payload. Both are Aetherlight changes, in follow-up
+`aetherlight-economy-referents`.
+
+**Certification.** The economy carries the "certified" stamp as part of a compound batch's key. It writes the stamp
+when the producing facility's setting says to certify, and it never checks whether the claim is true.
+
+The audit is an actor's act. The auditor reads the producer's extraction tallies and its certified output from
+records, and finds a mismatch or none; the finding is a fact Aetherlight holds. A producer that buys open-market raw
+goods and certifies anyway is exposed by audit, not refused by the ledger (`ethical-sourcing-is-audited-certification`).
+Follow-up `sourcing-certification` reads "minted only when the producer's faction oversaw extraction", which is a
+gate the ruling does not order. Its next revision should drop the gate.
+
+**Forbidden writers.**
+
+- Aetherlight `holdings` never hold a commodity or a money balance. Its resources are narrative tokens only.
+- No brain or Aetherlight path writes a stock count, a price, a grade or an installation's state, except through an
+  order the economy executes.
+- No economy step creates, retires, positions or informs an actor, or writes a commitment, except by issuing a record
+  in `F_k`.
+- No station-level demand table. No absorption.
+- No Aetherlight clock advance other than the tick's span.
+
+**Shared paths.** Player trade at a dock, an NPC hauler's delivery, an off-screen haul flow, production, consumption and
+the gate all change counts through the one ledger commit primitive. The player's dock purchase is not an order: it is a
+trade the economy settles directly at the posted price, and its record goes out in `F_k` like any other.
+
+## 4. Invariants
+
+These are the ends. Each label is what Soul measures against. Labels kept from r2 keep their meaning unless restated.
+
+- `L-actors`: Aetherlight owns every actor and its offices, jurisdiction, commitments and knowledge. The economy owns
+  stock, recipes, installed gear, aggregate populations, gates and prices. No actor state is stored in the economy and
+  no physical count is stored in Aetherlight.
+- `L-orders`: An actor's decision reaches the economy only as the payload of an act Aetherlight admitted, and it is
+  executed by the stock ledger's one writer at the next tick. The economy never judges authority, and a brain never
+  writes economy state.
+- `L-tick-order`: Each strategic tick runs the economy step, then Aetherlight, which ingests the facts out, advances
+  time and runs the brains. Only the facts-out and orders-in documents cross, sorted by id. The composite digest of
+  both states is a pure function of the seed and the orders. Feedback takes one tick.
+- `L-no-omniscience`: No player surface and no actor or brain reads the stock ledger, the population step, installation
+  state or another subject's state. Each reads only the price band where docked (the player) and records, each with an
+  issuer, a date and a confidence.
+- `L-records-carried`: A record reaches an actor only by landing in the actor's comms cell. Between cells a record
+  travels only as cargo in a hold that makes the trip, and it can be delayed, lost or seized.
+- `L-installed`: Every good an installation buys is used by gear installed on it. Facilities process industrial inputs
+  by recipe. Crew and habitation modules house populations that consume by the module's table. No installation-level
+  demand table exists.
+- `L-no-absorb`: A sale moves only what the buyer's bays can hold, and only goods its installed gear uses. The rest stays
+  in the seller's hold. Nothing a station pays for vanishes.
+- `L-populations`: Consumer demand comes from mass populations living in installed crew and habitation modules. Blooms,
+  stations and planetary habitats are one installation kind with different gear, and most people live in Blooms. A
+  population's size scales its module tables.
+- `L-prices`: Every price is derived by the economy from committed stock and the operating actor's band and target. No
+  actor, record or UI writes a price.
+- `L-recipe`: Every commodity has exactly one authored recipe. It names its inputs (commodity counts), its role inputs
+  (through `RoleInputs`, or the output's own roles for a role recipe), its cycle, workforce, upkeep, the facility design
+  that runs it, and its lore hook. No recipe is generated at runtime.
+- `L-roles`: A role is filled by any commodity tagged for it. Gear, hull and consumer-good recipes take only roles, and
+  any recipe may take a role through `RoleInputs`. `Recipes.RoleInputsOf` is the one reader of a recipe's role slots.
+- `L-one-stock`: The stock ledger is the one owner of every count of every good outside an entity's hold, and of every
+  money balance not carried by an entity. Trade, hauling, production, consumption, upkeep, destruction and gate flows
+  all go through its commits.
+- `L-fungible`: Simple stock is a count per (holder, commodity) with no grade, lot or origin. Units of one simple design
+  always merge.
+- `L-graded`: Grade first appears on compound stock. A production step's output grade is its facility's assembly at
+  its setting, capped by the grades of compound inputs (min with tolerance). Simple inputs cap nothing, and only
+  production writes a grade.
+- `L-lot-at-boundary`: Compound stock is held in batches keyed by holder, design, producing installation and facility,
+  grade and certification. A batch becomes a `Lot` with a Produced origin when it crosses into an entity. Simple stock
+  crosses as a count with no lot.
+- `L-certified`: A certified stamp is written only by a producing facility whose operator's setting certifies output.
+  The economy never checks a claim. An audit is an actor's act over records, and a dishonest claim is exposed, not
+  refused.
+- `L-obligations`: All work posted to the world is a commitment of the actor that posted it. Its reward is escrowed in
+  the ledger by its order, and the job board lists only posted obligations, as records.
+- `L-allocator`: Each office that decides economy matters runs one compiled brain of one economy kind, named by the
+  catalog. A brain reads only its incumbent's snapshot and emits only proposed acts.
+- `L-workforce`: A facility's throughput is gated by a workforce of a kind its operator permits. Each workforce kind
+  lives in its own module design with its own table. Zhestokost facilities never hold biodrones or AGI.
+- `L-zone-crew`: A facility's human crew comes only from populations in its own zone. People cross zones only by the
+  population step's slow migration toward work and goods. Biodrones move as cargo.
+- `L-sinks`: Goods leave only by consumption (module tables and recipe inputs), destruction (on screen, or the matchup
+  model's expected losses), upkeep, and export through the region gate. No stock decays.
 - `L-gate-cap`: The region gate trades each commodity at no more than its capped rate per tick, at band prices around
-  the outside market's price. Imports cost the outside price plus the haul. Its flows are stock-ledger commits like any
-  other. The cap is below the region's demand for every good its kind set can make, so the gate supplements an
-  in-region chain and cannot stand in for a broken one.
-- `L-no-stall`: A region left alone does not stall. Over the arena's generated seed set, a region simulated for the
-  check's horizon with no player keeps every recipe in its station-kind set producing. No commodity's regional output
-  sits at zero for longer than the check's window while its inputs exist in reach. No population falls to its floor and
-  stays there. The gate is open at its cap (`L-gate-cap`) while the check runs, so it counts imports as inputs in reach
-  but cannot hide a chain that only the gate keeps alive. The strategic arena runs this check, and its horizon and window
-  are set in the stall-check cut.
-- `L-one-sim`: The economy on screen and off screen is one set of rules. The off-screen tick is the same tick at reduced
-  detail: flows instead of ships, and the matchup model instead of combat. It is never a second model. This shares the
-  arena's `A-one-sim`, `A-pure` and `A-no-clock`. Every economic draw is a `SimulationDice` draw keyed by a structured
-  seed.
+  the outside price, through ledger commits. The cap is below regional demand for every good the region can make.
+- `L-source-sink`: Every commodity has a source (an extraction recipe, a recipe output, or the gate selling it) and a
+  sink (a recipe input or upkeep, a role fill, a module table, destruction, or the gate buying it). The catalog check
+  refuses either one missing.
+- `L-consumer-demand`: Every shared component reaches some consumer good, a commodity a crew or habitation module's
+  table names. The gate does not count. The window is guidance (`consumer-demand-shared-only`); the role half is live
+  and the module half arrives with module tables.
+- `L-productive`: The recipe graph, augmented with each module table per worker and with upkeep, has spectral radius
+  below 1 at the most input-hungry setting. It is checked on every catalog build, and a failure names the cycle.
+- `L-deep`: Depth from extraction is reported per good. Chains are deep where each step is real production
+  (`chain-depth-is-justified-not-counted`). It is reported and refuses nothing.
+- `L-no-stall`: Over the arena's generated seeds, a region left alone with its gate open at the cap and its offices'
+  brains running keeps every recipe in its kind set producing, and no population pinned at its floor. The strategic
+  arena runs the check.
+- `L-one-sim`: On screen and off screen are one rule set at two levels of detail, sharing the arena's `A-one-sim`,
+  `A-pure` and `A-no-clock`. Both runtimes run inside it, and every draw is `SimulationDice` keyed by a structured seed.
 - `L-lore`: Every commodity carries a lore hook: what a player learns by inspecting or intercepting it.
-- `L-one-kind-list`: The station kinds the simulation runs and the station kinds the hulls are authored for are one
-  catalog list. A kind whose faction has no model yet names its stand-in kind on its own record. It is placed with that
-  faction's model of the stand-in kind, keeping its own name, facilities and stock, and the stand-in reference is
-  deleted when the model lands.
+- `L-one-kind-list`: The station kinds the simulation runs and the kinds hulls are authored for are one catalog list. A
+  kind lists its facilities, and a kind without its faction's model names a stand-in kind, which is deleted when the
+  model lands.
 
-## 4. What is not a consumer, and not in scope
+## 5. What is not a consumer, and not in scope
 
-Not consumers (nothing in this campaign keeps them working or compatible):
+Not consumers (nothing keeps them working):
 
-- `DemandProfile`, deleted in cut 1 (`demandprofile-goes-in-cut-1`).
-- `CompoundCommodityCategory` and `SimpleCommodityCategory` as stored fields, deleted in cut 1, with the trade menu's
-  two filters that read them. A commodity's stage is derived from its recipe: raw if extraction makes it, processed
-  otherwise. Whether it is a component is said by its role tags, and whether it is a consumer good by the needs tables
-  that name it. A stored category would be a third answer that can disagree with both.
-- `RandomProducts` used as station stock.
-- Follow-up `station-restock`, which stockpiles supersede.
-- The five deleted factory designs.
-- The `INDEX.md` table's claim that factory designs exist.
-- AetheriaEve, which is archived.
+- r2's list: `DemandProfile`, stored commodity categories, `RandomProducts` as station stock, `station-restock`, the
+  deleted factory designs, the `INDEX.md` factory-design claim, AetheriaEve.
+- Market absorption (`no-market-absorption`).
+- Njordr, which is parked (`living-world-supersedes-njordr`).
+- r2's needs-table kind, which module designs replace.
+- The faction-record allocator field r2 planned, which offices replace.
+- Aetherlight `holdings` as a store of commodities or money.
 
-Kept, and not this campaign's to delete: the 51 compound commodity records, which become consumer goods and components
-in cut 3 (`consumer-goods-share-gear-components`), and the `Ammo` commodity, which weapons draw today (section 2).
+Not in scope:
 
-Not in scope for this revision:
+- Ownership changing hands, expansion, snowball-damping institutions and strategic scoring. They come in the next
+  revision, under these owners.
+- Aetherlight's ABI (AL4) and its narrative scope, which belong to campaign `aetheria-release`. This campaign consumes
+  them and owns only follow-up `aetherlight-economy-referents`.
+- Lore text for Aethernet and couriers, which belongs to `aetheria-release` cut `cut-lore-no-ftl-comms` (spec `cut-cut-lore-no-ftl-comms.r1`).
+- Planetary-habitat placement, which waits on Asura bodies. The installation kind is shaped for it now.
+- Population subjects as Aetherlight actors (idea `seam-map.population-subjects`).
+- Matchup-model fitting (`aetheria-matchups`), named components and disassembly, alternative recipes, an omniscient
+  economy panel, runtime model calls, station hull art, and passenger transport. All are as in r2.
 
-- Ownership changing hands, expansion, the lore institutions as damping rules
-  (`snowball-damping-lore-institutions`) and strategic scoring. These come in the next revision of this target, and
-  they share these owners.
-- Fitting the matchup model (campaign `aetheria-matchups`). This campaign consumes it through one typed predictor and
-  uses a fixed stub until it lands.
-- Named, recoverable components and disassembly (`named-components-after-demo`). Role fills stay statistical on
-  lots. Stock is graded counts, not named parts.
-- Alternative recipes per commodity, which would be production methods in the Victoria sense. Facilities trade off
-  good, fast and cheap. They do not switch recipes.
-- An omniscient economy panel, now or as a debug view the player can reach. A developer view through Eve/CultMesh is
-  allowed and reads the same ledger.
-- Runtime model calls, and agent-written content at runtime. Allocators ship compiled, like brains.
-- Station hull art. The hull bench owns it. This campaign owns only the station-kind list the hulls are authored
-  against.
-
-## 5. Identity, lifecycle, authority (Eureka step 0b)
+## 6. Identity, lifecycle, authority (Eureka step 0b)
 
 | Kind | What names it | What happens to it over time | Who decides (owner; forbidden writers) |
 |---|---|---|---|
-| Commodity | A catalog record with a stable id and name. One commodity kind; its stage (raw or processed) is derived from its recipe, not stored. It may carry role tags naming the gear, hull and consumer-good roles it can fill. A consumer good is a commodity a needs table names; its recipe takes roles, as gear's does | Authored as content from the lore, agent-written and reviewed by the operator, and revised by commit. It never changes during a run | Owner: the catalog, with the economy content pass as author. Forbidden: runtime creation, and a category field that disagrees with the recipe |
-| Recipe | One per output commodity, keyed by that commodity's id. It names its inputs (commodity and count, or role for gear and hulls), its cycle, its workforce need, its station kind and its lore hook | Authored with its commodity. Catalog validation (`L-source-sink`, `L-productive`, `L-deep`, `L-lore`) checks it on every catalog build. It never changes during a run | Owner: the catalog. Checks: AetherDb validation. Forbidden: runtime-generated or allocator-edited recipes |
-| Station kind | A catalog record with a stable id, such as `processing.smelter`. It names its facility slots (the recipes it may run), its resident population kind and its institution kind, and it maps each faction that builds it to a hull. Until that faction's model exists, the mapping names a stand-in kind instead, whose hull for that faction is used (`station-kind-family-stand-in`) | Authored content that grows with the chains past 17. Each new kind is authored with the recipes that need it and its stand-in. The hull bench station round adds a model per faction that builds it, and that commit replaces the stand-in reference with the hull | Owner: the catalog, as the one list (`L-one-kind-list`). Kind data is authored by the economy content pass, and models by the hull bench (`faction-station-models`). Forbidden: `ZoneGenerator` drawing any station hull without a kind |
-| Facility | (station id, slot ordinal). It holds its recipe, its owner (faction or corporation), its good/fast/cheap setting and its workforce slot | Built in place by its owner from raw materials, and retooled at a cost when its recipe or a sub-assembly changes (item-provenance F2). It runs, slows when short of workforce, idles when short of input, and is destroyed with its station | Owner: the facility's owner, through that faction's allocator, which sets recipe and setting. The production step runs it. Forbidden: any writer of its setting other than the owner |
-| Stockpile | (holder station id, commodity, grade). The holder is a station; goods in a ship are cargo and become lots | Created on first deposit. Its count changes only through stock-ledger commits: produce, consume, upkeep, transfer (dock, transfer verb, off-screen haul flow), destroy. It is never decayed or regenerated | Owner: the stock ledger, one ServerShared owner (`L-one-stock`). Forbidden: trade menu, allocators, `GenerateStationLoadout` and any Unity type |
-| Grade | A bin index on the existing quality scale. The bins are `GameplaySettings.Tiers`, the ones `GetTier` already reads, so a stock grade and an item's tier mean one thing | Fixed per catalog revision. Stock's grade is set when it is produced and never changes. A lot minted from stock draws its assembly and fills inside the grade's bin | Owner: the production step, by `L-graded`. Bins: `GameplaySettings`. Forbidden: price, allocators or records writing a grade |
-| Workforce | Its kind is a catalog record (human, a supplier's biodrone line, automation) with its own needs table. A facility's staffing is (facility, kind, count) | Humans live in residential stations and staff facilities in the same zone only; between zones they move by the population step's slow migration toward work and goods (`workforce-is-zone-local`, `L-zone-crew`). Passenger transport may come later as content. Biodrones are bought as cargo, which is stock until installed in a facility, and then draw their feed and limiter upkeep as needs. Automation is built where its faction allows it | Owner: kinds in the catalog, and which kinds a faction permits on the faction record. Staffing: the strategic tick's population step. Forbidden: a facility staffed by a kind its faction does not permit |
-| Population or institution | (station, population or institution kind), with a size | Grows while its basic needs are met. Under a sustained shortfall it shrinks slowly, down to a floor, so a region can recover. Size scales its needs table | Owner: the population step of the strategic tick. Forbidden: needs read as fixed numbers that ignore size |
-| Needs table | One catalog record per population, institution or workforce kind: commodity (or role) to a per-capita rate, split into basic and lifestyle | Authored, and revised by commit. Scaled by size every tick and never stored per instance. Biodrone tables carry no entertainment or lifestyle rows (`typed-workforce`) | Owner: the catalog. Forbidden: `DemandProfile`, and any demand formula outside the tables |
-| Obligation | (issuer faction, issuing station, ordinal). It holds a kind (quota, purchase order, contract, bounty), a commodity, a grade floor, a quantity, a deadline, a reward and a consequence | The allocator issues it from an unmet need. A hauler, NPC or player, claims it. A delivery commit through the stock ledger fulfils it, or its deadline passes and the issuer applies the consequence. It is never edited: a revised demand is a new obligation that supersedes the old | Owner: the issuing faction's allocator. The job board lists obligations and decides nothing. Forbidden: a job generator of its own (`Galaxy.cs:578` placeholder), and work with no issuer |
-| Allocator | A compiled C# class with a stable id per economy kind: `plan`, `market`, `project-contract`, `contraband`. The faction record names its allocator | Code, revised by commits and versioned like arena brains. Each tick it reads needs, stock and prices. It writes obligations, prices within the band, rations, and recipes and settings for its own facilities | Owner: the allocator registry, compiled (`A-compiled`). Forbidden: runtime-loaded or model-written allocators, and an allocator writing a stock count |
-| Price band | (station, commodity, grade). The catalog price is the base; the band width is a parameter of the station's allocator | Derived each tick from stock against the allocator's target, inside the band. A plan allocator may hold its band narrow and ration instead | Owner: the station's allocator, within the band. `StationServices` reads the price and decides none of it. Forbidden: a price from catalog price and quality alone once stock exists |
-| Notice or record | (issuer, subject, issued date). It holds a confidence and its source: dock, broadcast, scan or seizure. A manifest is a record of one cargo | Created when the player docks, hears a broadcast, scans or seizes. It is never updated, so it grows stale with age. It may be false, if its issuer lies | Owner: the record maker, from obligations and stock at the moment of issue, through the issuer's honesty policy. The player's surfaces read only records and the price band (`L-no-omniscience`). Forbidden: any UI reading the stock ledger |
-| Population or institution migration | (from zone, to zone, population kind), a flow per tick | The population step moves people slowly toward zones with unfilled work and met needs. It is a flow, never a ship | Owner: the population step. Forbidden: any other writer of a population's size or zone |
-| Region boundary (outside market) | One catalog record per region gate: per commodity, an outside price, whether it buys, sells or both, and a capped rate per tick | Authored, and revised by commit. Each tick the gate step trades at band prices around the outside price, up to the cap, through stock-ledger commits. A blockade of the gate stops its flows (`region-gate-is-an-exchange`) | Owner: the catalog for the record; the gate step of the strategic tick for the flows. Checks: `L-source-sink` counts it, `L-consumer-demand` does not. Forbidden: flows above the cap, and a gate writing stock other than by ledger commits |
+| Actor | An Aetherlight subject (Institution or Person). It carries an `ImportKey`: `aetheria.faction` and the record key for catalog factions; `aetheria.actor` and a seed-derived site label (`{seed}:{cluster}:union:{n}`) for generated unions and syndicates | Created at genesis or by a later patch. It acts, holds offices, and is retired, never deleted | Owner: Aetherlight. Forbidden: Faction or other economy records holding runtime actor state |
+| Office | (institution, office name) in Aetherlight `selection`. Its brain family is named by the catalog per office kind | Seeded at genesis. Its incumbent changes by Aetherlight acts | Owner: Aetherlight. The brain is compiled code (`A-compiled`). Forbidden: a brain chosen at runtime |
+| Commitment | Aetherlight `CommitmentKey` (command id, index) under its promisor | Admitted by an act, then discharged, or it falls past due and raises pressure. Never edited | Owner: Aetherlight. Forbidden: the economy writing or discharging one |
+| Order | The admitted act's event id, plus the payload's index. It is typed: setting, ration, install, band, obligation, haul, labour | Born in `O_k`. Executed once at `k+1`: it commits, or it fails with a receipt record. Never re-executed | Owner: the economy executes it; Aetherlight authorized it. Forbidden: an order with no admitted act |
+| Installation | A catalog-independent runtime record keyed by its zone body site (`zone-body-site-identity`) or its station key. In Aetherlight it is a place with `ImportKey` `aetheria.installation` and that key | Generated with its zone, and gains or loses gear by install orders. Destroyed with its body or hull | Owner: the economy. Its jurisdiction is Aetherlight's. Forbidden: two kinds for station, Bloom and habitat |
+| Installed gear | (installation, slot ordinal). It holds a gear design: a facility, a crew or habitation module, or other gear | Installed or removed only by an order. A facility runs its setting; a module houses a population | Owner: the economy, through orders. Forbidden: a generator or UI installing gear outside the build order path (world generation seeds it once) |
+| Facility setting | (installation, slot) | Changed only by a setting order. Read by the production step | Owner: the operator actor, through orders. Forbidden: any other writer |
+| Population | (installation, module slot, workforce or population kind). It holds a size and its needs met | Grows while basic needs are met. It shrinks slowly to a floor under shortfall, and migrates slowly between zones | Owner: the population step. Forbidden: any other writer of size or zone |
+| Simple stockpile | (holder, commodity) and a count | Changed only by ledger commits | Owner: the stock ledger. Forbidden: grade, lot or origin on it |
+| Compound batch | (holder, design, producing installation, facility, grade, certified) and a count | Created by production. It merges with an equal key, and splits by moves | Owner: the stock ledger, and production for grade and stamp |
+| Lot | Minted at the boundary from (batch key, crossing event) | It stacks in a hold by (design, lot), and carries a Produced origin | Owner: `ItemManager` at the boundary. Forbidden: minting for stock no entity holds |
+| Account | (holder actor `ImportKey`, cell); see question `money-across-cells` | Changed only by ledger commits: settlements, escrow, wages | Owner: the stock ledger. Forbidden: Aetherlight holdings, and any UI balance edit |
+| Record | (issuer installation, tick, ordinal). It holds a subject, a payload, a confidence and the cell it landed in. In Aetherlight it is a fact with `ImportKey` `aetheria.record` and the record id | Issued once and never edited. It travels as cargo between cells | Owner: the economy issues it; Aetherlight owns who knows it. Forbidden: a record with no issuer, and any reader of the payload without a knowledge row |
+| Knowledge row | Aetherlight (subject, fact) | Added when a record lands in the subject's cell. Forgetting removes it | Owner: Aetherlight. Forbidden: any economy-side "who knows" store |
+| Comms cell | A zone or a region; question `comms-cell` | Fixed by the galaxy | Owner: galaxy generation. Forbidden: a record crossing a cell boundary other than as cargo |
+| Certification | A stamp in a compound batch key and on its lots. An audit finding is an Aetherlight fact | The stamp is written by production under a certify setting. A finding is written by an auditor's act | Owner: the operator decides the claim; the auditor decides the finding. Forbidden: the ledger refusing a claim |
+| Tick exchange | (`F_k`, `O_k`) for tick `k` | Built once per tick, sorted by id. Consumed once | Owner: the strategic-tick driver. Forbidden: any other channel between the runtimes |
+| Commodity, Recipe, Station kind, Facility design, Module design, Workforce kind, Outside market | Catalog keys, as in r2. A module design carries its consumption table per occupant | Authored, and revised by commit | Owner: the catalog, written by economy batches. Forbidden: runtime edits |
+| Price band | (installation, commodity) | The band and target come from a band order; the price is derived each tick | Owner: the economy for the price, the operator actor for the band. Forbidden: a price from catalog price alone once stock exists |
 
-Every cell is filled from rulings or Body facts.
+## 7. Cut sequence
 
-## 6. Cut sequence
+Landed: catalog subtraction, the station-kind datum, recipe schema and checks, recipe role inputs, the ore batches,
+derived prices, commodity shapes, and simple fungibility. In force and unreported: `cut-compound-commodity-stacks`,
+`cut-design-bills-of-materials` and `cut-recipe-facilities`. The rest are follow-ups in the mind, and each names what
+it waits on.
 
-Each line names its cut and what it waits on.
+1. Facility production (follow-up `facility-production`, named by `cut-recipe-facilities`). It waits on that cut and
+   on the stock ledger.
+2. The stock ledger: simple stockpiles, compound batches and lots at the boundary. It is r2's cut 4, re-scoped by
+   `L-fungible`, `L-lot-at-boundary` and `L-no-absorb`.
+3. Installations and habitation (follow-up `installations-and-habitation`): one installation kind; crew and habitation
+   module designs with tables; populations in modules; the module half of `L-consumer-demand`. It replaces r2's cuts 6
+   and 7 as kinds. It waits on 2.
+4. Station outflow, mapped now by another Imagination against r2. It re-anchors on r3 (section 8).
+5. Aetherlight economy referents (follow-up `aetherlight-economy-referents`): import keys on places and facts, and a
+   typed order payload on acts. It waits on AL4 (`aetheria-release`).
+6. The tick exchange (follow-up `seam-tick-exchange`): the strategic-tick driver, `F_k` and `O_k`, records landing in
+   cells, the composite digest, and the office brains replacing r2's allocators. It waits on 2, 3 and 5, and on
+   question `comms-cell`.
+7. Accounts: money in the ledger, escrow and wages. It waits on question `money-across-cells` and on 2.
+8. Off-screen tick, legibility and stall checks: r2's cuts 9 to 11, unchanged in purpose, run inside 6's sequence.
 
-1. `catalog-subtraction`: delete `DemandProfile` and both stored categories with their enums, and the trade menu's two
-   category filters; withdraw `station-restock`; mark the `INDEX.md` factory-design line stale. The compound records
-   and the `Ammo` commodity stay. Waits on nothing.
-2. `station-kind-datum`: add the station-kind record, the hull per (faction, kind) and the stand-in kind
-   (`station-kind-family-stand-in`); `ZoneGenerator` places stations by kind (closing `station-hull-source-fit` item 3).
-   Waits on nothing; it touches no file cut 1 touches.
-3. `commodities-and-recipes`: the lore-built commodity set, seeded from `Economy/Item Hooks/` and from the 51 kept
-   compounds, which become consumer goods and components; recipes with role inputs for gear, hulls and consumer goods;
-   the region gate's outside-market record. It also adds the new station kinds and the catalog checks (`L-source-sink`
-   counting the gate, `L-consumer-demand`'s role-fill half, `L-productive`, `L-deep`, `L-recipe`, `L-lore`). It is an
-   economy content pass (agent-authored, operator reviews) plus one Hands cut for the schema and the checks. Waits on 1
-   and 2.
-4. `stock-ledger`: stockpiles by (station, commodity, grade); station trade materialises lots on dock
-   (`L-lot-at-boundary`); delete `RandomProducts` as station stock. Waits on 3.
-5. `facilities-and-setting`: facility records, the production step, the good/fast/cheap setting and grade output by
-   `L-graded`. Waits on 4.
-6. `workforce`: workforce kinds, faction permits, residential staffing from the facility's own zone (`L-zone-crew`),
-   and biodrone cargo and upkeep. Waits on 5.
-7. `needs-and-obligations`: needs tables, population size, obligations, and the job board reading them; the
-   needs-table half of `L-consumer-demand`. Waits on 4 and 6.
-8. `allocators`: the four compiled allocators, the faction record naming one, the price band and rations. Waits on 7.
-9. `off-screen-tick`: every zone in the region ticks the economy at reduced detail under `SimClock`; hauling as flows;
-   the matchup predictor stub as the destruction sink; it runs in the arena runner; the gate step trades with the
-   outside market at its cap (`L-gate-cap`); the population step migrates people between zones. Waits on 8 and on
-   aetheria-arena cuts 1 and 5.
-10. `legibility`: notices, records, manifests on scan or seizure, and the price band shown at dock. Waits on 7 and 9.
-11. `stall-checks`: the strategic arena runs `L-no-stall`, with the gate open at its cap, and runtime `L-source-sink`
-    over generated seeds and reports the horizon and window. Waits on 9 and on aetheria-arena cut 6.
+## 8. What changes for the station-outflow mapping
 
-**Who authors the new station kinds.** Deep chains grow the kind list past 17.
+The station-outflow pass was mapped against r2 and `no-market-absorption`. Under r3:
 
-- **Kind data.** The economy content pass authors each new kind in cut 3, together with the recipes that need it. That
-  pass is Imagination with lore authoring, agent-written, and the operator reviews it as she reviews recipes.
-- **Models.** The hull bench station round authors a model for each (faction, kind) pair under `faction-station-models`.
-  Its next round takes its brief list from cut 3's new kinds. Until each model lands, the kind stands in with its
-  faction's model of the stand-in kind its record names (`station-kind-family-stand-in`).
+- **Consumption at a station is not a station rate.** It is the consumption of the populations housed in its installed
+  crew modules, by each module's table (`L-installed`, `L-populations`). A "local consumption at its demand rate" with
+  no module behind it is forbidden.
+- **Industrial drain is facility production.** Ore drains only through an installed facility running a recipe. A
+  station with no such facility does not buy ore (`L-no-absorb`). Where the outflow work needs this, it waits on
+  facility production, or names that follow-up as its first step.
+- **Onward trade is an actor's haul order, not an economy flow.** Until offices run (follow-up `seam-tick-exchange`),
+  an outflow cut may feed the ledger orders from a fixed order document (a test fixture or a generator-seeded standing
+  order). That document has the r3 order shape, and it is deleted when offices issue orders. It must never be a brain
+  or a second issuer that lives on.
+- **Starting stock that leaves room** is generation, and it is still the economy's. It is written through ledger
+  commits.
+- **Prices respond through `L-prices`.** A price is derived from stock inside a band. Until band orders exist, the
+  band is the catalog default.
+
+## 9. Prior art
+
+These notes come from the designers' published systems, recalled for this pass rather than fetched in it (the mind's
+`known` index did not answer during this pass). An Eyes pass should pin sources before the questions are ruled.
+
+- **Victoria 3** separates pops from interest groups. Pops are economic aggregates in buildings: employment, wages,
+  standard of living and needs met. Interest groups are the political actors, and their clout is derived from the pops
+  that back them. Buildings run production methods that their owners choose. The lesson is the seam this revision
+  takes: aggregates on the physical side, actors whose pressure reads them. The known failure is opaque pop-to-IG
+  attribution, which players could not read; records with issuers answer it here.
+- **X4: Foundations** builds stations from modules. Production modules consume wares. Habitat modules house a workforce
+  that consumes food and medical supplies and speeds production. A station manager (an actor) sets buy and sell offers
+  and budgets inside the station's physical limits. Its known failures are seed-dependent shortages and stations that
+  stop buying when storage fills. `L-no-absorb` and `L-no-stall` answer them.
+- **Dwarf Fortress** keeps civilisations and their sub-entities (guilds, religions, governments) as historical entities
+  that hold positions with holders over sites. World generation seeds them, and their knowledge spreads with travellers.
+  That is the shape of offices over installations and of records carried by traffic.
+- **Bills of exchange**: medieval merchant banking moved value between cities by carried instruments drawn on
+  correspondents, because no message travelled faster than a courier. It is prior art for `money-across-cells`.
