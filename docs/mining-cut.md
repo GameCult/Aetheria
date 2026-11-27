@@ -89,8 +89,8 @@ nothing per tick.
    the exact Gaussian mass over a silhouette. A chunk's silhouette is its disc.
 5. **The loot is decided at Commit.** The yield and the ore picks come from the shot's own generator, in a fixed
    draw order after the hit draw. Apply only performs them.
-6. **Every mined unit carries a lot.** The lot is `Extracted` from this zone and this belt, and stacks merge only
-   within one lot. A mined unit never exists without a ledger entry.
+6. **Mined units carry no lot.** They merge with every unit of their design, mined or not (ruling
+   aetheria-living-world:ruling:simple-commodities-fungible, which supersedes Q6b A of 2026-09-30).
 7. **A chunk never yields more than its authored total**, whatever weapon breaks it.
 8. **Composition is derived, never stored** (recommended in Q7): a pure function of the belt's identity and the
    catalog's ore table.
@@ -139,8 +139,8 @@ nothing per tick.
 | **Chunk composition** | Derived: `(belt identity, ChunkId, catalog ore table)`. | Never stored (recommended, Q7). A retune of the catalog retunes every belt. | The catalog author, through per-ore data on `SimpleCommodityData`. The derivation function is the only reader of that data for belts. |
 | **Ore affinity and abundance** | Per ore: new nullable fields on `SimpleCommodityData` (keys 12 and 13 are free. Only key 11 is retired on `SimpleCommodityData`; keys 6, 7 and 8 are live, inherited from `ItemData` (`SpecificHeat`, `Conductivity`, `Price`, `ItemData.cs:291-298` @`b66ba524`). The comment at `ItemData.cs:304` wrongly lists 6, 7, 8 and 11). | Authored in Studio. Changes with the catalog. | Catalog author. |
 | **Global loot tunables** | `GameplaySettings` / `PlanetSettings` fields (Cut 5). | Authored. Today they live in `Settings.asset`. They move with the settings-globals campaign (`docs/settings-globals-cut.md`, mapped, not landed). | Catalog author. |
-| **Mined lot** | `LotId` in the run's `ProvenanceLedger`. `Lot { Design = the commodity, Origin = Extracted { Zone, Commodity, Body }, Quality, Roles = null }`. | Minted at the first extraction from a (zone index, belt, commodity) source (Q6). Reused for later units from that source. Collected by `Reachable` when no instance reaches it. A later extraction after collection mints a fresh lot. | `ItemManager.ExtractedLot(zone, belt, commodity)` is the only writer. Its source→lot index is derived at load, not persisted. |
-| **Mined unit** | A `SimpleCommodity` instance, `Data` = commodity, `Lot` = the source lot (`Lot` moves to the `ItemInstance` base, key 11). | Stored in cargo. Stacks merge only within the same `Data` and `Lot`. A split copies `Lot`. | `EquippedCargoBay` owns placement. The mint owns `Lot`. |
+| **Mined lot** | Retired by ruling simple-commodities-fungible: a mined unit has no lot and Extract mints nothing. A run ledger saved before the ruling may hold `RetiredExtracted` lots (Provenance arm 2); they load, and `Reachable` drops them. | | |
+| **Mined unit** | A `SimpleCommodity` instance, `Data` = commodity, no lot (`Lot` lives on `CraftedItemInstance`; key 11 is never reused on `SimpleCommodity`). | Stored in cargo. Stacks merge on `Data` alone, from any source. | `EquippedCargoBay` owns placement. |
 | **Current target** | `Entity.Target` (runtime; not packed, `EntitySerializer.cs` has no target field **(read)**). | Set by targeting inputs or AI state. Cleared by the existing entity-removal paths. A broken chunk stays held and prices 0 until retargeted (Cut 3). | Player: the `ActionGameManager` targeting handlers. AI: the Minion states. Both write the one slot. |
 | **Mining shot** | `ShotId` (`Zone.NextShotId`), as every shot. | Fire → Commit → arrival. Never serialized (`FireControl.cs:852-855`). | `FireControl`. |
 
