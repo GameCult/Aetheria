@@ -66,8 +66,9 @@ try {
     # A manifest that fails after the build has started: its first row sits far off the raster (hull.scad is beside it already).
     $bad = Get-Content $Nak -Raw | ConvertFrom-Json
     $bad.rows[0].cell = @(500, 500)
-    $bad | ConvertTo-Json -Depth 8 | Set-Content "$Scratch\bad.json" -Encoding utf8
+    [IO.File]::WriteAllText("$Scratch\bad.json", ($bad | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding $false))
     Native "failed --replace" { Pack "$Scratch\bad.json" @("--replace") } 1
+    if (-not (Select-String -Path $Log -Pattern "PACKAGE_FAILED: row .* raster" -Quiet)) { throw "the --replace failed, but not on the off-raster row" }
     if ($before -ne (Digest "$Mods\aetheria.nakovalnya")) { throw "the failed --replace changed the package" }
     Say "FAILED REPLACE LEFT THE PACKAGE BYTE-IDENTICAL"
     Remove-Item "$Scratch\derived.cc" -ErrorAction SilentlyContinue
