@@ -8,8 +8,8 @@ product, and a manifest is never read again; --replace re-derives the package an
 existing package is refused untouched. A run is all or nothing: --replace moves the existing package aside, builds, and deletes the old one
 only when the new one is complete; any failure removes what the run built and puts the old package back as it was.
 
-Order, one owner per step: New Ship --like, the first Save Layout creates ship.cc, AetherDb stats/price/product (the one writer of
-each), hull.scad copied in, Load Layout, Build From Hull Source, Rasterise Hull, the rows through place(), Save Layout, Package Ship.
+Order, one owner per step: New Ship --like, the first Save Layout creates ship.cc, AetherDb stats/kind/price/product (the one writer of
+each; kind only for a station manifest), hull.scad copied in, Load Layout, Build From Hull Source, Rasterise Hull, the rows through place(), Save Layout, Package Ship.
 The last line is PACKAGE_OK (exit 0) or PACKAGE_FAILED (exit 1); a row that does not fit its cell is a failure, never a move.
 Manifest schema and the reproducers: package_hull.md. Everything outside package() is pure Python (test_package_hull.py).
 """
@@ -27,6 +27,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 MANIFEST_KEYS = ("id", "name", "like", "length", "extent", "hull", "maker", "description", "offered", "price", "stats", "rows")
+MANIFEST_OPTIONAL = ("kind",)
 STATS_KEYS = ("mass", "durability", "armor", "drag")
 STATS_OPTIONAL = ("top_speed",)
 ROW_KEYS = ("id", "kind", "cell", "footprint", "rotation", "armor", "arc")
@@ -81,12 +82,14 @@ def load_manifest(path):
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise Refused(f"The manifest cannot be read: {error}") from None
-    _keys("The manifest", manifest, MANIFEST_KEYS)
+    _keys("The manifest", manifest, MANIFEST_KEYS, MANIFEST_OPTIONAL)
     ship_cc = _ship_cc()
     if not isinstance(manifest["id"], str) or not ship_cc.valid_ship_id(manifest["id"]):
         raise Refused(f"id {manifest['id']!r} is not a valid ship id")
     for key in ("name", "like", "maker", "description", "hull"):
         _text(key, manifest[key])
+    if "kind" in manifest:
+        _text("kind", manifest["kind"])
     if isinstance(manifest["length"], bool) or not isinstance(manifest["length"], int) or manifest["length"] < 1:
         raise Refused("length must be a whole number of cells of at least 1")
     extent = manifest["extent"]
@@ -262,6 +265,9 @@ def package(manifest, manifest_dir, game, packages, openscad):
     require(db(*args) == 0, "stats was refused")
     if "top_speed" in stats:
         require(top_speed() == (stats["top_speed"], stats["top_speed"]), "stats did not set the top speed")
+    if "kind" in manifest:
+        # A station's kind is ship.cc's own fact and AetherDb its one writer; the packager holds no kind table.
+        require(db("kind", ship_cc_path, manifest["kind"]) == 0, "kind was refused")
     require(db("price", ship_cc_path, manifest["price"]) == 0, "price was refused")
     product = ["product", ship_cc_path, manifest["maker"], "--name", name, "--description", manifest["description"]]
     require(db(*product, *([] if manifest["offered"] else ["--not-offered"])) == 0, "product was refused")

@@ -47,17 +47,24 @@ public static class ShipModPreview
         if (template == null) throw new InvalidOperationException($"{TemplatePath} is missing or has no ShipModTemplate.");
         var plan = ShipModPlan.Build(package.Hull, package.Visual);
         var ship = ShipModShips.Assemble(visual, package.Hull, package.Visual, template);
+        // A station is a plain EntityInstance: ShipInstance flies, and SetEntity would read thrusters it does not have.
+        if ((package.Hull.HullType == HullType.Ship) != (ship is ShipInstance))
+            throw new InvalidOperationException($"assembled: a {package.Hull.HullType} hull got {ship.GetType().Name}; only a Ship gets a ShipInstance.");
         CheckShip(ship, plan, "assembled");
 
         // Instantiate clones the assembled root, and Unity must remap every array reference into the clone.
-        var clone = UnityEngine.Object.Instantiate(ship.gameObject).GetComponent<ShipInstance>();
-        try { CheckShip(clone, plan, "clone"); CheckExhaust(clone); }
+        var clone = UnityEngine.Object.Instantiate(ship.gameObject).GetComponent<EntityInstance>();
+        try
+        {
+            CheckShip(clone, plan, "clone");
+            if (clone is ShipInstance flier) CheckExhaust(flier);
+        }
         finally { UnityEngine.Object.DestroyImmediate(clone.gameObject); }
         Debug.Log($"SHIP_MOD_ASSEMBLY_SMOKE thrusters={plan.Thrusters.Length} exhaust=ok collider=hidden " +
                   $"weapons={plan.Weapons.Length} radiators={plan.Radiators.Length}");
     }
 
-    private static void CheckShip(ShipInstance ship, ShipModPlan plan, string what)
+    private static void CheckShip(EntityInstance ship, ShipModPlan plan, string what)
     {
         void Require(bool ok, string claim) { if (!ok) throw new InvalidOperationException($"{what}: {claim}"); }
         bool Inside(Component part) => part != null && part.transform.IsChildOf(ship.transform);
@@ -66,7 +73,8 @@ public static class ShipModPreview
         Require(ship.HullColliders[0].GetComponentsInChildren<Renderer>(true).All(renderer =>
                     renderer.sharedMaterials.All(material => material == ship.InvisibleMaterial)),
                 "a hull collider that draws nothing");
-        Require(Inside(ship.MapIcon) && Inside(ship.Shield) && Inside(ship.TractorBeam), "map icon, shield and tractor inside the ship");
+        Require(Inside(ship.MapIcon) && Inside(ship.Shield) && (ship is not ShipInstance flier || Inside(flier.TractorBeam)),
+                "map icon, shield and tractor inside the ship");
         Require(ship.ThrusterHardpoints.Select(node => node.name).SequenceEqual(plan.Thrusters) &&
                 ship.ThrusterHardpoints.All(node => Inside(node) && Inside(node.Emitter) &&
                     node.Emitter.sharedMaterials.All(material => material == ship.InvisibleMaterial)),

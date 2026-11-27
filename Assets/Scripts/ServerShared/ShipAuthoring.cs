@@ -123,8 +123,8 @@ public static class ShipAuthoringStore
         cache.Remove(ShipModCatalog.ProductKey(shipId, maker));
 
     // A new mod hull that flies like a shipped one. Every member of the reference is copied through the type's own
-    // MessagePack round trip, so a member added to HullData later is copied too; then the six that are the shipped ship's
-    // own body and layout are reset: Name, Shape (one occupied cell, so the record loads), Hardpoints, Prefab, Schematic,
+    // MessagePack round trip, so a member added to HullData later is copied too; then the seven that are the shipped ship's
+    // own body and layout are reset: Name, Shape (one occupied cell, so the record loads), Hardpoints, Prefab, Schematic, Kind,
     // and Visual, which names this mod's visual record.
     public static HullData HullLike(HullData reference, string name, string shipId)
     {
@@ -135,6 +135,8 @@ public static class ShipAuthoringStore
         hull.Hardpoints = new List<HardpointData>();
         hull.Prefab = null;
         hull.Schematic = null;
+        // A station's kind is its own fact, written by ship-authoring kind; a like hull's is never copied.
+        hull.Kind = default;
         hull.Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey(shipId));
         return hull;
     }

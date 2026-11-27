@@ -15,6 +15,9 @@ using UnityEngine;
 // accepts it, so it composes, and the importer cannot build it, so Preload faults Loading with ImportFault naming it.
 // RemovePackage then moves it aside and the next Compose leaves it out.
 //
+// A Station package takes the same path to an EntityInstance with no ShipInstance (a station does not fly), checked without
+// thruster or weapon asserts; its .broken sibling swaps the map-icon anchor with the shield anchor, which has no mesh.
+//
 //   Unity -batchmode -nographics -projectPath <project> -executeMethod ShipModPlaySmoke.Run
 //         -shipModPath <mods>/<id>/ship.cc [-shippedCatalog GameData/Aetheria.cc] -logFile <log>
 //
@@ -39,11 +42,12 @@ public static class ShipModPlaySmoke
             if (packagePath == null) throw new InvalidOperationException("-shipModPath <package/ship.cc> is required");
             var package = ShipModCatalog.ReadPackage(packagePath);
             Install(package.Visual.Id, package, modsRoot, Path.GetFullPath(packagePath));
+            var station = package.Hull.HullType == HullType.Station;
             var broken = InstallSibling(package, modsRoot, ".broken", ship =>
             {
                 var mapIcon = ship.Anchors.Single(anchor => anchor.Role == "map-icon");
-                var muzzle = ship.Anchors.First(anchor => anchor.Role == "weapon-muzzle");
-                (mapIcon.ModelNodeId, muzzle.ModelNodeId) = (muzzle.ModelNodeId, mapIcon.ModelNodeId);
+                var meshless = station ? ship.Anchors.Single(anchor => anchor.Role == "shield") : ship.Anchors.First(anchor => anchor.Role == "weapon-muzzle");
+                (mapIcon.ModelNodeId, meshless.ModelNodeId) = (meshless.ModelNodeId, mapIcon.ModelNodeId);
             }, null);
             var shipped = Path.GetFullPath(Option("-shippedCatalog", "GameData/Aetheria.cc"));
             var composition = ShipModCatalog.Compose(shipped, derived, modsRoot);
@@ -60,13 +64,23 @@ public static class ShipModPlaySmoke
                 var hull = Hull(package.Hull.Name);
 
                 zone = new GameObject("Play Smoke Zone");
-                var ship = ShipModShips.Instantiate(hull, zone.transform).GetComponent<ShipInstance>();
-                if (ship == null) throw new InvalidOperationException("The mod ship body has no ShipInstance.");
+                var body = ShipModShips.Instantiate(hull, zone.transform);
+                var ship = body.GetComponent<EntityInstance>();
+                if (ship == null) throw new InvalidOperationException("The mod hull's body has no EntityInstance.");
                 var thrusters = ship.ThrusterHardpoints?.Length ?? 0;
                 var weapons = ship.WeaponHardpoints?.Length ?? 0;
-                if (thrusters == 0) throw new InvalidOperationException("ThrusterHardpoints is empty.");
-                if (weapons == 0 || ship.WeaponHardpoints.Any(node => node.FiringPoint == null || node.FiringPoint.Length == 0))
-                    throw new InvalidOperationException("WeaponHardpoints is empty or a weapon has no muzzle.");
+                if (station)
+                {
+                    // A station renders as an EntityInstance: a ShipInstance would throw in Update (SetEntity returns before _thrusters).
+                    if (body.GetComponent<ShipInstance>() != null) throw new InvalidOperationException("A station body must not carry a ShipInstance.");
+                }
+                else
+                {
+                    if (ship is not ShipInstance) throw new InvalidOperationException("The mod ship body has no ShipInstance.");
+                    if (thrusters == 0) throw new InvalidOperationException("ThrusterHardpoints is empty.");
+                    if (weapons == 0 || ship.WeaponHardpoints.Any(node => node.FiringPoint == null || node.FiringPoint.Length == 0))
+                        throw new InvalidOperationException("WeaponHardpoints is empty or a weapon has no muzzle.");
+                }
                 if (ship.HullColliders == null || ship.HullColliders.Length != 1)
                     throw new InvalidOperationException("The ship needs exactly one hull collider.");
                 var collider = ship.HullColliders[0].GetComponent<MeshCollider>();

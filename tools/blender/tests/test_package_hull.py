@@ -46,6 +46,11 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(len(manifest["rows"]), 6)
         self.assertEqual(ph.rows_of(manifest)[0], ("Gun.D", "Ballistic", (2, 3), "#", 0, 20, 90))
 
+    def test_a_station_kind_loads_and_must_be_text(self):
+        self.assertEqual(self.load(lambda m: m.update(kind="depot"))["kind"], "depot")
+        for bad in (7, "", None):
+            self.refused(lambda m, bad=bad: m.update(kind=bad), "kind")
+
     def test_a_missing_key_is_named(self):
         self.refused(lambda m: m.pop("price"), "missing", "price")
         self.refused(lambda m: m["stats"].pop("drag"), "stats", "drag")

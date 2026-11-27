@@ -9,7 +9,7 @@ using System.Linq;
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | starter <mods-dir> <stable-id> <name> --like <shipped hull name> | regenerate <ship.cc> [apply] | inspect <ship.cc> | open <ship.cc> | push <ship.cc> [apply] (request on stdin) | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped ship or station hull name>] | starter <mods-dir> <stable-id> <name> --like <shipped hull name> | regenerate <ship.cc> [apply] | inspect <ship.cc> | open <ship.cc> | push <ship.cc> [apply] (request on stdin) | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | kind <ship.cc> <kind-id> | compose <shipped.cc> <derived.cc> <mods-dir>";
 
     private static readonly string[] StatFlags = { "--mass", "--durability", "--armor", "--drag", "--top-speed" };
 
@@ -61,7 +61,7 @@ public static class ShipAuthoringCommands
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
                 var ship = new ShipAuthoring { Id = args[2], ModelAsset = "ship.glb", Anchors = new List<ShipAnchor>() };
                 var hull = args.Length == 6
-                    ? ShipAuthoringStore.HullLike(ShippedShipHull(args[5]), args[3], ship.Id)
+                    ? ShipAuthoringStore.HullLike(ShippedLikeHull(args[5]), args[3], ship.Id)
                     : new HullData
                     {
                         Name = args[3],
@@ -205,6 +205,22 @@ public static class ShipAuthoringCommands
                 Console.WriteLine($"{ship.Id}: {(remove ? "removed" : "wrote")} the product by {makerName}{(notOffered ? ", not offered" : "")}.");
                 return 0;
             }
+            if (args[0] == "kind" && args.Length == 3)
+            {
+                // The one writer of a station package's Kind, beside push (the scene's writer): same loader, one commit. The one
+                // kind rule judges it against the shipped catalog, read-only, before the file is opened writable.
+                var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
+                hull.Kind = new CultRecordRef<StationKindData>(StationKindData.KeyOf(args[2]));
+                using (var catalog = AetherDb.Open().Cache)
+                    if (StationKinds.HullKindFault(catalog, hull) is { } fault) throw new InvalidOperationException($"{ship.Id}: {fault}");
+                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
+                {
+                    ShipAuthoringStore.Write(cache, hull, ship);
+                    cache.FlushAsync().Wait();
+                }
+                Console.WriteLine($"{ship.Id}: kind {hull.Kind.Key.Value}.");
+                return 0;
+            }
             Console.Error.WriteLine(Usage);
             return 1;
         }
@@ -217,7 +233,8 @@ public static class ShipAuthoringCommands
 
     // The judgment validate reports and push reports on its derived records: the package's records, and its GLB too once it
     // exists (node ids, mesh roles); a draft without one is judged on its records alone, and the label says which. A package
-    // with no products has no bin and is never offered, so the shipped catalog is opened for none. Throws the refusal.
+    // with no products and no station kind to judge has no bin and is never offered, so the shipped catalog is opened for none.
+    // Throws the refusal.
     internal static string Judge(string path, HullData hull, ShipAuthoring ship, FactionProductData[] products)
     {
         var full = Path.GetFullPath(path);
@@ -226,8 +243,11 @@ public static class ShipAuthoringCommands
         ShipAuthoringStore.ValidateLoaded(hull, ship, products);
         if (judged == "records and model") ShipModCatalog.Bind(hull, ship, products, Path.GetDirectoryName(full), full);
         // Compose's verdict on a package's bins and its offered hull's schematic; the author sees it here, before compose.
-        using var catalog = products.Length > 0 ? AetherDb.Open().Cache : null;
+        using var catalog = products.Length > 0 || hull.HullType == HullType.Station ? AetherDb.Open().Cache : null;
         if (ShipModCatalog.MarketFault(catalog, ship, products) is { } fault) throw new InvalidOperationException(fault);
+        // A station package names a kind the shipped catalog holds (the rule Compose applies), so Package refuses it before compose does.
+        if (hull.HullType == HullType.Station && StationKinds.HullKindFault(catalog, hull) is { } kindFault)
+            throw new InvalidOperationException($"{ship.Id}: {kindFault}");
         return judged;
     }
 
@@ -243,14 +263,19 @@ public static class ShipAuthoringCommands
         return (catalog.TryGetHandle(matches[0]).Value.Key, matches[0].Name);
     }
 
-    // A shipped ship hull by name, from GameData/Aetheria.cc opened read-only.
-    private static HullData ShippedShipHull(string name)
+    // A shipped hull by name, from GameData/Aetheria.cc opened read-only, of one of the types allowed.
+    private static HullData ShippedHull(string name, params HullType[] allowed)
     {
         using var catalog = AetherDb.Open().Cache;
         var hull = catalog.GetAll<HullData>().FirstOrDefault(candidate => candidate.Name == name) ??
             throw new InvalidOperationException($"--like: the shipped catalog has no hull named '{name}'.");
-        if (hull.HullType != HullType.Ship)
-            throw new InvalidOperationException($"--like: '{name}' is a {hull.HullType} hull, not a ship.");
+        if (!allowed.Contains(hull.HullType))
+            throw new InvalidOperationException($"--like: '{name}' is a {hull.HullType} hull, not a {string.Join(" or ", allowed)}.");
         return hull;
     }
+
+    // starter writes a flyable package, so its like hull is a ship; create --like also takes a station (never a turret).
+    private static HullData ShippedShipHull(string name) => ShippedHull(name, HullType.Ship);
+
+    private static HullData ShippedLikeHull(string name) => ShippedHull(name, HullType.Ship, HullType.Station);
 }

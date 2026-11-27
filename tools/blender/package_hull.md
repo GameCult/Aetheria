@@ -22,7 +22,7 @@ packager still matches the committed first-party package.
 | --- | --- |
 | `id` | the stable ship id and the folder name under `GameData/Mods`; `ship_cc.valid_ship_id` decides what is valid |
 | `name` | the hull's display name |
-| `like` | the name of a shipped catalog hull of type Ship whose stats and top speed the new hull starts from (AetherDb `--like`) |
+| `like` | the name of a shipped catalog hull of type Ship or Station whose stats the new hull starts from (AetherDb `--like`); a Station's kind is not copied |
 | `length` | whole cells, at least 1: the New Ship length field of the add-on |
 | `extent` | `[x, y, z]` metres of the stand-in box the model is made from; with the add-on's `CELL_SIZE` of 2 m (`aetheria_ships/hull_grid.py`) this fixes the raster, so rows written for one extent do not carry to another |
 | `hull` | a file beside the manifest, copied to the package as `hull.scad` (OpenSCAD source with the kit's faction modules) |
@@ -32,6 +32,7 @@ packager still matches the committed first-party package.
 | `price` | at least 0 (AetherDb `price`) |
 | `stats` | `mass`, `durability`, `armor`, `drag`, each at least 0, and optionally `top_speed` (a hull without it keeps `like`'s) |
 | `rows` | a non-empty list of hardpoint rows, below |
+| `kind` | optional: a station kind id (such as `depot`), written by AetherDb `ship-authoring kind` after stats; required when `like` is a Station, because `validate` refuses a station package that names no kind the shipped catalog holds |
 
 A row has all of `id`, `kind`, `cell`, `footprint`, `rotation`, `armor`, `arc`:
 

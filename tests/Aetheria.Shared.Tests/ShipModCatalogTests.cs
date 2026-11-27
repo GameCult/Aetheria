@@ -680,6 +680,54 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.True(File.Exists(target), error);
     }
 
+    // A station package: create --like Zenith makes a Station and never copies Zenith's kind; kind is the one writer of it, judged
+    // by the one kind rule against the shipped catalog; a refusal leaves the file byte-identical.
+    [Fact]
+    public void AStationPackageGetsItsKindOnlyFromTheKindCommand()
+    {
+        var target = Path.Combine(_directory.Path, "GameData", "Mods", "probe.depot", "ship.cc");
+        Assert.Equal(0, Run("create", target, "probe.depot", "Probe Depot", "--like", "Zenith").Code);
+        var (hull, _, _) = ShipAuthoringStore.Load(target);
+        Assert.Equal(HullType.Station, hull.HullType);
+        Assert.False(hull.Kind.IsSet());
+
+        var before = File.ReadAllBytes(target);
+        var (code, _, error) = Run("kind", target, "no-such-kind");
+        Assert.Equal(1, code);
+        Assert.Contains("names no station kind", error);
+        Assert.Equal(before, File.ReadAllBytes(target));
+
+        (code, _, error) = Run("kind", target, "depot");
+        Assert.Equal(0, code);
+        Assert.Equal("", error);
+        Assert.Equal("station-kind:depot", ShipAuthoringStore.Load(target).Hull.Kind.Key.Value);
+    }
+
+    // validate judges a finished station package's kind with the rule Compose applies, before compose does.
+    [Fact]
+    public void ValidateRefusesAKindlessStationAndAcceptsOneThatNamesAShippedKind()
+    {
+        WritePackage("mod.station", tweak: parts => parts.Hull.HullType = HullType.Station);
+        var path = Path.Combine(Mods, "mod.station", "ship.cc");
+        var (code, _, error) = Run("validate", path);
+        Assert.Equal(1, code);
+        Assert.Contains("has no Kind", error);
+        Assert.Equal(0, Run("kind", path, "depot").Code);
+        Assert.Equal(0, Run("validate", path).Code);
+    }
+
+    [Fact]
+    public void TheKindCommandRefusesAShipHullAndLeavesTheFileUntouched()
+    {
+        var target = Path.Combine(_directory.Path, "GameData", "Mods", "probe.ship", "ship.cc");
+        Assert.Equal(0, Run("create", target, "probe.ship", "Probe Ship", "--like", "Djinni").Code);
+        var before = File.ReadAllBytes(target);
+        var (code, _, error) = Run("kind", target, "depot");
+        Assert.Equal(1, code);
+        Assert.Contains("only a station hull has one", error);
+        Assert.Equal(before, File.ReadAllBytes(target));
+    }
+
     // starter: a complete package from nothing but a hull to take stats from. The package must pass the reader the game boots
     // with (GLB node ids and mesh roles included) and plan a rig, and a second run must not touch the first package.
     [Fact]

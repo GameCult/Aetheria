@@ -85,10 +85,11 @@ public static class ShipModShips
         return body;
     }
 
-    // Fills a ShipInstance on the visual's root from its anchors, as ShipModPlan says; the shared effects come from the
+    // Fills an instance on the visual's root from its anchors, as ShipModPlan says; the shared effects come from the
     // template. Nothing here decides a slot: the plan does. The schematic lines stay in the prototype but are hidden in
-    // world; the in-world ship is the GLB.
-    public static ShipInstance Assemble(ShipModVisual.Instance visual, HullData hull, ShipAuthoring ship, ShipModTemplate template)
+    // world; the in-world ship is the GLB. A Ship hull gets a ShipInstance and a tractor beam; any other hull (a station)
+    // gets a plain EntityInstance, because ShipInstance flies (SetEntity and Update read its thrusters) and a station does not.
+    public static EntityInstance Assemble(ShipModVisual.Instance visual, HullData hull, ShipAuthoring ship, ShipModTemplate template)
     {
         var plan = ShipModPlan.Build(hull, ship);
         var minimap = LayerMask.NameToLayer("Minimap");
@@ -135,8 +136,14 @@ public static class ShipModShips
         var shield = Object.Instantiate(template.Shield.GetComponent<ShieldManager>(), shieldMarker, false);
         Reset(shield.transform);
         AddOrGet<ShieldEnvelope>(shield.gameObject);
-        var tractor = Object.Instantiate(template.TractorBeam.GetComponent<TractorBeam>(), Node(plan.Tractor), false);
-        Reset(tractor.transform);
+        var isShip = hull.HullType == HullType.Ship;
+        // The tractor anchor stays required by the plan; a station leaves it unused.
+        TractorBeam tractor = null;
+        if (isShip)
+        {
+            tractor = Object.Instantiate(template.TractorBeam.GetComponent<TractorBeam>(), Node(plan.Tractor), false);
+            Reset(tractor.transform);
+        }
 
         var thrusters = plan.Thrusters.Select(id =>
         {
@@ -164,7 +171,7 @@ public static class ShipModShips
         var lines = visual.Root.transform.Find("Schematic Lines");
         if (lines != null) lines.gameObject.SetActive(false);
 
-        var instance = AddOrGet<ShipInstance>(visual.Root);
+        EntityInstance instance = isShip ? AddOrGet<ShipInstance>(visual.Root) : AddOrGet<EntityInstance>(visual.Root);
         instance.MapIcon = mapIcon;
         instance.InfluencePrefab = null;
         instance.PingPrefab = template.Ping.transform;
@@ -176,7 +183,7 @@ public static class ShipModShips
         instance.RadiatorHardpoints = radiators;
         instance.ArticulationPoints = Array.Empty<ArticulationPoint>();
         instance.DestroyEffect = template.DestroyEffect;
-        instance.TractorBeam = tractor;
+        if (instance is ShipInstance flier) flier.TractorBeam = tractor;
         return instance;
     }
 
