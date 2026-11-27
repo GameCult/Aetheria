@@ -73,6 +73,13 @@ public sealed class StationKindTests : IDisposable
             world.Lucent = cache.GetAll<Faction>().Single(f => f.ShortName == "Lucent");
             world.Zenith = cache.GetAll<HullData>().Single(h => h.Name == "Zenith");
             world._zenithProduct = cache.GetAll<FactionProductData>().Single(p => cache.Get(p.Design) == world.Zenith);
+            // Station packages composed into the catalog (the Arsenal Depot) are off the market too: these worlds hold only the station
+            // hulls a test adds, and the depot's offer would make every depot stand-in live (StationPackageTests owns that).
+            foreach (var product in cache.GetAll<FactionProductData>().Where(p => cache.Get(p.Design) is HullData { HullType: HullType.Station } h && h.Visual.IsSet()).ToArray())
+            {
+                product.NotOffered = true;
+                cache.Upsert(product);
+            }
             if (!zenithOffered)
             {
                 world._zenithProduct.NotOffered = true;
