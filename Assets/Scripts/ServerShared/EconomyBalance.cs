@@ -46,10 +46,15 @@ public sealed class BalanceReport
 public static class EconomyBalance
 {
     public const string HMargin = "H-margin", HWage = "H-wage", HConverge = "H-converge";
-    private const int SweepCap = 10000;
+    private const int SweepCap = 10000, SettleWindow = 100;
 
-    // The stored price a derived price becomes: whole credits, at least 1. A chain that does not settle diverges; it reads as the largest price.
-    public static int Rounded(double derived) => !(derived < int.MaxValue) ? int.MaxValue : (int) Math.Max(1, Math.Round(derived, MidpointRounding.AwayFromZero));
+    // The stored price a derived price becomes: whole credits, at least 1.
+    public static int Rounded(double derived) => (int) Math.Max(1, Math.Round(derived, MidpointRounding.AwayFromZero));
+
+    // The words for goods whose price does not settle.
+    public static string Unsettled(CultCache catalog, IEnumerable<string> keys) =>
+        $"No price settles within {SweepCap} sweeps: these goods sit on a cycle of recipes whose requirements do not shrink: " +
+        string.Join(", ", keys.Select(k => catalog.Get<ItemData>(new CultRecordKey(k))?.Name ?? k));
 
     private static double Price(CultCache catalog, string key) => catalog.Get<ItemData>(new CultRecordKey(key))?.Price ?? 0;
 
@@ -99,12 +104,14 @@ public static class EconomyBalance
 
     // Value iteration from zero over every recipe at one wage. A good in fixedOutputs, or with no recipe, holds its authored price.
     // Two recipes for one output: the cheaper sets its price, as a role takes its cheapest filler.
-    private static Dictionary<string, double> Sweep(CultCache catalog, List<EconomyChecks.Column> columns, double wage, ISet<string> fixedOutputs, out bool converged)
+    private static Dictionary<string, double> Sweep(CultCache catalog, List<EconomyChecks.Column> columns, double wage, ISet<string> fixedOutputs, out List<string> unsettled)
     {
         var derived = new Dictionary<string, double>(StringComparer.Ordinal);
         foreach (var c in columns) if (!fixedOutputs.Contains(c.Output)) derived[c.Output] = 0;
         double Cost(string key) => derived.TryGetValue(key, out var v) ? v : Price(catalog, key);
-        converged = false;
+        var converged = false;
+        // The last sweep each good moved in: a cycle can move one good per sweep, so the last sweep alone would name half of it.
+        var lastMoved = new Dictionary<string, int>(StringComparer.Ordinal);
         for (var sweep = 0; sweep < SweepCap && !converged; sweep++)
         {
             converged = true;
@@ -120,21 +127,24 @@ public static class EconomyBalance
             }
             foreach (var (output, next) in best)
             {
-                if (Math.Abs(next - derived[output]) > 1e-12 * Math.Max(1, Math.Abs(next))) converged = false;
+                // A price that is not a finite number is not settled, however little it moved.
+                if (!double.IsFinite(next) || Math.Abs(next - derived[output]) > 1e-12 * Math.Max(1, Math.Abs(next))) { converged = false; lastMoved[output] = sweep; }
                 derived[output] = next;
             }
         }
+        unsettled = converged ? new List<string>() : lastMoved.Where(p => p.Value >= SweepCap - SettleWindow).Select(p => p.Key).OrderBy(k => k, StringComparer.Ordinal).ToList();
         return derived;
     }
 
     // The price of every made commodity (a commodity whose recipe is not raw) at the going wage: its inputs, upkeep and cheapest
     // role fillers at their prices, plus the wage times its labour, over its output count. Raw and recipeless goods keep their
-    // authored price; designs are not priced here.
-    public static Dictionary<string, double> Prices(CultCache catalog)
+    // authored price; designs are not priced here. Unsettled names the goods still moving when the sweep gave up: a cycle of recipes
+    // whose requirements do not shrink has no price, so none of the values are a price.
+    public static Dictionary<string, double> Prices(CultCache catalog, out List<string> unsettled)
     {
         var columns = EconomyChecks.Columns(catalog);
         var raw = new HashSet<string>(columns.Where(c => Recipes.IsRaw(catalog, c.Recipe)).Select(c => c.Output), StringComparer.Ordinal);
-        var derived = Sweep(catalog, columns, RawWage(catalog, columns, Links(catalog, columns)), raw, out _);
+        var derived = Sweep(catalog, columns, RawWage(catalog, columns, Links(catalog, columns)), raw, out unsettled);
         return columns.Where(c => c.IsCommodity && !raw.Contains(c.Output)).Select(c => c.Output).Distinct(StringComparer.Ordinal)
             .ToDictionary(key => key, key => derived[key], StringComparer.Ordinal);
     }
@@ -147,7 +157,8 @@ public static class EconomyBalance
         foreach (var l in links) l.WageRatio = reference > 0 ? l.Wage / reference : null;
 
         // Derived cost: nothing fixed, so an ore costs its labour; belt rows show price minus cost, the rent.
-        var derived = Sweep(catalog, columns, reference, new HashSet<string>(), out var converged);
+        var derived = Sweep(catalog, columns, reference, new HashSet<string>(), out var unsettled);
+        var converged = unsettled.Count == 0;
         double Cost(string key) => derived.TryGetValue(key, out var v) ? v : Price(catalog, key);
         foreach (var l in links) l.Cost = derived[l.Output];
 

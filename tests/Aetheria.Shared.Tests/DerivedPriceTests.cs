@@ -51,7 +51,7 @@ public sealed class DerivedPriceTests
     {
         using var f = Chain();
         Assert.Equal(6.25, EconomyBalance.Wage(f.Cache), 9);
-        var prices = EconomyBalance.Prices(f.Cache);
+        var prices = EconomyBalance.Prices(f.Cache, out _);
         // bar = (3 x 50 + 6.25 x 10) / 2; the ore stays at its authored 50, not its labour cost 125.
         Assert.Equal(106.25, prices["commodity:bar"], 9);
         Assert.Equal(2 * 106.25 + 6.25 * 4, prices["commodity:part"], 9);
@@ -137,8 +137,8 @@ public sealed class DerivedPriceTests
     {
         using var one = Chain();
         using var hundred = Chain(100);
-        var a = EconomyBalance.Prices(one.Cache);
-        var b = EconomyBalance.Prices(hundred.Cache);
+        var a = EconomyBalance.Prices(one.Cache, out _);
+        var b = EconomyBalance.Prices(hundred.Cache, out _);
         foreach (var (key, price) in a) Assert.Equal(price * 100, b[key], 7);
     }
 
@@ -147,10 +147,102 @@ public sealed class DerivedPriceTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         Assert.Empty(EconomyChecks.PriceCheck(cache));
-        var prices = EconomyBalance.Prices(cache);
+        var prices = EconomyBalance.Prices(cache, out _);
         Assert.NotEmpty(prices);
         Assert.All(prices.Keys, key => Assert.True(cache.Get<ItemData>(new CultRecordKey(key)).Price >= 1));
         foreach (var name in new[] { "Water", "Methane", "Diamond" })
             Assert.True(cache.GetAll<SimpleCommodityData>().Concat<ItemData>(cache.GetAll<CompoundCommodityData>()).Single(i => i.Name == name).Price > 0, name);
+    }
+
+    // ore (raw, price 50) feeds a, a feeds b, b feeds a again: the cycle's radius is sqrt(ratio), so 1 and 1.0005 are the edge cases.
+    private static EconomyFixture Cycle(int bPerA, int perBatch)
+    {
+        var f = new EconomyFixture();
+        f.Good("ore", workforce: 1, cycle: 1);
+        Price(f, "commodity:ore", 50);
+        f.Good("a", inputs: new[] { ("ore", 1), ("b", 1) });
+        f.Good("b", inputs: new[] { ("a", bPerA) }, outputCount: perBatch);
+        return f;
+    }
+
+    [Theory]
+    [InlineData(4, 1)]
+    [InlineData(1001, 1000)]
+    [InlineData(1, 1)]
+    public void AChainThatDoesNotSettleHasNoPriceAndAuthorRefusesIt(int bPerA, int perBatch)
+    {
+        using var f = Cycle(bPerA, perBatch);
+        EconomyBalance.Prices(f.Cache, out var unsettled);
+        Assert.Equal(new[] { "commodity:a", "commodity:b" }, unsettled);
+        var fault = Assert.Single(EconomyChecks.Check(f.Cache).Faults, x => x.Invariant == EconomyChecks.LPrice);
+        Assert.Contains("a, b", fault.Message);
+        f.Cache.FlushAsync().GetAwaiter().GetResult();
+        var bytes = File.ReadAllBytes(f.CatalogPath);
+        var code = Author(f, true, out var output);
+        Assert.Equal(1, code);
+        Assert.Contains("No price settles", output);
+        Assert.Contains("a, b", output);
+        Assert.Equal(bytes, File.ReadAllBytes(f.CatalogPath));
+    }
+
+    [Fact]
+    public void ACycleThatShrinksSettlesAndIsPriced()
+    {
+        using var f = Cycle(1, 2);
+        var prices = EconomyBalance.Prices(f.Cache, out var unsettled);
+        Assert.Empty(unsettled);
+        // a = 50 + b, b = a / 2: a = 100, b = 50.
+        Assert.Equal(100, prices["commodity:a"], 6);
+        Assert.Equal(50, prices["commodity:b"], 6);
+    }
+
+    [Fact]
+    public void ADriftedMadePriceIsInTheReportAndAnIntroducedOneRefusesAuthor()
+    {
+        using var f = Chain();
+        Assert.Equal(2, EconomyChecks.Check(f.Cache).Faults.Count(x => x.Invariant == EconomyChecks.LPrice));
+        // Tool upkeep is a made good: pricing it moves the raw wage the made price reads, so the repriced catalog is itself off its derived price.
+        using var g = new EconomyFixture();
+        g.Good("crude", workforce: 1, cycle: 1);
+        g.Good("fuel", inputs: new[] { ("crude", 1) }, workforce: 1, cycle: 1);
+        g.Good("ore", workforce: 1, cycle: 1, upkeep: new[] { ("fuel", 5) });
+        Price(g, "commodity:ore", 300);
+        Price(g, "commodity:fuel", 1);
+        Price(g, "commodity:crude", 100);
+        g.Cache.FlushAsync().GetAwaiter().GetResult();
+        var bytes = File.ReadAllBytes(g.CatalogPath);
+        Assert.Equal(1, Author(g, true, out var output));
+        Assert.Contains("L-price", output);
+        Assert.Equal(bytes, File.ReadAllBytes(g.CatalogPath));
+    }
+
+    [Fact]
+    public void AMadePriceIsWholeCreditsAtLeastOneRoundedHalfAwayFromZero()
+    {
+        Assert.Equal(1, EconomyBalance.Rounded(0.2));
+        Assert.Equal(1, EconomyBalance.Rounded(0));
+        Assert.Equal(3, EconomyBalance.Rounded(2.5));
+        Assert.Equal(4, EconomyBalance.Rounded(3.5));
+        using var f = new EconomyFixture();
+        f.Good("ore", workforce: 1, cycle: 1);
+        f.Good("dust", inputs: new[] { ("ore", 1) }, outputCount: 10, workforce: 1, cycle: 1);
+        Price(f, "commodity:ore", 1);
+        Assert.Equal(0.2, EconomyBalance.Prices(f.Cache, out _)["commodity:dust"], 9);
+        Assert.Equal(0, Author(f, true, out _));
+        using var after = Read(f);
+        Assert.Equal(1, after.Get<ItemData>(new CultRecordKey("commodity:dust")).Price);
+    }
+
+    [Fact]
+    public void UpkeepIsPartOfAMadeGoodsPrice()
+    {
+        using var f = new EconomyFixture();
+        f.Good("ore", workforce: 1, cycle: 1);
+        f.Good("tool", workforce: 1, cycle: 1);
+        f.Good("bar", inputs: new[] { ("ore", 1) }, upkeep: new[] { ("tool", 2) }, workforce: 2, cycle: 1);
+        Price(f, "commodity:ore", 10);
+        Price(f, "commodity:tool", 5);
+        // Raw wages 10 and 5: wage 7.5. bar = 10 + 2 x 5 + 7.5 x 2.
+        Assert.Equal(35, EconomyBalance.Prices(f.Cache, out _)["commodity:bar"], 9);
     }
 }

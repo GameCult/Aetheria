@@ -138,7 +138,7 @@ public sealed class EconomyFixture : IDisposable
     // Every made commodity at the price its chain derives, as economy author leaves it.
     public void Settle()
     {
-        foreach (var (key, derived) in EconomyBalance.Prices(Cache))
+        foreach (var (key, derived) in EconomyBalance.Prices(Cache, out _))
         {
             var item = Cache.Get<ItemData>(new CultRecordKey(key));
             item.Price = EconomyBalance.Rounded(derived);

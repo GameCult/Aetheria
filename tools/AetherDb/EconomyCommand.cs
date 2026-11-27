@@ -270,7 +270,9 @@ public static class EconomyCommand
     // Every made commodity takes the price its chain derives. The one writer of a made price: batches may set any, this overwrites it.
     private static void Reprice(EconomyAuthor author)
     {
-        foreach (var (key, derived) in EconomyBalance.Prices(author.Catalog).OrderBy(p => p.Key, StringComparer.Ordinal))
+        var prices = EconomyBalance.Prices(author.Catalog, out var unsettled);
+        if (unsettled.Count > 0) throw new InvalidOperationException(EconomyBalance.Unsettled(author.Catalog, unsettled));
+        foreach (var (key, derived) in prices.OrderBy(p => p.Key, StringComparer.Ordinal))
         {
             var price = EconomyBalance.Rounded(derived);
             if (author.Catalog.Get<ItemData>(new CultRecordKey(key))?.Price is int held && held != price) author.SetPrice(key, price);

@@ -168,7 +168,13 @@ public static class EconomyChecks
     public static List<EconomyFault> PriceCheck(CultCache catalog)
     {
         var faults = new List<EconomyFault>();
-        foreach (var (key, derived) in EconomyBalance.Prices(catalog).OrderBy(p => p.Key, StringComparer.Ordinal))
+        var prices = EconomyBalance.Prices(catalog, out var unsettled);
+        if (unsettled.Count > 0)
+        {
+            faults.Add(new EconomyFault(LPrice, unsettled[0], EconomyBalance.Unsettled(catalog, unsettled)));
+            return faults;
+        }
+        foreach (var (key, derived) in prices.OrderBy(p => p.Key, StringComparer.Ordinal))
         {
             var item = catalog.Get<ItemData>(new CultRecordKey(key));
             if (item == null) continue;
