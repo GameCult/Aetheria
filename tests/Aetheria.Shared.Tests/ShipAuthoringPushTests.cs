@@ -276,4 +276,80 @@ public sealed class ShipAuthoringPushTests : IDisposable
         Assert.Equal(5f, hull2.Hardpoints.Single(hardpoint => hardpoint.Transform == "gun").Armor);
         Assert.Equal("port-row", hull2.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port").Row);
     }
+
+    // The Expect half of the compare-exchange: a write that lands between the load and the commit, through whatever
+    // path, replaces the instance the commit expects. The commit is refused and the concurrent write is what the store holds.
+    [Fact]
+    public void ConcurrentWriteBetweenLoadAndCommitIsRefused()
+    {
+        var path = Package();
+        using (var cache = ShipAuthoringStore.Open(path, writable: true))
+        {
+            var (hull, _, _) = ShipAuthoringStore.Load(cache, path);
+            var key = ShipModCatalog.HullKey("mod.skiff");
+            var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+            HullData Mutated(float mass)
+            {
+                var copy = MessagePackSerializer.Deserialize<HullData>(MessagePackSerializer.Serialize(hull, options), options);
+                copy.Mass = mass;
+                return copy;
+            }
+            var mine = Mutated(111);
+            var concurrent = Mutated(222);
+            cache.UpsertAsync(typeof(HullData), concurrent, key).GetAwaiter().GetResult();
+            var writes = new[] { new ShipAuthoringPush.Write(key, typeof(HullData), hull, mine) };
+            Assert.False(ShipAuthoringPush.Land(cache, writes));
+            Assert.Same(concurrent, cache.Get(key));
+            cache.FlushAsync().Wait();
+        }
+        Assert.Equal(222f, ShipAuthoringStore.Load(path).Hull.Mass);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("null")]
+    [InlineData("   ")]
+    public void EmptyRequestIsRefusedWithAnOutcome(string body)
+    {
+        var path = Package();
+        var before = File.ReadAllBytes(path);
+        var files = Listing(path);
+        foreach (var apply in new[] { false, true })
+        {
+            var (code, _, outcome) = Push(path, body, apply);
+            Assert.Equal(1, code);
+            Assert.Equal("refused", (string)outcome["outcome"]);
+            Assert.Contains("request", (string)outcome["message"]);
+            Assert.Equal(before, File.ReadAllBytes(path));
+            Assert.Equal(files, Listing(path));
+        }
+    }
+
+    // A model file that does not read as a GLB is the package's fault, not the request's: the verdict reports it, the
+    // draft still applies, and nothing escapes.
+    [Theory]
+    [InlineData("badjson")]
+    [InlineData("truncated")]
+    [InlineData("notglb")]
+    public void CorruptModelIsAVerdictNotACrash(string kind)
+    {
+        var path = Path.Combine(ShipFixture.WritePackage(Mods, "mod.skiff", tweak: ship => ship.Hull.Roles = new List<ItemRole> { new ItemRole { Name = "frame" } }), "ship.cc");
+        var model = Path.Combine(Path.GetDirectoryName(path), "skiff.glb");
+        var good = File.ReadAllBytes(model);
+        // Control: the same request on the intact package is accepted, so the refusal below is the model's.
+        var intact = Push(path, Edit(Open(path), json => Hardpoint(json, "gun")["armor"] = 6), apply: false);
+        Assert.True(((string)intact.Outcome["verdict"]).StartsWith("accepted: records and model"), (string)intact.Outcome["verdict"]);
+        File.WriteAllBytes(model, kind switch
+        {
+            "badjson" => ShipFixture.Glb("{not json"),
+            "truncated" => good.Take(30).ToArray(),
+            _ => new byte[] { 1, 2, 3 }
+        });
+        var request = Edit(Open(path), json => Hardpoint(json, "gun")["armor"] = 7);
+        var (code, _, outcome) = Push(path, request, apply: true);
+        Assert.Equal(0, code);
+        Assert.Equal("applied", (string)outcome["outcome"]);
+        Assert.StartsWith("refused: ", (string)outcome["verdict"]);
+        Assert.Equal(7f, ShipAuthoringStore.Load(path).Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "gun").Armor);
+    }
 }

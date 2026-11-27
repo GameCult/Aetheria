@@ -157,10 +157,10 @@ public static class ShipAuthoringPush
         Request request;
         try
         {
-            request = JsonConvert.DeserializeObject<Request>(requestText.ReadToEnd(), Strict) ??
-                throw new InvalidOperationException("The request is empty.");
+            request = JsonConvert.DeserializeObject<Request>(requestText.ReadToEnd(), Strict);
         }
         catch (JsonException error) { return Refused(output, "request: " + error.Message); }
+        if (request == null) return Refused(output, "request: the request is empty.");
         try
         {
             using var cache = ShipAuthoringStore.Open(path, writable: apply);
@@ -176,9 +176,9 @@ public static class ShipAuthoringPush
             if (request.Visual != null) DeriveVisual(request.Visual, ship, newShip, shipKey.Value, lines);
             if (request.Lines != null) DeriveLines(request.Lines, ship, newShip, shipKey.Value, lines);
 
-            var writes = new List<(CultRecordKey Key, Type Type, object Held, object Derived)>();
-            if (!Pack(newHull).AsSpan().SequenceEqual(Pack(hull))) writes.Add((hullKey, typeof(HullData), hull, newHull));
-            if (!Pack(newShip).AsSpan().SequenceEqual(Pack(ship))) writes.Add((shipKey, typeof(ShipAuthoring), ship, newShip));
+            var writes = new List<Write>();
+            if (!Pack(newHull).AsSpan().SequenceEqual(Pack(hull))) writes.Add(new Write(hullKey, typeof(HullData), hull, newHull));
+            if (!Pack(newShip).AsSpan().SequenceEqual(Pack(ship))) writes.Add(new Write(shipKey, typeof(ShipAuthoring), ship, newShip));
 
             foreach (var held in request.Versions.Keys)
                 if (held != hullKey.Value && held != shipKey.Value)
@@ -195,16 +195,7 @@ public static class ShipAuthoringPush
                 .Select(write => write.Key.Value).ToList();
             if (stale.Count == 0 && apply && writes.Count > 0)
             {
-                // One commit, every record expected to still be the instance it was loaded as: a write that lands between this
-                // load and the commit is refused by the cache, whatever its storedAt said.
-                var landed = cache.Commit(batch =>
-                {
-                    foreach (var write in writes)
-                    {
-                        batch.Expect(write.Key, write.Held);
-                        batch.Upsert(write.Type, write.Derived, write.Key);
-                    }
-                });
+                var landed = Land(cache, writes);
                 if (landed) cache.FlushAsync().Wait();
                 else stale = writes.Select(write => write.Key.Value).ToList();
             }
@@ -214,10 +205,33 @@ public static class ShipAuthoringPush
         catch (InvalidOperationException error) { return Refused(output, error.Message); }
     }
 
+    // A record to write: the instance the cache holds, and the copy derived from it.
+    internal readonly record struct Write(CultRecordKey Key, Type Type, object Held, object Derived);
+
+    // One commit, every record expected to still be the instance it was loaded as: a write that lands between the load and
+    // this commit replaces that instance and is refused here (false), never overwritten.
+    internal static bool Land(CultCache cache, IReadOnlyList<Write> writes)
+    {
+        try
+        {
+            return cache.Commit(batch =>
+            {
+                foreach (var write in writes)
+                {
+                    batch.Expect(write.Key, write.Held);
+                    batch.Upsert(write.Type, write.Derived, write.Key);
+                }
+            });
+        }
+        // Expect refuses an instance the cache no longer holds at the key: that write landed after the load.
+        catch (ArgumentException error) when (error.ParamName == "current") { return false; }
+    }
+
     private static string Verdict(string path, HullData hull, ShipAuthoring ship, FactionProductData[] products)
     {
         try { return "accepted: " + ShipAuthoringCommands.Judge(path, hull, ship, products); }
-        catch (InvalidOperationException error) { return "refused: " + error.Message; }
+        // The judgment's own refusals, and a model whose JSON chunk does not parse; anything else is a fault and surfaces.
+        catch (Exception error) when (error is InvalidOperationException or JsonException) { return "refused: " + error.Message; }
     }
 
     private static int Outcome(TextWriter output, string outcome, List<string> changed, List<string> stale, string verdict,
