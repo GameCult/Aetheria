@@ -195,6 +195,25 @@ public sealed class EconomyLoopTests
         Assert.Equal(before, System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(catalog)));
     }
 
+    // Follow-up sortie-determinism-pin: a seed fixes the sortie. Each call generates its own run store, so the keys the cache
+    // mints differ between the two; ore, target order and rock meshes must not read them (zone-body-sites).
+    [Fact]
+    public void ASortieIsAFunctionOfItsSeed()
+    {
+        var first = EconomyLoop.Sortie(Root, 1, 0, 60);
+        var second = EconomyLoop.Sortie(Root, 1, 0, 60);
+        Assert.Equal(first.BeltKind, second.BeltKind);
+        Assert.Equal(first.Weapons, second.Weapons);
+        Assert.Equal(first.Outcome, second.Outcome);
+        Assert.Equal(first.Rocks, second.Rocks);
+        Assert.Equal(first.Units, second.Units);
+        Assert.Equal(first.HoldFullAt, second.HoldFullAt);
+        Assert.Equal(first.SellValue, second.SellValue);
+        Assert.Equal(first.AmmoSpent, second.AmmoSpent);
+        Assert.Equal(first.Repair, second.Repair);
+        Assert.Equal(first.SimSeconds, second.SimSeconds);
+    }
+
     [Fact]
     public void AFullHoldSortieIsPricedFromTheShipItEndedWith()
     {
