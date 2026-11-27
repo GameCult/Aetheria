@@ -193,10 +193,12 @@ public class TrojanSwarmTests
     {
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(ZonePack).Assembly);
         var saved = MessagePackSerializer.Serialize(new AsteroidBeltData { Mass = 5, Asteroids = new[] { new Asteroid { Distance = 3, Phase = .2f } } }, options);
-        Assert.Equal(0x9C, saved[0]);  // a fixarray of 12 slots, keys 0-11
-        Assert.Equal(0xC2, saved[^1]); // its last slot, RidesRail, false
-        var old = saved[..^1];
-        old[0] = 0x9B;
+        // keys 0-11 are the belt's own and key 23 is BodyData.Site, so the array is 24 slots (array16) with keys 12-23 nil
+        Assert.Equal(0xDC, saved[0]);
+        Assert.Equal(24, (saved[1] << 8) | saved[2]);
+        Assert.All(saved[^12..], slot => Assert.Equal(0xC0, slot));
+        Assert.Equal(0xC2, saved[^13]); // RidesRail, false
+        var old = new byte[] { 0x9B }.Concat(saved[3..^13]).ToArray();
         var belt = MessagePackSerializer.Deserialize<AsteroidBeltData>(old, options);
         Assert.False(belt.RidesRail);
         Assert.Equal(3f, belt.Asteroids[0].Distance);
