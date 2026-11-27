@@ -50,8 +50,7 @@ public sealed class WrenPackageTests
         using var cache = RestoredHullsTests.OpenCatalogWithFixtures();
         var designs = cache.GetAll<EquippableItemData>().ToArray();
         var bare = Wren(cache).Hardpoints.Where(hardpoint => !designs.Any(hardpoint.Takes)).Select(hardpoint => $"{hardpoint.Transform} ({hardpoint.Type})").ToArray();
-        // No shield design fits a 1x1 yet (hardpoint-fit lists Djinni's 4-cell shield with none either); every other mount does.
-        Assert.Equal(new[] { "internal.shield (Shield)" }, bare);
+        Assert.Empty(bare);
     }
 
     [Fact]

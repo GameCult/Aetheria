@@ -25,6 +25,14 @@ public static class Program
             case "census": return Census();
             case "station-fit": return StationFit();
             case "hardpoint-fit": return HardpointFit();
+            case "shield-catalog":
+            {
+                var apply = args.Contains("apply");
+                using var db = AetherDb.Open(catalogWritable: apply);
+                var code = ShieldCatalog.Run(db.Cache, apply, Console.Out);
+                if (apply) db.Cache.FlushAsync().GetAwaiter().GetResult();
+                return code;
+            }
             case "hardpoint-rotation": return HardpointRotationCommand.Run(args.Skip(1).ToArray());
             case "loadout": return Loadout(args.Skip(1).ToArray());
             case "loadout-commit": return LoadoutCommitCommand.Run(args.Skip(1).ToArray());
@@ -82,7 +90,7 @@ public static class Program
             case "auto-guns": return AutoGunsCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, hardpoint-rotation \"<hull>\" <x>,<y> <rotation> [apply], loadout [seed], loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace] [--boss-of <faction>], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], auto-guns [apply], assembly-from-maker [apply], station-kinds [hull \"<name>\" <kind>] [apply], economy report|prices|author <batch>... [apply]|balance");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, hardpoint-rotation \"<hull>\" <x>,<y> <rotation> [apply], loadout [seed], loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace] [--boss-of <faction>], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], auto-guns [apply], assembly-from-maker [apply], shield-catalog [apply], station-kinds [hull \"<name>\" <kind>] [apply], economy report|prices|author <batch>... [apply]|balance");
                 return 1;
         }
     }
@@ -256,6 +264,15 @@ public static class Program
         ["Heat"] = "injector", ["EnergyUsage"] = "injector",
     };
 
+    // A shield's emitter sets how much of a hit it turns, the reservoir how much it can take, the regulator how it spends
+    // and recovers energy.
+    private static readonly Dictionary<string, string> ShieldRoles = new Dictionary<string, string>
+    {
+        ["Efficiency"] = "emitter",
+        ["Capacity"] = "reservoir",
+        ["EnergyUsage"] = "regulator", ["RefillDuration"] = "regulator", ["RestoreDuration"] = "regulator",
+    };
+
     private static readonly Dictionary<string, string> HullShipRoles = new Dictionary<string, string>
     {
         ["CrossSection"] = "plating",
@@ -315,6 +332,7 @@ public static class Program
         "Radiator" => RadiatorRoles,
         "Reactor" => ReactorRoles,
         "Sensors" => SensorRoles,
+        "Shield" => ShieldRoles,
         "Thruster" => ThrusterRoles,
         _ when kind == "Hull/Ship" => HullShipRoles,
         "Tool" => ToolRolesByDesign.TryGetValue(item.Name, out var byName) ? byName : null,

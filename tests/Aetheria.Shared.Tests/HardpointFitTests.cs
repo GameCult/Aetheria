@@ -6,6 +6,14 @@ using Xunit;
 // design some product sells. Program.UnfillableHardpoints is the one census, over HardpointData.Takes, the one fit rule.
 public sealed class HardpointFitTests
 {
+    // Every hardpoint on every hull the game boots (shipped catalog plus GameData/Mods) takes a design some product sells.
+    [Fact]
+    public void EveryHardpointTheGameBootsTakesASoldDesign()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        Assert.Empty(Program.UnfillableHardpoints(cache));
+    }
+
     // The census is over the catalog the game boots, packages included: a package hull's mount is as fillable as a shipped one.
     [Fact]
     public void TheCensusReadsThePackagesTheGameBoots()
