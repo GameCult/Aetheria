@@ -191,6 +191,9 @@ public class GameplaySettings
     public int StartingCredits = 150000;
     // A tuning tolerance, not a price: `economy balance` flags a chain link whose implied wage falls outside [median / k, median x k].
     public float EconomyWageSpread = 2;
+    // Tuning tolerances like it: the band `economy balance --loop` checks the width of an offered gear ladder against (dearest over
+    // cheapest offered design in a category). 0 means unset: the widths are reported and no ladder is a fault.
+    public float EconomyLadderMin = 0, EconomyLadderMax = 0;
     public float DurabilityQualityExponent = 2;
     public float DurabilityQualityMin = 2;
     public float DurabilityQualityMax = .25f;

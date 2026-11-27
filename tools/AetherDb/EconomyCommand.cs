@@ -71,7 +71,7 @@ public static class EconomyCommand
         { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights, EconomyChecks.LShape, EconomyChecks.LPrice };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
-    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance\nbalance reads the chain and changes nothing. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made commodity to the price its chain derives; with no batch it reprices alone.";
+    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance [--loop [<seed>...]] [--cap <sim seconds>]\nbalance reads the chain and changes nothing; --loop adds the player loop (a mining sortie per seed, default seeds 1 2 3 69 97 and cap 300 sim seconds) and the offered gear ladders. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made commodity to the price its chain derives; with no batch it reprices alone.";
 
     public static int Run(string[] args, TextWriter output)
     {
@@ -84,8 +84,33 @@ public static class EconomyCommand
         if (args.Length > 0 && args[0] == "balance")
         {
             using var db = AetherDb.Open();
-            var spread = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings").EconomyWageSpread;
-            return Balance(db.Cache, spread, output);
+            var settings = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings");
+            var rest = args.Skip(1).ToList();
+            var cap = EconomyLoop.DefaultCap;
+            var capAt = rest.IndexOf("--cap");
+            if (capAt >= 0 && (capAt + 1 >= rest.Count || !float.TryParse(rest[capAt + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out cap) || cap <= 0))
+            {
+                output.WriteLine(Usage);
+                return 1;
+            }
+            if (capAt >= 0) rest.RemoveRange(capAt, 2);
+            var loopAt = rest.IndexOf("--loop");
+            var seeds = new List<uint>();
+            if (loopAt >= 0)
+                foreach (var word in rest.Skip(loopAt + 1))
+                {
+                    if (!uint.TryParse(word, out var seed)) { output.WriteLine(Usage); return 1; }
+                    seeds.Add(seed);
+                }
+            if ((loopAt >= 0 ? rest.Count - 1 - seeds.Count : rest.Count) != 0 || (capAt >= 0 && loopAt < 0))
+            {
+                output.WriteLine(Usage);
+                return 1;
+            }
+            LoopReport loop = null;
+            if (loopAt >= 0)
+                loop = EconomyLoop.Report(db.Cache, settings, (seeds.Count == 0 ? EconomyLoop.DefaultSeeds : seeds.ToArray()).Select(seed => EconomyLoop.Sortie(db.Root, seed, cap)).ToList());
+            return Balance(db.Cache, settings.EconomyWageSpread, output, loop);
         }
         if (args.Length > 0 && args[0] == "author")
         {
@@ -108,13 +133,14 @@ public static class EconomyCommand
 
     // The static balance: the median implied wage, the H faults, one line per chain link by wage over the median, then the belts.
     // Report-only: nothing here is a Shape invariant. Exit 1 when any fault.
-    public static int Balance(CultCache catalog, double wageSpread, TextWriter output)
+    public static int Balance(CultCache catalog, double wageSpread, TextWriter output, LoopReport loop = null)
     {
         var report = EconomyBalance.Balance(catalog, wageSpread);
+        var faults = report.Faults.Concat(loop?.Faults ?? new List<EconomyFault>()).ToList();
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         output.WriteLine($"median implied wage {report.WageReference.ToString("0.#####", inv)} per worker-second, spread {wageSpread.ToString(inv)}, {report.Links.Count} links, {report.Links.Count(l => l.Wage == null)} unpriced");
-        output.WriteLine($"{report.Faults.Count} faults");
-        foreach (var group in report.Faults.GroupBy(f => f.Invariant).OrderBy(g => g.Key, StringComparer.Ordinal))
+        output.WriteLine($"{faults.Count} faults");
+        foreach (var group in faults.GroupBy(f => f.Invariant).OrderBy(g => g.Key, StringComparer.Ordinal))
         {
             output.WriteLine($"{group.Key} ({group.Count()})");
             foreach (var fault in group) output.WriteLine($"  {fault.Record}: {fault.Message}");
@@ -130,7 +156,30 @@ public static class EconomyCommand
             foreach (var y in belt.Yields)
                 output.WriteLine(string.Format(inv, "    {0} {1:P0} | wage {2} | price {3:0.##} | cost {4:0.##}", y.Ore, y.Share, y.WageRatio.HasValue ? y.WageRatio.Value.ToString("0.##", inv) + "x" : "-", y.Price, y.Cost));
         }
-        return report.Faults.Count == 0 ? 0 : 1;
+        if (loop != null) PrintLoop(loop, output);
+        return faults.Count == 0 ? 0 : 1;
+    }
+
+    // The player loop and the ladders, as numbers: a line per sortie, the median and best rate and the purse, then each category's
+    // width and its designs with the minutes of income each takes to afford. No verdict beyond the faults the report raised.
+    private static void PrintLoop(LoopReport loop, TextWriter output)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        output.WriteLine("\nPlayer loop (seed | belt | weapons | rocks | sim s | hold full at | units | sell | ammo | repair | net per minute)");
+        foreach (var s in loop.Samples)
+            output.WriteLine(string.Format(inv, "  {0} | {1} | {2} | {3} | {4:0.#} | {5} | {6} | {7} | {8} | {9} | {10:0.#}", s.Seed, s.BeltKind, s.Weapons, s.Rocks, s.SimSeconds,
+                s.HoldFullAt.HasValue ? s.HoldFullAt.Value.ToString("0.#", inv) + " s" : "never", s.Units, s.SellValue, s.AmmoSpent, s.Repair, s.RatePerMinute));
+        output.WriteLine(string.Format(inv, "  median {0:0.#} per minute, best {1:0.#} per minute, purse {2}", loop.Median, loop.Best, loop.Purse));
+        string Minutes(double? m) => m.HasValue ? m.Value.ToString("0.#", inv) : "-";
+        string Width(double? w) => w.HasValue ? w.Value.ToString("0.##", inv) + "x" : "-";
+        output.WriteLine("\nLadders (category: width authored, derived; each design: price | derived | minutes at median | minutes at best | purse covers)");
+        foreach (var ladder in loop.Ladders)
+        {
+            output.WriteLine($"  {ladder.Category}: {Width(ladder.WidthAuthored)}, {Width(ladder.WidthDerived)}");
+            foreach (var d in ladder.Designs)
+                output.WriteLine(string.Format(inv, "    {0} ({1}) | {2} | {3} | {4} | {5} | {6}", d.Name, d.Key, d.Price, d.Derived.HasValue ? d.Derived.Value.ToString("0.##", inv) : "-",
+                    Minutes(d.MinutesAtMedian), Minutes(d.MinutesAtBest), d.Covered ? "yes" : "no"));
+        }
     }
 
     // Faults grouped by invariant, then one line per good with its depth, then one line per recipe. Fails on any fault.
