@@ -110,12 +110,6 @@ public sealed class ItemTitleTests : IDisposable
         var given = _items.CreateInstance(_items.CreateLot(_array, default, .5f));
         Assert.Equal("Array", _items.Title(given));
 
-        var extractedLot = _items.Lots.Add(new Lot
-        {
-            Design = _cache.RefOf<ItemData>(_array), Origin = new Extracted(), Quality = .5f, Roles = new List<RoleFill>()
-        });
-        Assert.Equal("Array", _items.Title(_items.CreateInstance(extractedLot)));
-
         var ore = new SimpleCommodity { Data = _cache.RefOf<ItemData>(_cache.GetByName<SimpleCommodityData>("Ore")), Quantity = 3 };
         Assert.Equal("Ore", _items.Title(ore));
     }

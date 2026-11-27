@@ -436,7 +436,7 @@ public sealed class RunSaveTests : IDisposable
             lots.Lots[2] = new Lot { Origin = new Attributed() };
             lots.Lots[3] = new Lot { Origin = new Produced { Facility = 4, Inputs = new[] { 5 } } };
             lots.Lots[4] = new Lot { Origin = new Attributed() };
-            lots.Lots[5] = new Lot { Origin = new Extracted() };
+            lots.Lots[5] = new Lot { Origin = new Attributed() };
             lots.Lots[6] = new Lot { Origin = new Attributed() };
 
             var child = BarePack(hull: null, dockingBayContents: new (int2, ItemInstance)[][]

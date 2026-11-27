@@ -12,15 +12,16 @@ using GameCult.Caching.MessagePack;
 using MessagePack;
 using Xunit;
 
-// Mining Cut 5b (docs/mining-cut-refresh.md, Cut 5, Q6b = A): a mined unit carries an Extracted lot naming the zone, the belt
-// and the ore; stacks merge, split, restore and save by lot. Fixtures are Cut 3's belt scene and Cut 5a's bay and stock helpers.
-public sealed class MiningCut5bTests : IDisposable
+// Ruling aetheria-living-world:ruling:simple-commodities-fungible (supersedes Mining Cut 5b, Q6b A): a simple commodity carries
+// no lot, so units of one design merge whatever their source, Extract mints nothing, and a save from before the ruling still
+// reads. Fixtures are Cut 3's belt scene and Cut 5a's bay and stock helpers.
+public sealed class FungibleCommodityTests : IDisposable
 {
     private readonly MiningCut3Tests _scenes = new MiningCut3Tests();
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-mining5b-" + Guid.NewGuid().ToString("N"));
     private uint _ordinal;
 
-    public MiningCut5bTests() => Directory.CreateDirectory(_root);
+    public FungibleCommodityTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
@@ -79,86 +80,86 @@ public sealed class MiningCut5bTests : IDisposable
         FireControl.Extract(zone, chunk, zone.Wear(chunk, 1e6f), ship, SimulationDice.For(zone.DropSeed, SimulationDice.OreStream, ++_ordinal));
     }
 
-    private static SimpleCommodity[] Stacks(EquippedCargoBay bay) => bay.Cargo.Keys.OfType<SimpleCommodity>().OrderBy(s => s.Lot).ToArray();
+    private static SimpleCommodity[] Stacks(EquippedCargoBay bay) => bay.Cargo.Keys.OfType<SimpleCommodity>().OrderBy(s => s.Quantity).ToArray();
+
+    private static SimpleCommodity Units(Field f, SimpleCommodityData design, int quantity) =>
+        new SimpleCommodity { Data = new CultRecordRef<ItemData>(f.Scene.Cache.RefOf(design).Key), Quantity = quantity };
 
     [Fact]
-    public void MinedUnitsCarryAnExtractedLotNamingZoneBeltAndOre()
-    {
-        var f = Build();
-        var zone = ZoneOf(f, 2);
-        var ship = Shooter(f, zone);
-        var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
-        Mine(f, zone, ship, 1, 0);
-
-        var stack = Assert.Single(Stacks(bay));
-        Assert.Equal(4, stack.Quantity);
-        Assert.NotEqual(0, stack.Lot);
-        var lot = f.Scene.Items.GetLot(stack);
-        var origin = Assert.IsType<Extracted>(lot.Origin);
-        Assert.Equal(2, origin.Zone);
-        Assert.Equal(f.Scene.Belts[1], origin.Body.Key);
-        Assert.Equal(stack.Data.Key, origin.Commodity.Key);
-        Assert.Equal(stack.Data.Key, lot.Design.Key);
-        Assert.Equal(1f, lot.Quality);
-        Assert.Equal(default, lot.Product);
-    }
-
-    [Fact]
-    public void AZoneWithNoGalaxyIsMinus1()
-    {
-        var f = Build();
-        var zone = ZoneOf(f, -1);
-        var ship = Shooter(f, zone);
-        var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
-        Mine(f, zone, ship, 0, 0);
-        Assert.Equal(-1, Assert.IsType<Extracted>(f.Scene.Items.GetLot(Assert.Single(Stacks(bay))).Origin).Zone);
-    }
-
-    [Fact]
-    public void UnitsFromOneSourceStack_UnitsFromTwoSourcesDoNot()
+    public void UnitsMinedFromTwoBeltsAndTwoZonesMergeIntoOneStack()
     {
         var f = Build();
         var zone = ZoneOf(f, 1);
         var ship = Shooter(f, zone);
         var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
         Mine(f, zone, ship, 0, 0);
-        Mine(f, zone, ship, 0, 1);
-        var one = Assert.Single(Stacks(bay));
-        Assert.Equal(8, one.Quantity);
-
         Mine(f, zone, ship, 1, 0);
-        var stacks = Stacks(bay);
-        Assert.Equal(new[] { 8, 4 }, stacks.Select(s => s.Quantity));
-        Assert.NotEqual(stacks[0].Lot, stacks[1].Lot);
-        Assert.Equal(2, f.Scene.Items.Lots.Lots.Values.Count(l => l.Origin is Extracted));
-        // Two lots of one ore still total one commodity for the market and the hold.
-        Assert.Equal(12, MiningCut5aTests.Units(bay, "Rock", f.Scene));
+        Assert.Equal(8, Assert.Single(Stacks(bay)).Quantity);
+
+        var otherZone = ZoneOf(f, 2);
+        var other = Shooter(f, otherZone);
+        var otherBay = MiningCut5aTests.Bay(f.Scene, other, 4, 4, "Hold");
+        Mine(f, otherZone, other, 0, 1);
+        Assert.True(bay.TryStore(otherBay.Remove(Assert.Single(Stacks(otherBay)), 4)));
+        Assert.Equal(12, Assert.Single(Stacks(bay)).Quantity);
     }
 
-    // TryFindSpace and the at-coordinate store both look for a stack to top up: a stack of another lot is not one.
     [Fact]
-    public void ASearchAndAStoreIgnoreAStackOfAnotherLot()
+    public void BoughtAndMinedUnitsOfOneDesignMerge()
     {
         var f = Build();
         var zone = ZoneOf(f, 0);
         var ship = Shooter(f, zone);
-        var bay = MiningCut5aTests.Bay(f.Scene, ship, 1, 1, "Hold");
-        var key = new CultRecordRef<ItemData>(f.Scene.Cache.RefOf(f.Ore).Key);
-        SimpleCommodity Units(int lot, int quantity) => new SimpleCommodity { Data = key, Lot = lot, Quantity = quantity };
+        var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
+        Assert.True(bay.TryStore(Units(f, f.Ore, 5)));
+        Mine(f, zone, ship, 0, 0);
+        Assert.Equal(9, Assert.Single(Stacks(bay)).Quantity);
 
-        Assert.True(bay.TryStore(Units(7, 90)));
-        Assert.False(bay.TryFindSpace(Units(8, 5), out _));
-        Assert.True(bay.TryFindSpace(Units(7, 5), out _));
-        var other = Units(8, 5);
-        Assert.False(bay.TryStore(other, new int2(0, 0)));
-        Assert.Equal(90, Assert.Single(bay.Cargo.Keys.OfType<SimpleCommodity>()).Quantity);
-        Assert.Equal(5, other.Quantity);
-        Assert.True(bay.TryStore(Units(7, 5), new int2(0, 0)));
-        Assert.Equal(95, Assert.Single(bay.Cargo.Keys.OfType<SimpleCommodity>()).Quantity);
+        var floating = zone.Release(Units(f, f.Ore, 4), new float2(0, 0), new float2(0, 0));
+        Assert.True(zone.TryPickUp(ship, floating.Id));
+        Assert.Equal(13, Assert.Single(Stacks(bay)).Quantity);
     }
 
     [Fact]
-    public void ASplitStackKeepsItsLot()
+    public void TwoDesignsNeverMerge()
+    {
+        var f = Build();
+        var zone = ZoneOf(f, 0);
+        var ship = Shooter(f, zone);
+        var shells = MiningCut5aTests.Commodity("Shells");
+        f.Scene.Cache.Upsert(shells);
+        var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
+        Assert.True(bay.TryStore(Units(f, f.Ore, 5)));
+        Assert.True(bay.TryStore(Units(f, shells, 5)));
+        Assert.Equal(2, Stacks(bay).Length);
+
+        var small = MiningCut5aTests.Bay(f.Scene, ship, 1, 1, "Small");
+        Assert.True(small.TryStore(Units(f, f.Ore, 90)));
+        Assert.False(small.TryFindSpace(Units(f, shells, 5), out _));
+        Assert.True(small.TryFindSpace(Units(f, f.Ore, 5), out _));
+        var other = Units(f, shells, 5);
+        Assert.False(small.TryStore(other, new int2(0, 0)));
+        Assert.Equal(90, Assert.Single(Stacks(small)).Quantity);
+        Assert.True(small.TryStore(Units(f, f.Ore, 5), new int2(0, 0)));
+        Assert.Equal(95, Assert.Single(Stacks(small)).Quantity);
+    }
+
+    [Fact]
+    public void ExtractAddsNothingToTheLedger()
+    {
+        var f = Build();
+        var zone = ZoneOf(f, 0);
+        var ship = Shooter(f, zone);
+        MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
+        var lots = f.Scene.Items.Lots;
+        var (count, next) = (lots.Lots.Count, lots.NextLot);
+        Mine(f, zone, ship, 0, 0);
+        Mine(f, zone, ship, 1, 0);
+        Assert.Equal((count, next), (lots.Lots.Count, lots.NextLot));
+    }
+
+    [Fact]
+    public void ASplitStackIsTheSameDesign()
     {
         var f = Build();
         var zone = ZoneOf(f, 0);
@@ -166,24 +167,20 @@ public sealed class MiningCut5bTests : IDisposable
         var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
         Mine(f, zone, ship, 0, 0);
         var stack = Assert.Single(Stacks(bay));
-
         var part = bay.Remove(stack, 3);
-        Assert.Equal(3, part.Quantity);
-        Assert.Equal(stack.Lot, part.Lot);
-        Assert.NotEqual(0, part.Lot);
-        Assert.Equal(1, stack.Quantity);
+        Assert.Equal((3, 1), (part.Quantity, stack.Quantity));
+        Assert.Equal(stack.Data.Key, part.Data.Key);
     }
 
-    // A saved stack above its design's MaxStack comes back as several stacks, every one of the saved lot.
+    // A saved stack above its design's MaxStack comes back as several stacks of the one design.
     [Fact]
-    public void ARestoredOversizeStackKeepsItsLot()
+    public void ARestoredOversizeStackSplitsByDesign()
     {
         var f = Build();
         var zone = ZoneOf(f, 0);
         var ship = Shooter(f, zone);
         var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
         for (var rock = 0; rock < 2; rock++) Mine(f, zone, ship, 0, rock);
-        var lot = Assert.Single(Stacks(bay)).Lot;
 
         var pack = EntitySerializer.Pack(ship);
         f.Ore.MaxStack = 3;
@@ -192,7 +189,7 @@ public sealed class MiningCut5bTests : IDisposable
         var stacks = restored.CargoBays.SelectMany(Stacks).ToArray();
         Assert.Equal(8, stacks.Sum(s => s.Quantity));
         Assert.True(stacks.Length >= 3);
-        Assert.All(stacks, s => Assert.Equal(lot, s.Lot));
+        Assert.All(stacks, s => Assert.Equal(f.Scene.Cache.RefOf(f.Ore).Key, s.Data.Key));
     }
 
     private CultCache Open() => AetheriaStores.Open(Path.Combine(_root, "Aetheria.cc"), Path.Combine(_root, "run.cc"), Path.Combine(_root, "player.cc"));
@@ -238,26 +235,7 @@ public sealed class MiningCut5bTests : IDisposable
         using (var cache = Open()) return RunSave.Lots(cache);
     }
 
-    // An ore the draw never picks mints no lot: the ledger gains nothing for it, only for the ore that was drawn.
-    [Fact]
-    public void AnOreThatDrawsZeroUnitsMintsNoLot()
-    {
-        var f = Build();
-        var dud = MiningCut5aTests.Commodity("Dud");
-        MiningCut5aTests.Stock(f.Scene, f.Scene.Kinds[0], (f.Ore, 1f), (dud, 1e-12f));
-        var zone = ZoneOf(f, 0);
-        var ship = Shooter(f, zone);
-        var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
-        var before = f.Scene.Items.Lots.Lots.Count;
-        Mine(f, zone, ship, 0, 0);
-
-        Assert.Equal(4, MiningCut5aTests.Units(bay, "Rock", f.Scene));
-        Assert.Equal(0, MiningCut5aTests.Units(bay, "Dud", f.Scene));
-        Assert.Equal(before + 1, f.Scene.Items.Lots.Lots.Count);
-        Assert.Equal(1, f.Scene.Items.Lots.Lots.Values.Count(l => l.Origin is Extracted));
-    }
-
-    // A crafted item with no lot is corruption and the save says so; a SimpleCommodity at Lot 0 is ordinary stock.
+    // A crafted item with no lot is corruption and the save says so; a simple commodity has no lot and roots nothing.
     [Fact]
     public void ACraftedItemAtLotZeroFailsTheSaveLoudly()
     {
@@ -266,59 +244,31 @@ public sealed class MiningCut5bTests : IDisposable
         var thrown = Assert.Throws<InvalidOperationException>(() => SaveAndReload(new ProvenanceLedger(), crafted));
         Assert.Contains("Lot 0 is not in the provenance ledger", thrown.Message);
 
-        var stock = new SimpleCommodity { Data = new CultRecordRef<ItemData>(f.Scene.Cache.RefOf(f.Ore).Key), Quantity = 3, Lot = 0 };
+        var stock = new SimpleCommodity { Data = new CultRecordRef<ItemData>(f.Scene.Cache.RefOf(f.Ore).Key), Quantity = 3 };
         var savedStock = SaveAndReload(new ProvenanceLedger(), stock);
         Assert.Equal(new[] { _hullLot }, savedStock.Lots.Keys);
     }
 
-    [Fact]
-    public void AMinedStackSurvivesSaveGc()
+    private static byte[] PreRulingStack(CultRecordRef<ItemData> key, MessagePackSerializerOptions options)
     {
-        var f = Build();
-        var zone = ZoneOf(f, 1);
-        var ship = Shooter(f, zone);
-        var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
-        Mine(f, zone, ship, 0, 0);
-        Mine(f, zone, ship, 1, 0);
-        var held = Stacks(bay);
-        Assert.Equal(2, held.Length);
-        // A third lot nobody holds: floated and gone, or never collected.
-        var orphan = f.Scene.Items.ExtractedLot(1, new CultRecordKey("elsewhere"), f.Ore);
-
-        var saved = SaveAndReload(f.Scene.Items.Lots, held);
-
-        Assert.Equal(held.Select(s => s.Lot).Append(_hullLot).OrderBy(i => i), saved.Lots.Keys.OrderBy(i => i));
-        Assert.DoesNotContain(orphan, saved.Lots.Keys);
-        var origin = Assert.IsType<Extracted>(saved[held[0].Lot].Origin);
-        Assert.Equal(1, origin.Zone);
-        Assert.Equal(f.Scene.Belts[0], origin.Body.Key);
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        var writer = new MessagePackWriter(buffer);
+        writer.WriteArrayHeader(2);
+        writer.Write(0); // Union(0, SimpleCommodity)
+        writer.WriteArrayHeader(12);
+        MessagePackSerializer.Serialize(ref writer, key, options);
+        MessagePackSerializer.Serialize(ref writer, ItemRotation.None, options);
+        writer.Write(7); // Quantity
+        for (var slot = 3; slot < 11; slot++) writer.WriteNil();
+        writer.Write(9); // slot 11: the lot a pre-ruling mined stack named
+        writer.Flush();
+        return buffer.WrittenSpan.ToArray();
     }
 
+    // A save from before the ruling: a three-slot stack from before SimpleCommodity had a lot, and a twelve-slot stack
+    // whose slot 11 names one. Both read as a plain stack, and merge with a fresh stack of their design.
     [Fact]
-    public void TheLotIndexIsRebuiltOnContinue()
-    {
-        var f = Build();
-        var zone = ZoneOf(f, 1);
-        var ship = Shooter(f, zone);
-        var bay = MiningCut5aTests.Bay(f.Scene, ship, 4, 4, "Hold");
-        Mine(f, zone, ship, 0, 0);
-        var held = Assert.Single(Stacks(bay));
-
-        var saved = SaveAndReload(f.Scene.Items.Lots, held);
-        var continued = new ItemManager(1u, f.Scene.Cache, saved, RunSaveTests.TestSettings(), _ => { });
-
-        Assert.Equal(held.Lot, continued.ExtractedLot(1, f.Scene.Belts[0], f.Ore));
-        Assert.Equal(2, saved.Lots.Count); // the mined lot and the hull
-        var next = continued.ExtractedLot(1, f.Scene.Belts[1], f.Ore);
-        Assert.NotEqual(held.Lot, next);
-        Assert.Equal(3, saved.Lots.Count);
-        // Zone and ore tell lots apart as the belt does.
-        Assert.NotEqual(next, continued.ExtractedLot(2, f.Scene.Belts[1], f.Ore));
-    }
-
-    // A save from before the field reached SimpleCommodity: Data, Rotation, Quantity and nothing else.
-    [Fact]
-    public void OldSavesReadLotZero()
+    public void APreRulingStackReadsAndMerges()
     {
         var f = Build();
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(ItemInstance).Assembly);
@@ -332,17 +282,42 @@ public sealed class MiningCut5bTests : IDisposable
         MessagePackSerializer.Serialize(ref writer, ItemRotation.None, options);
         writer.Write(7);
         writer.Flush();
-
         var old = Assert.IsType<SimpleCommodity>(MessagePackSerializer.Deserialize<ItemInstance>(buffer.WrittenMemory, options));
-        Assert.Equal(7, old.Quantity);
-        Assert.Equal(0, old.Lot);
-        Assert.Equal(key.Key, old.Data.Key);
+        Assert.Equal((7, key.Key), (old.Quantity, old.Data.Key));
 
-        // A lot rides the wire; a Lot-0 stack is no root, so the old stack saves no lot.
-        var back = MessagePackSerializer.Deserialize<ItemInstance>(MessagePackSerializer.Serialize<ItemInstance>(
-            new SimpleCommodity { Data = key, Quantity = 2, Lot = 9 }, options), options);
-        Assert.Equal(9, back.Lot);
-        var savedOld = SaveAndReload(new ProvenanceLedger(), old);
-        Assert.Equal(new[] { _hullLot }, savedOld.Lots.Keys); // the hull only
+        var lotted = Assert.IsType<SimpleCommodity>(MessagePackSerializer.Deserialize<ItemInstance>(PreRulingStack(key, options), options));
+        Assert.Equal((7, key.Key), (lotted.Quantity, lotted.Data.Key));
+
+        var zone = ZoneOf(f, 0);
+        var ship = Shooter(f, zone);
+        var bay = MiningCut5aTests.Bay(f.Scene, ship, 1, 1, "Hold");
+        Assert.True(bay.TryStore(Units(f, f.Ore, 5)));
+        Assert.True(bay.TryStore(lotted));
+        Assert.Equal(12, Assert.Single(Stacks(bay)).Quantity);
+    }
+
+    // A run ledger saved before the ruling holds Extracted lots (Provenance arm 2: zone, commodity, belt). They read as
+    // RetiredExtracted, and a save drops them: no item roots them.
+    [Fact]
+    public void APreRulingExtractedLotLoadsAndCommitDropsIt()
+    {
+        var f = Build();
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(ItemInstance).Assembly);
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        var writer = new MessagePackWriter(buffer);
+        writer.WriteArrayHeader(2);
+        writer.Write(2);
+        writer.WriteArrayHeader(3);
+        writer.Write(1);
+        MessagePackSerializer.Serialize(ref writer, new CultRecordRef<SimpleCommodityData>(f.Scene.Cache.RefOf(f.Ore).Key), options);
+        MessagePackSerializer.Serialize(ref writer, new CultRecordRef<BodyData>(f.Scene.Belts[0]), options);
+        writer.Flush();
+        var origin = Assert.IsType<RetiredExtracted>(MessagePackSerializer.Deserialize<Provenance>(buffer.WrittenMemory, options));
+
+        var ledger = new ProvenanceLedger();
+        var retired = ledger.Add(new Lot { Design = default, Origin = origin, Quality = 1f, Roles = new List<RoleFill>() });
+        var saved = SaveAndReload(ledger);
+        Assert.DoesNotContain(retired, saved.Lots.Keys);
+        Assert.Equal(new[] { _hullLot }, saved.Lots.Keys);
     }
 }

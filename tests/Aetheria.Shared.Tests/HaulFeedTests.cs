@@ -53,7 +53,6 @@ public sealed class HaulFeedTests : IDisposable
         Assert.Equal((GainKind.Mined, 4, 0), (gain.Kind, gain.Stored, gain.Adrift));
         Assert.Same(rig.Shooter, gain.Taker);
         Assert.Equal(4, MiningCut5aTests.Units(bay, "Rock", rig.Scene));
-        Assert.NotEqual(0, gain.Lot);
 
         // A full hold: everything floats.
         var (full, fullBay, fullGains) = Mining(1, 1, (MiningCut5aTests.Commodity("Grit", maxStack: 1), 1f));
@@ -99,11 +98,10 @@ public sealed class HaulFeedTests : IDisposable
         var chunk = rig.Rock;
         FireControl.Extract(rig.Zone, chunk, rig.Zone.Wear(chunk, 1e6f), rig.Shooter, Dice(rig, 1));
         var keys = bay.Cargo.Keys.ToArray();
-        // Same rock field and index, same ore, so the same lot: the second extraction merges and writes no Cargo key.
+        // Same rock field and index, same ore, so the same design: the second extraction merges and writes no Cargo key.
         FireControl.Extract(rig.Zone, chunk, 40f, rig.Shooter, Dice(rig, 2));
         Assert.Equal(keys, bay.Cargo.Keys.ToArray());
         Assert.Equal(2, gains.Count);
-        Assert.Equal(gains[0].Lot, gains[1].Lot);
         Assert.True(gains[1].Stored > 0);
     }
 
@@ -114,7 +112,7 @@ public sealed class HaulFeedTests : IDisposable
         rig.Zone.Settings.AsteroidYield = new ExponentialLerp { Minimum = 400f, Maximum = 400f, Exponent = 1f };
         FireControl.Extract(rig.Zone, rig.Rock, rig.Zone.Wear(rig.Rock, 1e6f), rig.Shooter, Dice(rig, 3));
         Assert.Equal(2, gains.Count);
-        Assert.Equal(2, gains.Select(g => g.Lot).Distinct().Count());
+        Assert.Equal(2, gains.Select(g => g.Design.Key).Distinct().Count());
         Assert.All(gains, g => Assert.True(g.Stored + g.Adrift > 0));
     }
 
@@ -152,9 +150,9 @@ public sealed class HaulFeedTests : IDisposable
         rig.Zone.Admit(taker, piloted: false);
         var bay = MiningCut5aTests.Bay(rig.Scene, taker, 2, 1, "Taker");
         var design = rig.Scene.Cache.RefOf<ItemData>(grit);
-        Assert.True(bay.TryStore(new SimpleCommodity { Data = design, Lot = 7, Quantity = 3 }));
+        Assert.True(bay.TryStore(new SimpleCommodity { Data = design, Quantity = 3 }));
         gains.Clear();
-        var floating = rig.Zone.Release(new SimpleCommodity { Data = design, Lot = 7, Quantity = 4 }, new float2(0, 0), new float2(0, 0));
+        var floating = rig.Zone.Release(new SimpleCommodity { Data = design, Quantity = 4 }, new float2(0, 0), new float2(0, 0));
         Assert.True(rig.Zone.TryPickUp(taker, floating.Id));
         Assert.Equal(7, MiningCut5aTests.Units(bay, "Grit", rig.Scene));
         Assert.Equal((GainKind.Collected, 4, 0), (Assert.Single(gains).Kind, gains[0].Stored, gains[0].Adrift));

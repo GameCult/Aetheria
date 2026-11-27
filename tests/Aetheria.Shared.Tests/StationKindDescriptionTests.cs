@@ -27,11 +27,11 @@ public sealed class StationKindDescriptionTests
     {
         using var db = AetherDb.Open();
         var cache = db.Cache;
-        string Extracted(string kindId) => string.Join(",", cache.GetAll<RecipeData>()
+        string RawAt(string kindId) => string.Join(",", cache.GetAll<RecipeData>()
             .Where(recipe => Recipes.IsRaw(cache, recipe) && recipe.StationKind.IsSet() && recipe.StationKind.Key.Equals(StationKindData.KeyOf(kindId)))
             .Select(recipe => cache.Get(recipe.Output).Name));
-        Assert.Contains("Diamond", Extracted("mining"));
-        Assert.Contains("Ammonia", Extracted("volatiles"));
+        Assert.Contains("Diamond", RawAt("mining"));
+        Assert.Contains("Ammonia", RawAt("volatiles"));
         Assert.Contains("Diamond", cache.Get<StationKindData>(StationKindData.KeyOf("mining")).Description);
         Assert.Contains("Ammonia", cache.Get<StationKindData>(StationKindData.KeyOf("volatiles")).Description);
     }
