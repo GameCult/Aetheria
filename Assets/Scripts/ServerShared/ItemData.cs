@@ -327,6 +327,8 @@ public class SimpleCommodityData : ItemData
     [Inspectable, JsonProperty("maxStackSize"), Key(9)]
     public int MaxStack = 10;
 
+    // A commodity is one cell unless authored otherwise: crate size is a balance knob, and a cargo bay reads Shape to store the good.
+    public SimpleCommodityData() => Shape = new Shape();
 }
 
 [JsonObject(MemberSerialization.OptIn)]
@@ -357,6 +359,9 @@ public class ItemRole
 public class CompoundCommodityData : CraftedItemData
 {
     // MessagePack keys 10 and 11 belonged to the removed demand weights and classification; do not reuse them.
+
+    // A commodity is one cell unless authored otherwise: crate size is a balance knob, and a cargo bay reads Shape to store the good.
+    public CompoundCommodityData() => Shape = new Shape();
 }
 
 [CultDocument("aetheria.consumableitemdata", "1"), Inspectable, MessagePackObject]

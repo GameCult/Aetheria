@@ -56,13 +56,14 @@ public sealed class EconomyReport
 // The one owner of the catalog's economy invariants. Pure: draws nothing, reads no clock, writes nothing. One method per rule.
 public static class EconomyChecks
 {
-    public const string LRecipe = "L-recipe", LOneKindList = "L-one-kind-list", LLore = "L-lore", LSource = "L-source-sink", LProductive = "L-productive", LDemand = "L-consumer-demand", LWeights = "L-weights";
+    public const string LRecipe = "L-recipe", LOneKindList = "L-one-kind-list", LLore = "L-lore", LSource = "L-source-sink", LProductive = "L-productive", LDemand = "L-consumer-demand", LWeights = "L-weights", LShape = "L-shape";
     private const double Margin = 1e-9;
 
     public static EconomyReport Check(CultCache catalog, EconomyLoad load = null)
     {
         var faults = new List<EconomyFault>();
         faults.AddRange(Recipe(catalog));
+        faults.AddRange(Shapes(catalog));
         faults.AddRange(Weights(catalog));
         faults.AddRange(Lore(catalog));
         faults.AddRange(SourceSink(catalog));
@@ -155,6 +156,11 @@ public static class EconomyChecks
         }
         return faults;
     }
+
+    // Every commodity holds a Shape with at least one cell: a cargo bay reads it to store the good, and a commodity without one cannot be held.
+    public static List<EconomyFault> Shapes(CultCache catalog) =>
+        Commodities(catalog).Where(item => item.Shape?.Coordinates == null || item.Shape.Coordinates.Length == 0)
+            .Select(item => new EconomyFault(LShape, catalog.RefOf(item).Key.Value, $"Commodity '{item.Name}' has no Shape cell: a cargo bay cannot hold it.")).ToList();
 
     // Every commodity and every offered design (but a Station or Turret hull) has a recipe, and each recipe is well formed.
     public static List<EconomyFault> Recipe(CultCache catalog)

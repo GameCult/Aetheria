@@ -60,7 +60,7 @@ public static class EconomyCommand
     // The invariants whose faults the batches introduce refuse them. The rest (a missing sink, no consumer demand, a commodity
     // with no recipe yet) are completeness: reported, and settled by the batch that closes the chain.
     private static readonly string[] Shape =
-        { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights };
+        { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights, EconomyChecks.LShape };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
     private const string Usage = "economy report | author <batch>... [apply] | " + EconomyPrices.Usage + " | balance\nbalance reads the chain and changes nothing. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor.";

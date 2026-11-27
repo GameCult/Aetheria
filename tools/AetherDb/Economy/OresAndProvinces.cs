@@ -221,12 +221,11 @@ public sealed class OresAndProvinces : EconomyBatch
 
     private static CultRecordKey CommodityKey(string id) => new CultRecordKey("commodity:" + id);
 
-    // A new ore: a raw good with an extraction recipe at the mining station that fills its metal roles. Every ore gets a one-cell
-    // Shape: ItemData.Shape has no default and a cargo bay reads it to store the good.
+    // A new ore: a raw good with an extraction recipe at the mining station that fills its metal roles. Its Shape is the commodity type's one-cell default.
     private CultRecordRef<SimpleCommodityData> Ore(string id, string name, string description, float mass, int price, int workforce, int perCycle, string lore, params string[] fills)
     {
         var key = CommodityKey(id);
-        _a.Put(new SimpleCommodityData { Name = name, Description = description, Mass = mass, Price = price, Shape = new Shape() }, key);
+        _a.Put(new SimpleCommodityData { Name = name, Description = description, Mass = mass, Price = price }, key);
         Recipe(key, "mining", 600, workforce, perCycle, lore, fills, new List<ItemRole>());
         return new CultRecordRef<SimpleCommodityData>(key);
     }

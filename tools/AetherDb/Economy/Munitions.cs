@@ -146,8 +146,8 @@ public sealed class Munitions : EconomyBatch
         // Missiles: the crate a launcher design reloads from. One crate is one magazine reload (the reload takes one unit of the weapon's
         // AmmoType), the same convention as Ammo for guns, whatever the magazine holds (2 to 288 rounds across the five designs). A crate is
         // a warhead and a motor; the guidance package (seeker and fin actuators) waits on the electronics chain, so the recipe does not
-        // yet draw it. Shape and stack match Ammo's, so a hold takes crates cell for cell.
-        var missiles = new SimpleCommodityData { Name = "Missiles", Shape = new Shape(), MaxStack = 5, Mass = 8f, Price = 1800,
+        // yet draw it. Stack matches Ammo's and the type default gives the crate one cell, so a hold takes crates cell for cell.
+        var missiles = new SimpleCommodityData { Name = "Missiles", MaxStack = 5, Mass = 8f, Price = 1800,
             Description = "Crated guided munitions: a high-explosive warhead mated to a rocket motor on a launch rail. The crate a launcher reloads from; the rounds are real, only the reactor energy of the launch is not." };
         _a.Put(missiles, CommodityKey("missiles"));
         var missilesRef = new CultRecordRef<ItemData>(CommodityKey("missiles"));
@@ -155,8 +155,8 @@ public sealed class Munitions : EconomyBatch
             "A missile crate is a warhead and a motor in one box, and the box is the arsenal's most counted object: Zhestokost ties each launcher crew's allowance to a serial range, so a cache of loose crates is either a deserter's or a quartermaster's crime.",
             new string[0], (warhead, 1), (motor, 1));
 
-        // Mines: the crate the mine launcher reloads from, a warhead per mine laid. Shape and stack as Missiles.
-        var mines = new SimpleCommodityData { Name = "Mines", Shape = new Shape(), MaxStack = 5, Mass = 7f, Price = 1400,
+        // Mines: the crate the mine launcher reloads from, a warhead per mine laid. Stack as Missiles.
+        var mines = new SimpleCommodityData { Name = "Mines", MaxStack = 5, Mass = 7f, Price = 1400,
             Description = "Crated proximity mines: a high-explosive warhead in a steel drum with a fuzed trigger. The crate a mine launcher reloads from." };
         _a.Put(mines, CommodityKey("mines"));
         var minesRef = new CultRecordRef<ItemData>(CommodityKey("mines"));
