@@ -1,3 +1,4 @@
+using System;
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
@@ -91,11 +92,14 @@ public sealed partial class RunStartTests
     // economy-numbers-are-sim-tuned-knobs: the prices are balance knobs tuned from simulation, so this pins only the scale). V is the
     // belt kind's hold-cell value: a unit is drawn by abundance, a cell takes MaxStack units, so a cell's value is
     // sum(abundance x price) / sum(abundance / MaxStack), over every yield of the kind. It is set against the repair of the player's hull
-    // with all its armour lost and against the cheapest piece Zenith stocks. The bases are those ratios on the catalog before the ore
-    // batch, at ore and gear prices of one scale: a divisor of ten or a thousand, or a gear type left unscaled, moves a ratio out of
-    // [0.5, 4] x its base.
-    // Measured at d1ff2f78e on belt kind Asteroid: V 9005, repair 5540402, cheapest buy 4705354.
-    private const double BaseRepairRatio = 0.00162533, BaseBuyRatio = 0.00191378;
+    // with all its armour lost and against the authored Price of the cheapest piece Zenith stocks (ruling demo-loop-reads-authored-price:
+    // the rolled BuyPrice moves with any catalog change that shifts the stock draw, 47053 against 36806 for the same Ring Station Reactor
+    // across design-bills, which is not what this test is about). Margin rule: the anchors are the readings the shipped catalog gives at
+    // design-bills (V 282.149, repair 55404, cheapest authored price 15500), and the band is 1/sqrt(10) to sqrt(10) of each, the
+    // geometric midpoint between the shipped reading and the least mutant this test claims to catch (a divisor of ten on either side, a
+    // ratio of 10 or 0.1): the shipped reading and that mutant each sit 3.16x from a bound.
+    private const double BaseRepairRatio = 0.0050925, BaseBuyRatio = 0.018203;
+    private static readonly double Margin = Math.Sqrt(10);
 
     [Fact]
     public void DemoLoopIncomeToCostClosesAfterRescale()
@@ -113,11 +117,11 @@ public sealed partial class RunStartTests
                 player.Armor[x, y] = 0;
         var repair = StationServices.RepairCost(_items, player);
         var zenith = arena.Entities.Single(entity => entity.HullData.Name == "Zenith");
-        var cheapest = zenith.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<CraftedItemInstance>()).Min(piece => StationServices.BuyPrice(_items, piece));
+        var cheapest = zenith.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<CraftedItemInstance>()).Min(piece => _items.GetData(piece).Price);
         Assert.True(repair > 0 && cheapest > 0);
 
-        var measured = $"belt {kind.Name}: V {value:0.###} per cell, repair {repair}, cheapest buy {cheapest}, V/repair {value / repair:0.######}, V/buy {value / cheapest:0.######}";
-        Assert.True(value / repair >= 0.5 * BaseRepairRatio && value / repair <= 4 * BaseRepairRatio, measured);
-        Assert.True(value / cheapest >= 0.5 * BaseBuyRatio && value / cheapest <= 4 * BaseBuyRatio, measured);
+        var measured = $"belt {kind.Name}: V {value:0.###} per cell, repair {repair}, cheapest authored price {cheapest}, V/repair {value / repair:0.######}, V/buy {value / cheapest:0.######}";
+        Assert.True(value / repair >= BaseRepairRatio / Margin && value / repair <= BaseRepairRatio * Margin, measured);
+        Assert.True(value / cheapest >= BaseBuyRatio / Margin && value / cheapest <= BaseBuyRatio * Margin, measured);
     }
 }
