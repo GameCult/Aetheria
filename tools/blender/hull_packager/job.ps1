@@ -38,8 +38,13 @@ try {
     $env:GAME_FOLDER = $Game
     $env:CULTLIB_PACKAGES = $Packages
     $env:OPENSCAD = $OpenScad
-    # Blender's Python needs msgpack: point it at the newest Blender user site that has it, unless PYTHONPATH is already set.
-    if (-not $env:PYTHONPATH) { $env:PYTHONPATH = (Get-ChildItem "$env:APPDATA\Blender Foundation\Blender" -Directory | Sort-Object Name | Select-Object -Last 1).FullName + "\scripts\modules" }
+    # Blender's Python needs msgpack: PYTHONPATH, unless set, is the newest Blender user-site scripts\modules that holds it.
+    if (-not $env:PYTHONPATH) {
+        $site = Get-ChildItem "$env:APPDATA\Blender Foundation\Blender" -Directory | Sort-Object { [version]$_.Name } -Descending |
+            Where-Object { Test-Path "$($_.FullName)\scripts\modules\msgpack" } | Select-Object -First 1
+        if (-not $site) { throw "no Blender user site holds msgpack; install it with Blender's Python (pip --target <user>\scripts\modules)" }
+        $env:PYTHONPATH = "$($site.FullName)\scripts\modules"
+    }
     $Fixture = "$Repo\tools\blender\tests\fixtures\hulls\zh-ammo-tender\package.json"
     $Committed = "$Repo\GameData\Mods\aetheria.nakovalnya"
     $Mods = "$Game\GameData\Mods"
