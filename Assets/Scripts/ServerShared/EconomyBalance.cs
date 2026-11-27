@@ -42,7 +42,7 @@ public sealed class BalanceReport
 // The static economy balance: a steady-state input-output reading of the chain (Leontief 1936; Sraffa 1960 zero-profit prices under
 // one wage; Samuelson 1951: with labour the only primary factor the cheapest filler of a role is demand-independent; Lewis 1954: the
 // extraction sector sets the going wage). Pure: reads the catalog, writes nothing. ItemData.Price stays the one price the game charges;
-// for a made commodity it is the price Prices derives, which economy author writes. Balance's faults are report-only.
+// for a made good it is the price Prices derives, which economy author writes. Balance's faults are report-only.
 public static class EconomyBalance
 {
     public const string HMargin = "H-margin", HWage = "H-wage", HConverge = "H-converge";
@@ -136,18 +136,16 @@ public static class EconomyBalance
         return derived;
     }
 
-    // The price of every made commodity (a commodity whose recipe is not raw) at the going wage: its inputs, upkeep and cheapest
-    // role fillers at their prices, plus the wage times its labour, over its output count. Raw and recipeless goods keep their
-    // authored price; designs are not priced here unless asked. Unsettled names the goods still moving when the sweep gave up: a cycle of recipes
-    // whose requirements do not shrink has no price, so none of the values are a price.
-    // With designs, the derived price of every design output that has a recipe is returned too: a reading for the report, never a
-    // price anything writes.
-    public static Dictionary<string, double> Prices(CultCache catalog, out List<string> unsettled, bool designs = false)
+    // The price of every made good (an output whose recipe is not raw) at the going wage: its inputs, upkeep and cheapest
+    // role fillers at their prices, plus the wage times its labour, over its output count. A design with a recipe is a made good
+    // priced like a commodity; raw goods and designs with no recipe keep their authored price. Unsettled names the goods still moving
+    // when the sweep gave up: a cycle of recipes whose requirements do not shrink has no price, so none of the values are a price.
+    public static Dictionary<string, double> Prices(CultCache catalog, out List<string> unsettled)
     {
         var columns = EconomyChecks.Columns(catalog);
         var raw = new HashSet<string>(columns.Where(c => Recipes.IsRaw(catalog, c.Recipe)).Select(c => c.Output), StringComparer.Ordinal);
         var derived = Sweep(catalog, columns, RawWage(catalog, columns, Links(catalog, columns)), raw, out unsettled);
-        return columns.Where(c => (c.IsCommodity || designs) && !raw.Contains(c.Output)).Select(c => c.Output).Distinct(StringComparer.Ordinal)
+        return columns.Where(c => !raw.Contains(c.Output)).Select(c => c.Output).Distinct(StringComparer.Ordinal)
             .ToDictionary(key => key, key => derived[key], StringComparer.Ordinal);
     }
 

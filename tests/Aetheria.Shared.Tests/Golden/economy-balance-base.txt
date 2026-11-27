@@ -1,17 +1,7 @@
-median implied wage 0.00722 per worker-second, spread 2, 70 links, 0 unpriced
-23 faults
-H-margin (6)
-  0271bb97-4ce8-4d64-97c3-8bfd3f76b2c6: Light Machine Gun sells at or below its inputs: implied wage -0.03456 per worker-second.
-  1b4a2bb358eb432eb1cfc0ccf3317303: Mine Launcher sells at or below its inputs: implied wage -0.00356 per worker-second.
-  2fd0d88b-f565-4021-85b4-02d9eae7be58: Long Slug Rifle sells at or below its inputs: implied wage -0.01696 per worker-second.
-  679fb6a1-cefb-4adc-a49c-71942602196b: Slug Rifle sells at or below its inputs: implied wage -0.02067 per worker-second.
-  6af6446e40cb4cdd90d7a3fee04394d4: Flak Gun sells at or below its inputs: implied wage -0.01048 per worker-second.
-  d02bcf71f2c8420b878f036cd1a33bea: Point Defense Gun sells at or below its inputs: implied wage -0.029 per worker-second.
-H-wage (17)
+median implied wage 0.00722 per worker-second, spread 2, 74 links, 0 unpriced
+14 faults
+H-wage (14)
   043997a8-0661-4206-ab8a-10215ecf4efc: Regolith: implied wage 0.00071 is 0.1x the median 0.00722, outside the spread of 2.
-  13116166-f0c8-43cf-a35f-8fd448bc630c: Autocannon: implied wage 0.00248 is 0.34x the median 0.00722, outside the spread of 2.
-  3aa1ac05-6d55-4569-8a4b-e1c3c6e07c61: Charged Scattergun: implied wage 0.23396 is 32.39x the median 0.00722, outside the spread of 2.
-  8ac84e31-f0cf-43b2-8611-3316adfa4010: Cluster Cannon: implied wage 0.03952 is 5.47x the median 0.00722, outside the spread of 2.
   commodity:ammonia: Ammonia: implied wage 0.025 is 3.46x the median 0.00722, outside the spread of 2.
   commodity:anorthite: Anorthite: implied wage 0.00333 is 0.46x the median 0.00722, outside the spread of 2.
   commodity:brannerite: Brannerite: implied wage 0.015 is 2.08x the median 0.00722, outside the spread of 2.
@@ -27,16 +17,9 @@ H-wage (17)
   commodity:wolframite: Wolframite: implied wage 0.02 is 2.77x the median 0.00722, outside the spread of 2.
 
 Links by wage over the median (output | station kind | labour | price | derived cost | wage | ratio)
-  0271bb97-4ce8-4d64-97c3-8bfd3f76b2c6 (Light Machine Gun) | Fabrication Station | 54000 | 500 | 2154.75 | -0.03456 | -4.78x
-  d02bcf71f2c8420b878f036cd1a33bea (Point Defense Gun) | Fabrication Station | 54000 | 800 | 2154.75 | -0.029 | -4.02x
-  679fb6a1-cefb-4adc-a49c-71942602196b (Slug Rifle) | Fabrication Station | 54000 | 1250 | 2154.75 | -0.02067 | -2.86x
-  2fd0d88b-f565-4021-85b4-02d9eae7be58 (Long Slug Rifle) | Fabrication Station | 54000 | 1450 | 2154.75 | -0.01696 | -2.35x
-  6af6446e40cb4cdd90d7a3fee04394d4 (Flak Gun) | Fabrication Station | 54000 | 1800 | 2154.75 | -0.01048 | -1.45x
-  1b4a2bb358eb432eb1cfc0ccf3317303 (Mine Launcher) | Fabrication Station | 43200 | 1250 | 1307.13 | -0.00356 | -0.49x
   commodity:orthoclase (Orthoclase) | Mining Station | 6000 | 1 | 10.83 | 0.00067 | 0.09x
   043997a8-0661-4206-ab8a-10215ecf4efc (Regolith) | Mining Station | 8400 | 1 | 10.11 | 0.00071 | 0.1x
   commodity:sylvite (Sylvite) | Mining Station | 4800 | 2 | 8.67 | 0.00167 | 0.23x
-  13116166-f0c8-43cf-a35f-8fd448bc630c (Autocannon) | Fabrication Station | 54000 | 2500 | 2154.75 | 0.00248 | 0.34x
   commodity:troilite (Troilite) | Mining Station | 6000 | 4 | 10.83 | 0.00267 | 0.37x
   commodity:anorthite (Anorthite) | Mining Station | 7200 | 6 | 13 | 0.00333 | 0.46x
   commodity:magnetite (Magnetite) | Mining Station | 6000 | 6 | 10.83 | 0.004 | 0.55x
@@ -52,11 +35,19 @@ Links by wage over the median (output | station kind | labour | price | derived 
   commodity:iron (Iron) | Processing Station | 8400 | 36 | 46.58 | 0.00714 | 0.99x
   commodity:nitrocellulose (Nitrocellulose) | Munitions Works | 12000 | 103 | 101.47 | 0.00717 | 0.99x
   commodity:he-warhead (High-Explosive Warhead) | Munitions Works | 21600 | 693 | 587.08 | 0.00718 | 0.99x
+  commodity:coil-barrel (Coil Barrel) | Fabrication Station | 72000 | 6363 | 3582.94 | 0.00719 | 1x
   commodity:titanium (Titanium) | Processing Station | 16800 | 191 | 186.33 | 0.0072 | 1x
   commodity:tungsten (Tungsten) | Processing Station | 16800 | 301 | 186.33 | 0.0072 | 1x
+  8ac84e31-f0cf-43b2-8611-3316adfa4010 (Cluster Cannon) | Fabrication Station | 108000 | 9942 | 7844.06 | 0.0072 | 1x
+  13116166-f0c8-43cf-a35f-8fd448bc630c (Autocannon) | Fabrication Station | 72000 | 4856 | 3413.22 | 0.00721 | 1x
+  0271bb97-4ce8-4d64-97c3-8bfd3f76b2c6 (Light Machine Gun) | Fabrication Station | 54000 | 2756 | 2154.75 | 0.00722 | 1x
   08c07793-bc06-48dc-adc2-c7e61ef2cb2b (Uranium) | Processing Station | 9000 | 155 | 108.33 | 0.00722 | 1x
+  1b4a2bb358eb432eb1cfc0ccf3317303 (Mine Launcher) | Fabrication Station | 43200 | 1716 | 1307.13 | 0.00722 | 1x
+  2fd0d88b-f565-4021-85b4-02d9eae7be58 (Long Slug Rifle) | Fabrication Station | 72000 | 3268 | 2657.42 | 0.00722 | 1x
   3085fc8a-ec0d-4f6f-a339-ea43edb573e6 (Ammo) | Munitions Works | 18000 | 181 | 183.67 | 0.00722 | 1x
   36746041-a5bd-4b95-aa18-294acaaeae62 (Gold) | Processing Station | 3600 | 726 | 78 | 0.00722 | 1x
+  679fb6a1-cefb-4adc-a49c-71942602196b (Slug Rifle) | Fabrication Station | 54000 | 3138 | 2527.42 | 0.00722 | 1x
+  6af6446e40cb4cdd90d7a3fee04394d4 (Flak Gun) | Fabrication Station | 72000 | 6022 | 3845.47 | 0.00722 | 1x
   8776c2fd-45f6-4ca6-8ef0-5214be830182 (Diamond) | Mining Station | 14400 | 104 | 104 | 0.00722 | 1x
   a8e259fc-fbf1-477a-8248-0277611f1859 (Potassium) | Processing Station | 1800 | 15 | 30.33 | 0.00722 | 1x
   commodity:aluminium (Aluminium) | Processing Station | 10800 | 108 | 143 | 0.00722 | 1x
@@ -71,7 +62,12 @@ Links by wage over the median (output | station kind | labour | price | derived 
   commodity:nitric-acid (Nitric Acid) | Processing Station | 3600 | 31 | 25.28 | 0.00722 | 1x
   commodity:platinum-group-metals (Platinum Group Metals) | Processing Station | 18000 | 1480 | 208 | 0.00722 | 1x
   commodity:rare-earth-oxides (Rare Earth Oxides) | Processing Station | 32400 | 474 | 299 | 0.00722 | 1x
+  commodity:rifled-barrel (Rifled Barrel) | Fabrication Station | 36000 | 1384 | 1385.94 | 0.00722 | 1x
   commodity:rocket-motor (Rocket Motor) | Munitions Works | 18000 | 455 | 457.76 | 0.00722 | 1x
+  commodity:tracking-feed (Tracking Feed) | Fabrication Station | 36000 | 3498 | 1298.92 | 0.00722 | 1x
+  d02bcf71f2c8420b878f036cd1a33bea (Point Defense Gun) | Fabrication Station | 54000 | 4890 | 2702.19 | 0.00722 | 1x
+  3aa1ac05-6d55-4569-8a4b-e1c3c6e07c61 (Charged Scattergun) | Fabrication Station | 144000 | 29221 | 16874.72 | 0.00723 | 1x
+  commodity:lined-barrel (Lined Barrel) | Fabrication Station | 51000 | 1609 | 1390.28 | 0.00724 | 1x
   commodity:niobium (Niobium) | Processing Station | 21000 | 452 | 216.67 | 0.00724 | 1x
   commodity:gun-forging (Gun Forging) | Processing Station | 72000 | 638 | 649.28 | 0.00725 | 1x
   commodity:mines (Mines) | Munitions Works | 18000 | 441 | 390.86 | 0.00728 | 1.01x
@@ -92,11 +88,9 @@ Links by wage over the median (output | station kind | labour | price | derived 
   commodity:ammonia (Ammonia) | Volatiles Station | 2400 | 15 | 4.33 | 0.025 | 3.46x
   commodity:monazite (Monazite) | Mining Station | 6000 | 80 | 21.67 | 0.02667 | 3.69x
   commodity:columbite (Columbite) | Mining Station | 6000 | 100 | 21.67 | 0.03333 | 4.62x
-  8ac84e31-f0cf-43b2-8611-3316adfa4010 (Cluster Cannon) | Fabrication Station | 54000 | 4500 | 2154.75 | 0.03952 | 5.47x
   commodity:sperrylite (Sperrylite) | Mining Station | 4800 | 450 | 34.67 | 0.09375 | 12.98x
   commodity:native-gold (Native Gold) | Mining Station | 3600 | 350 | 26 | 0.09722 | 13.46x
   commodity:isoferroplatinum (Isoferroplatinum) | Mining Station | 3600 | 650 | 26 | 0.18056 | 25x
-  3aa1ac05-6d55-4569-8a4b-e1c3c6e07c61 (Charged Scattergun) | Fabrication Station | 54000 | 15000 | 2154.75 | 0.23396 | 32.39x
 
 Belts (kind: abundance-weighted price and derived cost per unit; each ore: share, extraction wage ratio, price, cost)
   Basaltic: price 9.37, cost 12.35

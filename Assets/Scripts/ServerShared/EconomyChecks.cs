@@ -163,7 +163,7 @@ public static class EconomyChecks
         Commodities(catalog).Where(item => item.Shape?.Coordinates == null || item.Shape.Coordinates.Length == 0)
             .Select(item => new EconomyFault(LShape, catalog.RefOf(item).Key.Value, $"Commodity '{item.Name}' has no Shape cell: a cargo bay cannot hold it.")).ToList();
 
-    // A made commodity's Price is the price EconomyBalance derives from its chain, rounded to whole credits (at least 1); economy author
+    // A made good's Price (a commodity, or a design with a recipe) is the price EconomyBalance derives from its chain, rounded to whole credits (at least 1); economy author
     // writes it, and a stored price off it is drift (an inspector edit) that the next author run repairs.
     public static List<EconomyFault> PriceCheck(CultCache catalog)
     {
@@ -180,7 +180,7 @@ public static class EconomyChecks
             if (item == null) continue;
             var want = EconomyBalance.Rounded(derived);
             if (item.Price != want)
-                faults.Add(new EconomyFault(LPrice, key, $"Commodity '{item.Name}' is priced {item.Price}; its chain derives {want}."));
+                faults.Add(new EconomyFault(LPrice, key, $"'{item.Name}' is priced {item.Price}; its chain derives {want}."));
         }
         return faults;
     }

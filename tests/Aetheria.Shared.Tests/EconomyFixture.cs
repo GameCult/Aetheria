@@ -135,7 +135,8 @@ public sealed class EconomyFixture : IDisposable
             Rows = rows.Select(r => new OutsideMarketRow { Commodity = Item(r.Commodity), Price = 10, Buys = r.Buys, Sells = r.Sells, RatePerHour = 5 }).ToList()
         }, OutsideMarketData.KeyOf("gate"));
 
-    // Every made commodity at the price its chain derives, as economy author leaves it.
+    // Every made good (a commodity, or a design with a recipe) at the price its chain derives, as economy author leaves it. A test that
+    // needs an off-chain design price sets it after Settle.
     public void Settle()
     {
         foreach (var (key, derived) in EconomyBalance.Prices(Cache, out _))

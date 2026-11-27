@@ -53,7 +53,8 @@ public sealed class LoopDesign
     public string Key;
     public string Name;
     public int Price;
-    public double? Derived;
+    // The design has a recipe, so its price is derived from its chain; otherwise the authored price stands.
+    public bool Chained;
     public double? MinutesAtMedian;
     public double? MinutesAtBest;
     public bool Covered;
@@ -64,8 +65,7 @@ public sealed class LoopLadder
     public string Category;
     public List<LoopDesign> Designs;
     // Dearest over cheapest, for a category of two or more priced designs; null otherwise.
-    public double? WidthAuthored;
-    public double? WidthDerived;
+    public double? Width;
 }
 
 public sealed class LoopReport
@@ -246,7 +246,7 @@ public static class EconomyLoop
         var rates = samples.Where(s => s.Measured).Select(s => s.RatePerMinute).OrderBy(r => r).ToList();
         var median = rates.Count == 0 ? 0 : rates.Count % 2 == 1 ? rates[rates.Count / 2] : (rates[rates.Count / 2 - 1] + rates[rates.Count / 2]) / 2;
         var best = rates.Count == 0 ? 0 : rates[rates.Count - 1];
-        var derived = EconomyBalance.Prices(catalog, out _, designs: true);
+        var derived = EconomyBalance.Prices(catalog, out _);
         double? Minutes(int price, double rate) => rate > 0 ? price / rate : (double?) null;
         double? Width(IEnumerable<double> prices)
         {
@@ -261,15 +261,14 @@ public static class EconomyLoop
                 var key = catalog.RefOf(design).Key.Value;
                 return new LoopDesign
                 {
-                    Key = key, Name = design.Name, Price = design.Price, Derived = derived.TryGetValue(key, out var d) ? d : (double?) null,
+                    Key = key, Name = design.Name, Price = design.Price, Chained = derived.ContainsKey(key),
                     MinutesAtMedian = Minutes(design.Price, median), MinutesAtBest = Minutes(design.Price, best), Covered = design.Price <= settings.StartingCredits
                 };
             }).OrderBy(d => d.Price).ThenBy(d => d.Key, StringComparer.Ordinal).ToList();
             return new LoopLadder
             {
                 Category = g.Key, Designs = designs,
-                WidthAuthored = Width(designs.Select(d => (double) d.Price)),
-                WidthDerived = Width(designs.Where(d => d.Derived.HasValue).Select(d => d.Derived.Value))
+                Width = Width(designs.Select(d => (double) d.Price))
             };
         }).ToList();
 
@@ -287,9 +286,8 @@ public static class EconomyLoop
         var (min, max) = (settings.EconomyLadderMin, settings.EconomyLadderMax);
         if (min > 0 || max > 0)
             foreach (var ladder in ladders)
-                foreach (var (width, which) in new[] { (ladder.WidthAuthored, "authored"), (ladder.WidthDerived, "derived") })
-                    if (width.HasValue && ((min > 0 && width.Value < min) || (max > 0 && width.Value > max)))
-                        faults.Add(new EconomyFault(HLadder, ladder.Category, $"the {which} ladder is {width.Value:0.##}x wide, outside the band {min:0.##} to {max:0.##}."));
+                if (ladder.Width.HasValue && ((min > 0 && ladder.Width.Value < min) || (max > 0 && ladder.Width.Value > max)))
+                    faults.Add(new EconomyFault(HLadder, ladder.Category, $"the ladder is {ladder.Width.Value:0.##}x wide, outside the band {min:0.##} to {max:0.##}."));
         return new LoopReport { Samples = samples, Median = median, Best = best, Purse = settings.StartingCredits, Ladders = ladders, Faults = faults };
     }
 }

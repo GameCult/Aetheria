@@ -49,6 +49,9 @@ public sealed class MunitionsBillsTests : IDisposable
         var scarce = new[] { "commodity:niobium", "commodity:rare-earth-oxides", "commodity:platinum-group-metals" };
         Assert.All(scarce, key => Assert.Contains(key, Reach(cache, Gun("Charged Scattergun"))));
         Assert.All(scarce, key => Assert.DoesNotContain(key, Reach(cache, Gun("Light Machine Gun"))));
+        var guns = new[] { "Light Machine Gun", "Point Defense Gun", "Slug Rifle", "Long Slug Rifle", "Flak Gun", "Autocannon", "Cluster Cannon", "Charged Scattergun" }.Select(Gun).ToArray();
+        Assert.Equal("Light Machine Gun", guns.OrderBy(g => g.Price).First().Name);
+        Assert.Equal("Charged Scattergun", guns.OrderBy(g => g.Price).Last().Name);
     }
 
     // Kills: a rename that misses a stat term, a seller's profile or a bin, or one that does not converge.

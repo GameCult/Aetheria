@@ -65,21 +65,6 @@ public sealed class EconomyLoopTests
     }
 
     [Fact]
-    public void ADerivedWidthOutsideTheBandIsAFaultAlthoughTheAuthoredOneIsInIt()
-    {
-        using var f = EconomyFixture.Healthy();
-        // Authored 2x; derived from one plate against ten, 10x.
-        f.EditItem<SimpleCommodityData>("commodity:ore", o => o.Price = 10);
-        Offer(f, "thin", HardpointType.Reactor, 100, plates: 1);
-        Offer(f, "thick", HardpointType.Reactor, 200, plates: 10);
-        var report = EconomyLoop.Report(f.Cache, Settings(1, 5), new[] { Sample(1, 1000, 0, 0, 60) });
-        Assert.Equal(2, Ladder(report, "Gear/Reactor").WidthAuthored.Value, 9);
-        Assert.Equal(10, Ladder(report, "Gear/Reactor").WidthDerived.Value, 9);
-        var fault = Assert.Single(report.Faults, x => x.Invariant == EconomyLoop.HLadder);
-        Assert.Contains("derived", fault.Message);
-    }
-
-    [Fact]
     public void UnsetLadderBandRaisesNoLadderFault()
     {
         using var f = EconomyFixture.Healthy();
@@ -87,7 +72,7 @@ public sealed class EconomyLoopTests
         Offer(f, "dear", HardpointType.Reactor, 1000);
         // A settings object nobody tuned: its band is what the field defaults to.
         var report = EconomyLoop.Report(f.Cache, new GameplaySettings(), new[] { Sample(1, 1000, 0, 0, 60) });
-        Assert.Equal(100, Ladder(report, "Gear/Reactor").WidthAuthored.Value, 9);
+        Assert.Equal(100, Ladder(report, "Gear/Reactor").Width.Value, 9);
         Assert.DoesNotContain(report.Faults, x => x.Invariant == EconomyLoop.HLadder);
     }
 
@@ -108,8 +93,8 @@ public sealed class EconomyLoopTests
         var report = EconomyLoop.Report(f.Cache, Settings(10, 30), new[] { Sample(1, 1000, 0, 0, 60) });
         var faulted = report.Faults.Where(x => x.Invariant == EconomyLoop.HLadder).Select(x => x.Record).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         Assert.Equal(new[] { "Gear/Thruster", "Gear/Tool" }, faulted);
-        Assert.Null(Ladder(report, "Gear/Sensors").WidthAuthored);
-        Assert.Null(Ladder(report, "Gear/Energy").WidthAuthored);
+        Assert.Null(Ladder(report, "Gear/Sensors").Width);
+        Assert.Null(Ladder(report, "Gear/Energy").Width);
     }
 
     [Fact]
@@ -159,18 +144,18 @@ public sealed class EconomyLoopTests
         Assert.All(report.Ladders.SelectMany(l => l.Designs), d => Assert.Null(d.MinutesAtMedian));
     }
 
+    // Kills: Prices leaving out a design that has a recipe, or pricing one that has none.
     [Fact]
-    public void DesignPricesOnlyWhenAsked()
+    public void PricesCoverEveryDesignWithARecipe()
     {
         using var f = EconomyFixture.Healthy();
-        var plain = EconomyBalance.Prices(f.Cache, out _);
-        Assert.Equal(new[] { "commodity:plate" }, plain.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
-        var withDesigns = EconomyBalance.Prices(f.Cache, out _, designs: true);
-        Assert.Equal(new[] { "commodity:plate", "gear:laser", "hull:skiff" }, withDesigns.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
-        Assert.Equal(plain["commodity:plate"], withDesigns["commodity:plate"]);
+        var prices = EconomyBalance.Prices(f.Cache, out _);
+        Assert.Equal(new[] { "commodity:plate", "gear:laser", "hull:skiff" }, prices.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
         // Laser takes two plates and skiff one, with no labour on either recipe.
-        Assert.Equal(2 * plain["commodity:plate"], withDesigns["gear:laser"], 9);
-        Assert.Equal(plain["commodity:plate"], withDesigns["hull:skiff"], 9);
+        Assert.Equal(2 * prices["commodity:plate"], prices["gear:laser"], 9);
+        Assert.Equal(prices["commodity:plate"], prices["hull:skiff"], 9);
+        f.Gear("bare", new (string, int)[0], recipe: false);
+        Assert.DoesNotContain("gear:bare", EconomyBalance.Prices(f.Cache, out _).Keys);
     }
 
     private static string Root => RunStartTests.FindRepoRoot();

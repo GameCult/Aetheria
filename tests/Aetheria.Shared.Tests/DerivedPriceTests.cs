@@ -5,7 +5,7 @@ using System.Linq;
 using GameCult.Caching;
 using Xunit;
 
-// Made commodities are priced from their chain at the raw wage (EconomyBalance.Prices); economy author writes the price and L-price
+// Made goods (commodities, and designs with a recipe) are priced from their chain at the raw wage (EconomyBalance.Prices); economy author writes the price and L-price
 // refuses drift. Fixture chains are hand-solved.
 public sealed class DerivedPriceTests
 {
@@ -74,20 +74,54 @@ public sealed class DerivedPriceTests
     }
 
     [Fact]
-    public void RawRecipelessAndDesignPricesAreNotRepriced()
+    public void RawAndRecipelessPricesAreNotRepricedButADesignWithARecipeIs()
     {
         using var f = Chain();
         f.Cache.Upsert(typeof(SimpleCommodityData), new SimpleCommodityData { Name = "tin", Price = 7 }, new CultRecordKey("commodity:tin"));
         var gear = f.Gear("laser", new[] { ("Plate", 1) });
         f.Good("plate", inputs: new[] { ("bar", 1) }, fills: new[] { "Plate" }, workforce: 1, cycle: 1);
         f.EditItem<GearData>(gear, g => g.Price = 12345);
+        var bare = f.Gear("bare", new (string, int)[0], recipe: false);
+        f.EditItem<GearData>(bare, g => g.Price = 777);
         Assert.Equal(0, Author(f, true, out _));
         using var after = Read(f);
         Assert.Equal(50, after.Get<ItemData>(new CultRecordKey("commodity:ore")).Price);
         Assert.Equal(100, after.Get<ItemData>(new CultRecordKey("commodity:salt")).Price);
         Assert.Equal(7, after.Get<ItemData>(new CultRecordKey("commodity:tin")).Price);
-        Assert.Equal(12345, after.Get<ItemData>(new CultRecordKey(gear)).Price);
+        Assert.Equal(777, after.Get<ItemData>(new CultRecordKey(bare)).Price);
+        // The laser takes one plate: a bar (106.25) and a worker-second of the 6.25 wage, 112.5 rounded half away from zero.
+        Assert.Equal(113, after.Get<ItemData>(new CultRecordKey(gear)).Price);
         Assert.Equal(106, after.Get<ItemData>(new CultRecordKey("commodity:bar")).Price);
+    }
+
+    // Kills: PriceCheck skipping designs, so a chained design's drift passes unseen.
+    [Fact]
+    public void AStaleDesignPriceIsAnLPriceFault()
+    {
+        using var f = Chain();
+        f.Good("plate", inputs: new[] { ("bar", 1) }, fills: new[] { "Plate" }, workforce: 1, cycle: 1);
+        var gear = f.Gear("laser", new[] { ("Plate", 1) });
+        f.Settle();
+        f.EditItem<GearData>(gear, g => g.Price = 5);
+        var stale = Assert.Single(EconomyChecks.PriceCheck(f.Cache));
+        Assert.Equal(gear, stale.Record);
+        Assert.Equal(0, Author(f, true, out _));
+        using var after = Read(f);
+        Assert.Empty(EconomyChecks.PriceCheck(after));
+    }
+
+    // Kills: repricing every design, whether or not it has a chain.
+    [Fact]
+    public void ADesignWithoutARecipeKeepsItsAuthoredPrice()
+    {
+        using var f = Chain();
+        var bare = f.Gear("bare", new (string, int)[0], recipe: false);
+        f.EditItem<GearData>(bare, g => g.Price = 777);
+        f.Settle();
+        Assert.DoesNotContain(EconomyChecks.PriceCheck(f.Cache), x => x.Record == bare);
+        Assert.Equal(0, Author(f, true, out _));
+        using var after = Read(f);
+        Assert.Equal(777, after.Get<ItemData>(new CultRecordKey(bare)).Price);
     }
 
     [Fact]

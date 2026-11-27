@@ -71,7 +71,7 @@ public static class EconomyCommand
         { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights, EconomyChecks.LShape, EconomyChecks.LPrice };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
-    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance [--loop [<seed>...]] [--cap <sim seconds>]\nbalance reads the chain and changes nothing; --loop adds the player loop (a mining sortie per seed, default seeds 1 2 3 69 97, every belt of each, cap 150 sim seconds a sortie) and the offered gear ladders. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made commodity to the price its chain derives; with no batch it reprices alone.";
+    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance [--loop [<seed>...]] [--cap <sim seconds>]\nbalance reads the chain and changes nothing; --loop adds the player loop (a mining sortie per seed, default seeds 1 2 3 69 97, every belt of each, cap 150 sim seconds a sortie) and the offered gear ladders. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made good (a commodity, or a design with a recipe) to the price its chain derives; with no batch it reprices alone.";
 
     public static int Run(string[] args, TextWriter output)
     {
@@ -172,12 +172,12 @@ public static class EconomyCommand
         output.WriteLine(string.Format(inv, "  median {0:0.#} per minute, best {1:0.#} per minute over the {3} sorties that mined to a full hold or the cap; purse {2}", loop.Median, loop.Best, loop.Purse, loop.Samples.Count(s => s.Measured)));
         string Minutes(double? m) => m.HasValue ? m.Value.ToString("0.#", inv) : "-";
         string Width(double? w) => w.HasValue ? w.Value.ToString("0.##", inv) + "x" : "-";
-        output.WriteLine("\nLadders (category: width authored, derived; each design: price | derived | minutes at median | minutes at best | purse covers)");
+        output.WriteLine("\nLadders (category: width; each design: price | priced from | minutes at median | minutes at best | purse covers)");
         foreach (var ladder in loop.Ladders)
         {
-            output.WriteLine($"  {ladder.Category}: {Width(ladder.WidthAuthored)}, {Width(ladder.WidthDerived)}");
+            output.WriteLine($"  {ladder.Category}: {Width(ladder.Width)}");
             foreach (var d in ladder.Designs)
-                output.WriteLine(string.Format(inv, "    {0} ({1}) | {2} | {3} | {4} | {5} | {6}", d.Name, d.Key, d.Price, d.Derived.HasValue ? d.Derived.Value.ToString("0.##", inv) : "-",
+                output.WriteLine(string.Format(inv, "    {0} ({1}) | {2} | {3} | {4} | {5} | {6}", d.Name, d.Key, d.Price, d.Chained ? "chain" : "authored",
                     Minutes(d.MinutesAtMedian), Minutes(d.MinutesAtBest), d.Covered ? "yes" : "no"));
         }
     }
@@ -316,7 +316,8 @@ public static class EconomyCommand
         }
     }
 
-    // Every made commodity takes the price its chain derives. The one writer of a made price: batches may set any, this overwrites it.
+    // Every made good (a commodity, or a design with a recipe) takes the price its chain derives. The one writer of a made price:
+    // batches may set any, this overwrites it.
     private static void Reprice(EconomyAuthor author)
     {
         var prices = EconomyBalance.Prices(author.Catalog, out var unsettled);
