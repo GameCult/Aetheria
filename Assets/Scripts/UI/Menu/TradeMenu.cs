@@ -252,7 +252,8 @@ public class TradeMenu : MonoBehaviour
                     if (_selling)
                     {
                         ContextMenu.Clear();
-                        ContextMenu.AddOption($"Sell ({StationServices.SellPrice(GameManager.ItemManager, i.item):N0})", () => Sell(i.item));
+                        // A compound stack sells only the units the station's bays take: its price is the most it can pay.
+                        ContextMenu.AddOption($"Sell ({(i.item is CompoundCommodity ? "up to " : "")}{StationServices.SellPrice(GameManager.ItemManager, i.item):N0})", () => Sell(i.item));
                         ContextMenu.Show();
                     }
                     else if (i.item is ICommodityStack)

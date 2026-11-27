@@ -6,6 +6,7 @@ using CultMath;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using MessagePack;
+using UniRx;
 using Xunit;
 
 // Ruling aetheria-living-world:ruling:compound-commodities-stack-by-lot: units of one lot of a compound commodity stack up to
@@ -19,6 +20,7 @@ public sealed class CompoundStackTests : IDisposable
     private readonly ItemManager _items;
     private readonly Zone _zone;
     private readonly CompoundCommodityData _gem;
+    private readonly CompoundCommodityData _rod;
     private readonly SimpleCommodityData _ore;
     private readonly int _lotA;
     private readonly int _lotB;
@@ -45,6 +47,10 @@ public sealed class CompoundStackTests : IDisposable
         _cache.Upsert(_ore);
         _gem = new CompoundCommodityData { Name = "Gem", Shape = new Shape(), Price = 10, Mass = 2f, SpecificHeat = 3f, MaxStack = 4 };
         _cache.Upsert(_gem);
+        var rodShape = new Shape(2, 1);
+        foreach (var cell in rodShape.AllCoordinates) rodShape[cell] = true;
+        _rod = new CompoundCommodityData { Name = "Rod", Shape = rodShape, Price = 4, Mass = 1f, SpecificHeat = 1f, MaxStack = 4 };
+        _cache.Upsert(_rod);
         _cache.FlushAsync().Wait();
 
         var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
@@ -254,7 +260,7 @@ public sealed class CompoundStackTests : IDisposable
         // Full bay: nothing moves and nothing is paid.
         credits = 0;
         Assert.Equal(0, StationServices.TrySellPart(from, station, second, ref credits));
-        Assert.False(StationServices.TrySell(from, station, second, ref credits));
+        Assert.Throws<ArgumentException>(() => StationServices.TrySell(from, station, second, ref credits));
         Assert.Equal(0, credits);
         Assert.Equal(2, second.Quantity);
         Assert.Equal(4, hold.Count(_cache.RefOf<ItemData>(_gem).Key));
@@ -398,5 +404,143 @@ public sealed class CompoundStackTests : IDisposable
         Assert.Equal(6, ship.CountItemsInCargo(gem));
         Assert.Equal(1, ship.CountItemsInCargo(gun.Data.Key));
         Assert.Equal(0, ship.CountItemsInCargo(_cache.RefOf<ItemData>(_ore).Key));
+    }
+
+    // One compound sale path: TrySell would pay a whole stack's price for one unit, so it refuses a compound outright.
+    [Fact]
+    public void TrySellRefusesACompoundStack()
+    {
+        var from = ShipWith("Crate").CargoBays[0];
+        var stack = Gem(_lotA, 3);
+        Assert.True(from.TryStore(stack));
+        var credits = 0;
+        Assert.Throws<ArgumentException>(() => StationServices.TrySell(from, Station(), stack, ref credits));
+        Assert.Equal(0, credits);
+        Assert.Equal(3, stack.Quantity);
+        Assert.Contains(stack, from.Cargo.Keys);
+    }
+
+    // Units moved are units paid, across bays: the station's crate has room for two units and its pocket for one.
+    [Fact]
+    public void ASaleAcrossTwoBaysPaysForExactlyWhatMoved()
+    {
+        var unitPrice = _items.GetPrice(Gem(_lotA, 1));
+        var fraction = (double) _items.GameplaySettings.SellFraction;
+        int Pays(int units) => (int) Math.Floor(unitPrice * units * fraction);
+        var key = _cache.RefOf<ItemData>(_gem).Key;
+
+        var station = Station();
+        Assert.True(station.TryEquip(Mint("Pocket"), new int2(2, 2)));
+        var crate = station.CargoBays[0];
+        var pocket = station.CargoBays[1];
+        var inCrate = Gem(_lotA, 2);
+        var inPocket = Gem(_lotA, 3);
+        Assert.True(crate.TryStore(inCrate));
+        Assert.True(pocket.TryStore(inPocket));
+        while (crate.TryStore(Mint("Gun"))) { }
+
+        var from = ShipWith("Crate").CargoBays[0];
+        var stack = Gem(_lotA, 4);
+        Assert.True(from.TryStore(stack));
+        var units = crate.Count(key) + pocket.Count(key) + from.Count(key);
+        var credits = 0;
+
+        Assert.Equal(3, StationServices.TrySellPart(from, station, stack, ref credits));
+
+        Assert.Equal(Pays(2) + Pays(1), credits);
+        Assert.Equal((4, 4, 1), (inCrate.Quantity, inPocket.Quantity, stack.Quantity));
+        Assert.Equal(units, crate.Count(key) + pocket.Count(key) + from.Count(key));
+        Assert.Equal(Weight(from), from.Mass, 3);
+        Assert.Equal(Weight(crate), crate.Mass, 3);
+    }
+
+    [Fact]
+    public void AStackNotInTheHoldSellsNothing()
+    {
+        var from = ShipWith("Crate").CargoBays[0];
+        var station = Station();
+        var elsewhere = Gem(_lotA, 3);
+        var credits = 5;
+        Assert.Equal(0, StationServices.TrySellPart(from, station, elsewhere, ref credits));
+        Assert.Equal(5, credits);
+        Assert.Equal(3, elsewhere.Quantity);
+        Assert.Empty(station.CargoBays[0].Cargo);
+    }
+
+    // A floor, not a round: a half credit is not paid.
+    [Fact]
+    public void ASaleFloorsAHalfCredit()
+    {
+        // A lot whose unit price is odd, so one unit at half is a half credit.
+        var lot = Enumerable.Range(1, 99).Select(q => _items.CreateLot(_gem, default, q / 100f))
+            .First(l => _items.GetPrice(Gem(l, 1)) % 2 == 1);
+        var unitPrice = _items.GetPrice(Gem(lot, 1));
+        Assert.Equal(.5f, _items.GameplaySettings.SellFraction);
+        Assert.Equal(unitPrice / 2, StationServices.SellPrice(_items, Gem(lot, 1)));
+        Assert.Equal(unitPrice * 3 / 2, StationServices.SellPrice(_items, Gem(lot, 3)));
+    }
+
+    // Exactly two fragments fold into one: the fold starts at the second stack.
+    [Fact]
+    public void ConsolidateFoldsExactlyTwoFragments()
+    {
+        var bay = ShipWithBays("Crate").CargoBays[0];
+        Assert.True(bay.TryStore(Gem(_lotA, 1), new int2(0, 0)));
+        Assert.True(bay.TryStore(Gem(_lotA, 2), new int2(1, 0)));
+        var mass = bay.Mass;
+
+        bay.Consolidate();
+
+        Assert.Equal(3, Assert.Single(Stacks(bay)).Quantity);
+        Assert.Equal(mass, bay.Mass, 3);
+        Assert.Equal(Weight(bay), bay.Mass, 3);
+    }
+
+    // A design that fills two cells is one stack, met once in the bay's cell order, not once per cell.
+    [Fact]
+    public void ConsolidateFoldsAMultiCellCompoundOnce()
+    {
+        var bay = ShipWithBays("Crate").CargoBays[0];
+        var lot = _items.CreateLot(_rod, default, .8f);
+        var rods = new[] { new int2(0, 0), new int2(0, 1), new int2(0, 2) };
+        foreach (var at in rods)
+        {
+            var rod = Assert.IsType<CompoundCommodity>(_items.CreateInstance(lot));
+            Assert.True(bay.TryStore(rod, at));
+        }
+        Assert.Equal(3, Stacks(bay).Length);
+        var mass = bay.Mass;
+
+        bay.Consolidate();
+
+        Assert.Equal(3, Assert.Single(Stacks(bay)).Quantity);
+        Assert.Equal(mass, bay.Mass, 3);
+        Assert.Equal(Weight(bay), bay.Mass, 3);
+        Assert.Equal(3, bay.Count(_cache.RefOf<ItemData>(_rod).Key));
+    }
+
+    [Fact]
+    public void APickupReportsTheWholeCompoundStackStored()
+    {
+        var ship = ShipWith("Crate");
+        _zone.Admit(ship, piloted: false);
+        var stored = -1;
+        using (_zone.CargoGained.Subscribe(gain => stored = gain.Stored))
+        {
+            var floating = _zone.Release(Gem(_lotA, 3), new float2(0, 0), new float2(0, 0));
+            Assert.True(_zone.TryPickUp(ship, floating.Id));
+        }
+        Assert.Equal(3, stored);
+        Assert.Equal(3, ship.CountItemsInCargo(_cache.RefOf<ItemData>(_gem).Key));
+    }
+
+    [Fact]
+    public void ASplitKeepsItsRotation()
+    {
+        var bay = ShipWithBays("Crate").CargoBays[0];
+        var stack = Gem(_lotA, 4);
+        stack.Rotation = ItemRotation.Clockwise;
+        Assert.True(bay.TryStore(stack));
+        Assert.Equal(ItemRotation.Clockwise, bay.Remove(stack, 1).Rotation);
     }
 }

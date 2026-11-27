@@ -103,11 +103,12 @@ public static class StationServices
     // cargo bays; false, with the item in its bay and the credits unchanged, when no bay can take it. A simple
     // commodity always sells (aetheria-release:ruling:station-market-absorbs-sold-commodity, retired for every good by
     // aetheria-living-world:ruling:no-market-absorption; a separate station-outflow cut removes this path): the bays take
-    // as much of the stack as fits and the market absorbs the rest, at the full price. A compound stack sells by
-    // TrySellPart: only what the bays take.
+    // as much of the stack as fits and the market absorbs the rest, at the full price. A compound stack sells only
+    // by TrySellPart: only what the bays take.
     public static bool TrySell(EquippedCargoBay from, Entity station, ItemInstance item, ref int credits)
     {
-        if (item is CompoundCommodity compound) return TrySellPart(from, station, compound, ref credits) > 0;
+        if (item is CompoundCommodity)
+            throw new ArgumentException("A compound stack sells through TrySellPart, which says how many units sold.", nameof(item));
         var price = SellPrice(station.ItemManager, item);
         if (item is SimpleCommodity commodity)
         {
