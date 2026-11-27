@@ -296,6 +296,19 @@ public class TradeMenu : MonoBehaviour
 
     private void Sell(ItemInstance item)
     {
+        if (item is CompoundCommodity compound)
+        {
+            var offered = compound.Quantity;
+            var sold = StationServices.TrySellPart(_targetCargo, GameManager.DockedEntity, compound, ref GameManager.Credits);
+            UpdateCreditsLabel();
+            Populate();
+            if (sold == offered) return;
+            Dialog.Clear();
+            Dialog.Title.text = $"Sold {sold} of {offered}: Station Cargo Full!";
+            Dialog.Show();
+            Dialog.MoveToCursor();
+            return;
+        }
         if (StationServices.TrySell(_targetCargo, GameManager.DockedEntity, item, ref GameManager.Credits))
         {
             UpdateCreditsLabel();

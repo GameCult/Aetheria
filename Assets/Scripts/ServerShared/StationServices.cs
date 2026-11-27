@@ -100,24 +100,51 @@ public static class StationServices
         Math.Max(1, Math.Min(Math.Min(typed, credits / BuyPrice(items, stock)), stock is ICommodityStack stack ? stack.Quantity : 1));
 
     // The sale: the item leaves the bay and the station pays SellPrice. A crafted item goes to one of the station's
-    // cargo bays; false, with the item in its bay and the credits unchanged, when no bay can take it. A commodity stack,
-    // simple or compound, always sells (aetheria-release:ruling:station-market-absorbs-sold-commodity, and
-    // aetheria-living-world:question:compound-stack-sale-absorbs, option absorb): the bays take as much of the stack as
-    // fits and the market absorbs the rest, at the full price.
+    // cargo bays; false, with the item in its bay and the credits unchanged, when no bay can take it. A simple
+    // commodity always sells (aetheria-release:ruling:station-market-absorbs-sold-commodity, retired for every good by
+    // aetheria-living-world:ruling:no-market-absorption; a separate station-outflow cut removes this path): the bays take
+    // as much of the stack as fits and the market absorbs the rest, at the full price. A compound stack sells by
+    // TrySellPart: only what the bays take.
     public static bool TrySell(EquippedCargoBay from, Entity station, ItemInstance item, ref int credits)
     {
+        if (item is CompoundCommodity compound) return TrySellPart(from, station, compound, ref credits) > 0;
         var price = SellPrice(station.ItemManager, item);
-        if (item is ICommodityStack stack)
+        if (item is SimpleCommodity commodity)
         {
             if (!from.Cargo.ContainsKey(item)) return false;
-            var offered = stack.Quantity;
+            var offered = commodity.Quantity;
             for (var quantity = offered; quantity >= 1; quantity--)
                 if (station.CargoBays.Any(bay => from.TryTransferItem(bay, item, quantity))) break;
-            if (from.Cargo.ContainsKey(item)) from.Remove(item, stack.Quantity);
+            if (from.Cargo.ContainsKey(item)) from.Remove(item, commodity.Quantity);
         }
         else if (!station.CargoBays.Any(bay => from.TryTransferItem(bay, item, 1))) return false;
         credits += price;
         return true;
+    }
+
+    // The sale of a compound stack (aetheria-living-world:ruling:no-market-absorption): the station's bays take what they
+    // can hold, the station pays SellPrice for those units alone, and the rest stays in the seller's hold. Returns the
+    // units sold; zero, with nothing moved and the credits unchanged, when no bay has room for one.
+    public static int TrySellPart(EquippedCargoBay from, Entity station, CompoundCommodity stack, ref int credits)
+    {
+        if (!from.Cargo.ContainsKey(stack)) return 0;
+        var sold = 0;
+        var remaining = stack.Quantity;
+        while (remaining > 0)
+        {
+            var moved = 0;
+            for (var quantity = remaining; quantity >= 1 && moved == 0; quantity--)
+            {
+                var q = quantity;
+                var part = stack.Split(q);
+                if (station.CargoBays.Any(bay => from.TryTransferItem(bay, stack, q))) moved = q;
+                credits += moved > 0 ? SellPrice(station.ItemManager, part) : 0;
+            }
+            if (moved == 0) break;
+            sold += moved;
+            remaining -= moved;
+        }
+        return sold;
     }
 
     // The ore stacks of the bays are the stacks of any design a field kind yields, mined, bought or looted alike (ruling

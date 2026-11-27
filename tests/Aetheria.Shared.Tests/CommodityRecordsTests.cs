@@ -26,7 +26,7 @@ public sealed class CommodityRecordsTests
         int[] KeysOf(Type type) => type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Select(f => f.GetCustomAttribute<KeyAttribute>()?.IntKey).Where(k => k.HasValue).Select(k => k.Value).ToArray();
         Assert.Equal(new[] { 9 }, KeysOf(typeof(SimpleCommodityData)));
-        Assert.Empty(KeysOf(typeof(CompoundCommodityData)));
+        Assert.Equal(new[] { 12 }, KeysOf(typeof(CompoundCommodityData))); // MaxStack, added by cut compound-commodity-stacks; 10 and 11 stay unused
         Assert.Null(typeof(SimpleCommodityData).GetField("Category"));
         Assert.Null(typeof(CompoundCommodityData).GetField("Category"));
         Assert.Null(typeof(CompoundCommodityData).GetField("DemandProfile"));

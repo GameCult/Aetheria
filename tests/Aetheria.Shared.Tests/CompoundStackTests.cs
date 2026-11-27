@@ -214,42 +214,50 @@ public sealed class CompoundStackTests : IDisposable
     }
 
     [Fact]
-    public void AStackIsPricedPerUnitAndAlwaysSells()
+    public void AStackIsPricedPerUnitAndSellsOnlyWhatTheStationCanHold()
     {
         var unit = Gem(_lotA, 1);
         var unitPrice = _items.GetPrice(unit);
         Assert.True(unitPrice > 0);
         Assert.Equal(unitPrice * 3, StationServices.BuyPrice(_items, unit, 3));
-        var stack = Gem(_lotA, 3);
         var fraction = (double) _items.GameplaySettings.SellFraction;
-        var expected = (int) Math.Floor(unitPrice * 3 * fraction);
-        Assert.Equal(expected, StationServices.SellPrice(_items, stack));
-        Assert.True(expected > 0);
+        int Pays(int units) => (int) Math.Floor(unitPrice * units * fraction);
+        Assert.Equal(Pays(3), StationServices.SellPrice(_items, Gem(_lotA, 3)));
+        Assert.True(Pays(3) > 0);
 
-        // The station's one bay is full of guns, but for a stack of the same lot with one unit of room: the unit it takes,
-        // the market absorbs the rest, and the full price is paid.
+        // Empty bay: the whole stack goes and is paid in full.
         var from = ShipWith("Crate").CargoBays[0];
+        var stack = Gem(_lotA, 3);
         Assert.True(from.TryStore(stack));
         var station = Station();
-        var hold = station.CargoBays[0];
-        var held = Gem(_lotA, 3);
-        Assert.True(hold.TryStore(held));
-        while (hold.TryStore(Mint("Gun"))) { }
         var credits = 100;
-        Assert.True(StationServices.TrySell(from, station, stack, ref credits));
-        Assert.Equal(100 + expected, credits);
+        Assert.Equal(3, StationServices.TrySellPart(from, station, stack, ref credits));
+        Assert.Equal(100 + Pays(3), credits);
         Assert.Empty(from.Cargo);
-        Assert.Equal(4, held.Quantity);
-        Assert.Equal(Weight(hold), hold.Mass, 3);
+        Assert.Equal(3, station.CargoBays[0].Count(_cache.RefOf<ItemData>(_gem).Key));
 
-        // A hold with no room at all still pays and empties the stack.
-        var second = Gem(_lotA, 2);
+        // Part-full bay: the station's stack of the lot has room for one unit and every other cell holds a gun, so one unit
+        // sells, is paid for alone, and two stay in the seller's hold.
+        var second = Gem(_lotA, 3);
         Assert.True(from.TryStore(second));
+        var hold = station.CargoBays[0];
+        while (hold.TryStore(Mint("Gun"))) { }
         credits = 0;
-        Assert.True(StationServices.TrySell(from, station, second, ref credits));
-        Assert.Equal((int) Math.Floor(unitPrice * 2 * fraction), credits);
-        Assert.Empty(from.Cargo);
-        Assert.Equal(4, held.Quantity);
+        Assert.Equal(1, StationServices.TrySellPart(from, station, second, ref credits));
+        Assert.Equal(Pays(1), credits);
+        Assert.Equal(2, second.Quantity);
+        Assert.Contains(second, from.Cargo.Keys);
+        Assert.Equal(4, hold.Count(_cache.RefOf<ItemData>(_gem).Key));
+        Assert.Equal(Weight(hold), hold.Mass, 3);
+        Assert.Equal(Weight(from), from.Mass, 3);
+
+        // Full bay: nothing moves and nothing is paid.
+        credits = 0;
+        Assert.Equal(0, StationServices.TrySellPart(from, station, second, ref credits));
+        Assert.False(StationServices.TrySell(from, station, second, ref credits));
+        Assert.Equal(0, credits);
+        Assert.Equal(2, second.Quantity);
+        Assert.Equal(4, hold.Count(_cache.RefOf<ItemData>(_gem).Key));
     }
 
     private byte[] PreCutUnit(int lot, MessagePackSerializerOptions options)
