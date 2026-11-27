@@ -79,13 +79,13 @@ public sealed class PilotCommand
     public void ToggleHeatsinks() => HeatsinkToggles++;
     public void ToggleShield() => ShieldToggles++;
     public void Ping() => Pings++;
-    // Offers goods from this entity's hold to a ship alongside (ruling transfer-is-give-only): the quantity of a commodity,
-    // or the one crafted instance. It replaces any give under way. A give of nothing, or of less than one, is ignored, and
+    // Offers goods from this entity's hold to a ship alongside (ruling transfer-is-give-only): the quantity of a commodity
+    // stack, or the one unit. It replaces any give under way. A give of nothing, or of less than one, is ignored, and
     // so is one to oneself when applied. The last give or stop in a step wins.
     public void Give(Entity receiver, ItemInstance item, int quantity)
     {
         if (receiver == null || item == null) return;
-        var count = item is CraftedItemInstance ? 1 : quantity;
+        var count = item is ICommodityStack ? quantity : 1;
         if (count < 1) return;
         GiveVerb = (receiver, item, count);
     }

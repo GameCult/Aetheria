@@ -45,10 +45,8 @@ public class ItemUsage : Behavior
         if (cargo == null) return false;
 
         var item = cargo.ItemsOfType[_data.Item.Key][0];
-        if (item is SimpleCommodity simpleCommodity)
-            cargo.Remove(simpleCommodity, 1);
-        if (item is CraftedItemInstance craftedItemInstance)
-            cargo.Remove(craftedItemInstance);
+        // One unit of a stack, or the unit itself.
+        cargo.Remove(item, 1);
         
         return true;
     }
