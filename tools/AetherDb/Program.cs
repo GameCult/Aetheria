@@ -86,6 +86,13 @@ public static class Program
                 if (apply) db.Cache.FlushAsync().GetAwaiter().GetResult();
                 return code;
             }
+            case "catalog":
+            {
+                if (args.Length < 2 || args[1] != "resave") { Console.WriteLine("catalog resave [apply]"); return 1; }
+                var apply = args.Contains("apply");
+                using var db = AetherDb.Open(catalogWritable: apply);
+                return CatalogResaveCommand.Run(db.Cache, apply, Console.Out);
+            }
             case "economy": return EconomyCommand.Run(args.Skip(1).ToArray(), Console.Out);
             case "auto-guns": return AutoGunsCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
