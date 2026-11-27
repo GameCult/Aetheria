@@ -57,12 +57,13 @@ public sealed partial class RunStartTests
     // spread (station-reactor-spread), and that blob alone moved the digest (the same tree with the old catalog measured 52fbb10d;
     // traced: only Notorious Station moves it, because the zone's station Zenith carries a Notorious Station reactor lot whose
     // minted quality changes with the role spread, and Snapshot hashes every zone entity's heat and shield).
-    // Repinned a tenth time (hardpoint-fit-1): shields are on sale, so the generated Djinnis carry a shield and Snapshot hashes
-    // every zone entity's shield. windows-x64 133e5d76 -> e4a3d6e5, measured on windows-x64. The linux-x64 pin below is NOT moved: no
-    // linux host measured this cut, so it still holds the pre-shield digest and needs a measurement on one.
+    // Repinned a tenth time (hardpoint-fit-1): the Zenith's (11,6) radiator mount was rotation None and is now Clockwise, so the
+    // zone's generated station Zenith can fit a radiator there and Snapshot hashes its heat. windows-x64 133e5d76 -> e4a3d6e5,
+    // linux-x64 9c70a3ee -> 6b8b31ad (measured on Yggdrasil). The fight itself stages hand-fitted Longinus ships and a Bare Djinni,
+    // so the shields now on sale do not move it: the same catalog with only the Zenith rotation put back to None measures the old digest.
     private static readonly System.Collections.Generic.Dictionary<string, string> TwoAiPinnedDigests = new()
     {
-        ["linux-x64"] = "9c70a3ee234fb3b879f721a4a4abf13dd83bf56fd8733690d356b89b8a392258",
+        ["linux-x64"] = "6b8b31ade2ee042a51dfabd53fe104a7567274224c79dc2fe4bffb98bb800ed1",
         // Measured on windows-x64 at the commit that added this pin (the fight is one history there: TwoAiFightIsOneHistory).
         ["windows-x64"] = "e4a3d6e5a411b01e73828821260d57d3f52ffdba50f7954f17058792833bb58a",
     };
