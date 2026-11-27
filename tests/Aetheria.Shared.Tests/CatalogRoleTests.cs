@@ -219,10 +219,10 @@ public sealed class CatalogRoleTests
         string[] Roles(EquippableItemData d) => d.Roles.Select(r => r.Name).OrderBy(r => r, StringComparer.Ordinal).ToArray();
 
         var autocannon = Design("Autocannon");
-        Assert.Equal(new[] { "barrel", "feed mechanism" }, Roles(autocannon));
-        AssertRange(autocannon, "Damage", false, "barrel");
-        AssertRange(autocannon, "Range", false, "barrel");
-        AssertRange(autocannon, "Penetration", false, "barrel");
+        Assert.Equal(new[] { "feed mechanism", "lined barrel" }, Roles(autocannon));
+        AssertRange(autocannon, "Damage", false, "lined barrel");
+        AssertRange(autocannon, "Range", false, "lined barrel");
+        AssertRange(autocannon, "Penetration", false, "lined barrel");
 
         var lrm = Design("Long-Range Missile Rack");
         Assert.Equal(new[] { "guidance system", "thruster", "warhead" }, Roles(lrm));
@@ -256,7 +256,7 @@ public sealed class CatalogRoleTests
 
         // Designs whose non-flat stats named no role are pointed at the role their kind's map gives them.
         AssertNamed(Design("Cluster Cannon"), "Count", "feed mechanism");
-        AssertNamed(Design("Flak Gun"), "Count", "feed mechanism");
+        AssertNamed(Design("Flak Gun"), "Count", "tracking feed");
         AssertNamed(Design("Guided Missile Launcher"), "MinRange", "guidance system");
         AssertNamed(Design("Lightning Projector"), "DamageSpread", "focusing array");
         AssertNamed(Design("Muon Fusion Reactor"), "Modifier", "core");

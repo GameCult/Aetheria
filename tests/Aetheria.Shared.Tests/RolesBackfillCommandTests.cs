@@ -68,12 +68,19 @@ public sealed class RolesBackfillCommandTests : IDisposable
                 }
             }
         if (unnamed)
+        {
+            // Cluster Cannon and Flak Gun shipped before their tier roles (MunitionsBills came after the backfill).
+            var author = new EconomyAuthor(cache);
+            MunitionsBills.RenameRole(author, "Cluster Cannon", "lined barrel", "barrel");
+            MunitionsBills.RenameRole(author, "Flak Gun", "tracking feed", "feed mechanism");
+            designs = cache.GetAll<EquippableItemData>().ToArray();
             foreach (var (name, field) in Unnamed)
             {
                 var design = designs.Single(d => d.Name == name);
                 foreach (var term in Stat(design, field).Terms.Where(t => t.Source == StatSource.Quality)) term.Role = null;
                 changed.Add(design);
             }
+        }
         if (changed.Count > 0)
             cache.Commit(batch =>
             {
@@ -107,6 +114,13 @@ public sealed class RolesBackfillCommandTests : IDisposable
         return string.Join("\n", new[] { roles }.Concat(stats).Concat(sellers));
     }
 
+    // The tiers are history that came after the backfill, so a replay is the backfill, then the bills.
+    private void ApplyBills()
+    {
+        var output = new StringWriter();
+        Assert.True(EconomyCommand.Author(CatalogPath, new EconomyBatch[] { new MunitionsBills() }, true, output, TestCatalog.Registry(), _root) == 0, output.ToString());
+    }
+
     private Dictionary<string, string> Read()
     {
         var db = AetherDb.Open(root: _root);
@@ -131,8 +145,9 @@ public sealed class RolesBackfillCommandTests : IDisposable
         Assert.Equal(before, File.ReadAllBytes(CatalogPath));
 
         Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
+        Assert.NotEqual(before, File.ReadAllBytes(CatalogPath));
+        ApplyBills();
         var landed = File.ReadAllBytes(CatalogPath);
-        Assert.NotEqual(before, landed);
         var after = Read();
         foreach (var name in _shipped.Keys.OrderBy(n => n, StringComparer.Ordinal))
             Assert.Equal(_shipped[name], after[name]);
@@ -153,6 +168,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
 
         Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
         Assert.NotEqual(before, File.ReadAllBytes(CatalogPath));
+        ApplyBills();
         var after = Read();
         foreach (var (name, _) in Unnamed) Assert.Equal(_shipped[name], after[name]);
     }
@@ -201,7 +217,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         try
         {
             var after = db.Cache.GetAll<FactionProductData>().Single(p => p.Name == sellerName);
-            Assert.Equal(new[] { "barrel", "feed mechanism" }, after.Roles.Select(r => r.Role).OrderBy(r => r, StringComparer.Ordinal).ToArray());
+            Assert.Equal(autocannon.Roles.Select(r => r.Name).OrderBy(r => r, StringComparer.Ordinal).ToArray(), after.Roles.Select(r => r.Role).OrderBy(r => r, StringComparer.Ordinal).ToArray());
             Assert.Equal(.91f, after.Roles.Single(r => r.Role == keptRole).Mean, 3);
         }
         finally { db.Cache.Dispose(); }

@@ -169,12 +169,6 @@ public sealed class Munitions : EconomyBatch
             "Little more than steel and actuators, which is why every convoy navy can build one and every blockade starts with one.",
             new[] { "dispenser" }, (steel, 2), (actuator, 1));
 
-        // The designs whose every role this chain fills. Missile racks and rocket pods also need a guidance system, which the
-        // electronics chain fills; their recipes wait for it.
-        foreach (var gun in new[] { "Light Machine Gun", "Autocannon", "Long Slug Rifle", "Charged Scattergun", "Slug Rifle", "Flak Gun", "Cluster Cannon", "Point Defense Gun" })
-            Design(gun, 1800, 30, "A ballistic gun is a barrel and a feed; the round brings the energy.");
-        Design("Mine Launcher", 1800, 24, "A dispenser and the warheads it lays.");
-
         // Launchers draw real rounds (ruling ballistics-real-ammo): the reactor energy per shot stays as authored, and each magazine
         // reload consumes one Missiles crate.
         foreach (var launcher in new[] { "Guided Missile Launcher", "Long-Range Missile Rack", "Short-Range Missile Rack", "Incendiary Rocket Pod", "Swarm Rocket Pod" })
@@ -267,8 +261,4 @@ public sealed class Munitions : EconomyBatch
             Fills = fills.ToList()
         }, RecipeData.KeyOf(output.Key));
     }
-
-    // A role recipe: its inputs are the design's roles, so it names none.
-    private void Design(string name, float cycle, int workforce, string lore) =>
-        Recipe(Existing(name), "fabrication", cycle, workforce, 1, lore, new string[0]);
 }
