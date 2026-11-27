@@ -296,7 +296,7 @@ public sealed class FungibleCommodityTests : IDisposable
         Assert.Equal(12, Assert.Single(Stacks(bay)).Quantity);
     }
 
-    // A run ledger saved before the ruling holds Extracted lots (Provenance arm 2: zone, commodity, belt). They read as
+    // A run ledger saved before the ruling holds mined-source lots (Provenance arm 2: zone, commodity, belt). They read as
     // RetiredExtracted, and a save drops them: no item roots them.
     [Fact]
     public void APreRulingExtractedLotLoadsAndCommitDropsIt()
