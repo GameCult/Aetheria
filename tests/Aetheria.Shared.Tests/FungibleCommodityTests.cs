@@ -320,4 +320,33 @@ public sealed class FungibleCommodityTests : IDisposable
         Assert.DoesNotContain(retired, saved.Lots.Keys);
         Assert.Equal(new[] { _hullLot }, saved.Lots.Keys);
     }
+
+    // A produced lot that named a mined input keeps its place in a save and loses the input: the input's lot is dropped
+    // (no item roots it), and a ledger that named it would fail the next save (finding input-keeps-retired-lot).
+    [Fact]
+    public void ReachableDropsARetiredInputAndKeepsTheProducedLot()
+    {
+        var f = Build();
+        var ledger = new ProvenanceLedger();
+        var facility = ledger.Add(new Lot { Design = default, Origin = new Attributed(), Quality = 1f, Roles = new List<RoleFill>() });
+        var retired = ledger.Add(new Lot { Design = default, Origin = new RetiredExtracted(), Quality = 1f, Roles = new List<RoleFill>() });
+        var kept = ledger.Add(new Lot { Design = default, Origin = new Attributed(), Quality = 1f, Roles = new List<RoleFill>() });
+        var produced = ledger.Add(new Lot
+        {
+            Design = default, Quality = 1f, Roles = new List<RoleFill>(),
+            Origin = new Produced { Station = facility, Facility = facility, Inputs = new[] { retired, kept } }
+        });
+        var item = new EquippableItem { Data = f.Scene.Cache.RefOf<ItemData>(f.Scene.Hull), Lot = produced };
+
+        var saved = SaveAndReload(ledger, item);
+        Assert.Contains(produced, saved.Lots.Keys);
+        Assert.DoesNotContain(retired, saved.Lots.Keys);
+        Assert.Equal(new[] { kept }, Assert.IsType<Produced>(saved[produced].Origin).Inputs);
+        // The live ledger is not mutated by a save.
+        Assert.Equal(new[] { retired, kept }, ((Produced) ledger[produced].Origin).Inputs);
+
+        // The saved ledger names only lots it holds, so a second save does not throw.
+        var again = SaveAndReload(saved, item);
+        Assert.Contains(produced, again.Lots.Keys);
+    }
 }
