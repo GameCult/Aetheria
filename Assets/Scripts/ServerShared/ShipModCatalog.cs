@@ -261,7 +261,7 @@ public static class ShipModCatalog
     private static string RemovedRoot(string modsRoot) =>
         Path.Combine(Path.GetDirectoryName(Path.GetFullPath(modsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)), "RemovedMods");
 
-    private static Package Bind(HullData hull, ShipAuthoring ship, FactionProductData[] products, string directory, string path)
+    internal static Package Bind(HullData hull, ShipAuthoring ship, FactionProductData[] products, string directory, string path)
     {
         if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))
             throw new InvalidOperationException($"{path}: ship ID must match its package directory name.");

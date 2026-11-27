@@ -9,7 +9,7 @@ using System.Linq;
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | starter <mods-dir> <stable-id> <name> --like <shipped hull name> | regenerate <ship.cc> [apply] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | starter <mods-dir> <stable-id> <name> --like <shipped hull name> | regenerate <ship.cc> [apply] | inspect <ship.cc> | open <ship.cc> | push <ship.cc> [apply] (request on stdin) | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] [--not-offered] | --remove) | price <ship.cc> <price> | stats <ship.cc> [--mass m] [--durability d] [--armor a] [--drag x] [--top-speed v] | compose <shipped.cc> <derived.cc> <mods-dir>";
 
     private static readonly string[] StatFlags = { "--mass", "--durability", "--armor", "--drag", "--top-speed" };
 
@@ -36,6 +36,9 @@ public static class ShipAuthoringCommands
                 foreach (var product in products) Console.WriteLine($"product {product.Manufacturer.Key.Value}: {product.Name}");
                 return 0;
             }
+            if (args[0] == "open" && args.Length == 2) return ShipAuthoringPush.Open(args[1], Console.Out);
+            if (args[0] == "push" && (args.Length == 2 || args.Length == 3 && args[2] == "apply"))
+                return ShipAuthoringPush.Push(args[1], Console.In, args.Length == 3, Console.Out);
             if (args[0] == "centre" && args.Length == 2)
             {
                 // The one centre of mass Blender places a ship by: Shape.CenterOfMass in cell coordinates, as "x y".
@@ -45,18 +48,8 @@ public static class ShipAuthoringCommands
             }
             if (args[0] == "validate" && args.Length == 2)
             {
-                // The package's GLB is judged too once it exists (node ids, mesh roles); a draft without one is judged on
-                // its records alone, and the output says which.
                 var (hull, ship, products) = ShipAuthoringStore.Load(args[1]);
-                var model = string.IsNullOrWhiteSpace(ship.ModelAsset) ? null
-                    : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[1])), ship.ModelAsset);
-                var judged = model != null && File.Exists(model) ? "records and model" : "records only, no model yet";
-                if (judged == "records and model") ShipModCatalog.ReadPackage(args[1]);
-                else ShipAuthoringStore.ValidateLoaded(hull, ship, products);
-                // Compose's verdict on a package's bins and its offered hull's schematic; the author sees it here, before compose.
-                // A package with no products has no bin and is never offered, so the shipped catalog is opened for none.
-                using var catalog = products.Length > 0 ? AetherDb.Open().Cache : null;
-                if (ShipModCatalog.MarketFault(catalog, ship, products) is { } fault) throw new InvalidOperationException(fault);
+                var judged = Judge(args[1], hull, ship, products);
                 Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints.Count} hardpoints, {ship.Anchors.Count} anchors, {ship.SchematicLines.Count} lines ({judged})");
                 return 0;
             }
@@ -220,6 +213,22 @@ public static class ShipAuthoringCommands
             Console.Error.WriteLine(ex.Message);
             return 1;
         }
+    }
+
+    // The judgment validate reports and push reports on its derived records: the package's records, and its GLB too once it
+    // exists (node ids, mesh roles); a draft without one is judged on its records alone, and the label says which. A package
+    // with no products has no bin and is never offered, so the shipped catalog is opened for none. Throws the refusal.
+    internal static string Judge(string path, HullData hull, ShipAuthoring ship, FactionProductData[] products)
+    {
+        var full = Path.GetFullPath(path);
+        var model = string.IsNullOrWhiteSpace(ship.ModelAsset) ? null : Path.Combine(Path.GetDirectoryName(full), ship.ModelAsset);
+        var judged = model != null && File.Exists(model) ? "records and model" : "records only, no model yet";
+        ShipAuthoringStore.ValidateLoaded(hull, ship, products);
+        if (judged == "records and model") ShipModCatalog.Bind(hull, ship, products, Path.GetDirectoryName(full), full);
+        // Compose's verdict on a package's bins and its offered hull's schematic; the author sees it here, before compose.
+        using var catalog = products.Length > 0 ? AetherDb.Open().Cache : null;
+        if (ShipModCatalog.MarketFault(catalog, ship, products) is { } fault) throw new InvalidOperationException(fault);
+        return judged;
     }
 
     // A shipped faction by name or short name, from GameData/Aetheria.cc opened read-only: exactly one, or refused.

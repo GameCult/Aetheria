@@ -143,8 +143,11 @@ public static class ShipAuthoringStore
     // its deterministic key, the hull naming that visual by its typed ref, and the hull's products, each at its maker's key.
     public static (HullData Hull, ShipAuthoring Visual, FactionProductData[] Products) Load(string path)
     {
-        RefuseLegacyEmbeddedHull(path);
-        try { return LoadRecords(path); }
+        try
+        {
+            using var cache = Open(path);
+            return Load(cache, path);
+        }
         catch (Exception error) when (error is InvalidDataException or MessagePackSerializationException)
         {
             throw new InvalidOperationException($"{path}: a record does not decode as its schema: {error.Message}", error);
@@ -153,6 +156,14 @@ public static class ShipAuthoringStore
         {
             throw new InvalidOperationException($"{path}: not a readable ship file: {error.Message}", error);
         }
+    }
+
+    // The same structure over a cache the caller opened on path, so a writer commits through the cache it loaded from.
+    // The records returned are the cache's own instances.
+    public static (HullData Hull, ShipAuthoring Visual, FactionProductData[] Products) Load(CultCache cache, string path)
+    {
+        RefuseLegacyEmbeddedHull(path);
+        return LoadRecords(cache, path);
     }
 
     // Key 1 of ShipAuthoring held the whole hull before S1. The type no longer has that member, so a deserialized record
@@ -188,9 +199,8 @@ public static class ShipAuthoringStore
 
     private const int RetiredHullKey = 1;
 
-    private static (HullData Hull, ShipAuthoring Visual, FactionProductData[] Products) LoadRecords(string path)
+    private static (HullData Hull, ShipAuthoring Visual, FactionProductData[] Products) LoadRecords(CultCache cache, string path)
     {
-        using var cache = Open(path);
         var hulls = cache.GetAll<HullData>().ToArray();
         var visuals = cache.GetAll<ShipAuthoring>().ToArray();
         if (visuals.Length != 1)
