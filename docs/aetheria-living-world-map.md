@@ -82,6 +82,16 @@ Role slots per recipe (`RoleInputsOf`), fillers per role, `OfferedDesigns`, `Des
 - needs tables (cut 7): the needs half of L-consumer-demand and the consumer-good sink in SourceSink.
 - Open follow-up: `recipe-less-design-roles` (pre-existing, left alone by cut-economy-checks h2).
 
+## Body facts: player loop (nibu-imagination, 2026-11-27, at 305d9cde7)
+
+Probe: a throwaway env-gated test in a detached worktree (removed), on the shipped catalog through the RunStartTests fixture. Spec: `aetheria-living-world:cut_spec:cut-economy-balance-player-loop.r1`.
+
+- Mining sortie, DemoTerminus seeds 1 2 3 69 97: the driver holds the ship 40 units off each rock in index order and fires every weapon, with at most 60 s a rock and a 900 s cap. Seed 1 (2x Light Laser, Metallic belt) broke 32 rocks in 155 sim-s, filled the 16-cell hold, got 130 units, and sells for 1088 (about 420 credits a sim-minute). Seeds 2, 3, 69 and 97 (Cell Blaster fits) broke 1 to 6 rocks in 900 s and sell for 8 to 233. Follow-up `demo-starter-fit-cannot-mine`.
+- Cost, measured as two interleaved repetitions over the five seeds: a median 0.0625 wall-s per sim-second (eight 900 s runs took 51.5 to 61.1 s each). A launch takes a median 141 ms after a 455 ms first warm-up.
+- Determinism: one ItemManager shared across launches changes same-seed results (seed 97 sold for 233 then 63), so each sample needs its own ItemManager.
+- Offered-design ladders (dearest over cheapest offered design, authored prices): ExplosivelyPropelled 30x, Laser 3.6x, MicroMissile 3.3x, ParticleProjection 2.3x, Reactor 14.4x, Sensors 30x, Radiator 10x, Thruster 10x, Tool 6x, CargoBay 14x, Hull/Ship 1.3x. Nine offered designs have recipes. StartingCredits (150000) covers every offered design.
+- `economy balance` at head: median implied wage 0.00722 per worker-second, 70 links, 23 faults.
+
 ## Stale and missing
 
 - `docs/aetheria-living-world-target.md` (the target r2 DocRef, commit d61948f6) lives only on `origin/eureka/aetheria-living-world-target`; master has no copy. The target r2 statement of L-recipe ("inputs are commodities except in gear, hull and consumer-good recipes, which take roles") and L-roles are already contradicted by live code: intermediate commodities take roles through `RecipeData.RoleInputs` (ruling `ores-fill-metal-roles`). The next target revision should restate them.
