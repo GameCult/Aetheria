@@ -8,7 +8,7 @@ using MessagePack;
 
 // One batch of economy content: commodities, recipes, station kinds with stand-ins, outside-market rows and edits to existing
 // items, written through EconomyAuthor. A batch is a class under tools/AetherDb/Economy/, named on the command line by its class
-// name. It writes what it names and nothing else, so a revised batch converges and a rerun writes nothing.
+// name. It writes what it names and nothing else, so a revised batch converges to the same records; a rerun rewrites any recipe that has inputs as new bytes (their elements carry cache-minted ids), and only `author` with no batch is certain to print Nothing to write.
 public abstract class EconomyBatch
 {
     public abstract void Author(EconomyAuthor author);
@@ -170,12 +170,13 @@ public static class EconomyCommand
             output.WriteLine(string.Format(inv, "  {0} {11}/{12} | {1} | {2} | {13} | {3} | {4:0.#} | {5} | {6} | {7} | {8} | {9} | {10:0.#}", s.Seed, s.BeltKind, s.Weapons, s.Rocks, s.SimSeconds,
                 s.HoldFullAt.HasValue ? s.HoldFullAt.Value.ToString("0.#", inv) + " s" : "never", s.Units, s.SellValue, s.AmmoSpent, s.Repair, s.RatePerMinute, s.Belt + 1, s.Belts, s.Outcome));
         output.WriteLine(string.Format(inv, "  median {0:0.#} per minute, best {1:0.#} per minute over the {3} sorties that mined to a full hold or the cap; purse {2}", loop.Median, loop.Best, loop.Purse, loop.Samples.Count(s => s.Measured)));
+        output.WriteLine(string.Format(inv, "  median net per sortie {0:0.#} (the afford band counts sorties of this net, resting on {1} measured sorties)", loop.MedianNet, loop.MeasuredSorties));
         string Minutes(double? m) => m.HasValue ? m.Value.ToString("0.#", inv) : "-";
         string Width(double? w) => w.HasValue ? w.Value.ToString("0.##", inv) + "x" : "-";
         output.WriteLine("\nLadders (category: width; each design: price | priced from | minutes at median | minutes at best | purse covers)");
         foreach (var ladder in loop.Ladders)
         {
-            output.WriteLine($"  {ladder.Category}: {Width(ladder.Width)}");
+            output.WriteLine($"  {ladder.Category}: {Width(ladder.Width)}{(ladder.TopSorties.HasValue ? $", top {ladder.TopSorties.Value.ToString("0.#", inv)} sorties" : "")}");
             foreach (var d in ladder.Designs)
                 output.WriteLine(string.Format(inv, "    {0} ({1}) | {2} | {3} | {4} | {5} | {6}", d.Name, d.Key, d.Price, d.Chained ? "chain" : "authored",
                     Minutes(d.MinutesAtMedian), Minutes(d.MinutesAtBest), d.Covered ? "yes" : "no"));

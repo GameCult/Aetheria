@@ -13,7 +13,7 @@ using GameCult.Caching;
 //
 // Owner of the munitions chain's design recipes, their role counts and tier role names, and the four tier parts. Munitions writes
 // the parts the starter fills and the rounds; it writes no design recipe, so a Munitions rerun cannot undo a bill. Renames run
-// before bills, and a design that already holds the new role name is left alone, so a rerun writes nothing.
+// before bills, and a design that already holds the new role name is left alone, so a rerun changes no price, role or count (it does rewrite the four part recipes as new bytes: CommodityCount carries a cache-minted element id).
 public sealed class MunitionsBills : EconomyBatch
 {
     private EconomyAuthor _a;
@@ -91,7 +91,7 @@ public sealed class MunitionsBills : EconomyBatch
     }
 
     // Renames a role of a design everywhere it is read: the design's roles, every stat term of every behaviour, and every non-bin
-    // seller's profile. A design that holds the new name and not the old is left alone, so a rerun writes nothing.
+    // seller's profile. A design that holds the new name and not the old is left alone, so a rerun renames nothing.
     public static void RenameRole(EconomyAuthor author, string design, string from, string to)
     {
         CultRecordKey key = default;

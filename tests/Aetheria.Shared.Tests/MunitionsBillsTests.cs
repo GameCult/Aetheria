@@ -105,4 +105,36 @@ public sealed class MunitionsBillsTests : IDisposable
         var gun = Assert.Single(cache.GetAll<WeaponItemData>(), w => w.Name == "Autocannon");
         Assert.Equal(99, cache.Get<RecipeData>(RecipeData.KeyOf(cache.RefOf(gun).Key)).Workforce);
     }
+
+    // What the shipped catalog holds of the bills: every part and design with its price, role counts and recipe, as text.
+    private static string[] Bills(CultCache cache)
+    {
+        var keys = new[] { "rifled-barrel", "lined-barrel", "coil-barrel", "tracking-feed" }.Select(id => new CultRecordKey("commodity:" + id)).ToList();
+        var designs = new[] { "Light Machine Gun", "Point Defense Gun", "Slug Rifle", "Long Slug Rifle", "Flak Gun", "Autocannon", "Cluster Cannon", "Charged Scattergun", "Mine Launcher" };
+        keys.AddRange(designs.Select(name => cache.RefOf(Assert.Single(cache.GetAll<WeaponItemData>(), w => w.Name == name)).Key));
+        return keys.Select(key =>
+        {
+            var item = cache.Get<ItemData>(key);
+            var recipe = cache.Get<RecipeData>(RecipeData.KeyOf(key));
+            var roles = string.Join(",", Recipes.RolesOf(item).OrderBy(r => r.Name, StringComparer.Ordinal).Select(r => r.Name + "x" + r.Count));
+            var inputs = string.Join(",", recipe.Inputs.OrderBy(i => i.Commodity.Key.Value, StringComparer.Ordinal).Select(i => i.Commodity.Key.Value + "x" + i.Count));
+            return $"{item.Name}|price {item.Price}|roles {roles}|inputs {inputs}|fills {string.Join(",", recipe.Fills)}|cycle {recipe.Cycle} wf {recipe.Workforce} out {recipe.OutputCount}";
+        }).ToArray();
+    }
+
+    // Kills: an edit to the batch (a bill count, a part input, a workforce) that the shipped catalog does not carry, or a catalog edit the
+    // batch would silently undo on its next apply. Byte equality is out of reach (element ids are minted on every write), so the batch is
+    // applied to a copy and the records it owns are compared as text, prices included.
+    [Fact]
+    public void TheBatchWritesWhatTheShippedCatalogHolds()
+    {
+        var path = ShippedCopy("Bills.cc");
+        using (var shipped = AetheriaStores.Open(TestCatalog.Repo, registry: TestCatalog.Registry()))
+        {
+            var output = new StringWriter();
+            Assert.True(EconomyCommand.Author(path, new EconomyBatch[] { new MunitionsBills() }, true, output, TestCatalog.Registry(), _root) == 0, output.ToString());
+            using var applied = AetheriaStores.Open(path, registry: TestCatalog.Registry());
+            Assert.Equal(Bills(shipped), Bills(applied));
+        }
+    }
 }
