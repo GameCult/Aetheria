@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using GameCult.Caching;
 
 // Opens GameData/Aetheria.cc through AetheriaStores, the game's own store composition. The catalog attaches read-only
@@ -10,22 +11,52 @@ public sealed class AetherDb : IDisposable
     public string Root { get; }
     public CultCache Cache { get; }
 
-    public void Dispose() => Cache.Dispose();
+    // The compose directory withMods made, owned by this instance: the derived catalog is read from it until Dispose.
+    private readonly string _composed;
 
-    private AetherDb(string root, bool catalogWritable, bool withRun, Action<string> warn)
+    public void Dispose()
+    {
+        Cache.Dispose();
+        if (_composed != null) try { Directory.Delete(_composed, true); } catch (IOException) { }
+    }
+
+    private AetherDb(string root, bool catalogWritable, bool withRun, bool withMods, Action<string> warn)
     {
         Root = root;
         var gameData = Path.Combine(root, "GameData");
-        Cache = AetheriaStores.Open(
-            Path.Combine(gameData, "Aetheria.cc"),
-            runPath: withRun ? Path.Combine(gameData, "run.cc") : null,
-            catalogWritable: catalogWritable,
-            kindlessStation: warn ?? Console.Error.WriteLine);
+        var catalog = Path.Combine(gameData, "Aetheria.cc");
+        if (withMods)
+        {
+            // The catalog the game boots: ShipModCatalog.ResolveCatalog over GameData/Mods. It is derived and read-only, so a write
+            // through it would land in a temp file, never in Aetheria.cc; the one writable open stays the shipped file alone.
+            if (catalogWritable) throw new ArgumentException("A catalog composed with packages is read-only; a write opens the shipped file alone.", nameof(withMods));
+            _composed = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-mods-" + Guid.NewGuid().ToString("N"))).FullName;
+            try
+            {
+                var (resolved, excluded) = ShipModCatalog.ResolveCatalog(catalog, Path.Combine(_composed, "derived.cc"), Path.Combine(gameData, "Mods"));
+                // The game skips a broken package so a player still boots; a census of the shipped game does not.
+                if (excluded.Length > 0)
+                    throw new InvalidOperationException("First-party packages were excluded from the catalog: " +
+                        string.Join("; ", excluded.Select(entry => entry.Package + ": " + entry.Reason)));
+                catalog = resolved;
+            }
+            catch { try { Directory.Delete(_composed, true); } catch (IOException) { } throw; }
+        }
+        try
+        {
+            Cache = AetheriaStores.Open(
+                catalog,
+                runPath: withRun ? Path.Combine(gameData, "run.cc") : null,
+                catalogWritable: catalogWritable,
+                kindlessStation: warn ?? Console.Error.WriteLine);
+        }
+        catch { if (_composed != null) try { Directory.Delete(_composed, true); } catch (IOException) { } throw; }
     }
 
     // With no root given, walks up from the working directory to the game folder: the first folder whose GameData holds Aetheria.cc
-    public static AetherDb Open(bool catalogWritable = false, bool withRun = false, string root = null, Action<string> warn = null) =>
-        new AetherDb(root ?? FindRoot(), catalogWritable, withRun, warn);
+    // withMods composes the packages in GameData/Mods as the game boots them, read-only (see the constructor).
+    public static AetherDb Open(bool catalogWritable = false, bool withRun = false, string root = null, Action<string> warn = null, bool withMods = false) =>
+        new AetherDb(root ?? FindRoot(), catalogWritable, withRun, withMods, warn);
 
     public static string FindRoot()
     {

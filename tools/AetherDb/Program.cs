@@ -526,24 +526,23 @@ public static class Program
         return failures;
     }
 
-    // Every hardpoint on every hull, and which designs can fill it: LoadoutGenerator requires a matching
-    // HardpointType, a shape that fits the hardpoint, and exactly as many cells as the hardpoint has. A
-    // hardpoint no product can fill is gear the game cannot place.
+    // Every hardpoint on every hull the game boots (the shipped catalog with GameData/Mods composed in), and which designs
+    // can fill it. Fit is loose (HardpointData.Takes: a design of the mount's type whose shape lies within the mount's cells,
+    // at its rotation), so a smaller design serves a larger mount. A hardpoint no product sells a design for is gear the game
+    // cannot place; the count is UnfillableHardpoints', and so is the exit code.
     private static int HardpointFit()
     {
-        var db = AetherDb.Open();
-        var gear = db.Cache.GetAll<GearData>().ToArray();
+        using var db = AetherDb.Open(withMods: true);
+        var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
         var sold = SoldDesigns(db.Cache.GetAll<FactionProductData>());
-        var unfillable = 0;
-        foreach (var hull in db.Cache.GetAll<HullData>().OrderBy(h => h.HullType).ThenBy(h => h.Name))
+        foreach (var hull in db.Cache.GetAll<HullData>().OrderBy(h => h.HullType).ThenBy(h => h.Name, StringComparer.Ordinal))
         {
             Console.WriteLine($"\n{hull.Name} ({hull.HullType}):");
             foreach (var hardpoint in hull.Hardpoints.OrderByDescending(h => h.Shape.Coordinates.Length))
             {
                 var cells = hardpoint.Shape.Coordinates.Length;
-                var matches = gear.Where(hardpoint.Takes).ToArray();
+                var matches = designs.Where(hardpoint.Takes).ToArray();
                 var soldMatches = matches.Where(m => sold.Contains(db.Cache.RefOf(m).Key)).ToArray();
-                if (soldMatches.Length == 0) unfillable++;
                 Console.WriteLine($"  {hardpoint.Type,-14} {cells,2} cells: {matches.Length} designs match, {soldMatches.Length} sold" +
                     (matches.Length == 0 ? "   <- no design of that size" : soldMatches.Length == 0 ? "   <- designs exist but no product sells them" : ""));
                 foreach (var match in matches)
@@ -551,8 +550,25 @@ public static class Program
                         (sold.Contains(db.Cache.RefOf(match).Key) ? "" : "  (unsold)"));
             }
         }
-        Console.WriteLine($"\n{unfillable} hardpoints no product can fill");
-        return unfillable;
+        var unfillable = UnfillableHardpoints(db.Cache);
+        foreach (var line in unfillable) Console.WriteLine($"unfillable: {line}");
+        Console.WriteLine($"\n{unfillable.Count} hardpoints no product can fill");
+        return unfillable.Count;
+    }
+
+    // One line per hull hardpoint no design a product sells Takes, by hull type, then name, then position: the census the
+    // hardpoint-fit command prints and HardpointFitTests pins, over whatever catalog it is given.
+    public static IReadOnlyList<string> UnfillableHardpoints(CultCache cache)
+    {
+        var sold = SoldDesigns(cache.GetAll<FactionProductData>());
+        var offered = cache.GetAll<EquippableItemData>().Where(design => sold.Contains(cache.RefOf(design).Key)).ToArray();
+        return cache.GetAll<HullData>()
+            .OrderBy(h => h.HullType).ThenBy(h => h.Name, StringComparer.Ordinal)
+            .SelectMany(hull => hull.Hardpoints
+                .Where(hardpoint => !offered.Any(hardpoint.Takes))
+                .OrderBy(hardpoint => hardpoint.Position.x).ThenBy(hardpoint => hardpoint.Position.y)
+                .Select(hardpoint => $"{hull.Name} ({hull.HullType}) {hardpoint.Type} {hardpoint.Shape.Width}x{hardpoint.Shape.Height} at ({hardpoint.Position.x},{hardpoint.Position.y})"))
+            .ToArray();
     }
 
     // The parsed shape of the settings asset, for checking where sequence items actually landed.
