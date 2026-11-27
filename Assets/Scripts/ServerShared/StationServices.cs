@@ -125,11 +125,11 @@ public static class StationServices
     private static ItemInstance[] OreStacks(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>
         bays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>().Where(stack => FieldKinds.IsOre(items.ItemData, items.GetData(stack))).Select(stack => (ItemInstance) stack)).ToArray();
 
-    // What the station pays for every mined stack of the bays: the sum of SellPrice over the stacks TrySellOre sells.
+    // What the station pays for every ore stack of the bays: the sum of SellPrice over the stacks TrySellOre sells.
     public static int OreValue(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>
         (int) Math.Min(OreStacks(items, bays).Sum(stack => (long) SellPrice(items, stack)), int.MaxValue);
 
-    // Sells every mined stack of the bays, each through TrySell, so the market's absorb rule and the price are the
+    // Sells every ore stack of the bays, each through TrySell, so the market's absorb rule and the price are the
     // single-stack path's. Returns the units sold.
     public static int TrySellOre(IEnumerable<EquippedCargoBay> bays, Entity station, ref int credits)
     {
