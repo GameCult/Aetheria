@@ -332,7 +332,7 @@ public class ActionGameManager : MonoBehaviour
         Input.Global.Enable();
 
         // The latch is the game's own, so it can disagree with the keyboard's Caps Lock light: show it.
-        Input.Player.ToggleFaceAim.performed += context => { if (_tactical.Direct) _helm.Toggle(); };
+        Input.Player.ToggleFaceAim.performed += context => _helm.Toggle();
         var markParent = GameplayUI != null ? GameplayUI.transform : UiRoot.transform;
         var markObject = new GameObject("Face Aim Mark", typeof(RectTransform));
         markObject.transform.SetParent(markParent, false);
@@ -348,7 +348,6 @@ public class ActionGameManager : MonoBehaviour
         _zoomLevelIndex = Settings.DefaultMinimapZoom;
         Input.Player.MinimapZoom.performed += context =>
         {
-            if (!_tactical.Direct) return;
             _zoomLevelIndex = (_zoomLevelIndex + 1) % Settings.MinimapZoomLevels.Length;
             ZoneRenderer.MinimapDistance = Settings.MinimapZoomLevels[_zoomLevelIndex];
         };
@@ -456,43 +455,39 @@ public class ActionGameManager : MonoBehaviour
 
         Input.Player.HideUI.performed += context =>
         {
-            if (!_tactical.Direct) return;
             _uiHidden = !_uiHidden;
             GameplayUI.alpha = _uiHidden ? 0 : 1;
             ActionBar.gameObject.SetActive(!_uiHidden);
         };
 
-        // Ruling tactical-input-hands-off: every direct ship input below pauses while TacticalView says it is not Direct (the
-        // presses here, the polled axes and the look in Update; the action bar is disabled with the view). The ship holds its
-        // last commands until the flight view returns.
         // The switches and the ping are presses on the entity's command, flipped at the next step.
-        Input.Player.OverrideShutdown.performed += context => { if (_tactical.Direct) CurrentEntity.Command.ToggleOverrideShutdown(); };
-        Input.Player.Ping.performed += context => { if (_tactical.Direct) CurrentEntity.Command.Ping(); };
+        Input.Player.OverrideShutdown.performed += context => CurrentEntity.Command.ToggleOverrideShutdown();
+        Input.Player.Ping.performed += context => CurrentEntity.Command.Ping();
         // TODO: SFX: Success/Fail
-        Input.Player.ToggleHeatsinks.performed += context => { if (_tactical.Direct) CurrentEntity.Command.ToggleHeatsinks(); };
+        Input.Player.ToggleHeatsinks.performed += context => CurrentEntity.Command.ToggleHeatsinks();
         // TODO: SFX: Success/Fail
-        Input.Player.ToggleShield.performed += context => { if (_tactical.Direct) CurrentEntity.Command.ToggleShield(); };
+        Input.Player.ToggleShield.performed += context => CurrentEntity.Command.ToggleShield();
 
         // Flips the player's own stance on the current target between hostile and neutral. Going
         // neutral mid-fight safes weapons (Weapon.StanceAllowsFire); an unmarked/undetected target
         // reads as non-hostile, so the first press declares hostile. The flip reads the target and its stance when applied,
         // after the step's target presses, so two presses in a step cancel.
-        Input.Player.ToggleStance.performed += context => { if (_tactical.Direct) CurrentEntity.Command.ToggleStance(); };
+        Input.Player.ToggleStance.performed += context => CurrentEntity.Command.ToggleStance();
 
         #region Targeting
 
         // The reticle, nearest, next and previous presses each command a verb; the applier chooses through Entity at the
         // next step (mining target-queries cut): the rule lives with the entity, so the player, the test agent and any
         // director pick alike.
-        Input.Player.TargetReticle.performed += context => { if (_tactical.Direct) CurrentEntity.Command.Verb(TargetVerb.UnderReticle); };
-        Input.Player.TargetNearest.performed += context => { if (_tactical.Direct) CurrentEntity.Command.Verb(TargetVerb.NearestEnemy); };
-        Input.Player.TargetNext.performed += context => { if (_tactical.Direct) CurrentEntity.Command.Verb(TargetVerb.Next); };
-        Input.Player.TargetPrevious.performed += context => { if (_tactical.Direct) CurrentEntity.Command.Verb(TargetVerb.Previous); };
+        Input.Player.TargetReticle.performed += context => CurrentEntity.Command.Verb(TargetVerb.UnderReticle);
+        Input.Player.TargetNearest.performed += context => CurrentEntity.Command.Verb(TargetVerb.NearestEnemy);
+        Input.Player.TargetNext.performed += context => CurrentEntity.Command.Verb(TargetVerb.Next);
+        Input.Player.TargetPrevious.performed += context => CurrentEntity.Command.Verb(TargetVerb.Previous);
 
         // Cut 2 (docs/fire-control-cut.md): steps the aim through the target's schematic rows -- every mount this ship
         // has located, empty or not, minus the ones it saw destroyed. Decides nothing: the entity owns the cycle, applied at
         // the next step.
-        Input.Player.CycleTargetItem.performed += context => { if (_tactical.Direct) CurrentEntity.Command.CycleAim(); };
+        Input.Player.CycleTargetItem.performed += context => CurrentEntity.Command.CycleAim();
 
         #endregion
 
@@ -1559,7 +1554,7 @@ public class ActionGameManager : MonoBehaviour
                     PlaceFill(indicator.Value, indicator.Key);
                 }
                 // The tactical view does not steer: the aim and the chase yaw hold while the mouse pans the view.
-                if (_tactical.Direct)
+                if (!_tactical.Tactical)
                 {
                     var look = Input.Player.Look.ReadValue<Vector2>();
                     var sensitivity = PlayerSettings.InputSettings.Sensitivity;
@@ -1574,7 +1569,7 @@ public class ActionGameManager : MonoBehaviour
                     max(Settings.HeatstrokePhasingFloor, sin(Time.time * Settings.HeatstrokePhasingFrequency));
                 
                 _faceAimMark.enabled = _helm.Latched;
-                if(CurrentEntity is Ship ship && _tactical.Direct)
+                if(CurrentEntity is Ship ship)
                 {
                     ship.Command.Movement = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
                     _helm.Held = Input.Player.FaceAim.IsPressed();
@@ -1596,7 +1591,7 @@ public class ActionGameManager : MonoBehaviour
                     TargetShieldsFill.fillAmount = target.Shield == null ? 0 : lerp(.25f, .75f, target.Shield.Progress);
                 }
 
-                if (_tactical.Direct) CurrentEntity.Command.Tractor = Input.Player.TractorBeam.ReadValue<float>();
+                CurrentEntity.Command.Tractor = Input.Player.TractorBeam.ReadValue<float>();
             }
         }
         // One clock steps the zone, paused or not: a paused frame feeds it no real time.
