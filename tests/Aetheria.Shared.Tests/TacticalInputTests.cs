@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using CultMath;
 using Xunit;
@@ -40,6 +41,23 @@ public sealed class TacticalInputTests
             .SelectMany(m => m.GetProperty("actions").EnumerateArray()
                 .Select(a => m.GetProperty("name").GetString() + "/" + a.GetProperty("name").GetString()))
             .ToList();
+    }
+
+    // The one route: every Player and Global action ActionGameManager touches is an argument of Bind, TryRead, Held, ActiveControl or
+    // Live, and only Bind subscribes. A callback or a read outside them would skip TacticalInput.
+    [Fact]
+    public void ActionGameManagerTouchesEveryShipInputActionThroughTheOneHelper()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")))
+            dir = dir.Parent;
+        Assert.NotNull(dir);
+        var source = File.ReadAllText(Path.Combine(dir.FullName, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"));
+        var uses = Regex.Matches(source, @"\bInput\.(Player|Global)\.(?!Enable\b|Disable\b)\w+").Count;
+        var routed = Regex.Matches(source, @"\b(Bind|TryRead|Held|ActiveControl|Live)(<[^>(]*>)?\(\s*Input\.(Player|Global)\.\w+").Count;
+        Assert.True(uses > 20);
+        Assert.Equal(uses, routed);
+        Assert.Equal(1, Regex.Matches(source, @"\.performed\s*\+=").Count);
     }
 
     [Fact]

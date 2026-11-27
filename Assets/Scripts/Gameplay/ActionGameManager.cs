@@ -332,7 +332,7 @@ public class ActionGameManager : MonoBehaviour
         Input.Global.Enable();
 
         // The latch is the game's own, so it can disagree with the keyboard's Caps Lock light: show it.
-        Input.Player.ToggleFaceAim.performed += context => _helm.Toggle();
+        Bind(Input.Player.ToggleFaceAim, context => _helm.Toggle());
         var markParent = GameplayUI != null ? GameplayUI.transform : UiRoot.transform;
         var markObject = new GameObject("Face Aim Mark", typeof(RectTransform));
         markObject.transform.SetParent(markParent, false);
@@ -346,11 +346,11 @@ public class ActionGameManager : MonoBehaviour
         _faceAimMark.enabled = false;
 
         _zoomLevelIndex = Settings.DefaultMinimapZoom;
-        Input.Player.MinimapZoom.performed += context =>
+        Bind(Input.Player.MinimapZoom, context =>
         {
             _zoomLevelIndex = (_zoomLevelIndex + 1) % Settings.MinimapZoomLevels.Length;
             ZoneRenderer.MinimapDistance = Settings.MinimapZoomLevels[_zoomLevelIndex];
-        };
+        });
 
         // The tactical view is a distinct camera over the grid (ruling tactical-view-distinct-mode): the wheel is one axis
         // from the chase view through a detent into it, and TacticalView the one owner of where on that axis the camera is.
@@ -379,26 +379,26 @@ public class ActionGameManager : MonoBehaviour
         _schematicCamera.depth = ZoneRenderer.MainCamera.depth + 1;
         _schematicCamera.cullingMask = 1 << LayerMask.NameToLayer("Minimap");
         _schematicCamera.enabled = false;
-        Input.Player.Zoom.performed += context =>
+        Bind(Input.Player.Zoom, context =>
         {
             var scroll = context.ReadValue<float>();
             if (scroll == 0 || !Flying) return;
             var was = _tactical.Tactical;
             _tactical.Scroll(-Mathf.Sign(scroll));
             if (_tactical.Tactical != was) EnablePlayerInput();
-        };
+        });
 
-        Input.Global.ZoneMap.performed += context =>
+        Bind(Input.Global.ZoneMap, context =>
         {
             ToggleMenuTab(MenuTab.Map);
                 MenuMap.Position = DrawAhead.Position(CurrentEntity, Clock.Lead).xz;
-        };
+        });
 
-        Input.Global.Inventory.performed += context => ToggleMenuTab(MenuTab.Inventory);
+        Bind(Input.Global.Inventory, context => ToggleMenuTab(MenuTab.Inventory));
 
-        Input.Global.GalaxyMap.performed += context => ToggleMenuTab(MenuTab.Galaxy);
+        Bind(Input.Global.GalaxyMap, context => ToggleMenuTab(MenuTab.Galaxy));
 
-        Input.Global.Interact.performed += context =>
+        Bind(Input.Global.Interact, context =>
         {
             if (EventSystem.current.currentSelectedGameObject != null && EventSystem.current.currentSelectedGameObject.GetComponent<TMP_InputField>() != null) return;
             if (MainMenu.gameObject.activeSelf) return;
@@ -441,53 +441,57 @@ public class ActionGameManager : MonoBehaviour
                 Dock();
             }
             else Undock();
-        };
+        });
 
-        Input.Global.MainMenu.performed += context =>
+        Bind(Input.Global.MainMenu, context =>
         {
             if(Menu.gameObject.activeSelf)
                 ToggleMenuTab(Menu.CurrentTab);
             else
                 ToggleFullscreenMenu(MainMenu.gameObject);
-        };
+        });
         
-        Input.Global.InputScreen.performed += context => ToggleFullscreenMenu(HelpScreen);
+        Bind(Input.Global.InputScreen, context => ToggleFullscreenMenu(HelpScreen));
 
-        Input.Player.HideUI.performed += context =>
+        Bind(Input.Player.HideUI, context =>
         {
             _uiHidden = !_uiHidden;
             GameplayUI.alpha = _uiHidden ? 0 : 1;
             ActionBar.gameObject.SetActive(!_uiHidden);
-        };
+        });
 
         // The switches and the ping are presses on the entity's command, flipped at the next step.
-        Input.Player.OverrideShutdown.performed += context => CurrentEntity.Command.ToggleOverrideShutdown();
-        Input.Player.Ping.performed += context => CurrentEntity.Command.Ping();
+        Bind(Input.Player.OverrideShutdown, context => CurrentEntity.Command.ToggleOverrideShutdown());
+        Bind(Input.Player.Ping, context => CurrentEntity.Command.Ping());
         // TODO: SFX: Success/Fail
-        Input.Player.ToggleHeatsinks.performed += context => CurrentEntity.Command.ToggleHeatsinks();
+        Bind(Input.Player.ToggleHeatsinks, context => CurrentEntity.Command.ToggleHeatsinks());
         // TODO: SFX: Success/Fail
-        Input.Player.ToggleShield.performed += context => CurrentEntity.Command.ToggleShield();
+        Bind(Input.Player.ToggleShield, context => CurrentEntity.Command.ToggleShield());
 
         // Flips the player's own stance on the current target between hostile and neutral. Going
         // neutral mid-fight safes weapons (Weapon.StanceAllowsFire); an unmarked/undetected target
         // reads as non-hostile, so the first press declares hostile. The flip reads the target and its stance when applied,
         // after the step's target presses, so two presses in a step cancel.
-        Input.Player.ToggleStance.performed += context => CurrentEntity.Command.ToggleStance();
+        Bind(Input.Player.ToggleStance, context => CurrentEntity.Command.ToggleStance());
 
         #region Targeting
 
         // The reticle, nearest, next and previous presses each command a verb; the applier chooses through Entity at the
         // next step (mining target-queries cut): the rule lives with the entity, so the player, the test agent and any
         // director pick alike.
-        Input.Player.TargetReticle.performed += context => CurrentEntity.Command.Verb(TargetVerb.UnderReticle);
-        Input.Player.TargetNearest.performed += context => CurrentEntity.Command.Verb(TargetVerb.NearestEnemy);
-        Input.Player.TargetNext.performed += context => CurrentEntity.Command.Verb(TargetVerb.Next);
-        Input.Player.TargetPrevious.performed += context => CurrentEntity.Command.Verb(TargetVerb.Previous);
+        Bind(Input.Player.TargetReticle, context => CurrentEntity.Command.Verb(TargetVerb.UnderReticle));
+        Bind(Input.Player.TargetNearest, context => CurrentEntity.Command.Verb(TargetVerb.NearestEnemy));
+        Bind(Input.Player.TargetNext, context => CurrentEntity.Command.Verb(TargetVerb.Next));
+        Bind(Input.Player.TargetPrevious, context => CurrentEntity.Command.Verb(TargetVerb.Previous));
 
         // Cut 2 (docs/fire-control-cut.md): steps the aim through the target's schematic rows -- every mount this ship
         // has located, empty or not, minus the ones it saw destroyed. Decides nothing: the entity owns the cycle, applied at
         // the next step.
-        Input.Player.CycleTargetItem.performed += context => CurrentEntity.Command.CycleAim();
+        Bind(Input.Player.CycleTargetItem, context => CurrentEntity.Command.CycleAim());
+
+        // The tractor is held while its key is: a press and a release each set it. It is not polled, so a key already down when the
+        // flight view returns does nothing until it is pressed again, as with fire; Update releases it while the view is tactical.
+        Bind(Input.Player.TractorBeam, context => CurrentEntity.Command.Tractor = context.ReadValue<float>(), context => CurrentEntity.Command.Tractor = 0);
 
         #endregion
 
@@ -772,6 +776,29 @@ public class ActionGameManager : MonoBehaviour
         DragObject = null;
         return success ?? false;
     }
+
+    // Ruling tactical-input-hands-off: the one route every Player and Global action is subscribed and read through. TacticalInput
+    // decides per action whether it is live (an unclassified action is not); a press, a release or a read that is not live is
+    // dropped, never queued, so the ship holds its last commands. A test scans this file and fails if an action is touched anywhere else.
+    private bool Live(InputAction action) => TacticalInput.Live(_tactical, action.actionMap.name, action.name);
+
+    private void Bind(InputAction action, Action<InputAction.CallbackContext> performed, Action<InputAction.CallbackContext> canceled = null)
+    {
+        action.performed += context => { if (Live(action)) performed(context); };
+        if (canceled != null) action.canceled += context => { if (Live(action)) canceled(context); };
+    }
+
+    private bool TryRead<T>(InputAction action, out T value) where T : struct
+    {
+        value = default;
+        if (!Live(action)) return false;
+        value = action.ReadValue<T>();
+        return true;
+    }
+
+    private bool Held(InputAction action) => Live(action) && action.IsPressed();
+
+    private InputControl ActiveControl(InputAction action) => Live(action) ? action.activeControl : null;
 
     // The one writer of the cursor lock and the action bar while playing: the tactical view frees the cursor and gives the
     // mouse buttons to Pan, so the bar is off there. It is re-applied whenever Tactical changes.
@@ -1155,6 +1182,8 @@ public class ActionGameManager : MonoBehaviour
 
     private void BindToEntity(Entity entity)
     {
+        // A tractor held through a ship change would stay on for the ship we leave: its release is a press we will no longer see.
+        if (CurrentEntity != null) CurrentEntity.Command.Tractor = 0;
         if (!ZoneRenderer.EntityInstances.ContainsKey(entity))
         {
             Debug.LogError($"Attempted to bind to entity {entity.Name}, but SectorRenderer has no such instance!");
@@ -1348,13 +1377,14 @@ public class ActionGameManager : MonoBehaviour
     // Drag: the grid point under the cursor when the button went down stays under it.
     private void PanTarget()
     {
-        if (!Input.Player.Pan.IsPressed())
+        if (!Held(Input.Player.Pan))
         {
             _grab = null;
             return;
         }
         var height = DrawAhead.Height(CurrentEntity.Zone, _tactical.Target, Clock.Lead);
-        var ray = ZoneRenderer.MainCamera.ScreenPointToRay(Input.Player.Point.ReadValue<Vector2>());
+        TryRead(Input.Player.Point, out Vector2 pointer);
+        var ray = ZoneRenderer.MainCamera.ScreenPointToRay(pointer);
         if (!new Plane(Vector3.up, new Vector3(0, height, 0)).Raycast(ray, out var hit)) return;
         var point = ray.GetPoint(hit);
         var ground = float2(point.x, point.z);
@@ -1554,9 +1584,8 @@ public class ActionGameManager : MonoBehaviour
                     PlaceFill(indicator.Value, indicator.Key);
                 }
                 // The tactical view does not steer: the aim and the chase yaw hold while the mouse pans the view.
-                if (!_tactical.Tactical)
+                if (TryRead(Input.Player.Look, out Vector2 look))
                 {
-                    var look = Input.Player.Look.ReadValue<Vector2>();
                     var sensitivity = PlayerSettings.InputSettings.Sensitivity;
                     _entityYawPitch = float2(_entityYawPitch.x + look.x * sensitivity.x, clamp(_entityYawPitch.y + look.y * sensitivity.y, -.45f * PI, .45f * PI));
                     _viewDirection = mul(float3(0, 0, 1), CultMath.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
@@ -1569,13 +1598,14 @@ public class ActionGameManager : MonoBehaviour
                     max(Settings.HeatstrokePhasingFloor, sin(Time.time * Settings.HeatstrokePhasingFrequency));
                 
                 _faceAimMark.enabled = _helm.Latched;
-                if(CurrentEntity is Ship ship)
+                if (CurrentEntity is Ship ship && TryRead(Input.Player.Move, out Vector2 move))
                 {
-                    ship.Command.Movement = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
-                    _helm.Held = Input.Player.FaceAim.IsPressed();
-                    if (Input.Player.Turn.activeControl is { } turnControl)
+                    ship.Command.Movement = move.ToCultMath();
+                    _helm.Held = Held(Input.Player.FaceAim);
+                    if (ActiveControl(Input.Player.Turn) is { } turnControl)
                         _turnDigital = turnControl.device is UnityEngine.InputSystem.Keyboard;
-                    var turnAxis = _helm.TurnAxis(Input.Player.Turn.ReadValue<float>(), _turnDigital, Time.deltaTime, KeyboardTurnRampTime);
+                    TryRead(Input.Player.Turn, out float turn);
+                    var turnAxis = _helm.TurnAxis(turn, _turnDigital, Time.deltaTime, KeyboardTurnRampTime);
                     ship.Command.Turn = _helm.Demand(_viewDirection.xz, ship.BandedTurn(turnAxis));
                 }
 
@@ -1591,7 +1621,7 @@ public class ActionGameManager : MonoBehaviour
                     TargetShieldsFill.fillAmount = target.Shield == null ? 0 : lerp(.25f, .75f, target.Shield.Progress);
                 }
 
-                CurrentEntity.Command.Tractor = Input.Player.TractorBeam.ReadValue<float>();
+                if (!Live(Input.Player.TractorBeam)) CurrentEntity.Command.Tractor = 0;
             }
         }
         // One clock steps the zone, paused or not: a paused frame feeds it no real time.
