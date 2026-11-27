@@ -8,16 +8,16 @@ using Xunit;
 // the H faults, on fixture catalogs whose numbers are solved by hand. The sortie itself runs on the shipped catalog.
 public sealed class EconomyLoopTests
 {
-    private static LoopSample Sample(uint seed, int sell, int ammo, int repair, double seconds) =>
-        new LoopSample { Seed = seed, BeltKind = "belt", Weapons = "gun", SimSeconds = seconds, SellValue = sell, AmmoSpent = ammo, Repair = repair };
+    private static LoopSample Sample(uint seed, int sell, int ammo, int repair, double seconds, LoopOutcome outcome = LoopOutcome.Capped) =>
+        new LoopSample { Seed = seed, Belts = 1, BeltKind = "belt", Weapons = "gun", SimSeconds = seconds, SellValue = sell, AmmoSpent = ammo, Repair = repair, Outcome = outcome, Note = "why" };
 
     private static GameplaySettings Settings(float min = 0, float max = 0, int purse = 100000) =>
         new GameplaySettings { StartingCredits = purse, EconomyLadderMin = min, EconomyLadderMax = max };
 
     // A gear in `hardpoint` offered at `price`, with a recipe so it is an offered design.
-    private static void Offer(EconomyFixture f, string id, HardpointType hardpoint, int price)
+    private static void Offer(EconomyFixture f, string id, HardpointType hardpoint, int price, int plates = 1)
     {
-        var key = f.Gear(id, new[] { ("Plate", 1) });
+        var key = f.Gear(id, new[] { ("Plate", plates) });
         f.EditItem<GearData>(key, g => { g.Hardpoint = hardpoint; g.Price = price; });
     }
 
@@ -45,6 +45,38 @@ public sealed class EconomyLoopTests
         Offer(f, "cannon", HardpointType.Tool, 600);
         var report = EconomyLoop.Report(f.Cache, Settings(purse: 599), new[] { Sample(1, 1000, 0, 0, 60) });
         Assert.False(Ladder(report, "Gear/Tool").Designs.Single(d => d.Key == "gear:cannon").Covered);
+        // A design priced exactly at the purse is covered.
+        report = EconomyLoop.Report(f.Cache, Settings(purse: 600), new[] { Sample(1, 1000, 0, 0, 60) });
+        Assert.True(Ladder(report, "Gear/Tool").Designs.Single(d => d.Key == "gear:cannon").Covered);
+    }
+
+    [Fact]
+    public void ABandWithOnlyOneSideFaultsOnlyThatSide()
+    {
+        using var f = EconomyFixture.Healthy();
+        Offer(f, "cheap", HardpointType.Reactor, 10);
+        Offer(f, "dear", HardpointType.Reactor, 1000);
+        var samples = new[] { Sample(1, 1000, 0, 0, 60) };
+        // 100x against a floor of 10 alone, and against a ceiling of 30 alone.
+        Assert.DoesNotContain(EconomyLoop.Report(f.Cache, Settings(10, 0), samples).Faults, x => x.Record == "Gear/Reactor");
+        Assert.Contains(EconomyLoop.Report(f.Cache, Settings(0, 30), samples).Faults, x => x.Record == "Gear/Reactor");
+        Assert.Contains(EconomyLoop.Report(f.Cache, Settings(200, 0), samples).Faults, x => x.Record == "Gear/Reactor");
+        Assert.DoesNotContain(EconomyLoop.Report(f.Cache, Settings(0, 200), samples).Faults, x => x.Record == "Gear/Reactor");
+    }
+
+    [Fact]
+    public void ADerivedWidthOutsideTheBandIsAFaultAlthoughTheAuthoredOneIsInIt()
+    {
+        using var f = EconomyFixture.Healthy();
+        // Authored 2x; derived from one plate against ten, 10x.
+        f.EditItem<SimpleCommodityData>("commodity:ore", o => o.Price = 10);
+        Offer(f, "thin", HardpointType.Reactor, 100, plates: 1);
+        Offer(f, "thick", HardpointType.Reactor, 200, plates: 10);
+        var report = EconomyLoop.Report(f.Cache, Settings(1, 5), new[] { Sample(1, 1000, 0, 0, 60) });
+        Assert.Equal(2, Ladder(report, "Gear/Reactor").WidthAuthored.Value, 9);
+        Assert.Equal(10, Ladder(report, "Gear/Reactor").WidthDerived.Value, 9);
+        var fault = Assert.Single(report.Faults, x => x.Invariant == EconomyLoop.HLadder);
+        Assert.Contains("derived", fault.Message);
     }
 
     [Fact]
@@ -99,7 +131,32 @@ public sealed class EconomyLoopTests
         // Gross positive in all three; net 0, -1 and 1: only the last earns anything.
         var report = EconomyLoop.Report(f.Cache, Settings(), new[] { Sample(1, 100, 60, 40, 60), Sample(2, 100, 60, 41, 60), Sample(3, 100, 60, 39, 60) });
         var faults = report.Faults.Where(x => x.Invariant == EconomyLoop.HLoop).Select(x => x.Record).OrderBy(x => x, StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "seed 1", "seed 2" }, faults);
+        Assert.Equal(new[] { "seed 1 belt 1 of 1", "seed 2 belt 1 of 1" }, faults);
+    }
+
+    [Fact]
+    public void AmmoOutAndRigFaultSortiesAreOutcomesNotIdleIncome()
+    {
+        using var f = EconomyFixture.Healthy();
+        var report = EconomyLoop.Report(f.Cache, Settings(), new[]
+        {
+            Sample(1, 1000, 0, 0, 60), Sample(2, 3000, 0, 0, 60),
+            // Strongly negative if they were folded in; neither is a rate.
+            Sample(3, 10, 500, 0, 12, LoopOutcome.AmmoOut), Sample(4, 0, 0, 4, 1, LoopOutcome.RigFault)
+        });
+        Assert.Equal(2000, report.Median, 9);
+        Assert.Equal(3000, report.Best, 9);
+        Assert.Equal(new[] { "H-ammo", "H-rig" }, report.Faults.Select(x => x.Invariant).OrderBy(x => x, StringComparer.Ordinal).ToArray());
+        Assert.DoesNotContain(report.Faults, x => x.Invariant == EconomyLoop.HLoop);
+    }
+
+    [Fact]
+    public void WithNoMeasuredSortieThereIsNoRateAndNoMinutes()
+    {
+        using var f = EconomyFixture.Healthy();
+        var report = EconomyLoop.Report(f.Cache, Settings(), new[] { Sample(3, 10, 500, 0, 12, LoopOutcome.AmmoOut) });
+        Assert.Equal(0, report.Median);
+        Assert.All(report.Ladders.SelectMany(l => l.Designs), d => Assert.Null(d.MinutesAtMedian));
     }
 
     [Fact]
@@ -116,31 +173,94 @@ public sealed class EconomyLoopTests
         Assert.Equal(plain["commodity:plate"], withDesigns["hull:skiff"], 9);
     }
 
+    private static string Root => RunStartTests.FindRepoRoot();
+
+    // The price the catalog authors for a simple commodity of that name.
+    private static int PriceOf(string name)
+    {
+        using var db = AetherDb.Open();
+        return db.Cache.GetAll<SimpleCommodityData>().Single(c => c.Name == name).Price;
+    }
+
     [Fact]
     public void SortieLeavesTheCatalogAndMinesSomething()
     {
-        var root = RunStartTests.FindRepoRoot();
-        var catalog = Path.Combine(root, "GameData", "Aetheria.cc");
+        var catalog = Path.Combine(Root, "GameData", "Aetheria.cc");
         var before = System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(catalog));
-        var sample = EconomyLoop.Sortie(root, 1, 60);
+        var sample = EconomyLoop.Sortie(Root, 1, 0, 60);
         Assert.True(sample.Units > 0);
         Assert.True(sample.Rocks > 0);
         Assert.Equal(60, sample.SimSeconds, 1);
+        Assert.Equal(LoopOutcome.Capped, sample.Outcome);
         Assert.Equal(before, System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(catalog)));
+    }
+
+    [Fact]
+    public void AFullHoldSortieIsPricedFromTheShipItEndedWith()
+    {
+        int ore = -1, repair = -1;
+        var sample = EconomyLoop.Sortie(Root, 1, 0, 300, (ship, items) =>
+        {
+            ore = StationServices.OreValue(items, ship.CargoBays);
+            repair = StationServices.RepairCost(items, ship);
+        });
+        Assert.Equal(LoopOutcome.Full, sample.Outcome);
+        Assert.True(sample.HoldFullAt > 0 && sample.HoldFullAt <= sample.SimSeconds);
+        Assert.True(sample.SellValue > 0);
+        Assert.Equal(ore, sample.SellValue);
+        Assert.True(sample.Repair > 0);
+        Assert.Equal(repair, sample.Repair);
+        // Laser fit: no ammunition is spent.
+        Assert.Equal(0, sample.AmmoSpent);
+    }
+
+    [Fact]
+    public void ASortieThatSpendsItsStarterAmmunitionEndsAmmoOutAndPaysForIt()
+    {
+        var ammoLeft = -1;
+        var sample = EconomyLoop.Sortie(Root, 2, 0, 150, (ship, items) =>
+            ammoLeft = ship.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()).Where(c => items.GetData(c).Name == "Ammo").Sum(c => c.Quantity));
+        Assert.Equal(LoopOutcome.AmmoOut, sample.Outcome);
+        Assert.Equal(0, ammoLeft);
+        // The Cell Blaster fit starts with 3 Ammo, bought back at the catalog's price.
+        Assert.Equal(3 * PriceOf("Ammo"), sample.AmmoSpent);
+        Assert.True(sample.SimSeconds < 150);
+    }
+
+    [Fact]
+    public void EveryBeltOfTheZoneIsItsOwnSampleAndAnUnlitOneIsARigFault()
+    {
+        var samples = EconomyLoop.Sorties(Root, 2, 5);
+        Assert.Equal(2, samples.Count);
+        Assert.All(samples, x => Assert.Equal(2, x.Belts));
+        Assert.Equal(new[] { 0, 1 }, samples.Select(x => x.Belt).ToArray());
+        Assert.NotEqual(samples[0].BeltKind, samples[1].BeltKind);
+        // Seed 2's second belt is in darkness: no rock can be targeted, and that is not income.
+        Assert.Equal(LoopOutcome.RigFault, samples[1].Outcome);
+        Assert.Equal(0, samples[1].Units);
+    }
+
+    [Fact]
+    public void ANonFiniteOrNonPositiveCapIsRefused()
+    {
+        foreach (var cap in new[] { float.NaN, 0f, -1f, float.PositiveInfinity })
+            Assert.Throws<ArgumentOutOfRangeException>(() => EconomyLoop.Sortie(Root, 1, 0, cap));
+        foreach (var word in new[] { "NaN", "0", "-1", "Infinity" })
+        {
+            var output = new StringWriter();
+            Assert.Equal(1, EconomyCommand.Run(new[] { "balance", "--loop", "1", "--cap", word }, output));
+            Assert.Contains("balance [--loop", output.ToString());
+        }
     }
 
     [Fact]
     public void BalanceWithoutLoopIsUnchanged()
     {
-        using var db = AetherDb.Open();
-        var spread = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings").EconomyWageSpread;
-        var expected = new StringWriter();
-        var expectedCode = EconomyCommand.Balance(db.Cache, spread, expected);
+        // The committed output of economy balance at the commit before --loop existed, on the shipped catalog.
+        var golden = File.ReadAllText(Path.Combine(Root, "tests", "Aetheria.Shared.Tests", "Golden", "economy-balance-base.txt")).Replace("\r\n", "\n");
         var output = new StringWriter();
-        var code = EconomyCommand.Run(new[] { "balance" }, output);
-        Assert.Equal(expectedCode, code);
-        Assert.Equal(expected.ToString(), output.ToString());
-        Assert.DoesNotContain("Player loop", output.ToString());
+        EconomyCommand.Run(new[] { "balance" }, output);
+        Assert.Equal(golden, output.ToString().Replace("\r\n", "\n"));
     }
 
     [Fact]

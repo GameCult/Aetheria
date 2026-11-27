@@ -71,7 +71,7 @@ public static class EconomyCommand
         { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights, EconomyChecks.LShape, EconomyChecks.LPrice };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
-    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance [--loop [<seed>...]] [--cap <sim seconds>]\nbalance reads the chain and changes nothing; --loop adds the player loop (a mining sortie per seed, default seeds 1 2 3 69 97 and cap 300 sim seconds) and the offered gear ladders. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made commodity to the price its chain derives; with no batch it reprices alone.";
+    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance [--loop [<seed>...]] [--cap <sim seconds>]\nbalance reads the chain and changes nothing; --loop adds the player loop (a mining sortie per seed, default seeds 1 2 3 69 97, every belt of each, cap 150 sim seconds a sortie) and the offered gear ladders. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made commodity to the price its chain derives; with no batch it reprices alone.";
 
     public static int Run(string[] args, TextWriter output)
     {
@@ -88,7 +88,7 @@ public static class EconomyCommand
             var rest = args.Skip(1).ToList();
             var cap = EconomyLoop.DefaultCap;
             var capAt = rest.IndexOf("--cap");
-            if (capAt >= 0 && (capAt + 1 >= rest.Count || !float.TryParse(rest[capAt + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out cap) || cap <= 0))
+            if (capAt >= 0 && (capAt + 1 >= rest.Count || !float.TryParse(rest[capAt + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out cap) || !float.IsFinite(cap) || cap <= 0))
             {
                 output.WriteLine(Usage);
                 return 1;
@@ -109,7 +109,7 @@ public static class EconomyCommand
             }
             LoopReport loop = null;
             if (loopAt >= 0)
-                loop = EconomyLoop.Report(db.Cache, settings, (seeds.Count == 0 ? EconomyLoop.DefaultSeeds : seeds.ToArray()).Select(seed => EconomyLoop.Sortie(db.Root, seed, cap)).ToList());
+                loop = EconomyLoop.Report(db.Cache, settings, (seeds.Count == 0 ? EconomyLoop.DefaultSeeds : seeds.ToArray()).SelectMany(seed => EconomyLoop.Sorties(db.Root, seed, cap)).ToList());
             return Balance(db.Cache, settings.EconomyWageSpread, output, loop);
         }
         if (args.Length > 0 && args[0] == "author")
@@ -165,11 +165,11 @@ public static class EconomyCommand
     private static void PrintLoop(LoopReport loop, TextWriter output)
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        output.WriteLine("\nPlayer loop (seed | belt | weapons | rocks | sim s | hold full at | units | sell | ammo | repair | net per minute)");
+        output.WriteLine("\nPlayer loop (seed belt | kind | weapons | outcome | rocks | sim s | hold full at | units | sell | ammo | repair | net per minute)");
         foreach (var s in loop.Samples)
-            output.WriteLine(string.Format(inv, "  {0} | {1} | {2} | {3} | {4:0.#} | {5} | {6} | {7} | {8} | {9} | {10:0.#}", s.Seed, s.BeltKind, s.Weapons, s.Rocks, s.SimSeconds,
-                s.HoldFullAt.HasValue ? s.HoldFullAt.Value.ToString("0.#", inv) + " s" : "never", s.Units, s.SellValue, s.AmmoSpent, s.Repair, s.RatePerMinute));
-        output.WriteLine(string.Format(inv, "  median {0:0.#} per minute, best {1:0.#} per minute, purse {2}", loop.Median, loop.Best, loop.Purse));
+            output.WriteLine(string.Format(inv, "  {0} {11}/{12} | {1} | {2} | {13} | {3} | {4:0.#} | {5} | {6} | {7} | {8} | {9} | {10:0.#}", s.Seed, s.BeltKind, s.Weapons, s.Rocks, s.SimSeconds,
+                s.HoldFullAt.HasValue ? s.HoldFullAt.Value.ToString("0.#", inv) + " s" : "never", s.Units, s.SellValue, s.AmmoSpent, s.Repair, s.RatePerMinute, s.Belt + 1, s.Belts, s.Outcome));
+        output.WriteLine(string.Format(inv, "  median {0:0.#} per minute, best {1:0.#} per minute over the {3} sorties that mined to a full hold or the cap; purse {2}", loop.Median, loop.Best, loop.Purse, loop.Samples.Count(s => s.Measured)));
         string Minutes(double? m) => m.HasValue ? m.Value.ToString("0.#", inv) : "-";
         string Width(double? w) => w.HasValue ? w.Value.ToString("0.##", inv) + "x" : "-";
         output.WriteLine("\nLadders (category: width authored, derived; each design: price | derived | minutes at median | minutes at best | purse covers)");

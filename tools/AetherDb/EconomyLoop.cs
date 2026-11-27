@@ -11,11 +11,28 @@ using UniRx;
 // takes to afford each offered design, and the width of each offered gear ladder against a band. It measures and reports; it changes
 // no price, yield or purse (rulings economy-numbers-are-sim-tuned-knobs, economy-tuned-by-systemic-health). Faults are report-only.
 // The sortie driver teleports the ship, so it is a measuring rig that lives here and never in ServerShared.
+public enum LoopOutcome
+{
+    // The hold filled (the first unit floated): the sortie measured what a full trip pays.
+    Full,
+    // The cap ended it with the ship still mining.
+    Capped,
+    // A stock the ship started with ran out: it cannot sustain mining. The rate is measured up to there and never enters the median.
+    AmmoOut,
+    // The rig measured nothing (no rock could be targeted, or it ran out of rocks early): never income.
+    RigFault
+}
+
 public sealed class LoopSample
 {
     public uint Seed;
+    // This sample's belt in the zone's generation order, and how many belts the zone holds.
+    public int Belt;
+    public int Belts;
     public string BeltKind;
     public string Weapons;
+    public LoopOutcome Outcome;
+    public string Note;
     public int Rocks;
     public double SimSeconds;
     public int Units;
@@ -27,6 +44,8 @@ public sealed class LoopSample
 
     public int Net => SellValue - AmmoSpent - Repair;
     public double RatePerMinute => SimSeconds > 0 ? Net * 60.0 / SimSeconds : 0;
+    // Only a sortie that mined to a full hold or to the cap says what the loop pays.
+    public bool Measured => Outcome == LoopOutcome.Full || Outcome == LoopOutcome.Capped;
 }
 
 public sealed class LoopDesign
@@ -52,6 +71,7 @@ public sealed class LoopLadder
 public sealed class LoopReport
 {
     public IReadOnlyList<LoopSample> Samples;
+    // Over the measured samples only.
     public double Median;
     public double Best;
     public int Purse;
@@ -61,19 +81,32 @@ public sealed class LoopReport
 
 public static class EconomyLoop
 {
-    public const string HLoop = "H-loop", HLadder = "H-ladder";
+    public const string HLoop = "H-loop", HLadder = "H-ladder", HAmmo = "H-ammo", HRig = "H-rig";
     public static readonly uint[] DefaultSeeds = { 1, 2, 3, 69, 97 };
-    public const float DefaultCap = 300f;
+    // Every belt of every default seed is a sample (11 of them), so the cap is what bounds wall time.
+    public const float DefaultCap = 150f;
 
     private const float Step = .02f;
     private const float RockSeconds = 60f;
+    private const int AmmoCheckTicks = 10;
 
-    // One sortie in the demo run of this seed: the staged ship is held forty units off each rock of the arena's belt in index order,
-    // fires every weapon at it, and stops when the first unit floats (the hold is full) or at the cap. Everything it touches is its
-    // own: a scratch copy of the catalog, its own run store and its own ItemManager (a shared one advances its Random and gave the
-    // same seed different results).
-    public static LoopSample Sortie(string root, uint seed, float capSeconds)
+    // One sortie per belt of the demo run of this seed, each its own sample.
+    public static List<LoopSample> Sorties(string root, uint seed, float capSeconds)
     {
+        var first = Sortie(root, seed, 0, capSeconds);
+        var samples = new List<LoopSample> { first };
+        for (var belt = 1; belt < first.Belts; belt++) samples.Add(Sortie(root, seed, belt, capSeconds));
+        return samples;
+    }
+
+    // One sortie in the demo run of this seed on one belt: the staged ship is held forty units off each rock of the belt in index
+    // order, fires every weapon at it, and stops when the first unit floats (the hold is full), when a starting stock runs out, or
+    // at the cap. Everything it touches is its own: a scratch copy of the catalog, its own run store and its own ItemManager (a
+    // shared one advances its Random and gave the same seed different results). atEnd, if given, sees the ship and items as the
+    // sample is taken, so a test can read the same state the sample was priced from.
+    public static LoopSample Sortie(string root, uint seed, int beltIndex, float capSeconds, Action<Ship, ItemManager> atEnd = null)
+    {
+        if (!float.IsFinite(capSeconds) || capSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(capSeconds), "the cap must be a positive, finite number of sim seconds");
         var scratch = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-loop-" + Guid.NewGuid().ToString("N"))).FullName;
         try
         {
@@ -98,9 +131,23 @@ public static class EconomyLoop
             var player = RunStart.Stage(items, arena, scenario, startingHull, failures).Player;
             if (failures.Count > 0) throw new InvalidOperationException($"seed {seed}: staging failed: {string.Join("; ", failures)}");
 
-            var belt = arena.Planets.First(body => body.Value is AsteroidBeltData);
-            var rocks = ((AsteroidBeltData) belt.Value).Asteroids.Length;
+            var belts = arena.Planets.Where(body => body.Value is AsteroidBeltData).ToList();
+            if (beltIndex < 0 || beltIndex >= Math.Max(belts.Count, 1)) throw new ArgumentOutOfRangeException(nameof(beltIndex), $"seed {seed} has {belts.Count} belts");
             var weapons = player.Equipment.SelectMany(item => item.Behaviors.OfType<Weapon>()).ToArray();
+            var sample = new LoopSample
+            {
+                Seed = seed, Belt = beltIndex, Belts = belts.Count, BeltKind = "none",
+                Weapons = string.Join(", ", weapons.Select(w => items.GetData(w.Item.EquippableItem).Name).GroupBy(n => n).Select(g => g.Count() + "x " + g.Key))
+            };
+            if (belts.Count == 0)
+            {
+                sample.Outcome = LoopOutcome.RigFault;
+                sample.Note = "the zone holds no belt";
+                return sample;
+            }
+            var belt = belts[beltIndex];
+            var beltData = (AsteroidBeltData) belt.Value;
+            sample.BeltKind = cache.Get(beltData.Kind)?.Name ?? beltData.Kind.Key.Value;
             var ammoBefore = Ammunition(items, player);
             var units = 0;
             arena.CargoGained.Subscribe(gain => units += gain.Stored);
@@ -109,11 +156,24 @@ public static class EconomyLoop
             var ticks = 0;
             var capTicks = (int) Math.Round(capSeconds / Step);
             var broken = 0;
+            var targeted = 0;
+            var ammoOut = false;
             int? fullTick = null;
-            bool Stopped() => fullTick != null || ticks >= capTicks;
-            void Tick(Action hold) { hold(); arena.Update(Step); ticks++; if (fullTick == null && arena.FloatingItems.Count > 0) fullTick = ticks; }
+            bool Stopped() => fullTick != null || ammoOut || ticks >= capTicks;
+            void Tick(Action hold)
+            {
+                hold();
+                arena.Update(Step);
+                ticks++;
+                if (fullTick == null && arena.FloatingItems.Count > 0) fullTick = ticks;
+                if (ticks % AmmoCheckTicks == 0 && !ammoOut)
+                {
+                    var now = Ammunition(items, player);
+                    ammoOut = ammoBefore.Keys.Any(data => !now.ContainsKey(data));
+                }
+            }
 
-            for (var index = 0; index < rocks && !Stopped(); index++)
+            for (var index = 0; index < beltData.Asteroids.Length && !Stopped(); index++)
             {
                 var rock = new ChunkId(belt.Key, index);
                 if (!arena.ChunkExists(rock)) continue;
@@ -128,6 +188,7 @@ public static class EconomyLoop
                 Tick(Hold);
                 Tick(Hold);
                 if (!player.SetTarget(rock)) continue;
+                targeted++;
                 foreach (var weapon in weapons) weapon.Activate();
                 for (var spent = 0; spent < (int) Math.Round(RockSeconds / Step) && arena.ChunkExists(rock) && !Stopped(); spent++) Tick(Hold);
                 if (!arena.ChunkExists(rock)) broken++;
@@ -136,24 +197,25 @@ public static class EconomyLoop
 
             var ammoAfter = Ammunition(items, player);
             var spentOnAmmo = 0L;
-            foreach (var (data, (quantity, sample)) in ammoBefore)
+            foreach (var (data, (quantity, stack)) in ammoBefore)
             {
                 var left = ammoAfter.TryGetValue(data, out var held) ? held.Quantity : 0;
-                if (quantity > left) spentOnAmmo += StationServices.BuyPrice(items, sample, quantity - left);
+                if (quantity > left) spentOnAmmo += StationServices.BuyPrice(items, stack, quantity - left);
             }
-            return new LoopSample
-            {
-                Seed = seed,
-                BeltKind = cache.Get(((AsteroidBeltData) belt.Value).Kind)?.Name ?? ((AsteroidBeltData) belt.Value).Kind.Key.Value,
-                Weapons = string.Join(", ", weapons.Select(w => items.GetData(w.Item.EquippableItem).Name).GroupBy(n => n).Select(g => g.Count() + "x " + g.Key)),
-                Rocks = broken,
-                SimSeconds = ticks * (double) Step,
-                Units = units,
-                HoldFullAt = fullTick == null ? null : fullTick * (double) Step,
-                SellValue = StationServices.OreValue(items, player.CargoBays),
-                AmmoSpent = (int) Math.Min(spentOnAmmo, int.MaxValue),
-                Repair = StationServices.RepairCost(items, player)
-            };
+            sample.Rocks = broken;
+            sample.SimSeconds = ticks * (double) Step;
+            sample.Units = units;
+            sample.HoldFullAt = fullTick == null ? null : fullTick * (double) Step;
+            sample.SellValue = StationServices.OreValue(items, player.CargoBays);
+            sample.AmmoSpent = (int) Math.Min(spentOnAmmo, int.MaxValue);
+            sample.Repair = StationServices.RepairCost(items, player);
+            if (fullTick != null) sample.Outcome = LoopOutcome.Full;
+            else if (ammoOut) { sample.Outcome = LoopOutcome.AmmoOut; sample.Note = "a starting stock ran out"; }
+            else if (targeted == 0) { sample.Outcome = LoopOutcome.RigFault; sample.Note = "no rock of the belt could be targeted"; }
+            else if (ticks >= capTicks) sample.Outcome = LoopOutcome.Capped;
+            else { sample.Outcome = LoopOutcome.RigFault; sample.Note = "ran out of rocks before the cap"; }
+            atEnd?.Invoke(player, items);
+            return sample;
         }
         finally
         {
@@ -182,7 +244,7 @@ public static class EconomyLoop
     // Rates, minutes to afford and ladder widths from the samples and the catalog: pure, recomputed every run, nothing stored.
     public static LoopReport Report(CultCache catalog, GameplaySettings settings, IReadOnlyList<LoopSample> samples)
     {
-        var rates = samples.Select(s => s.RatePerMinute).OrderBy(r => r).ToList();
+        var rates = samples.Where(s => s.Measured).Select(s => s.RatePerMinute).OrderBy(r => r).ToList();
         var median = rates.Count == 0 ? 0 : rates.Count % 2 == 1 ? rates[rates.Count / 2] : (rates[rates.Count / 2 - 1] + rates[rates.Count / 2]) / 2;
         var best = rates.Count == 0 ? 0 : rates[rates.Count - 1];
         var derived = EconomyBalance.Prices(catalog, out _, designs: true);
@@ -213,8 +275,16 @@ public static class EconomyLoop
         }).ToList();
 
         var faults = new List<EconomyFault>();
-        foreach (var sample in samples.Where(s => s.Net <= 0))
-            faults.Add(new EconomyFault(HLoop, "seed " + sample.Seed, $"the sortie nets {sample.Net} (sell {sample.SellValue}, ammunition {sample.AmmoSpent}, repair {sample.Repair}): no income."));
+        foreach (var sample in samples)
+        {
+            var where = $"seed {sample.Seed} belt {sample.Belt + 1} of {sample.Belts}";
+            if (sample.Outcome == LoopOutcome.AmmoOut)
+                faults.Add(new EconomyFault(HAmmo, where, $"the fit ran out of a starting stock after {sample.SimSeconds:0.#} s ({sample.Weapons}) and cannot sustain mining."));
+            else if (sample.Outcome == LoopOutcome.RigFault)
+                faults.Add(new EconomyFault(HRig, where, $"the rig measured nothing: {sample.Note}."));
+            else if (sample.Net <= 0)
+                faults.Add(new EconomyFault(HLoop, where, $"the sortie nets {sample.Net} (sell {sample.SellValue}, ammunition {sample.AmmoSpent}, repair {sample.Repair}): no income."));
+        }
         var (min, max) = (settings.EconomyLadderMin, settings.EconomyLadderMax);
         if (min > 0 || max > 0)
             foreach (var ladder in ladders)
