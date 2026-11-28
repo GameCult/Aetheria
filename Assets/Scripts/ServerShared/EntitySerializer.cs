@@ -30,6 +30,7 @@ public static class EntitySerializer
 
         pack.Settings = entity.Settings;
         pack.Boss = entity.IsBoss;
+        pack.Haul = entity.Haul;
 
         pack.Hull = entity.Hull;
         pack.Name = entity.Name;
@@ -130,6 +131,7 @@ public static class EntitySerializer
     {
         entity.Name = pack.Name;
         entity.IsBoss = pack.Boss;
+        entity.Haul = pack.Haul;
         entity.Faction = itemManager.ItemData.Get(pack.Faction);
         entity.Children = pack.Children.Select(c =>
         {
@@ -243,8 +245,9 @@ public abstract class EntityPack
     [Key(14)] public EntitySettings Settings;
     [Key(15)] public CultRecordRef<Faction> Faction;
     [Key(16)] public int[][] WeaponGroups;
-    // Keys 17-20 belong to the subclasses; the base's next free key is 23 (Boss is 21, the orbital pack's Kind is 22).
+    // Keys 17-20 belong to the subclasses; the base's next free key is 25 (Id is 23, Haul is 24, Boss is 21, the orbital pack's Kind is 22).
     [Key(21)] public bool Boss;
+    [Key(24)] public CultRecordRef<HaulOrderData> Haul;
 
     private int _price;
 

@@ -22,6 +22,10 @@ public abstract class Entity
     public Faction Faction;
     // The mark of a zone's boss, written only by ZoneGenerator and restored from the pack. RunGoal reads it.
     public bool IsBoss;
+    // The standing haul order this ship carries for (aetheria-living-world:ruling:transit-depots-buy-for-onward-haul): its task is derived from
+    // it at admission (HaulRun.TaskOf). Interim actor state (target r3, L-actors), deleted with EntityPack Key 24 when offices
+    // issue haul acts (follow-up haul-run-to-offices).
+    public CultRecordRef<HaulOrderData> Haul;
     public EquippableItem Hull;
     public EquippedItem EquippedHull;
     
