@@ -61,11 +61,13 @@ public sealed partial class RunStartTests
     // zone's generated station Zenith can fit a radiator there and Snapshot hashes its heat. windows-x64 133e5d76 -> e4a3d6e5,
     // linux-x64 9c70a3ee -> 6b8b31ad (measured on Yggdrasil). The fight itself stages hand-fitted Longinus ships and a Bare Djinni,
     // so the shields now on sale do not move it: the same catalog with only the Zenith rotation put back to None measures the old digest.
+    // Station packages: the Arsenal Depot (a station hull in the zone the fight runs in) moved both digests; linux-x64 6b8b31ad -> 99e358a0
+    // measured on Yggdrasil, windows-x64 e4a3d6e5 -> 5201ca08 measured on Starfire.
     private static readonly System.Collections.Generic.Dictionary<string, string> TwoAiPinnedDigests = new()
     {
-        ["linux-x64"] = "6b8b31ade2ee042a51dfabd53fe104a7567274224c79dc2fe4bffb98bb800ed1",
+        ["linux-x64"] = "99e358a0d48816682876808a2261347658b77d3d9af62564d224480d82450f93",
         // Measured on windows-x64 at the commit that added this pin (the fight is one history there: TwoAiFightIsOneHistory).
-        ["windows-x64"] = "e4a3d6e5a411b01e73828821260d57d3f52ffdba50f7954f17058792833bb58a",
+        ["windows-x64"] = "5201ca081972d8bb6ee1a74068bf55e5ff49e6d0569a1a072ab15f9194c34bd5",
     };
     private const float TwoAiSeconds = 60f;
 
