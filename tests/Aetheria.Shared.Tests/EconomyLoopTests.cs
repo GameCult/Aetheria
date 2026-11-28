@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using static CultMath.math;
 using Xunit;
 
 // The player-loop section of `economy balance --loop` (EconomyLoop): rates from hand samples, minutes to afford, the ladder band and
@@ -269,17 +270,65 @@ public sealed class EconomyLoopTests
         Assert.Equal(0, sample.AmmoSpent);
     }
 
+    // The demo's galaxy and entrance stations with the starter's fit, Cell Blasters in place of its Light Lasers, as the player: an ammunition-fed fit on the Energy
+    // mounts, which no shipped scenario flies any more (the demo starter carries Light Lasers). Test-local, so no shipped scenario has a seam.
+    private sealed class CellBlasterDemo : Scenario
+    {
+        private readonly DemoTerminus _demo = new DemoTerminus();
+        public override string Name => "Cell Blaster demo";
+        public override string Id => "test-cell-blaster-demo";
+        public override string Brief => "The demo's zone, flown in an ammunition-fed fit.";
+        public override IReadOnlyList<EntranceStationOrder> EntranceStations => _demo.EntranceStations;
+        public override Galaxy Generate(GalaxyStage stage) => _demo.Generate(stage);
+
+        public override void Stage(ScenarioStage stage) => stage.Player(stage.Fit("Longinus", DemoTerminus.StarterQuality,
+            ("Wheelhouse", int2(2, 6), ItemRotation.None),
+            ("True North", int2(1, 0), ItemRotation.Reversed),
+            ("True North", int2(3, 0), ItemRotation.Reversed),
+            ("Hestia", int2(2, 4), ItemRotation.None),
+            ("Homer", int2(0, 5), ItemRotation.None),
+            ("Homer", int2(5, 5), ItemRotation.None),
+            ("Stagecoach", int2(2, 14), ItemRotation.CounterClockwise),
+            ("Stagecoach", int2(3, 14), ItemRotation.Clockwise),
+            ("FastBlast+-", int2(1, 8), ItemRotation.None), // Cell Blaster, ammunition-fed on an Energy mount
+            ("FastBlast+-", int2(4, 8), ItemRotation.None),
+            ("Iapyx", int2(2, 2), ItemRotation.CounterClockwise),
+            ("Iapyx", int2(3, 2), ItemRotation.Clockwise),
+            ("not if i see you first", int2(3, 10), ItemRotation.None),
+            ("PotaT+-", int2(1, 5), ItemRotation.None),
+            ("👀🎯", int2(1, 6), ItemRotation.None),
+            ("Space Tractor", int2(1, 7), ItemRotation.None),
+            ("Pithos", int2(2, 8), ItemRotation.None)), float2(0, 0));
+    }
+
     [Fact]
     public void ASortieThatSpendsItsStarterAmmunitionEndsAmmoOutAndPaysForIt()
     {
         var ammoLeft = -1;
         var sample = EconomyLoop.Sortie(Root, 2, 0, 150, (ship, items, _) =>
-            ammoLeft = ship.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()).Where(c => items.GetData(c).Name == "Ammo").Sum(c => c.Quantity));
+            ammoLeft = ship.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()).Where(c => items.GetData(c).Name == "Ammo").Sum(c => c.Quantity),
+            new CellBlasterDemo());
         Assert.Equal(LoopOutcome.AmmoOut, sample.Outcome);
         Assert.Equal(0, ammoLeft);
         // The Cell Blaster fit starts with 3 Ammo, bought back at the catalog's price.
         Assert.Equal(3 * PriceOf("Ammo"), sample.AmmoSpent);
         Assert.True(sample.SimSeconds < 150);
+    }
+
+    // The demo's own starter, flown on the seeds a player meets first (1 2 3 69 97), mines with its lasers and never runs dry. Seed 2's second belt
+    // is unlit (a zone cause, follow_up demo-entrance-holds-no-lit-belt), a RigFault. Kills: the base Generated starter, whose Cell Blasters
+    // spent their 3 crates in 11-13 s on seeds 2 3 69 97 (AmmoOut).
+    [Fact]
+    public void EveryDemoSeedStarterCompletesASortie()
+    {
+        foreach (var seed in new uint[] { 1, 2, 3, 69, 97 })
+        {
+            var samples = EconomyLoop.Sorties(Root, seed, 150);
+            Assert.DoesNotContain(samples, x => x.Outcome == LoopOutcome.AmmoOut);
+            Assert.Contains(samples, x => x.Outcome == LoopOutcome.Full || x.Outcome == LoopOutcome.Capped);
+            Assert.All(samples, x => Assert.True(x.Outcome != LoopOutcome.RigFault || seed == 2 && x.Belt == 1, $"seed {seed} belt {x.Belt}: {x.Outcome} {x.Note}"));
+            Assert.All(samples.Where(x => x.Outcome != LoopOutcome.RigFault), x => Assert.Equal(0, x.AmmoSpent));
+        }
     }
 
     [Fact]

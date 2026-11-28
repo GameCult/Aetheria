@@ -286,7 +286,7 @@ public sealed partial class RunStartTests
             stage.Galaxy.FactionRelationships[stage.Galaxy.ResolveFaction(DemoTerminus.Cast.BufferFaction)] = FactionRelationship.Neutral;
             foreach (var neutral in DemoTerminus.Cast.NeutralFactions)
                 stage.Galaxy.FactionRelationships[stage.Galaxy.ResolveFaction(neutral)] = FactionRelationship.Neutral;
-            stage.Player(stage.Generated("Longinus"), float2.zero);
+            stage.Player(DemoTerminus.Starter(stage), float2.zero);
         }), _startingHull, failures);
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         arena.Update(0);

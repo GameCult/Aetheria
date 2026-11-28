@@ -139,24 +139,34 @@ public sealed partial class RunStartTests
         }
     }
 
-    // The ruling says the Longinus with its default fit: the fit the game generates for that hull from the run's item
-    // draws, which Stage seeds from the galaxy's seed. The expected fit is that same generation replayed from the same
-    // seed, so no item list is spelled here; a bare hull, a preset, or one item swapped for another differs from it.
+    // The ruling's default fit is the authored one (economy-is-never-faked): the Longinus with Light Lasers on its Energy mounts, the same
+    // products at the same cells on every seed, every lot at StarterQuality. The Cell Blaster is ammunition-fed on an Energy mount and spends its
+    // crates in seconds, so no Energy-mount weapon may draw ammunition. Kills: a Generated player (the brands and the Energy pair roll per seed),
+    // Spotlight swapped for Strobe (Cell Blaster), a different quality.
     [Fact]
-    public void DemoTerminus_player_carries_the_longinus_default_fit()
+    public void DemoTerminus_player_carries_the_authored_starter()
     {
-        string Fit(Entity ship) => string.Join(";", ship.Equipment
-            .Select(item => $"{item.Data.Name}@{item.Position}/{item.EquippableItem.Rotation}")
-            .OrderBy(entry => entry, StringComparer.Ordinal));
+        var expected = new[]
+        {
+            "Wheelhouse@2,6/None", "True North@1,0/Reversed", "True North@3,0/Reversed", "Hestia@2,4/None", "Homer@0,5/None", "Homer@5,5/None",
+            "Stagecoach@2,14/CounterClockwise", "Stagecoach@3,14/Clockwise", "Spotlight@1,8/None", "Spotlight@4,8/None",
+            "Iapyx@2,2/CounterClockwise", "Iapyx@3,2/Clockwise", "not if i see you first@3,10/None", "PotaT+-@1,5/None",
+            "👀🎯@1,6/None", "Space Tractor@1,7/None", "Pithos@2,8/None"
+        }.OrderBy(entry => entry, StringComparer.Ordinal).ToArray();
         foreach (var seed in DemoSeeds)
         {
-            var (galaxy, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => seed));
+            var (_, _, staged, failures) = Launch(new DemoTerminus(), Inputs(() => seed));
             Assert.True(failures.Count == 0, string.Join("; ", failures));
-            _items.Random = new CultMath.Random(galaxy.Seed * 0x9E3779B1u + 2);
-            var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, arena.GalaxyZone, null, 2);
-            var expected = EntitySerializer.Unpack(_items, null, generator.GenerateShipLoadout(hull => hull.Name == "Longinus"));
-            Assert.NotEmpty(expected.Equipment);
-            Assert.Equal(Fit(expected), Fit(staged.Player));
+            var player = staged.Player;
+            var slots = player.Equipment.Concat(player.CargoBays).Where(item => item != player.EquippedHull).Distinct().ToArray();
+            var got = string.Join(" | ", slots.Select(item =>
+                $"{_cache.Get(_items.GetLot(item.EquippableItem).Product).Name}@{item.Position.x},{item.Position.y}/{item.EquippableItem.Rotation}")
+                .OrderBy(entry => entry, StringComparer.Ordinal).ToArray());
+            Assert.True(got == string.Join(" | ", expected), "seed " + seed + ": " + got);
+            Assert.All(slots, item => Assert.Equal(DemoTerminus.StarterQuality, _items.GetLot(item.EquippableItem).Quality, 3));
+            var energy = player.Weapons.Where(weapon => player.Hardpoints[weapon.Item.Position.x, weapon.Item.Position.y]?.Type == HardpointType.Energy).ToArray();
+            Assert.Equal(2, energy.Length);
+            Assert.All(energy, weapon => Assert.False(weapon.WeaponData.AmmoType.IsSet(), $"seed {seed}: {weapon.Item.Data.Name} on an Energy mount draws ammunition"));
         }
     }
 

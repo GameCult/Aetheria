@@ -115,8 +115,9 @@ public static class EconomyLoop
 
     // The demo run of one seed booted in a scratch of its own, with the two stations found by what they are for. Everything it
     // touches is its own: a scratch copy of the catalog, its own run store and its own ItemManager (a shared one advances its
-    // Random and gave the same seed different results). Dispose closes the store and deletes the scratch.
-    public static DemoArena Boot(string root, uint seed)
+    // Random and gave the same seed different results). Dispose closes the store and deletes the scratch. scenario defaults to the demo; a test
+    // passes its own to fly another fit through the same zone.
+    public static DemoArena Boot(string root, uint seed, Scenario scenario = null)
     {
         var scratch = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-loop-" + Guid.NewGuid().ToString("N"))).FullName;
         var demo = new DemoArena(scratch);
@@ -132,15 +133,16 @@ public static class EconomyLoop
             var startingHull = File.ReadLines(Path.Combine(root, "Assets", "Resources", "Settings.asset"))
                 .Select(line => Regex.Match(line, @"^  StartingHullName: (.+)$")).First(match => match.Success).Groups[1].Value.Trim();
 
-            var scenario = new DemoTerminus();
+            scenario ??= new DemoTerminus();
             var stage = new GalaxyStage(authored.Read<SectorGenerationSettings>("SectorGenerationSettings"),
                 authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"), authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"),
                 cache, _ => { }, null, () => seed);
             var galaxy = RunStart.Generate(scenario, stage);
             var arena = demo.Arena = new Zone(items, planetSettings, RunStart.GenerateArena(items, zoneSettings, planetSettings, galaxy, scenario), galaxy.Entrance, galaxy);
             var failures = new List<string>();
-            demo.Player = RunStart.Stage(items, arena, scenario, startingHull, failures).Player;
-            if (failures.Count > 0) throw new InvalidOperationException($"seed {seed}: staging failed: {string.Join("; ", failures)}");
+            var staged = RunStart.Stage(items, arena, scenario, startingHull, failures);
+            if (failures.Count > 0 || staged == null) throw new InvalidOperationException($"seed {seed}: staging failed: {string.Join("; ", failures)}");
+            demo.Player = staged.Player;
             // The station that buys a sortie's ore and the one that holds it for onward haul, found by what they are for.
             OrbitalEntity OfKind(string kind) => arena.Entities.OfType<OrbitalEntity>().Single(entity => entity.Kind.Key.Equals(StationKindData.KeyOf(kind)));
             demo.Processing = OfKind("processing");
@@ -159,10 +161,10 @@ public static class EconomyLoop
     // at the cap. Everything it touches is its own: a scratch copy of the catalog, its own run store and its own ItemManager (a
     // shared one advances its Random and gave the same seed different results). atEnd, if given, sees the ship, items and the processing station as the
     // sample is taken, so a test can read the same state the sample was priced from.
-    public static LoopSample Sortie(string root, uint seed, int beltIndex, float capSeconds, Action<Ship, ItemManager, Entity> atEnd = null)
+    public static LoopSample Sortie(string root, uint seed, int beltIndex, float capSeconds, Action<Ship, ItemManager, Entity> atEnd = null, Scenario scenario = null)
     {
         if (!float.IsFinite(capSeconds) || capSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(capSeconds), "the cap must be a positive, finite number of sim seconds");
-        using var demo = Boot(root, seed);
+        using var demo = Boot(root, seed, scenario);
         var (cache, items, arena, player, processing) = (demo.Cache, demo.Items, demo.Arena, demo.Player, demo.Processing);
 
         var belts = arena.Planets.Where(body => body.Value is AsteroidBeltData).ToList();
