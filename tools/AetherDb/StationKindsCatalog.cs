@@ -1,7 +1,10 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using GameCult.Caching;
+using int2 = CultMath.int2;
 
 // Authors the catalog's one list of station kinds (aetheria-living-world, cut station-kind-datum) and gives Zenith, the
 // one station hull in the repo, its ruled kind (ruling zenith-is-a-trade-hub: provisional, one edit here to change).
@@ -102,4 +105,87 @@ public static class StationKindsCatalog
         output.WriteLine($"\nSet {hull.Name}'s kind in Aetheria.cc");
         return 0;
     }
+
+    public const string FacilitiesUsage = "station-kinds facilities \"<hull name>\" <x>,<y>:<footprint>... [apply]";
+
+    // Sets a shipped station hull's whole set of Facility rows (ruling station-facilities-on-typed-mounts): the one writer of a
+    // shipped hull's Facility rows (a package's go through ship-authoring push). A row is <x>,<y>:<footprint>, the footprint as
+    // package_hull.md writes it (rows of # and . joined by /, the top row highest y), the cell its lowest-x, lowest-y cell. The
+    // rows replace the hull's Facility rows exactly, mount ids Fa.1, Fa.2... in argument order; every other row is kept untouched.
+    // Refuses a hull that is not a Station, a malformed row, a cell outside the interior and a row over another row. Prints the
+    // designs that take each Facility row before and after. Rows equal to the hull's write nothing. Dry run unless apply.
+    public static int SetFacilityRows(CultCache cache, string hullName, string[] rows, bool apply, TextWriter output)
+    {
+        var named = cache.GetAll<HullData>().Where(h => h.Name == hullName).ToArray();
+        if (named.Length != 1)
+        {
+            output.WriteLine($"The catalog holds {named.Length} hulls named '{hullName}'; exactly one is required.");
+            return 1;
+        }
+        var hull = named[0];
+        if (hull.HullType != HullType.Station)
+        {
+            output.WriteLine($"Hull '{hull.Name}' is a {hull.HullType}; only a station hull takes facilities.");
+            return 1;
+        }
+        var wanted = new List<HardpointData>();
+        var claimed = new HashSet<(int, int)>();
+        foreach (var other in hull.Hardpoints.Where(row => row.Type != HardpointType.Facility))
+            foreach (var cell in other.Shape.Coordinates) claimed.Add((other.Position.x + cell.x, other.Position.y + cell.y));
+        foreach (var text in rows)
+        {
+            var colon = text.IndexOf(':');
+            var at = colon < 0 ? null : text.Substring(0, colon).Split(',');
+            if (at == null || at.Length != 2 || !int.TryParse(at[0], NumberStyles.None, CultureInfo.InvariantCulture, out var x) || !int.TryParse(at[1], NumberStyles.None, CultureInfo.InvariantCulture, out var y))
+            {
+                output.WriteLine($"'{text}' is not a row: {FacilitiesUsage}");
+                return 1;
+            }
+            Shape shape;
+            try { shape = ShipAuthoringPush.ParseFootprint(text.Substring(colon + 1), $"Row '{text}'"); }
+            catch (InvalidOperationException e)
+            {
+                output.WriteLine(e.Message);
+                return 1;
+            }
+            foreach (var cell in shape.Coordinates)
+            {
+                var taken = (x + cell.x, y + cell.y);
+                if (x + cell.x >= hull.Shape.Width || y + cell.y >= hull.Shape.Height || !hull.InteriorCells[new int2(taken.Item1, taken.Item2)])
+                {
+                    output.WriteLine($"Row '{text}' puts cell ({taken.Item1},{taken.Item2}) outside {hull.Name}'s interior.");
+                    return 1;
+                }
+                if (!claimed.Add(taken))
+                {
+                    output.WriteLine($"Row '{text}' overlaps another row at cell ({taken.Item1},{taken.Item2}).");
+                    return 1;
+                }
+            }
+            wanted.Add(new HardpointData { Type = HardpointType.Facility, Position = new int2(x, y), Shape = shape, Transform = "Fa." + (wanted.Count + 1) });
+        }
+        var held = hull.Hardpoints.Where(row => row.Type == HardpointType.Facility).ToArray();
+        var designs = cache.GetAll<EquippableItemData>().ToArray();
+        string Describe(HardpointData row) => $"{row.Transform} ({row.Position.x},{row.Position.y}) {ShipAuthoringPush.Footprint(row.Shape)} [{string.Join(", ", designs.Where(row.Takes).Select(d => d.Name).OrderBy(n => n, StringComparer.Ordinal))}]";
+        foreach (var row in held) output.WriteLine($"{hull.Name} held {Describe(row)}");
+        foreach (var row in wanted) output.WriteLine($"{hull.Name} sets {Describe(row)}");
+        if (held.Length == 0 && wanted.Count == 0 || held.Length == wanted.Count && held.Zip(wanted, (a, b) => Same(a, b)).All(same => same))
+        {
+            output.WriteLine("No change.");
+            return 0;
+        }
+        if (!apply)
+        {
+            output.WriteLine("\nDry run. Pass \"apply\" to set them.");
+            return 0;
+        }
+        hull.Hardpoints = hull.Hardpoints.Where(row => row.Type != HardpointType.Facility).Concat(wanted).ToList();
+        cache.Upsert(hull);
+        output.WriteLine($"\nSet {hull.Name}'s Facility rows in Aetheria.cc");
+        return 0;
+    }
+
+    private static bool Same(HardpointData a, HardpointData b) =>
+        a.Transform == b.Transform && a.Position.x == b.Position.x && a.Position.y == b.Position.y && a.Rotation == b.Rotation && a.Armor == b.Armor
+        && a.FiringArc == b.FiringArc && ShipAuthoringPush.Footprint(a.Shape) == ShipAuthoringPush.Footprint(b.Shape);
 }

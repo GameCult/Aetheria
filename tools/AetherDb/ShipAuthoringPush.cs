@@ -493,7 +493,7 @@ public static class ShipAuthoringPush
     };
 
     // The footprint text of a shape: rows of # and . joined by /, the top row highest y.
-    private static string Footprint(Shape shape)
+    internal static string Footprint(Shape shape)
     {
         var rows = new string[shape.Height];
         for (var y = 0; y < shape.Height; y++)
@@ -501,7 +501,7 @@ public static class ShipAuthoringPush
         return string.Join("/", rows);
     }
 
-    private static Shape ParseFootprint(string text, string label)
+    internal static Shape ParseFootprint(string text, string label)
     {
         var rows = text.Split('/');
         var width = rows[0].Length;

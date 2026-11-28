@@ -82,6 +82,12 @@ public static class Program
                     if (args.Length != (apply ? 5 : 4)) { Console.WriteLine("station-kinds hull \"<hull name>\" <kind> [apply]"); return 1; }
                     code = StationKindsCatalog.SetHullKind(db.Cache, args[2], args[3], apply, Console.Out);
                 }
+                else if (args.Length > 1 && args[1] == "facilities")
+                {
+                    var words = args.Skip(2).Where(a => a != "apply").ToArray();
+                    if (words.Length < 1) { Console.WriteLine(StationKindsCatalog.FacilitiesUsage); return 1; }
+                    code = StationKindsCatalog.SetFacilityRows(db.Cache, words[0], words.Skip(1).ToArray(), apply, Console.Out);
+                }
                 else code = StationKindsCatalog.Run(db.Cache, apply, Console.Out);
                 if (apply) db.Cache.FlushAsync().GetAwaiter().GetResult();
                 return code;
@@ -97,7 +103,7 @@ public static class Program
             case "auto-guns": return AutoGunsCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, hardpoint-rotation \"<hull>\" <x>,<y> <rotation> [apply], loadout [seed], loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace] [--boss-of <faction>], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], auto-guns [apply], assembly-from-maker [apply], shield-catalog [apply], station-kinds [hull \"<name>\" <kind>] [apply], economy report|prices|author <batch>... [apply]|balance");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, hardpoint-rotation \"<hull>\" <x>,<y> <rotation> [apply], loadout [seed], loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace] [--boss-of <faction>], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], auto-guns [apply], assembly-from-maker [apply], shield-catalog [apply], station-kinds [hull \"<name>\" <kind> | facilities \"<hull>\" <x>,<y>:<footprint>...] [apply], economy report|prices|author <batch>... [apply]|balance");
                 return 1;
         }
     }

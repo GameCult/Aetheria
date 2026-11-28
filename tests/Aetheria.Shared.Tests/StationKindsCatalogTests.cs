@@ -126,6 +126,81 @@ public sealed class StationKindsCatalogTests : IDisposable
         Assert.False(db.Cache.GetAll<HullData>().Single(h => h.Name == "Cutter").Kind.IsSet());
     }
 
+    // A writable catalog holding a solid 6x6 station hull (interior cells 1..4) with one Reactor row, a Ship hull, and a facility design.
+    private CultCache HubCatalog(out CultRecordKey hubKey)
+    {
+        var cache = AetheriaStores.Open(Path.Combine(_root, "hub" + Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        cache.Upsert(new VerseGrammar { Revision = 1 });
+        cache.Upsert(new InputLayout { Rows = new InputLayoutRow[] { new InputLayoutRowSpacer { Height = 1 } } });
+        var kind = new CultRecordRef<StationKindData>(cache.Upsert(new StationKindData { Name = "Hub" }).Key);
+        var shape = new Shape(6, 6);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var reactor = new Shape(2, 2);
+        foreach (var cell in reactor.AllCoordinates) reactor[cell] = true;
+        hubKey = cache.Upsert(new HullData
+        {
+            Name = "Hub", HullType = HullType.Station, Kind = kind, Shape = shape, Price = 1,
+            Hardpoints = { new HardpointData { Type = HardpointType.Reactor, Position = new CultMath.int2(1, 1), Shape = reactor, Transform = "R.1", Armor = 2 } }
+        }).Key;
+        cache.Upsert(new HullData { Name = "Cutter", HullType = HullType.Ship, Shape = shape, Price = 1 });
+        cache.Upsert(new GearData { Name = "Works", Hardpoint = HardpointType.Facility, Shape = reactor, Price = 1, Behaviors = { new FacilityData() } });
+        return cache;
+    }
+
+    private static string Rows(HullData hull) =>
+        string.Join(" ", hull.Hardpoints.Select(row => $"{row.Transform}:{row.Type}@{row.Position.x},{row.Position.y}:{row.Shape.Width}x{row.Shape.Height}:{row.Armor}"));
+
+    [Fact]
+    public void SetFacilityRowsSetsRowsAndARerunWritesNothing()
+    {
+        using var cache = HubCatalog(out var key);
+        var before = Rows(cache.Get<HullData>(key));
+        var dry = new StringWriter();
+        Assert.Equal(0, StationKindsCatalog.SetFacilityRows(cache, "Hub", new[] { "3,3:##/##", "1,3:#/#" }, false, dry));
+        Assert.Contains("Dry run", dry.ToString());
+        Assert.Contains("Works", dry.ToString());
+        Assert.Equal(before, Rows(cache.Get<HullData>(key)));
+        Assert.Equal(0, StationKindsCatalog.SetFacilityRows(cache, "Hub", new[] { "3,3:##/##", "1,3:#/#" }, true, new StringWriter()));
+        var after = Rows(cache.Get<HullData>(key));
+        Assert.Equal(before + " Fa.1:Facility@3,3:2x2:0 Fa.2:Facility@1,3:1x2:0", after);
+        // The facility design takes the 2x2 row and no other.
+        var set = cache.Get<HullData>(key).Hardpoints.Where(row => row.Type == HardpointType.Facility).ToArray();
+        Assert.True(set[0].Takes(cache.GetByName<GearData>("Works")));
+        Assert.False(set[1].Takes(cache.GetByName<GearData>("Works")));
+        var stored = cache.GetStored(key).StoredAt;
+        var again = new StringWriter();
+        Assert.Equal(0, StationKindsCatalog.SetFacilityRows(cache, "Hub", new[] { "3,3:##/##", "1,3:#/#" }, true, again));
+        Assert.Contains("No change", again.ToString());
+        Assert.Equal(stored, cache.GetStored(key).StoredAt);
+        // A call with no rows clears the Facility rows and keeps every other row as it was.
+        Assert.Equal(0, StationKindsCatalog.SetFacilityRows(cache, "Hub", new string[0], true, new StringWriter()));
+        Assert.Equal(before, Rows(cache.Get<HullData>(key)));
+    }
+
+    [Fact]
+    public void SetFacilityRowsRefusesWhatItCannotPlaceAndLeavesTheRowsEqual()
+    {
+        using var cache = HubCatalog(out var key);
+        Assert.Equal(0, StationKindsCatalog.SetFacilityRows(cache, "Hub", new[] { "3,3:##/##" }, true, new StringWriter()));
+        var before = Rows(cache.Get<HullData>(key));
+        string Refusal(string hull, params string[] rows)
+        {
+            var output = new StringWriter();
+            Assert.Equal(1, StationKindsCatalog.SetFacilityRows(cache, hull, rows, true, output));
+            Assert.Equal(before, Rows(cache.Get<HullData>(key)));
+            return output.ToString();
+        }
+        Assert.Contains("only a station hull", Refusal("Cutter", "1,1:#"));
+        Assert.Contains("exactly one is required", Refusal("Missing", "1,1:#"));
+        Assert.Contains("outside Hub's interior", Refusal("Hub", "4,4:##/##"));
+        Assert.Contains("outside Hub's interior", Refusal("Hub", "0,0:#"));
+        Assert.Contains("overlaps another row", Refusal("Hub", "2,2:#"));
+        Assert.Contains("overlaps another row", Refusal("Hub", "3,3:#", "3,3:#"));
+        Assert.Contains("is not a row", Refusal("Hub", "3,3"));
+        Assert.Contains("is not a row", Refusal("Hub", "-1,3:#"));
+        Assert.Contains("rows of # and .", Refusal("Hub", "3,3:#x/##"));
+    }
+
     [Fact]
     public void DryRunWritesNothingApplyIsIdempotent()
     {
