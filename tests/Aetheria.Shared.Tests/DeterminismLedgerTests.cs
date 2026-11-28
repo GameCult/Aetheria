@@ -65,11 +65,14 @@ public sealed partial class RunStartTests
     // measured on Yggdrasil, windows-x64 e4a3d6e5 -> 5201ca08 measured on Starfire.
     // Station facility fit (cut station-facility-fit): the zone's station Zenith seats its kind's facilities before its docking bay and heater,
     // which moves its gear; linux-x64 99e358a0 -> d80cc78c (Yggdrasil), windows-x64 5201ca08 -> 77e8a2f3 (Starfire).
+    // Facility output room (cut facility-output-room): a Facility row is no free cell for general gear (Entity.UnoccupiedSpace and ItemFits), so the
+    // zone's station Zenith draws its docking bay, heater and cargo bay from a smaller free space; linux-x64 d80cc78c -> 27033347 (Yggdrasil),
+    // windows-x64 77e8a2f3 -> eea82726 (Starfire).
     private static readonly System.Collections.Generic.Dictionary<string, string> TwoAiPinnedDigests = new()
     {
-        ["linux-x64"] = "d80cc78c8ebf209c880a073db4294b9df57e5ab829da8b2dd3208e4654c9d1f8",
+        ["linux-x64"] = "270333479adbc3b603060a9b87d5195c11373733afb6d90c02b600cbc0d9efbe",
         // Measured on windows-x64 at the commit that added this pin (the fight is one history there: TwoAiFightIsOneHistory).
-        ["windows-x64"] = "77e8a2f385b036b72ee75c69d1b86091190e48251af4e34c8b12481f34c5149e",
+        ["windows-x64"] = "eea82726e3e0ffedbb01f8c26793d3d498ce20473f3e0b7b7977221cf3ab98bf",
     };
     private const float TwoAiSeconds = 60f;
 
