@@ -119,6 +119,9 @@ public sealed class LaunchSuppressorCatalogTests
             var items = new ItemManager(1u, Cache, ledger, settings, _ => { });
             var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
             Ship = new Ship(items, zone, new EquippableItem { Data = Cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 }, settings.DefaultEntitySettings);
+            // The rig measures the suppressor's own heat on an insulated hull, as its fights (36 and 33 launches, 10 and 10) were probed; a hull that
+            // conducts from construction bleeds the cell and neither design runs out within the 60 launches.
+            foreach (var v in hull.Shape.Coordinates) Ship.HullConductivity[v.x, v.y] = default;
 
             var lot = 2;
             var thrusters = Cache.GetAll<GearData>().Where(g => g.Hardpoint == HardpointType.Thruster).ToArray();
