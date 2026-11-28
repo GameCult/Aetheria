@@ -114,13 +114,10 @@ public static class ShipAuthoringStore
         cache.UpsertAsync(typeof(ShipAuthoring), visual, ShipModCatalog.AuthoringKey(visual.Id)).GetAwaiter().GetResult();
     }
 
-    // A package's product by one maker. These two are the only product writers; the key is the ship and the maker, so a
-    // maker has at most one product of the hull and writing again replaces it.
+    // A package's product by one maker, written when a package is made (the key is the ship and the maker); ship-authoring push
+    // is the product writer on an existing package, adds, changes and removals alike.
     public static void WriteProduct(CultCache cache, string shipId, FactionProductData product) =>
         cache.UpsertAsync(typeof(FactionProductData), product, ShipModCatalog.ProductKey(shipId, product.Manufacturer.Key)).GetAwaiter().GetResult();
-
-    public static bool DeleteProduct(CultCache cache, string shipId, CultRecordKey maker) =>
-        cache.Remove(ShipModCatalog.ProductKey(shipId, maker));
 
     // A new mod hull that flies like a shipped one. Every member of the reference is copied through the type's own
     // MessagePack round trip, so a member added to HullData later is copied too; then the seven that are the shipped ship's

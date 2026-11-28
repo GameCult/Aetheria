@@ -18,24 +18,50 @@ public static class ShipAuthoringPush
 {
     // A request is open's output and is parsed strictly: an unknown key and a missing key are refused by name.
     [JsonObject(MemberSerialization.OptIn)]
-    private sealed class Request
+    internal sealed class Request
     {
         [JsonProperty("ship", Required = Required.DisallowNull)] public string Ship;
+        // Checked against the stored HullType, never written.
+        [JsonProperty("hullType")] public string HullType;
         [JsonProperty("versions", Required = Required.DisallowNull)] public Dictionary<string, string> Versions;
         [JsonProperty("layout")] public LayoutSection Layout;
         [JsonProperty("visual")] public VisualSection Visual;
         [JsonProperty("lines")] public List<LineRow> Lines;
+        [JsonProperty("hull")] public HullSection Hull;
+        [JsonProperty("products")] public List<ProductRow> Products;
     }
 
     [JsonObject(MemberSerialization.OptIn)]
-    private sealed class LayoutSection
+    internal sealed class HullSection
+    {
+        [JsonProperty("name", Required = Required.DisallowNull)] public string Name;
+        [JsonProperty("price", Required = Required.Always)] public int Price;
+        [JsonProperty("mass", Required = Required.Always)] public float Mass;
+        [JsonProperty("durability", Required = Required.Always)] public float Durability;
+        [JsonProperty("armor", Required = Required.Always)] public float Armor;
+        [JsonProperty("drag", Required = Required.Always)] public float Drag;
+        [JsonProperty("topSpeed", Required = Required.AllowNull)] public float? TopSpeed;
+        [JsonProperty("kind", Required = Required.AllowNull)] public string Kind;
+    }
+
+    [JsonObject(MemberSerialization.OptIn)]
+    internal sealed class ProductRow
+    {
+        [JsonProperty("maker", Required = Required.DisallowNull)] public string Maker;
+        [JsonProperty("name", Required = Required.DisallowNull)] public string Name;
+        [JsonProperty("description", Required = Required.AllowNull)] public string Description;
+        [JsonProperty("offered", Required = Required.Always)] public bool Offered;
+    }
+
+    [JsonObject(MemberSerialization.OptIn)]
+    internal sealed class LayoutSection
     {
         [JsonProperty("grid", Required = Required.DisallowNull)] public string Grid;
         [JsonProperty("hardpoints", Required = Required.DisallowNull)] public List<HardpointRow> Hardpoints;
     }
 
     [JsonObject(MemberSerialization.OptIn)]
-    private sealed class HardpointRow
+    internal sealed class HardpointRow
     {
         [JsonProperty("element", Required = Required.DisallowNull)] public string Element;
         [JsonProperty("mount", Required = Required.DisallowNull)] public string Mount;
@@ -48,14 +74,14 @@ public static class ShipAuthoringPush
     }
 
     [JsonObject(MemberSerialization.OptIn)]
-    private sealed class VisualSection
+    internal sealed class VisualSection
     {
         [JsonProperty("model", Required = Required.DisallowNull)] public string Model;
         [JsonProperty("anchors", Required = Required.DisallowNull)] public List<AnchorRow> Anchors;
     }
 
     [JsonObject(MemberSerialization.OptIn)]
-    private sealed class AnchorRow
+    internal sealed class AnchorRow
     {
         [JsonProperty("id", Required = Required.DisallowNull)] public string Id;
         [JsonProperty("role", Required = Required.DisallowNull)] public string Role;
@@ -65,7 +91,7 @@ public static class ShipAuthoringPush
     }
 
     [JsonObject(MemberSerialization.OptIn)]
-    private sealed class LineRow
+    internal sealed class LineRow
     {
         [JsonProperty("element", Required = Required.DisallowNull)] public string Element;
         [JsonProperty("layer", Required = Required.AllowNull)] public string Layer;
@@ -96,64 +122,83 @@ public static class ShipAuthoringPush
     public static int Open(string path, TextWriter output)
     {
         using var cache = ShipAuthoringStore.Open(path);
-        var (hull, ship, _) = ShipAuthoringStore.Load(cache, path);
-        var request = new Dictionary<string, object>
-        {
-            ["ship"] = ship.Id,
-            ["versions"] = Versions(cache, ship.Id),
-            ["layout"] = new Dictionary<string, object>
-            {
-                ["grid"] = Footprint(hull.Shape),
-                ["hardpoints"] = (hull.Hardpoints ?? new List<HardpointData>()).Select(hardpoint => new Dictionary<string, object>
-                {
-                    ["element"] = hardpoint.Id ?? "",
-                    ["mount"] = hardpoint.Transform,
-                    ["kind"] = hardpoint.Type.ToString(),
-                    ["cell"] = new[] { hardpoint.Position.x, hardpoint.Position.y },
-                    ["footprint"] = Footprint(hardpoint.Shape),
-                    ["rotation"] = (int)hardpoint.Rotation,
-                    ["armor"] = hardpoint.Armor,
-                    ["arc"] = hardpoint.FiringArc
-                }).ToList()
-            },
-            ["visual"] = new Dictionary<string, object>
-            {
-                ["model"] = ship.ModelAsset,
-                ["anchors"] = (ship.Anchors ?? new List<ShipAnchor>()).Select(anchor => new Dictionary<string, object>
-                {
-                    ["id"] = anchor.Id,
-                    ["role"] = anchor.Role,
-                    ["node"] = anchor.ModelNodeId,
-                    ["parent"] = anchor.ParentId,
-                    ["order"] = anchor.Order
-                }).ToList()
-            },
-            ["lines"] = (ship.SchematicLines ?? new List<ShipPolyline>()).Select(line => new Dictionary<string, object>
-            {
-                ["element"] = line.Id ?? "",
-                ["layer"] = line.Layer,
-                ["material"] = line.Material,
-                ["points"] = line.Points,
-                ["radii"] = line.Radii,
-                ["opacities"] = line.Opacities,
-                ["cyclic"] = line.Cyclic,
-                ["color"] = line.Color
-            }).ToList()
-        };
-        output.WriteLine(JsonConvert.SerializeObject(request, Formatting.Indented));
+        output.WriteLine(JsonConvert.SerializeObject(Opened(cache, path), Formatting.Indented));
         return 0;
     }
 
+    // The package's authored members as a typed request: open prints it, and the builders (stats, price, kind, product) edit
+    // the one section they own and hand it to Run.
+    internal static Request Opened(CultCache cache, string path)
+    {
+        var (hull, ship, products) = ShipAuthoringStore.Load(cache, path);
+        return new Request
+        {
+            Ship = ship.Id,
+            HullType = hull.HullType.ToString(),
+            Versions = Versions(cache, ship.Id),
+            Layout = new LayoutSection
+            {
+                Grid = Footprint(hull.Shape),
+                Hardpoints = (hull.Hardpoints ?? new List<HardpointData>()).Select(hardpoint => new HardpointRow
+                {
+                    Element = hardpoint.Id ?? "",
+                    Mount = hardpoint.Transform,
+                    Kind = hardpoint.Type.ToString(),
+                    Cell = new[] { hardpoint.Position.x, hardpoint.Position.y },
+                    Footprint = Footprint(hardpoint.Shape),
+                    Rotation = (int)hardpoint.Rotation,
+                    Armor = hardpoint.Armor,
+                    Arc = hardpoint.FiringArc
+                }).ToList()
+            },
+            Visual = new VisualSection
+            {
+                Model = ship.ModelAsset,
+                Anchors = (ship.Anchors ?? new List<ShipAnchor>()).Select(anchor => new AnchorRow
+                {
+                    Id = anchor.Id, Role = anchor.Role, Node = anchor.ModelNodeId, Parent = anchor.ParentId, Order = anchor.Order
+                }).ToList()
+            },
+            Lines = (ship.SchematicLines ?? new List<ShipPolyline>()).Select(line => new LineRow
+            {
+                Element = line.Id ?? "", Layer = line.Layer, Material = line.Material, Points = line.Points, Radii = line.Radii,
+                Opacities = line.Opacities, Cyclic = line.Cyclic, Color = line.Color
+            }).ToList(),
+            Hull = new HullSection
+            {
+                Name = hull.Name, Price = hull.Price, Mass = hull.Mass, Durability = hull.Durability, Armor = hull.Armor,
+                Drag = hull.Drag, TopSpeed = TopSpeed(hull), Kind = KindText(hull)
+            },
+            Products = products.OrderBy(product => product.Manufacturer.Key.Value, StringComparer.Ordinal).Select(product => new ProductRow
+            {
+                Maker = product.Manufacturer.Key.Value, Name = product.Name, Description = product.Description, Offered = !product.NotOffered
+            }).ToList()
+        };
+    }
+
+    // The hull, the ship and every product record the package holds, each by the store's version token.
     private static Dictionary<string, string> Versions(CultCache cache, string shipId) =>
         new[] { ShipModCatalog.HullKey(shipId), ShipModCatalog.AuthoringKey(shipId) }
+            .Concat(cache.GetAll<FactionProductData>().Select(product => cache.TryGetHandle(product).Value.Key))
             .ToDictionary(key => key.Value, key => cache.GetStored(key).StoredAt, StringComparer.Ordinal);
+
+    // The result of a push: what the print shows and the builders read.
+    internal sealed class Result
+    {
+        public string Outcome;
+        public int Code;
+        public string Message;
+        public List<string> Lines = new List<string>();
+        public List<string> Changed = new List<string>();
+        public List<string> Stale = new List<string>();
+        public string Verdict;
+        public Dictionary<string, string> Versions;
+    }
 
     // Reads a request from stdin and prints what it would change; with apply, writes it. Exit 0 dry run or applied,
     // 1 refused (the file is untouched), 2 stale (a record was written since the request's open; nothing is written).
     public static int Push(string path, TextReader requestText, bool apply, TextWriter output)
     {
-        var lines = new List<string>();
-        var changed = new List<string>();
         Request request;
         try
         {
@@ -161,6 +206,21 @@ public static class ShipAuthoringPush
         }
         catch (JsonException error) { return Refused(output, "request: " + error.Message); }
         if (request == null) return Refused(output, "request: the request is empty.");
+        var result = Run(path, request, apply);
+        if (result.Outcome == "refused") return Refused(output, result.Message);
+        foreach (var line in result.Lines) output.WriteLine(line);
+        output.WriteLine(JsonConvert.SerializeObject(new Dictionary<string, object>
+        {
+            ["outcome"] = result.Outcome, ["changed"] = result.Changed, ["stale"] = result.Stale, ["verdict"] = result.Verdict, ["versions"] = result.Versions
+        }));
+        return result.Code;
+    }
+
+    // The one core: push and the builders both come here. A refusal leaves the file untouched (Code 1, Message); a stale
+    // record writes nothing (Code 2).
+    internal static Result Run(string path, Request request, bool apply)
+    {
+        var result = new Result();
         try
         {
             using var cache = ShipAuthoringStore.Open(path, writable: apply);
@@ -169,47 +229,65 @@ public static class ShipAuthoringPush
             var shipKey = ShipModCatalog.AuthoringKey(ship.Id);
             if (!string.Equals(request.Ship, ship.Id, StringComparison.Ordinal))
                 throw new InvalidOperationException($"request: ship is not {ship.Id}; the request was opened from another package.");
+            if (request.HullType != null && !string.Equals(request.HullType, hull.HullType.ToString(), StringComparison.Ordinal))
+                throw new InvalidOperationException($"request: hullType is {request.HullType}; this package's hull is a {hull.HullType}.");
 
+            var lines = result.Lines;
             var newHull = Copy(hull);
             var newShip = Copy(ship);
             if (request.Layout != null) DeriveLayout(request.Layout, hull, newHull, hullKey.Value, lines);
             if (request.Visual != null) DeriveVisual(request.Visual, ship, newShip, shipKey.Value, lines);
             if (request.Lines != null) DeriveLines(request.Lines, ship, newShip, shipKey.Value, lines);
+            if (request.Hull != null) DeriveHull(request.Hull, hull, newHull, hullKey.Value, ship.Id, lines);
+            var productWrites = request.Products != null ? DeriveProducts(request.Products, products, newHull, ship.Id, lines) : new List<Write>();
 
             var writes = new List<Write>();
             if (!Pack(newHull).AsSpan().SequenceEqual(Pack(hull))) writes.Add(new Write(hullKey, typeof(HullData), hull, newHull));
             if (!Pack(newShip).AsSpan().SequenceEqual(Pack(ship))) writes.Add(new Write(shipKey, typeof(ShipAuthoring), ship, newShip));
+            writes.AddRange(productWrites);
 
+            var productPrefix = "mod-product:" + ship.Id + ":";
             foreach (var held in request.Versions.Keys)
-                if (held != hullKey.Value && held != shipKey.Value)
-                    throw new InvalidOperationException($"request: versions names {held}, which this push does not write; it may name {hullKey.Value} and {shipKey.Value}.");
+                if (held != hullKey.Value && held != shipKey.Value && !held.StartsWith(productPrefix, StringComparison.Ordinal))
+                    throw new InvalidOperationException($"request: versions names {held}, which this push does not write; it may name {hullKey.Value}, {shipKey.Value} and {productPrefix}<maker>.");
             foreach (var write in writes)
-                if (!request.Versions.ContainsKey(write.Key.Value))
+                if ((write.Key.Equals(hullKey) || write.Key.Equals(shipKey)) && !request.Versions.ContainsKey(write.Key.Value))
                     throw new InvalidOperationException($"request: versions has no entry for {write.Key.Value}, which this push writes.");
-            changed.AddRange(writes.Select(write => write.Key.Value));
+            result.Changed.AddRange(writes.Select(write => write.Key.Value));
 
-            var verdict = Verdict(path, newHull, newShip, products);
-            foreach (var line in lines) output.WriteLine(line);
+            // The products Judge sees: the stored ones with each product write applied.
+            var written = productWrites.ToDictionary(write => write.Key.Value, StringComparer.Ordinal);
+            var judged = products.Where(product => !written.ContainsKey(ShipModCatalog.ProductKey(ship.Id, product.Manufacturer.Key).Value))
+                .Concat(productWrites.Where(write => write.Derived != null).Select(write => (FactionProductData)write.Derived)).ToArray();
+            result.Verdict = Verdict(path, newHull, newShip, judged);
 
-            var stale = writes.Where(write => !string.Equals(request.Versions[write.Key.Value], cache.GetStored(write.Key).StoredAt, StringComparison.Ordinal))
-                .Select(write => write.Key.Value).ToList();
+            // A record the request carries a version for is expected as that instance; one it carries none for (a product it
+            // did not open) is expected absent.
+            bool Stale(Write write) => request.Versions.TryGetValue(write.Key.Value, out var version)
+                ? write.Held == null || !string.Equals(version, cache.GetStored(write.Key).StoredAt, StringComparison.Ordinal)
+                : write.Held != null;
+            var stale = writes.Where(Stale).Select(write => write.Key.Value).ToList();
             if (stale.Count == 0 && apply && writes.Count > 0)
             {
                 var landed = Land(cache, writes);
                 if (landed) cache.FlushAsync().Wait();
                 else stale = writes.Select(write => write.Key.Value).ToList();
             }
-            if (stale.Count > 0) return Outcome(output, "stale", changed, stale, verdict, Versions(cache, ship.Id), 2);
-            return Outcome(output, apply ? "applied" : "dry-run", changed, stale, verdict, Versions(cache, ship.Id), 0);
+            result.Stale = stale;
+            result.Versions = Versions(cache, ship.Id);
+            result.Code = stale.Count > 0 ? 2 : 0;
+            result.Outcome = stale.Count > 0 ? "stale" : apply ? "applied" : "dry-run";
+            return result;
         }
-        catch (InvalidOperationException error) { return Refused(output, error.Message); }
+        catch (InvalidOperationException error) { return new Result { Outcome = "refused", Code = 1, Message = error.Message }; }
     }
 
-    // A record to write: the instance the cache holds, and the copy derived from it.
+    // A record to write: the instance the cache holds (null: the key is absent, an add) and the copy derived from it
+    // (null: a removal).
     internal readonly record struct Write(CultRecordKey Key, Type Type, object Held, object Derived);
 
-    // One commit, every record expected to still be the instance it was loaded as: a write that lands between the load and
-    // this commit replaces that instance and is refused here (false), never overwritten.
+    // One commit, every record expected to still be the instance it was loaded as (or absent): a write that lands between the
+    // load and this commit replaces that instance and is refused here (false), never overwritten.
     internal static bool Land(CultCache cache, IReadOnlyList<Write> writes)
     {
         try
@@ -219,7 +297,8 @@ public static class ShipAuthoringPush
                 foreach (var write in writes)
                 {
                     batch.Expect(write.Key, write.Held);
-                    batch.Upsert(write.Type, write.Derived, write.Key);
+                    if (write.Derived == null) batch.Remove(write.Key);
+                    else batch.Upsert(write.Type, write.Derived, write.Key);
                 }
             });
         }
@@ -234,20 +313,123 @@ public static class ShipAuthoringPush
         catch (Exception error) when (error is InvalidOperationException or JsonException) { return "refused: " + error.Message; }
     }
 
-    private static int Outcome(TextWriter output, string outcome, List<string> changed, List<string> stale, string verdict,
-        Dictionary<string, string> versions, int code)
-    {
-        output.WriteLine(JsonConvert.SerializeObject(new Dictionary<string, object>
-        {
-            ["outcome"] = outcome, ["changed"] = changed, ["stale"] = stale, ["verdict"] = verdict, ["versions"] = versions
-        }));
-        return code;
-    }
-
     private static int Refused(TextWriter output, string message)
     {
         output.WriteLine(JsonConvert.SerializeObject(new Dictionary<string, object> { ["outcome"] = "refused", ["message"] = message }));
         return 1;
+    }
+
+    // ---- hull: name, price, stats, top speed, station kind ------------------------------------------------------------
+
+    // The one VelocityLimit's top speed when the hull has exactly one with a fixed speed (Min equal to Max), else null.
+    private static float? TopSpeed(HullData hull)
+    {
+        var limits = (hull.Behaviors ?? new List<BehaviorData>()).OfType<VelocityLimitData>().ToArray();
+        return limits.Length == 1 && limits[0].TopSpeed.Min == limits[0].TopSpeed.Max ? limits[0].TopSpeed.Max : null;
+    }
+
+    private static string KindText(HullData hull) => hull.Kind.IsSet() ? hull.Kind.Key.Value : null;
+
+    private static void DeriveHull(HullSection section, HullData held, HullData derived, string key, string shipId, List<string> lines)
+    {
+        if (section.Price < 0) throw new InvalidOperationException("hull: price must be a whole number of at least 0.");
+        foreach (var (field, value) in new[] { ("mass", section.Mass), ("durability", section.Durability), ("armor", section.Armor), ("drag", section.Drag) })
+            if (!(value >= 0) || float.IsInfinity(value)) throw new InvalidOperationException($"hull: {field} must be finite and at least 0.");
+        derived.Name = section.Name;
+        derived.Price = section.Price;
+        derived.Mass = section.Mass;
+        derived.Durability = section.Durability;
+        derived.Armor = section.Armor;
+        derived.Drag = section.Drag;
+        if (section.TopSpeed is { } speed)
+        {
+            if (!float.IsFinite(speed) || speed < 0) throw new InvalidOperationException("hull: topSpeed must be null, or finite and at least 0.");
+            var limits = (derived.Behaviors ??= new List<BehaviorData>()).OfType<VelocityLimitData>().ToArray();
+            if (limits.Length > 1) throw new InvalidOperationException($"{shipId}: --top-speed needs at most one VelocityLimit on the hull; it has {limits.Length}.");
+            // A hull made without --like has none, and this is its only way to get one: validate refuses a ship without a top speed.
+            if (limits.Length == 0)
+            {
+                limits = new[] { new VelocityLimitData() };
+                derived.Behaviors.Add(limits[0]);
+            }
+            // A fixed top speed, as every shipped hull authors one (Min equal to Max); its terms are kept.
+            limits[0].TopSpeed.Min = limits[0].TopSpeed.Max = speed;
+        }
+        derived.Kind = string.IsNullOrEmpty(section.Kind) ? default : new CultRecordRef<StationKindData>(new CultRecordKey(section.Kind));
+        // Only a changed kind is judged here, so a kindless station draft still takes stats and price; the verdict judges the package.
+        if (KindText(derived) != KindText(held))
+            using (var catalog = AetherDb.Open().Cache)
+                if (StationKinds.HullKindFault(catalog, derived) is { } fault) throw new InvalidOperationException($"{shipId}: {fault}");
+        FlatDiff(lines, key, HullFields(held), HullFields(derived));
+    }
+
+    private static (string Field, string Value)[] HullFields(HullData hull) => new[]
+    {
+        ("name", hull.Name), ("price", Text(hull.Price)), ("mass", Text(hull.Mass)), ("durability", Text(hull.Durability)),
+        ("armor", Text(hull.Armor)), ("drag", Text(hull.Drag)), ("topSpeed", TopSpeed(hull) is { } speed ? Text(speed) : null), ("kind", KindText(hull))
+    };
+
+    // ---- products: one FactionProductData per maker ------------------------------------------------------------------
+
+    private static List<Write> DeriveProducts(List<ProductRow> request, FactionProductData[] stored, HullData hull, string shipId, List<string> lines)
+    {
+        var byMaker = stored.ToDictionary(product => product.Manufacturer.Key.Value, StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var writes = new List<Write>();
+        foreach (var row in request)
+        {
+            if (string.IsNullOrWhiteSpace(row.Name)) throw new InvalidOperationException($"products: {row.Maker}: a product needs a name.");
+            // A maker that is a stored product's own key names it; any other is a shipped faction by key, name or short name.
+            FactionProductData held;
+            CultRecordKey maker;
+            if (byMaker.TryGetValue(row.Maker, out held)) maker = held.Manufacturer.Key;
+            else
+            {
+                maker = ShipAuthoringCommands.ShippedFaction(row.Maker).Key;
+                byMaker.TryGetValue(maker.Value, out held);
+            }
+            if (!seen.Add(maker.Value)) throw new InvalidOperationException($"products: maker {row.Maker} names {maker.Value}, which another row names too.");
+            var key = ShipModCatalog.ProductKey(shipId, maker);
+            var derived = held != null ? Copy(held) : new FactionProductData
+            {
+                Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey(shipId)),
+                Manufacturer = new CultRecordRef<Faction>(maker),
+                // A hull stored with no roles (Zenith, so a station made --like it) decodes with a null list.
+                Roles = (hull.Roles ?? new List<ItemRole>()).Select(role => new ProductRole { Role = role.Name }).ToList()
+            };
+            derived.Name = row.Name;
+            derived.Description = row.Description;
+            derived.NotOffered = !row.Offered;
+            if (held == null)
+            {
+                lines.Add($"{key.Value} added");
+                writes.Add(new Write(key, typeof(FactionProductData), null, derived));
+            }
+            else if (!Pack(derived).AsSpan().SequenceEqual(Pack(held)))
+            {
+                FlatDiff(lines, key.Value, ProductFields(held), ProductFields(derived));
+                writes.Add(new Write(key, typeof(FactionProductData), held, derived));
+            }
+        }
+        foreach (var gone in stored.Where(product => !seen.Contains(product.Manufacturer.Key.Value)))
+        {
+            var key = ShipModCatalog.ProductKey(shipId, gone.Manufacturer.Key);
+            lines.Add($"{key.Value} removed");
+            writes.Add(new Write(key, typeof(FactionProductData), gone, null));
+        }
+        return writes.OrderBy(write => write.Key.Value, StringComparer.Ordinal).ToList();
+    }
+
+    private static (string Field, string Value)[] ProductFields(FactionProductData product) => new[]
+    {
+        ("name", product.Name), ("description", product.Description), ("offered", product.NotOffered ? "false" : "true")
+    };
+
+    private static void FlatDiff(List<string> lines, string key, (string Field, string Value)[] before, (string Field, string Value)[] after)
+    {
+        for (var i = 0; i < before.Length; i++)
+            if (!string.Equals(before[i].Value, after[i].Value, StringComparison.Ordinal))
+                lines.Add($"{key} {before[i].Field}: {before[i].Value ?? "null"} -> {after[i].Value ?? "null"}");
     }
 
     // ---- layout: HullData.Shape and HullData.Hardpoints --------------------------------------------------------------

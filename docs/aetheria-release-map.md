@@ -8967,7 +8967,7 @@ in a detached worktree; anchors are file:line at b6262467.
   not a scripting surface), ship-roles-are-tags (unrelated: add-on object roles). Withdrawn
   ships-hull-material r2 and ships-hull-livery r1 are not depended on; r3 did not either.
 - Shape change from r3: Write(cache, hull, visual) is NOT widened (11 callers). A separate
-  WriteProduct/DeleteProduct pair is the one product writer. Load/Read become a 3-tuple
+  WriteProduct is the one product writer at creation (ship-authoring push adds, changes and removes). Load/Read become a 3-tuple
   (18 deconstruction sites in 6 files, one of them the Unity-only Editor file).
 
 ## Probes

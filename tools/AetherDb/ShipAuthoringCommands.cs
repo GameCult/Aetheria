@@ -120,15 +120,7 @@ public static class ShipAuthoringCommands
                 // Judged before the file is touched: a refusal leaves it byte-identical.
                 if (!int.TryParse(args[2], NumberStyles.None, CultureInfo.InvariantCulture, out var price))
                     throw new InvalidOperationException("price must be a non-negative whole number.");
-                var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
-                hull.Price = price;
-                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
-                {
-                    ShipAuthoringStore.Write(cache, hull, ship);
-                    cache.FlushAsync().Wait();
-                }
-                Console.WriteLine($"{ship.Id}: price {price}.");
-                return 0;
+                return Build(args[1], request => request.Hull.Price = price, ship => $"{ship}: price {price}.");
             }
             if (args[0] == "stats" && args.Length >= 2)
             {
@@ -144,31 +136,15 @@ public static class ShipAuthoringCommands
                     stats[args[i]] = value;
                 }
                 if (stats.Count == 0) throw new InvalidOperationException("stats: name at least one stat.");
-                var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
-                if (stats.TryGetValue("--top-speed", out var topSpeed))
+                // The push core owns the VelocityLimit rules: the one top speed, the add on a hull with none, the refusal of twins.
+                return Build(args[1], request =>
                 {
-                    var limits = (hull.Behaviors ?? new List<BehaviorData>()).OfType<VelocityLimitData>().ToArray();
-                    if (limits.Length > 1) throw new InvalidOperationException($"{ship.Id}: --top-speed needs at most one VelocityLimit on the hull; it has {limits.Length}.");
-                    // A hull made without --like has none, and this is its only way to get one: validate refuses a ship without a top speed.
-                    if (limits.Length == 0)
-                    {
-                        limits = new[] { new VelocityLimitData() };
-                        (hull.Behaviors ??= new List<BehaviorData>()).Add(limits[0]);
-                    }
-                    // A fixed top speed, as every shipped hull authors one (Min equal to Max); its terms are kept.
-                    limits[0].TopSpeed.Min = limits[0].TopSpeed.Max = topSpeed;
-                }
-                if (stats.TryGetValue("--mass", out var mass)) hull.Mass = mass;
-                if (stats.TryGetValue("--durability", out var durability)) hull.Durability = durability;
-                if (stats.TryGetValue("--armor", out var armor)) hull.Armor = armor;
-                if (stats.TryGetValue("--drag", out var drag)) hull.Drag = drag;
-                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
-                {
-                    ShipAuthoringStore.Write(cache, hull, ship);
-                    cache.FlushAsync().Wait();
-                }
-                Console.WriteLine($"{ship.Id}: " + string.Join(", ", stats.Select(stat => string.Create(CultureInfo.InvariantCulture, $"{stat.Key.Substring(2)} {stat.Value:R}"))) + ".");
-                return 0;
+                    if (stats.TryGetValue("--top-speed", out var topSpeed)) request.Hull.TopSpeed = topSpeed;
+                    if (stats.TryGetValue("--mass", out var mass)) request.Hull.Mass = mass;
+                    if (stats.TryGetValue("--durability", out var durability)) request.Hull.Durability = durability;
+                    if (stats.TryGetValue("--armor", out var armor)) request.Hull.Armor = armor;
+                    if (stats.TryGetValue("--drag", out var drag)) request.Hull.Drag = drag;
+                }, ship => $"{ship}: " + string.Join(", ", stats.Select(stat => string.Create(CultureInfo.InvariantCulture, $"{stat.Key.Substring(2)} {stat.Value:R}"))) + ".");
             }
             if (args[0] == "product" && args.Length >= 4)
             {
@@ -178,51 +154,32 @@ public static class ShipAuthoringCommands
                 var remove = !notOffered && count == 4 && args[3] == "--remove";
                 var named = count >= 5 && args[3] == "--name" && (count == 5 || count == 7 && args[5] == "--description");
                 if (!remove && !named) { Console.Error.WriteLine(Usage); return 1; }
-                var (hull, ship, products) = ShipAuthoringStore.Load(args[1]);
-                var (makerKey, makerName) = ShippedFaction(args[2]);
-                if (remove)
+                var makerName = "";
+                return Build(args[1], request =>
                 {
-                    if (!products.Any(product => product.Manufacturer.Key.Equals(makerKey)))
-                        throw new InvalidOperationException($"{ship.Id}: the package holds no product by that maker.");
-                }
-                else if (string.IsNullOrWhiteSpace(args[4]))
-                    throw new InvalidOperationException("--name: a product needs a name.");
-                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
-                {
-                    if (remove) ShipAuthoringStore.DeleteProduct(cache, ship.Id, makerKey);
-                    else
-                        ShipAuthoringStore.WriteProduct(cache, ship.Id, new FactionProductData
+                    var (makerKey, name) = ShippedFaction(args[2]);
+                    makerName = name;
+                    if (remove)
+                    {
+                        if (!request.Products.Any(product => product.Maker == makerKey.Value))
+                            throw new InvalidOperationException($"{request.Ship}: the package holds no product by that maker.");
+                    }
+                    else if (string.IsNullOrWhiteSpace(args[4]))
+                        throw new InvalidOperationException("--name: a product needs a name.");
+                    request.Products.RemoveAll(product => product.Maker == makerKey.Value);
+                    if (!remove)
+                        request.Products.Add(new ShipAuthoringPush.ProductRow
                         {
-                            Name = args[4],
-                            Description = count == 7 ? args[6] : null,
-                            Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey(ship.Id)),
-                            Manufacturer = new CultRecordRef<Faction>(makerKey),
-                            // A hull stored with no roles (Zenith, so a station made --like it) decodes with a null list.
-                            Roles = (hull.Roles ?? new List<ItemRole>()).Select(role => new ProductRole { Role = role.Name }).ToList(),
-                            NotOffered = notOffered
+                            Maker = makerKey.Value, Name = args[4], Description = count == 7 ? args[6] : null, Offered = !notOffered
                         });
-                    cache.FlushAsync().Wait();
-                }
-                Console.WriteLine($"{ship.Id}: {(remove ? "removed" : "wrote")} the product by {makerName}{(notOffered ? ", not offered" : "")}.");
-                return 0;
+                }, ship => $"{ship}: {(remove ? "removed" : "wrote")} the product by {makerName}{(notOffered ? ", not offered" : "")}.");
             }
             if (args[0] == "kind" && args.Length == 3)
             {
-                // A thin builder over the push core: load through the cache the push loads from, derive the hull with its kind, judge
-                // it by the one kind rule against the shipped catalog (read-only), and commit through Land, the push's compare-exchange
-                // path, so a hull written since the load is refused as stale and the file stays as it was.
-                using var cache = ShipAuthoringStore.Open(args[1], writable: true);
-                var (hull, ship, _) = ShipAuthoringStore.Load(cache, args[1]);
-                var derived = ShipAuthoringPush.Copy(hull);
-                derived.Kind = new CultRecordRef<StationKindData>(StationKindData.KeyOf(args[2]));
-                using (var catalog = AetherDb.Open().Cache)
-                    if (StationKinds.HullKindFault(catalog, derived) is { } fault) throw new InvalidOperationException($"{ship.Id}: {fault}");
-                var key = ShipModCatalog.HullKey(ship.Id);
-                if (!ShipAuthoringPush.Land(cache, new[] { new ShipAuthoringPush.Write(key, typeof(HullData), hull, derived) }))
-                    throw new InvalidOperationException($"{ship.Id}: the hull was written since it was loaded; nothing was changed.");
-                cache.FlushAsync().Wait();
-                Console.WriteLine($"{ship.Id}: kind {derived.Kind.Key.Value}.");
-                return 0;
+                // A builder over the push core: the core judges a changed kind by the one kind rule against the shipped catalog
+                // and refuses it as '<id>: <fault>', and a hull written since the load is stale and left as it was.
+                var kind = StationKindData.KeyOf(args[2]).Value;
+                return Build(args[1], request => request.Hull.Kind = kind, ship => $"{ship}: kind {kind}.");
             }
             Console.Error.WriteLine(Usage);
             return 1;
@@ -232,6 +189,25 @@ public static class ShipAuthoringCommands
             Console.Error.WriteLine(ex.Message);
             return 1;
         }
+    }
+
+    // price, stats, product and kind are request builders over the push core: each opens the package's request, sets the one
+    // section it owns, and applies it. A refusal throws (stderr, exit 1, the file untouched); a record written since the open
+    // is stale (exit 2); success prints the builder's own line.
+    private static int Build(string path, Action<ShipAuthoringPush.Request> edit, Func<string, string> success)
+    {
+        ShipAuthoringPush.Request request;
+        using (var cache = ShipAuthoringStore.Open(path)) request = ShipAuthoringPush.Opened(cache, path);
+        edit(request);
+        var result = ShipAuthoringPush.Run(path, request, apply: true);
+        if (result.Outcome == "refused") throw new InvalidOperationException(result.Message);
+        if (result.Outcome == "stale")
+        {
+            Console.Error.WriteLine($"{request.Ship}: the package was written while this ran; run it again.");
+            return 2;
+        }
+        Console.WriteLine(success(request.Ship));
+        return 0;
     }
 
     // The judgment validate reports and push reports on its derived records: the package's records, and its GLB too once it
@@ -254,13 +230,14 @@ public static class ShipAuthoringCommands
         return judged;
     }
 
-    // A shipped faction by name or short name, from GameData/Aetheria.cc opened read-only: exactly one, or refused.
-    private static (CultRecordKey Key, string Name) ShippedFaction(string nameOrShortName)
+    // A shipped faction by record key, name or short name, from GameData/Aetheria.cc opened read-only: exactly one, or refused.
+    internal static (CultRecordKey Key, string Name) ShippedFaction(string text)
     {
         using var catalog = AetherDb.Open().Cache;
         var matches = catalog.GetAll<Faction>()
-            .Where(faction => string.Equals(faction.Name, nameOrShortName, StringComparison.Ordinal) ||
-                              string.Equals(faction.ShortName, nameOrShortName, StringComparison.Ordinal)).ToArray();
+            .Where(faction => string.Equals(faction.Name, text, StringComparison.Ordinal) ||
+                              string.Equals(faction.ShortName, text, StringComparison.Ordinal) ||
+                              string.Equals(catalog.TryGetHandle(faction).Value.Key.Value, text, StringComparison.Ordinal)).ToArray();
         if (matches.Length != 1)
             throw new InvalidOperationException($"<maker>: the shipped catalog has {matches.Length} factions with that name or short name; exactly one is required.");
         return (catalog.TryGetHandle(matches[0]).Value.Key, matches[0].Name);
