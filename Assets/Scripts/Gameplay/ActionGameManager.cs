@@ -849,18 +849,8 @@ public class ActionGameManager : MonoBehaviour
     {
         if (galaxyZone == null) throw new ArgumentNullException(nameof(galaxyZone));
         
-        if (galaxyZone.Contents == null)
-        {
-            galaxyZone.PackedContents ??= ZoneGenerator.GenerateZone(
-                ItemManager,
-                Settings.ZoneSettings,
-                Settings.PlanetSettings,
-                CurrentGalaxy,
-                galaxyZone
-            );
-            galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
-        }
-        Zone = galaxyZone.Contents;
+        // RunStart.Materialize owns every zone's existence; entering only reads it.
+        Zone = galaxyZone.Contents ?? throw new InvalidOperationException($"Zone {galaxyZone.Name} has no live contents.");
         _zoneEntered = true; // the clock forgets its lead between frames, never inside a step
         PlayMusic(MusicType.Overworld);
         _music = MusicType.Overworld;
@@ -945,6 +935,7 @@ public class ActionGameManager : MonoBehaviour
                 foreach(var group in CurrentGalaxy.DiscoveredZones
                     .GroupBy(dz=>dz.Distance[CurrentGalaxy.Entrance]))
                     SectorMap.QueueZoneReveal(group);
+                RunStart.Materialize(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy);
                 PopulateLevel(CurrentGalaxy.Zones[saved.CurrentZone]);
                 var targetEntity = Zone.Entities[saved.CurrentZoneEntity];
                 if (targetEntity is OrbitalEntity orbitalEntity)
@@ -977,8 +968,11 @@ public class ActionGameManager : MonoBehaviour
         Func<RunStart.Staged> start = () =>
         {
             RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
+            RunStart.BuildArena(ItemManager, Settings.PlanetSettings, CurrentGalaxy);
             PopulateLevel(CurrentGalaxy.Entrance);
-            return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, failures);
+            var placed = RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, failures);
+            if (placed != null) RunStart.Materialize(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy);
+            return placed;
         };
         var staged = RunStart.Launch(() =>
         {
