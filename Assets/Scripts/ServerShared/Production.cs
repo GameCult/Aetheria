@@ -25,6 +25,8 @@ public interface IProductionHold
     int Held(CultRecordKey design);
     bool TryTake(IReadOnlyList<(CultRecordKey design, int units)> units);
     bool TryPut(CultRecordKey design, int units);
+    // The units of the design a put may still store; int.MaxValue when the hold sets no bound.
+    int Room(CultRecordKey design);
 }
 
 // The one rule for a facility cycle: which recipe starts, which units it takes, how far it has run, what it stores. On screen its
@@ -110,6 +112,7 @@ public static class Production
                 if (seconds <= 0) return (run, Stall.None);
                 var cursor = run == null ? -1 : IndexOf(runList, run.Recipe.Key);
                 RecipeData start = null;
+                var skippedForRoom = false;
                 for (var step = 1; step <= runList.Count && start == null; step++)
                 {
                     // The list may be older than the catalog: a candidate starts only as the catalog now holds it and runs it, so a
@@ -117,9 +120,11 @@ public static class Production
                     var candidate = Live(catalog, new CultRecordRef<RecipeData>(RecipeData.KeyOf(runList[(cursor + step + runList.Count) % runList.Count].Output.Key)));
                     if (candidate == null) continue;
                     var units = Take(catalog, candidate, hold);
-                    if (units != null && hold.TryTake(units)) start = candidate;
+                    if (units == null) continue;
+                    if (hold.Room(candidate.Output.Key) < candidate.OutputCount) { skippedForRoom = true; continue; }
+                    if (hold.TryTake(units)) start = candidate;
                 }
-                if (start == null) return (run, Stall.Inputs);
+                if (start == null) return (run, skippedForRoom ? Stall.Room : Stall.Inputs);
                 run = new FacilityRun { Recipe = new CultRecordRef<RecipeData>(RecipeData.KeyOf(start.Output.Key)), Progress = 0 };
             }
 
@@ -190,6 +195,13 @@ public sealed class EntityHold : IProductionHold
         return true;
     }
 
+    // The units the output bays may still take of the design: the station's allocation less what they hold, unbounded without one.
+    public int Room(CultRecordKey design)
+    {
+        var allocation = StationWants.Allocation(_entity, design);
+        return allocation == null ? int.MaxValue : Math.Max(0, allocation.Value - StationWants.OutputBays(_entity, design).Sum(bay => bay.Count(design)));
+    }
+
     public bool TryPut(CultRecordKey design, int units)
     {
         var data = _entity.ItemManager.ItemData.Get<SimpleCommodityData>(design);
@@ -198,7 +210,7 @@ public sealed class EntityHold : IProductionHold
         {
             var chunk = Math.Min(left, data.MaxStack);
             var part = new SimpleCommodity { Data = new CultRecordRef<ItemData>(design), Quantity = chunk };
-            if (!_entity.CargoBays.Any(bay => bay.TryStore(part)))
+            if (!StationWants.OutputBays(_entity, design).Any(bay => bay.TryStore(part)))
             {
                 if (stored > 0) TryTake(new[] { (design, stored) });
                 return false;

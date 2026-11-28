@@ -22,6 +22,7 @@ public sealed partial class RunStartTests
         public int Held(CultRecordKey design) => _without.Contains(design) ? 0 : 1000;
         public bool TryTake(IReadOnlyList<(CultRecordKey design, int units)> units) => true;
         public bool TryPut(CultRecordKey design, int units) => true;
+        public int Room(CultRecordKey design) => int.MaxValue;
     }
 
     private IEnumerable<CultRecordKey> ShippedFacilityDesigns() =>
