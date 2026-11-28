@@ -17,6 +17,7 @@
     {"id": "Ra.N2", "kind": "Radiator", "cell": [2, 6], "footprint": "#/#/#/#", "rotation": 1, "armor": 0, "arc": 0},
     {"id": "Ra.S1", "kind": "Radiator", "cell": [11, 2], "footprint": "#/#/#/#", "rotation": 3, "armor": 0, "arc": 0},
     {"id": "Ra.S2", "kind": "Radiator", "cell": [11, 6], "footprint": "#/#/#/#", "rotation": 3, "armor": 0, "arc": 0},
-    {"id": "Fa.1", "kind": "Facility", "cell": [4, 2], "footprint": "##/##", "rotation": 0, "armor": 0, "arc": 0}
+    {"id": "Fa.1", "kind": "Facility", "cell": [4, 2], "footprint": "##/##", "rotation": 0, "armor": 0, "arc": 0},
+    {"id": "Fa.2", "kind": "Facility", "cell": [6, 2], "footprint": "##/##", "rotation": 0, "armor": 0, "arc": 0}
   ]
 }
