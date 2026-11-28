@@ -65,11 +65,13 @@ public sealed partial class RunStartTests
     // measured on Yggdrasil, windows-x64 e4a3d6e5 -> 5201ca08 measured on Starfire.
     // Station facility fit (cut station-facility-fit): the zone's station Zenith seats its kind's facilities before its docking bay and heater,
     // which moves its gear; linux-x64 99e358a0 -> d80cc78c (Yggdrasil), windows-x64 5201ca08 -> 77e8a2f3 (Starfire).
+    // Hull conductivity from construction (Entity.MapEntity): the fight's hand-fitted ships and the zone's stations now conduct heat, which Snapshot
+    // hashes; linux-x64 d80cc78c -> 42729ca4 (Yggdrasil), windows-x64 77e8a2f3 -> e0f230c3 (Starfire).
     private static readonly System.Collections.Generic.Dictionary<string, string> TwoAiPinnedDigests = new()
     {
-        ["linux-x64"] = "d80cc78c8ebf209c880a073db4294b9df57e5ab829da8b2dd3208e4654c9d1f8",
+        ["linux-x64"] = "42729ca4367b1e06a9aef25192cc93e6c3f9fb54b03b95e3a1366b033273952f",
         // Measured on windows-x64 at the commit that added this pin (the fight is one history there: TwoAiFightIsOneHistory).
-        ["windows-x64"] = "77e8a2f385b036b72ee75c69d1b86091190e48251af4e34c8b12481f34c5149e",
+        ["windows-x64"] = "e0f230c32de44d41d670e1ecd996063af293511ee9ebfbbf8e84bbc7716cfc72",
     };
     private const float TwoAiSeconds = 60f;
 
