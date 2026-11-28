@@ -69,6 +69,26 @@ public sealed class EconomyChecksTests
             var ghost = f.Station("ghost", "Ghost");
             f.EditRecipe(Ore, r => r.StationKind = ghost);
         }, "recipe:" + Ore, EconomyChecks.LOneKindList);
+        // L-facility: each clause fails its own case (ruling demand-consumed-inputs-processed-by-facilities).
+        const string Facility = EconomyChecks.LFacility;
+        yield return Case("an unset facility", f => f.EditRecipe(Ore, r => r.Facility = default), "recipe:" + Ore, Facility, "Facility is unset");
+        yield return Case("a facility naming nothing", f => f.EditRecipe(Ore, r => r.Facility = EconomyFixture.Item("commodity:ghost")), "recipe:" + Ore, Facility, "names no item");
+        yield return Case("a facility that is not facility gear", f => f.EditRecipe(Ore, r => r.Facility = EconomyFixture.Item("gear:laser")), "recipe:" + Ore, Facility, "not a recipe facility");
+        yield return Case("a facility no kind lists", f =>
+        {
+            // With no kind set the kind-mirror clause has nothing to say, so only the listing clause speaks.
+            var orphan = f.FacilityGear("orphan-works");
+            f.EditRecipe(Ore, r => { r.Facility = orphan; r.StationKind = default; });
+        }, "recipe:" + Ore, Facility, "No station kind lists");
+        yield return Case("a kind that does not list its recipe's facility", f =>
+        {
+            var forge = f.Station("forge", "Forge");
+            f.EditItem<StationKindData>(forge.Key.Value, kind => kind.Facilities = new List<CultRecordRef<ItemData>> { f.FacilityGear("forge-works") });
+            f.EditRecipe(Ore, r => r.StationKind = forge);
+        }, "recipe:" + Ore, Facility, "Station kind 'Forge' does not list");
+        yield return Case("a kind listing gear that is not a facility", f => f.EditItem<StationKindData>("station-kind:mill", kind => kind.Facilities.Add(EconomyFixture.Item("gear:laser"))), "station-kind:mill", Facility, "Facilities[1]");
+        yield return Case("facility gear on a Tool hardpoint", f => f.EditItem<GearData>("gear:laser", gear => gear.Behaviors.Add(new FacilityData())), "gear:laser", Facility, "holds a FacilityData");
+        yield return Case("a served kind whose hull has no Facility row", f => f.EditItem<HullData>("hull:yard", hull => hull.Hardpoints.Clear()), "station-facilities", Facility, "Yard");
     }
 
     [Theory]

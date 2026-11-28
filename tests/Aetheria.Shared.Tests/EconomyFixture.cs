@@ -13,6 +13,8 @@ public sealed class EconomyFixture : IDisposable
     public CultCache Cache { get; private set; }
     public CultRecordRef<Faction> Maker { get; private set; }
     public CultRecordRef<StationKindData> Mill { get; private set; }
+    // The facility design Mill's recipes name: facility gear no faction offers (NotOffered), 2x2, on a Facility row.
+    public CultRecordRef<ItemData> MillWorks { get; private set; }
 
     public EconomyFixture()
     {
@@ -22,7 +24,11 @@ public sealed class EconomyFixture : IDisposable
         Cache.Upsert(new InputLayout { Rows = new InputLayoutRow[] { new InputLayoutRowSpacer { Height = 1 } } });
         Maker = new CultRecordRef<Faction>(Cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" }).Key);
         Mill = Station("mill", "Mill");
-        Sell(Cache.Upsert(typeof(HullData), new HullData { Name = "Yard", HullType = HullType.Station, Kind = Mill, Shape = new Shape(), Price = 1 }, new CultRecordKey("hull:yard")));
+        MillWorks = FacilityGear("mill-works");
+        var mill = Cache.Get<StationKindData>(Mill.Key);
+        mill.Facilities = new List<CultRecordRef<ItemData>> { MillWorks };
+        Cache.Upsert(typeof(StationKindData), mill, Mill.Key);
+        Sell(Cache.Upsert(typeof(HullData), new HullData { Name = "Yard", HullType = HullType.Station, Kind = Mill, Shape = new Shape(), Price = 1, Hardpoints = { FacilityRow() } }, new CultRecordKey("hull:yard")));
     }
 
     public void Dispose()
@@ -42,6 +48,28 @@ public sealed class EconomyFixture : IDisposable
     public static CultRecordRef<ItemData> Item(string key) => new CultRecordRef<ItemData>(new CultRecordKey(key));
     public static string Key(string id) => "commodity:" + id;
 
+    private static Shape Solid(int width, int height)
+    {
+        var shape = new Shape(width, height);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        return shape;
+    }
+
+    // A 2x2 Facility row, which takes any 2x2 facility design.
+    public static HardpointData FacilityRow() => new HardpointData { Type = HardpointType.Facility, Position = new CultMath.int2(0, 0), Shape = Solid(2, 2), Transform = "Fa.1" };
+
+    // A recipe facility design: Facility gear, 2x2, sold by the maker NotOffered (a design with no product is an unsold design).
+    public CultRecordRef<ItemData> FacilityGear(string id)
+    {
+        var key = new CultRecordKey("gear:" + id);
+        Cache.Upsert(typeof(GearData), new GearData
+        {
+            Name = id, Hardpoint = HardpointType.Facility, Shape = Solid(2, 2), Price = 1, Behaviors = new List<BehaviorData> { new FacilityData() }
+        }, key);
+        Cache.Upsert(new FactionProductData { Name = key.Value, Design = new CultRecordRef<CraftedItemData>(key), Manufacturer = Maker, NotOffered = true });
+        return Item(key.Value);
+    }
+
     public CultRecordRef<StationKindData> Station(string id, string name)
     {
         var key = StationKindData.KeyOf(id);
@@ -56,7 +84,7 @@ public sealed class EconomyFixture : IDisposable
     // the roles its recipe takes, any filler will do.
     public string Good(string id, (string Id, int Count)[] inputs = null, string[] fills = null, int outputCount = 1, float cycle = 1,
         int workforce = 0, (string Id, int Count)[] upkeep = null, string lore = "a good", (string Role, int Count)[] roles = null, CultRecordRef<StationKindData>? kind = null,
-        (string Role, int Count)[] roleInputs = null)
+        (string Role, int Count)[] roleInputs = null, CultRecordRef<ItemData>? facility = null)
     {
         var key = new CultRecordKey(Key(id));
         var roleList = (roles ?? Array.Empty<(string, int)>()).Select(r => new ItemRole { Name = r.Role, Count = r.Count }).ToList();
@@ -71,6 +99,7 @@ public sealed class EconomyFixture : IDisposable
             Inputs = (inputs ?? Array.Empty<(string, int)>()).Select(i => new CommodityCount { Commodity = Item(Key(i.Id)), Count = i.Count }).ToList(),
             Upkeep = (upkeep ?? Array.Empty<(string, int)>()).Select(i => new CommodityCount { Commodity = Item(Key(i.Id)), Count = i.Count }).ToList(),
             StationKind = kind ?? Mill,
+            Facility = facility ?? MillWorks,
             LoreHook = lore,
             Fills = (fills ?? Array.Empty<string>()).ToList(),
             RoleInputs = (roleInputs ?? Array.Empty<(string, int)>()).Select(r => new ItemRole { Name = r.Role, Count = r.Count }).ToList()
@@ -99,6 +128,7 @@ public sealed class EconomyFixture : IDisposable
             Name = id, HullType = type, Shape = new Shape(), Price = 1, Kind = type == HullType.Station ? Mill : default,
             Roles = roles.Select(r => new ItemRole { Name = r.Role, Count = r.Count }).ToList()
         }, key);
+        if (type == HullType.Station) EditItem<HullData>(key.Value, hull => hull.Hardpoints.Add(FacilityRow()));
         Design(key, offered, recipe);
         return key.Value;
     }
@@ -110,7 +140,7 @@ public sealed class EconomyFixture : IDisposable
             Name = key.Value, Design = new CultRecordRef<CraftedItemData>(key), Manufacturer = Maker, NotOffered = !offered
         });
         if (recipe)
-            Cache.Upsert(typeof(RecipeData), new RecipeData { Output = Item(key.Value), StationKind = Mill }, RecipeData.KeyOf(key));
+            Cache.Upsert(typeof(RecipeData), new RecipeData { Output = Item(key.Value), StationKind = Mill, Facility = MillWorks }, RecipeData.KeyOf(key));
     }
 
     public void EditRecipe(string outputKey, Action<RecipeData> edit)

@@ -81,7 +81,7 @@ public sealed class EconomyCommandTests
         else a.Put(new CompoundCommodityData { Name = id }, key);
         a.Put(new RecipeData
         {
-            Output = EconomyFixture.Item(key.Value), StationKind = kind ?? f.Mill, LoreHook = lore,
+            Output = EconomyFixture.Item(key.Value), StationKind = kind ?? f.Mill, Facility = f.MillWorks, LoreHook = lore,
             Inputs = (inputs ?? Array.Empty<(string, int)>()).Select(i => new CommodityCount { Commodity = EconomyFixture.Item(EconomyFixture.Key(i.Id)), Count = i.Count }).ToList(),
             Fills = (fills ?? Array.Empty<string>()).ToList()
         }, RecipeData.KeyOf(key));
@@ -611,7 +611,7 @@ public sealed class EconomyCommandTests
     {
         var key = new CultRecordKey(EconomyFixture.Key(id));
         f.Cache.Upsert(typeof(SimpleCommodityData), new SimpleCommodityData { Name = id }, key);
-        f.Cache.Upsert(typeof(RecipeData), new RecipeData { Output = EconomyFixture.Item(key.Value), StationKind = f.Mill, LoreHook = "a good", Inputs = new List<CommodityCount>() }, RecipeData.KeyOf(key));
+        f.Cache.Upsert(typeof(RecipeData), new RecipeData { Output = EconomyFixture.Item(key.Value), StationKind = f.Mill, Facility = f.MillWorks, LoreHook = "a good", Inputs = new List<CommodityCount>() }, RecipeData.KeyOf(key));
     }
 
     [Fact]

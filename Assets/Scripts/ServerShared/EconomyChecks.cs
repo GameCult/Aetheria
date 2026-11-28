@@ -56,7 +56,7 @@ public sealed class EconomyReport
 // The one owner of the catalog's economy invariants. Pure: draws nothing, reads no clock, writes nothing. One method per rule.
 public static class EconomyChecks
 {
-    public const string LRecipe = "L-recipe", LOneKindList = "L-one-kind-list", LLore = "L-lore", LSource = "L-source-sink", LProductive = "L-productive", LDemand = "L-consumer-demand", LWeights = "L-weights", LShape = "L-shape", LPrice = "L-price";
+    public const string LRecipe = "L-recipe", LOneKindList = "L-one-kind-list", LLore = "L-lore", LSource = "L-source-sink", LProductive = "L-productive", LDemand = "L-consumer-demand", LWeights = "L-weights", LShape = "L-shape", LPrice = "L-price", LFacility = "L-facility";
     private const double Margin = 1e-9;
 
     public static EconomyReport Check(CultCache catalog, EconomyLoad load = null)
@@ -88,7 +88,7 @@ public static class EconomyChecks
             : new RecipeData
             {
                 Output = recipe.Output, OutputCount = recipe.OutputCount, Cycle = recipe.Cycle, Workforce = recipe.Workforce,
-                StationKind = recipe.StationKind, LoreHook = recipe.LoreHook,
+                StationKind = recipe.StationKind, Facility = recipe.Facility, LoreHook = recipe.LoreHook,
                 Inputs = (recipe.Inputs ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
                 Upkeep = (recipe.Upkeep ?? new List<CommodityCount>()).Where(c => c != null).ToList(),
                 Fills = (recipe.Fills ?? new List<string>()).Where(f => f != null).ToList(),
@@ -203,6 +203,9 @@ public static class EconomyChecks
             else if (market.Rows.Contains(null)) Add(marketKey, "Rows holds a null entry.");
         }
         var kindsPlaced = new HashSet<string>(catalog.GetAll<Faction>().SelectMany(f => StationKinds.KindsOf(catalog, f)).Select(k => k.Key.Value), StringComparer.Ordinal);
+        var kindsInOrder = catalog.GetAll<StationKindData>().Select(kind => (Key: catalog.RefOf(kind).Key.Value, Kind: kind)).OrderBy(pair => pair.Key, StringComparer.Ordinal).ToList();
+        var facilitiesListed = new HashSet<string>(kindsInOrder.SelectMany(pair => pair.Kind.Facilities ?? new List<CultRecordRef<ItemData>>()).Select(f => f.Key.Value), StringComparer.Ordinal);
+        void NoFacility(string record, string message) => faults.Add(new EconomyFault(LFacility, record, message));
         foreach (var (key, stored) in StoredRecipes(catalog))
         {
             var recipe = Sound(stored);
@@ -230,6 +233,16 @@ public static class EconomyChecks
             if (kind == null) Add(key, "StationKind names no station kind this catalog holds.");
             else if (!kindsPlaced.Contains(recipe.StationKind.Key.Value))
                 faults.Add(new EconomyFault(LOneKindList, key, $"No faction places station kind '{kind.Name}', so nothing can run this recipe."));
+            var facility = catalog.Get(recipe.Facility);
+            if (!recipe.Facility.IsSet()) NoFacility(key, "Facility is unset; a recipe names the facility gear that runs it.");
+            else if (facility == null) NoFacility(key, $"Facility '{recipe.Facility.Key.Value}' names no item this catalog holds.");
+            else if (!StationKinds.IsRecipeFacility(facility)) NoFacility(key, $"Facility '{facility.Name}' is not a recipe facility (gear of hardpoint type Facility holding a FacilityData).");
+            else
+            {
+                if (!facilitiesListed.Contains(recipe.Facility.Key.Value)) NoFacility(key, $"No station kind lists facility '{facility.Name}' in its Facilities, so no station is fitted to run this recipe.");
+                if (kind != null && !(kind.Facilities ?? new List<CultRecordRef<ItemData>>()).Any(listed => listed.Key.Equals(recipe.Facility.Key)))
+                    NoFacility(key, $"Station kind '{kind.Name}' does not list facility '{facility.Name}' in its Facilities; the recipe's kind and facility must agree.");
+            }
             var roles = Recipes.RolesOf(output);
             if (!Recipes.IsCommodity(output))
             {
@@ -245,6 +258,19 @@ public static class EconomyChecks
                 if (Recipes.Fillers(catalog, role.Name).Length == 0) Add(key, $"Role '{role.Name}' has no commodity whose recipe fills it.");
             }
         }
+        foreach (var (kindKey, kind) in kindsInOrder)
+            for (var i = 0; i < (kind.Facilities?.Count ?? 0); i++)
+            {
+                var listed = kind.Facilities[i];
+                var item = catalog.Get(listed);
+                if (!listed.IsSet()) NoFacility(kindKey, $"Station kind '{kind.Name}' Facilities[{i}] is unset.");
+                else if (item == null) NoFacility(kindKey, $"Station kind '{kind.Name}' Facilities[{i}] names no item this catalog holds.");
+                else if (!StationKinds.IsRecipeFacility(item)) NoFacility(kindKey, $"Station kind '{kind.Name}' Facilities[{i}] '{item.Name}' is not a recipe facility.");
+            }
+        foreach (var gear in catalog.GetAll<GearData>().Select(gear => (Key: catalog.RefOf(gear).Key.Value, Gear: gear)).OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            if (gear.Gear.Behaviors != null && gear.Gear.Behaviors.Any(behavior => behavior is FacilityData) && gear.Gear.HardpointType != HardpointType.Facility)
+                NoFacility(gear.Key, $"'{gear.Gear.Name}' holds a FacilityData but is hardpoint type {gear.Gear.HardpointType}; a recipe facility mounts on a Facility row.");
+        foreach (var line in StationKinds.FacilityRoomFaults(catalog)) NoFacility("station-facilities", line);
         return faults;
     }
 

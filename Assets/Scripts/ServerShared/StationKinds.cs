@@ -103,6 +103,48 @@ public static class StationKinds
         return standIn != null && standIn.Kind.IsSet() && OfferedKinds(catalog).Contains(standIn.Kind.Key.Value) ? standIn.Kind : default;
     }
 
+    // A recipe facility: facility gear a station runs recipes on. The hardpoint type says where it mounts, FacilityData says it runs
+    // recipes.
+    public static bool IsRecipeFacility(ItemData item) =>
+        item is GearData gear && gear.HardpointType == HardpointType.Facility && gear.Behaviors != null && gear.Behaviors.Any(behavior => behavior is FacilityData);
+
+    // Every offered station hull takes the facilities of every kind it serves, one station at a time (a station is one kind, so the
+    // designs of one kind each take a distinct Facility row; two kinds may share a row). A hull of kind H serves H itself and every
+    // kind some faction places whose hull kind is H (HullKindFor). One line per design that finds no row, naming the hull, the kind and
+    // the design, ordered by hull name then kind key. Reads the catalog and nothing else.
+    public static string[] FacilityRoomFaults(CultCache catalog)
+    {
+        var served = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var faction in catalog.GetAll<Faction>())
+            foreach (var kind in KindsOf(catalog, faction))
+            {
+                var hullKind = HullKindFor(catalog, faction, kind).Key.Value;
+                if (!served.TryGetValue(hullKind, out var kinds)) served[hullKind] = kinds = new HashSet<string>(StringComparer.Ordinal);
+                kinds.Add(kind.Key.Value);
+            }
+        var faults = new List<(string Hull, string Kind, string Line)>();
+        foreach (var hull in DrawableStationProducts(catalog).Select(entry => entry.hull).Distinct().OrderBy(hull => hull.Name, StringComparer.Ordinal))
+        {
+            var own = hull.Kind.Key.Value;
+            var kinds = new HashSet<string>(served.TryGetValue(own, out var found) ? found : new HashSet<string>(), StringComparer.Ordinal) { own };
+            foreach (var kindKey in kinds.OrderBy(key => key, StringComparer.Ordinal))
+            {
+                var kind = catalog.Get<StationKindData>(new CultRecordKey(kindKey));
+                if (kind == null) continue;
+                var rows = hull.Hardpoints.Where(hardpoint => hardpoint.Type == HardpointType.Facility).ToList();
+                var designs = kind.Facilities.Select(facility => catalog.Get(facility)).OfType<EquippableItemData>()
+                    .OrderByDescending(design => design.Shape.Coordinates.Length).ThenBy(design => design.Name, StringComparer.Ordinal);
+                foreach (var design in designs)
+                {
+                    var row = rows.FirstOrDefault(hardpoint => hardpoint.Takes(design));
+                    if (row != null) rows.Remove(row);
+                    else faults.Add((hull.Name, kindKey, $"Station hull '{hull.Name}' has no free Facility row that takes {design.Name}, a facility of station kind '{kind.Name}'."));
+                }
+            }
+        }
+        return faults.OrderBy(fault => fault.Hull, StringComparer.Ordinal).ThenBy(fault => fault.Kind, StringComparer.Ordinal).Select(fault => fault.Line).ToArray();
+    }
+
     // What is wrong with a hull's station facts, or null: a Station hull names a kind the catalog holds, and no other hull names one
     // or carries a Facility row.
     // The one rule, applied to the catalog on Open and to each mod package on Compose.
@@ -119,7 +161,7 @@ public static class StationKinds
         {
             if (hull.Kind.IsSet())
                 return $"Hull '{hull.Name}' is a {hull.HullType} and names a Kind; only a station hull has one.";
-            if (hull.Hardpoints.Any(hardpoint => hardpoint.Type == HardpointType.Facility))
+            if (hull.Hardpoints != null && hull.Hardpoints.Any(hardpoint => hardpoint.Type == HardpointType.Facility))
                 return $"Hull '{hull.Name}' is a {hull.HullType} and has a Facility row; only a station hull takes facilities.";
         }
         return null;

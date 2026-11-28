@@ -173,7 +173,7 @@ public class LoadoutGenerator
         }
     }
 
-    private static bool IsHeater(GearData item) =>
+    internal static bool IsHeater(GearData item) =>
         item.HardpointType == HardpointType.Tool &&
         item.Behaviors.Any(b => b is ThermotoggleData { HighPass: false }) &&
         item.Behaviors.Any(b => b is HeatData);
@@ -372,6 +372,8 @@ public class LoadoutGenerator
         var previousProducts = new List<(FactionProductData product, GearData design)>();
         foreach (var hardpoint in hullData.Hardpoints.OrderByDescending(h=>h.Shape.Coordinates.Length))
         {
+            // A Facility row is filled by its kind's Facilities (follow-up station-buys-by-installed-gear); the random fill never does.
+            if (hardpoint.Type == HardpointType.Facility) continue;
             if (hardpoint.Type == HardpointType.ControlModule)
             {
                 var (controllerProduct, controllerData) = RandomProduct<GearData>(hardpoint, 2,

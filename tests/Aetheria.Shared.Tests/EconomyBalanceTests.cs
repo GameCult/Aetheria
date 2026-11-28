@@ -155,7 +155,7 @@ public sealed class EconomyBalanceTests
             var first = f.Cache.Get<RecipeData>(RecipeData.KeyOf(new CultRecordKey("commodity:bar")));
             f.Cache.Upsert(typeof(RecipeData), new RecipeData
             {
-                Output = first.Output, OutputCount = 1, Cycle = 1, Workforce = 1, StationKind = first.StationKind, LoreHook = "a good",
+                Output = first.Output, OutputCount = 1, Cycle = 1, Workforce = 1, StationKind = first.StationKind, Facility = first.Facility, LoreHook = "a good",
                 Inputs = new System.Collections.Generic.List<CommodityCount> { new CommodityCount { Commodity = EconomyFixture.Item("commodity:ore"), Count = cheapFirst ? 3 : 1 } }
             }, new CultRecordKey("recipe:commodity:bar-alt"));
             var report = EconomyBalance.Balance(f.Cache);
