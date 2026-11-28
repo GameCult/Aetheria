@@ -18,7 +18,8 @@ public class FacilityData : BehaviorData
 }
 
 // The installed facility that will run its recipes (ruling demand-consumed-inputs-processed-by-facilities). It runs nothing until
-// follow-up facility-production: it is seated, priced and carried, and that is all.
+// follow-up facility-production: LoadoutGenerator.EquipFacilities seats it on a station's Facility row, and it is priced and carried,
+// and that is all.
 public class Facility : Behavior
 {
     public Facility(FacilityData data, EquippedItem item) : base(data, item) { }

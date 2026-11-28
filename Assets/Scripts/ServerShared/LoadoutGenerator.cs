@@ -103,8 +103,9 @@ public class LoadoutGenerator
         // A stand-in hull keeps its own model but not its own name: the station is what its kind says it is.
         if (!hullData.Kind.Key.Equals(kind.Key) && ItemManager.ItemData.Get(kind) is { } kindData) entity.Name = kindData.Name;
 
-        // Hardpoint gear goes in first so the docking bay can only take space that gear left free
+        // Hardpoint gear, then the kind's facilities, go in before any interior gear so the docking bay can only take space they left free
         EquipHardpoints(entity);
+        EquipFacilities(entity, kind);
 
         var emptyShape = entity.UnoccupiedSpace;
 
@@ -365,6 +366,29 @@ public class LoadoutGenerator
             throw new InvalidLoadoutException("Failed to equip selected tractor beam!");
     }
 
+    // Installs the station kind's Facilities, largest shape first then by name (StationKinds.FacilityRoomFaults' order), each on a free
+    // Facility row that takes it. The brand is derived, never drawn: the station faction's own product of the design, else the first by
+    // name. A facility is on no market, so the product need not be offered. Draws nothing from Random.
+    private void EquipFacilities(Entity entity, CultRecordRef<StationKindData> kind)
+    {
+        var kindData = ItemManager.ItemData.Get(kind);
+        if (kindData == null) return;
+        var designs = kindData.Facilities.Select(facility => ItemManager.ItemData.Get(facility)).OfType<CraftedItemData>()
+            .OrderByDescending(design => design.Shape.Coordinates.Length).ThenBy(design => design.Name, StringComparer.Ordinal);
+        foreach (var design in designs)
+        {
+            var key = ItemManager.ItemData.RefOf(design).Key;
+            var products = ItemManager.ItemData.GetAll<FactionProductData>()
+                .Where(product => product.Design.Key.Equals(key)).OrderBy(product => product.Name, StringComparer.Ordinal).ToArray();
+            var product = products.FirstOrDefault(p => ItemManager.ItemData.Get(p.Manufacturer) == Faction) ?? products.FirstOrDefault();
+            var hullName = ItemManager.GetData(entity.Hull).Name;
+            if (product == null)
+                throw new InvalidLoadoutException($"Station hull '{hullName}' of kind '{kindData.Name}' has no product of facility {design.Name}.");
+            if (!entity.TryEquip(ItemManager.CreateInstance(product) as EquippableItem))
+                throw new InvalidLoadoutException($"Station hull '{hullName}' has no free Facility row that takes {design.Name}, a facility of station kind '{kindData.Name}'.");
+        }
+    }
+
     private void EquipHardpoints(Entity entity)
     {
         var hullData = ItemManager.GetData(entity.Hull) as HullData;
@@ -372,7 +396,7 @@ public class LoadoutGenerator
         var previousProducts = new List<(FactionProductData product, GearData design)>();
         foreach (var hardpoint in hullData.Hardpoints.OrderByDescending(h=>h.Shape.Coordinates.Length))
         {
-            // A Facility row is filled by its kind's Facilities (follow-up station-buys-by-installed-gear); the random fill never does.
+            // A Facility row is filled only by EquipFacilities, from its kind's Facilities; the random fill never does.
             if (hardpoint.Type == HardpointType.Facility) continue;
             if (hardpoint.Type == HardpointType.ControlModule)
             {
