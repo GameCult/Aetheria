@@ -63,11 +63,13 @@ public sealed partial class RunStartTests
     // so the shields now on sale do not move it: the same catalog with only the Zenith rotation put back to None measures the old digest.
     // Station packages: the Arsenal Depot (a station hull in the zone the fight runs in) moved both digests; linux-x64 6b8b31ad -> 99e358a0
     // measured on Yggdrasil, windows-x64 e4a3d6e5 -> 5201ca08 measured on Starfire.
+    // Station facility fit (cut station-facility-fit): the zone's station Zenith seats its kind's facilities before its docking bay and heater,
+    // which moves its gear; linux-x64 99e358a0 -> d80cc78c (Yggdrasil), windows-x64 5201ca08 -> 77e8a2f3 (Starfire).
     private static readonly System.Collections.Generic.Dictionary<string, string> TwoAiPinnedDigests = new()
     {
-        ["linux-x64"] = "99e358a0d48816682876808a2261347658b77d3d9af62564d224480d82450f93",
+        ["linux-x64"] = "d80cc78c8ebf209c880a073db4294b9df57e5ab829da8b2dd3208e4654c9d1f8",
         // Measured on windows-x64 at the commit that added this pin (the fight is one history there: TwoAiFightIsOneHistory).
-        ["windows-x64"] = "5201ca081972d8bb6ee1a74068bf55e5ff49e6d0569a1a072ab15f9194c34bd5",
+        ["windows-x64"] = "77e8a2f385b036b72ee75c69d1b86091190e48251af4e34c8b12481f34c5149e",
     };
     private const float TwoAiSeconds = 60f;
 
