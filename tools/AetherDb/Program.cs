@@ -75,6 +75,8 @@ public static class Program
             case "station-kinds":
             {
                 var apply = args.Contains("apply");
+                // Shipped file alone, on purpose: every form here (the kinds report included) is the dry run of an apply that writes the shipped
+                // file, so it reads what apply would change; its report is identical over the composed catalog.
                 using var db = AetherDb.Open(catalogWritable: apply);
                 int code;
                 if (args.Length > 1 && args[1] == "hull")
