@@ -278,6 +278,7 @@ public sealed class OresAndProvinces : EconomyBatch
             Workforce = workforce,
             Upkeep = new List<CommodityCount>(),
             StationKind = new CultRecordRef<StationKindData>(StationKindData.KeyOf(kind)),
+            Facility = Facilities.Of(_a.Catalog, kind),
             LoreHook = lore,
             Fills = fills.ToList()
         }, RecipeData.KeyOf(output));

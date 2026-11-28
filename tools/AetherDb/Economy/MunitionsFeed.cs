@@ -85,6 +85,7 @@ public sealed class MunitionsFeed : EconomyBatch
             Workforce = workforce,
             Upkeep = new List<CommodityCount>(),
             StationKind = new CultRecordRef<StationKindData>(StationKindData.KeyOf(kind)),
+            Facility = Facilities.Of(_a.Catalog, kind),
             LoreHook = lore,
             Fills = new List<string>()
         }, RecipeData.KeyOf(output.Key));

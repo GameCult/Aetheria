@@ -22,11 +22,13 @@ public sealed class Munitions : EconomyBatch
 
         // The kind this chain adds. Energetics and loading are sited apart from other industry because a loading accident must not
         // take a yard with it; that separation is the reason it is its own kind rather than a line in a fabrication station.
+        // It keeps the facilities the catalog already holds for the kind (batch Facilities owns them).
         _a.Put(new StationKindData
         {
             Name = "Munitions Works",
             Description = "Makes energetics (nitrocellulose, propellant, high explosive), loads rounds, primers, fuzes, warheads and rocket motors; sited apart from other industry so an accident takes only itself.",
-            StandIns = new List<StationKindStandIn>()
+            StandIns = new List<StationKindStandIn>(),
+            Facilities = _a.Catalog.Get<StationKindData>(StationKindData.KeyOf("munitions-works"))?.Facilities.ToList() ?? new List<CultRecordRef<ItemData>>()
         }, StationKindData.KeyOf("munitions-works"));
 
         // Zhestokost has no station model of any kind yet. Its first planned model is the supply depot (ruling faction-station-models),
@@ -257,6 +259,7 @@ public sealed class Munitions : EconomyBatch
             Workforce = workforce,
             Upkeep = new List<CommodityCount>(),
             StationKind = new CultRecordRef<StationKindData>(StationKindData.KeyOf(kind)),
+            Facility = Facilities.Of(_a.Catalog, kind),
             LoreHook = lore,
             Fills = fills.ToList()
         }, RecipeData.KeyOf(output.Key));
