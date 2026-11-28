@@ -10,7 +10,7 @@ using UniRx;
 using Xunit;
 
 // The demo loop on the shipped catalog (aetheria-release, mining 5a): the player's own gun breaks a rock
-// through the trigger, the ore lands in the hold, the Pirates station Zenith buys it, repairs the hull and sells a unit back.
+// through the trigger, the ore lands in the hold, the Pirates' one station (a depot stand-in, so the Arsenal Depot hull) buys it, repairs the hull and sells a unit back.
 public sealed partial class RunStartTests
 {
     [Fact]
@@ -56,7 +56,7 @@ public sealed partial class RunStartTests
         Assert.All(gains, gain => Assert.Equal((GainKind.Mined, 0), (gain.Kind, gain.Adrift)));
         Assert.Equal(held.Sum(h => h.stack.Quantity), gains.Sum(gain => gain.Stored));
 
-        var zenith = arena.Entities.Single(entity => entity.HullData.Name == "Zenith");
+        var zenith = arena.Entities.Single(entity => entity.HullData.HullType == HullType.Station);
         var credits = 0;
         // Every mined stack goes in one sale: the market takes it all, whatever the full hold of Zenith has room for.
         var value = StationServices.OreValue(_items, player.CargoBays);
@@ -116,7 +116,7 @@ public sealed partial class RunStartTests
             for (var y = 0; y < player.MaxArmor.GetLength(1); y++)
                 player.Armor[x, y] = 0;
         var repair = StationServices.RepairCost(_items, player);
-        var zenith = arena.Entities.Single(entity => entity.HullData.Name == "Zenith");
+        var zenith = arena.Entities.Single(entity => entity.HullData.HullType == HullType.Station);
         var cheapest = zenith.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<CraftedItemInstance>()).Min(piece => _items.GetData(piece).Price);
         Assert.True(repair > 0 && cheapest > 0);
 
