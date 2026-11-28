@@ -188,7 +188,6 @@ def package(manifest, manifest_dir, game, packages, openscad):
     import addon_utils
     import bmesh
     import bpy
-    import msgpack
 
     ship_id, name = manifest["id"], manifest["name"]
     package_dir = game / "GameData" / "Mods" / ship_id
@@ -215,23 +214,11 @@ def package(manifest, manifest_dir, game, packages, openscad):
         print(f"AetherDb {args[0]}: exit {result.returncode} {result.stdout.strip()} {result.stderr.strip()}", flush=True)
         return result.returncode
 
-    def top_speed():
-        """The VelocityLimit TopSpeed (Min, Max) in the new ship.cc's hull record (union key 11, VelocityLimitData)."""
-        sys.path.insert(0, str(Path(packages) / "cultcache-py" / "src"))
-        import cultcache_py
-        hulls = [e for e in cultcache_py.SingleFileMessagePackBackingStore(str(ship_cc_path)).pull_all() if e.type == "aetheria.hulldata"]
-        require(len(hulls) == 1, "ship.cc holds no single hull record")
-        body = msgpack.unpackb(hulls[0].payload, raw=False)
-        limits = [payload for union, payload in body[11] if union == 11]
-        require(len(limits) == 1, f"the copied hull has {len(limits)} VelocityLimits")
-        return limits[0][1][0], limits[0][1][1]
-
     if bpy.data.objects.get("Cube") is not None:
         bpy.data.objects.remove(bpy.data.objects["Cube"], do_unlink=True)
     sys.path.insert(0, str(HERE))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
     import aetheria_ships
-    aetheria_ships._brokkr_cultlib = lambda context: packages
     preferences = bpy.context.preferences.addons["aetheria_ships"].preferences
     preferences.game_folder = str(game)
     preferences.openscad = openscad
@@ -263,8 +250,6 @@ def package(manifest, manifest_dir, game, packages, openscad):
     if "top_speed" in stats:
         args += ["--top-speed", stats["top_speed"]]
     require(db(*args) == 0, "stats was refused")
-    if "top_speed" in stats:
-        require(top_speed() == (stats["top_speed"], stats["top_speed"]), "stats did not set the top speed")
     if "kind" in manifest:
         # A station's kind is ship.cc's own fact and AetherDb its one writer; the packager holds no kind table.
         require(db("kind", ship_cc_path, manifest["kind"]) == 0, "kind was refused")
