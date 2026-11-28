@@ -53,7 +53,11 @@ public sealed class FacilityProductionTests : IDisposable
         cache.Upsert(new HullData
         {
             Name = "Test Yard", HullType = HullType.Station, Shape = Solid(8, 8), Price = 1, Durability = 10, Mass = 1000,
-            Hardpoints = { new HardpointData { Type = HardpointType.Facility, Position = new int2(0, 0), Shape = Solid(2, 2), Transform = "Fa.1" } }
+            Hardpoints =
+            {
+                new HardpointData { Type = HardpointType.Facility, Position = new int2(0, 0), Shape = Solid(2, 2), Transform = "Fa.1" },
+                new HardpointData { Type = HardpointType.Facility, Position = new int2(2, 0), Shape = Solid(2, 2), Transform = "Fa.2" }
+            }
         });
         cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = Solid(4, 4), Price = 20, Durability = 4 });
         cache.Upsert(new CargoBayData { Name = "Pocket", Shape = new Shape(), InteriorShape = Solid(1, 1), Price = 5, Durability = 4 });
@@ -82,14 +86,15 @@ public sealed class FacilityProductionTests : IDisposable
         };
     }
 
-    // A station of Test Yard with the named facility on its row and the named bay.
-    private World Build(string facility = "Refinery", string bay = "Crate")
+    // A station of Test Yard with the named facility on its row and the named bay, and the shipped silo on its second row when asked.
+    private World Build(string facility = "Refinery", string bay = "Crate", bool silo = false)
     {
         var items = new ItemManager(1u, _cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var station = new OrbitalEntity(items, zone, Mint(items, _cache, "Test Yard"), default, new EntitySettings());
         Assert.True(station.TryEquip(Mint(items, _cache, facility), new int2(0, 0)));
         Assert.True(station.TryEquip(Mint(items, _cache, bay), new int2(4, 4)));
+        if (silo) Assert.True(station.TryEquip(Mint(items, _cache, "Silo"), new int2(2, 0)));
         zone.Admit(station, piloted: false);
         return Wrap(items, zone, station);
     }
@@ -315,6 +320,121 @@ public sealed class FacilityProductionTests : IDisposable
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
         Assert.Equal(MessagePackSerializer.Serialize(EntitySerializer.Pack(first.Station), options),
             MessagePackSerializer.Serialize(EntitySerializer.Pack(second.Station), options));
+    }
+
+    // Cut facility-output-room: a station with a silo keeps what its facilities make there, and each product holds an even share of it.
+    private static EquippedCargoBay SiloOf(World world) => world.Station.CargoBays.Single(bay => bay.Data is SiloData);
+    private static EquippedCargoBay StockOf(World world) => world.Station.CargoBays.Single(bay => !(bay.Data is SiloData));
+
+    private IReadOnlyList<RecipeData> RefineryRuns => Production.RunList(_cache, _cache.RefOf<ItemData>(_cache.GetByName<GearData>("Refinery")).Key);
+
+    // The share of one product: floor(silo cells / products) x the product's MaxStack, computed here from the catalog.
+    private int ShareOf(CultRecordKey product) =>
+        64 / RefineryRuns.Select(recipe => recipe.Output.Key).Distinct().Count() * _cache.Get<SimpleCommodityData>(product).MaxStack;
+
+    private void Fill(World world, CultRecordKey product) => Assert.True(world.Hold.TryPut(product, ShareOf(product)));
+
+    private OrbitalEntity Seller(World world, CultRecordKey ore, int units)
+    {
+        var seller = new OrbitalEntity(world.Items, world.Zone, Mint(world.Items, _cache, "Test Yard"), default, new EntitySettings());
+        Assert.True(seller.TryEquip(Mint(world.Items, _cache, "Crate"), new int2(4, 4)));
+        Assert.True(seller.CargoBays[0].TryStore(Goods(ore, units)));
+        return seller;
+    }
+
+    [Fact]
+    public void OutputsLandInTheSilo()
+    {
+        var world = Build(silo: true);
+        Stock(world, IronFillers[0], 3);
+        Step(world, StepsOf(IronCycle));
+        Assert.Equal(2, SiloOf(world).Count(Iron));
+        Assert.Equal(0, StockOf(world).Count(Iron));
+        Assert.Equal(0, StockOf(world).Count(IronFillers[0]));
+        Assert.Equal(0, SiloOf(world).Count(IronFillers[0]));
+    }
+
+    [Fact]
+    public void EachProductHoldsItsShare()
+    {
+        var world = Build(silo: true);
+        Assert.Equal(ShareOf(Iron), StationWants.Allocation(world.Station, Iron));
+        Assert.Equal(ShareOf(Iron), world.Hold.Room(Iron));
+        Fill(world, Iron);
+        Assert.Equal(0, world.Hold.Room(Iron));
+        var copperOre = Recipes.Fillers(_cache, "copper ore").Except(IronFillers).First();
+        Stock(world, copperOre, 8);
+        Stock(world, IronFillers[0], 6);
+        Step(world, 1);
+        Assert.Equal(RecipeData.KeyOf(new CultRecordKey("commodity:copper")), world.Unit.Run.Recipe.Key);
+        Assert.Equal(6, Held(world, IronFillers[0]));
+        Assert.Equal(ShareOf(Iron), SiloOf(world).Count(Iron));
+
+        // Empty one cycle's worth of the share and iron may start again.
+        Assert.True(world.Hold.TryTake(new[] { (Iron, 2) }));
+        Assert.Equal(2, world.Hold.Room(Iron));
+        Assert.True(StationWants.CanStart(world.Station, _cache.Get<RecipeData>(RecipeData.KeyOf(Iron))));
+    }
+
+    [Fact]
+    public void AFullProductStopsItsOresBeingBought()
+    {
+        var world = Build(silo: true);
+        var ore = IronFillers[0];
+        var fed = RefineryRuns.Where(recipe => Production.Draws(_cache, recipe).Contains(ore)).Select(recipe => recipe.Output.Key).ToArray();
+        Assert.NotEmpty(fed);
+        Assert.Contains(ore, StationWants.Of(world.Station));
+        foreach (var product in fed) Fill(world, product);
+        Assert.DoesNotContain(ore, StationWants.Of(world.Station));
+        Assert.Empty(StationWants.Bays(world.Station, ore));
+
+        var seller = Seller(world, ore, 3);
+        var credits = 0;
+        Assert.Equal(SaleRefusal.NotWanted, StationServices.TrySellPart(seller.CargoBays[0], world.Station, (ICommodityStack) seller.CargoBays[0].Cargo.Keys.Single(), ref credits).Refusal);
+
+        Assert.True(world.Hold.TryTake(new[] { (fed[0], _cache.Get<RecipeData>(RecipeData.KeyOf(fed[0])).OutputCount) }));
+        Assert.Contains(ore, StationWants.Of(world.Station));
+    }
+
+    [Fact]
+    public void DrawnIntakeNeverLandsInTheSilo()
+    {
+        var world = Build(silo: true);
+        var seller = Seller(world, IronFillers[0], 6);
+        var credits = 0;
+        var sale = StationServices.TrySellPart(seller.CargoBays[0], world.Station, (ICommodityStack) seller.CargoBays[0].Cargo.Keys.Single(), ref credits);
+        Assert.Equal(6, sale.Sold);
+        Assert.Equal(6, StockOf(world).Count(IronFillers[0]));
+        Assert.Equal(0, SiloOf(world).Count(IronFillers[0]));
+    }
+
+    [Fact]
+    public void RoomStallOnlyWhenNothingFits()
+    {
+        var world = Build(silo: true);
+        Fill(world, Iron);
+        var runs = RefineryRuns;
+        Stock(world, IronFillers[0], 3);
+        // Iron is the only recipe the hold has inputs for, and it has no room.
+        Assert.Equal(Stall.Room, Production.Advance(_cache, runs, null, 1, world.Hold).stall);
+        Assert.Equal(3, Held(world, IronFillers[0]));
+        // A recipe with inputs and room starts, whatever stands full beside it.
+        var copperOre = Recipes.Fillers(_cache, "copper ore").Except(IronFillers).First();
+        Stock(world, copperOre, 8);
+        Assert.Equal(Stall.None, Production.Advance(_cache, runs, null, 1, world.Hold).stall);
+        // A hold with no inputs for any recipe stalls on inputs, whether or not a product is full.
+        var empty = Build(silo: true);
+        Fill(empty, Iron);
+        Assert.Equal(Stall.Inputs, Production.Advance(_cache, runs, null, 1, empty.Hold).stall);
+    }
+
+    [Fact]
+    public void ASiloFreeStationKeepsRoomAtThePut()
+    {
+        var world = Build();
+        Assert.Null(StationWants.Allocation(world.Station, Iron));
+        Assert.Equal(int.MaxValue, world.Hold.Room(Iron));
+        Assert.Equal(world.Station.CargoBays, StationWants.OutputBays(world.Station, Iron));
     }
 
     [Fact]
