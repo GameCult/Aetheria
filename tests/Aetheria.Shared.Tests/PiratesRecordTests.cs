@@ -27,7 +27,8 @@ public sealed partial class RunStartTests
         Assert.All(others, other => Assert.True(pirates.Allegiance.ContainsKey(other)));
         Assert.NotEmpty(pirates.Places);
 
-        var products = PiratesProducts();
+        // The Seized Refinery is the Pirates' own station package (cut station-package-processing), not a rebrand of another maker's design.
+        var products = PiratesProducts().Where(product => !product.Design.Key.Equals(ShipModCatalog.HullKey("aetheria.seized-refinery"))).ToArray();
         Assert.Equal(8, products.Length);
         var hulls = LoadoutGenerator.SoldHulls(_cache);
         foreach (var product in products)
