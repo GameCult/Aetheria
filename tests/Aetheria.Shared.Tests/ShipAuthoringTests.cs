@@ -287,7 +287,7 @@ public sealed class ShipAuthoringTests
     [Theory]
     [InlineData(HardpointType.Hull), InlineData(HardpointType.Tool), InlineData(HardpointType.Thermal), InlineData(HardpointType.WarpDrive),
      InlineData(HardpointType.Reactor), InlineData(HardpointType.Shield), InlineData(HardpointType.Sensors),
-     InlineData(HardpointType.ControlModule)]
+     InlineData(HardpointType.ControlModule), InlineData(HardpointType.Facility)]
     public void AnInternalHardpointCarriesNoAnchor(HardpointType type)
     {
         WithOnly(type).Validate();

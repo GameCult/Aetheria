@@ -176,6 +176,27 @@ public sealed class StationKindTests : IDisposable
         Assert.Contains("only a station hull has one", turretWithKind);
     }
 
+    // station-facilities-on-typed-mounts: only a station hull carries a Facility row.
+    [Fact]
+    public void OpenRefusesAFacilityRowOnAnythingButAStationHull()
+    {
+        HullData WithFacility(HullType type, CultRecordRef<StationKindData> kind = default)
+        {
+            var hull = Hull(type, kind);
+            hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Facility, Position = new int2(0, 0), Shape = new Shape(2, 2), Transform = "Fa.1" });
+            return hull;
+        }
+        foreach (var type in new[] { HullType.Ship, HullType.Turret })
+            Assert.Contains("only a station hull takes facilities", OpenRefusal(cache => cache.Upsert(WithFacility(type))));
+        SeedAndReopen(cache =>
+        {
+            var kind = new CultRecordRef<StationKindData>(cache.Upsert(new StationKindData { Name = "Hub" }).Key);
+            cache.Upsert(WithFacility(HullType.Station, kind));
+        }, out var path);
+        using var opened = AetheriaStores.Open(path);
+        Assert.Contains(opened.GetAll<HullData>(), hull => hull.Hardpoints.Any(row => row.Type == HardpointType.Facility));
+    }
+
     [Fact]
     public void OpenRefusesBadStandIn()
     {

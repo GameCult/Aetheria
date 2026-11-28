@@ -23,6 +23,11 @@ public class StationKindData
     [JsonProperty("standIns"), Key(2)]
     public List<StationKindStandIn> StandIns = new List<StationKindStandIn>();
 
+    // The facility gear a station of this kind is fitted with (ruling installed-gear-decides-what-a-station-buys). Records written
+    // before key 3 read it empty.
+    [JsonProperty("facilities"), Key(3)]
+    public List<CultRecordRef<ItemData>> Facilities = new List<CultRecordRef<ItemData>>();
+
     public static CultRecordKey KeyOf(string id) => new CultRecordKey("station-kind:" + id);
 }
 
@@ -98,7 +103,8 @@ public static class StationKinds
         return standIn != null && standIn.Kind.IsSet() && OfferedKinds(catalog).Contains(standIn.Kind.Key.Value) ? standIn.Kind : default;
     }
 
-    // What is wrong with a hull's kind, or null: a Station hull names a kind the catalog holds, and no other hull names one.
+    // What is wrong with a hull's station facts, or null: a Station hull names a kind the catalog holds, and no other hull names one
+    // or carries a Facility row.
     // The one rule, applied to the catalog on Open and to each mod package on Compose.
     public static string HullKindFault(CultCache catalog, HullData hull)
     {
@@ -109,8 +115,13 @@ public static class StationKinds
             if (catalog.Get(hull.Kind) == null)
                 return $"Station hull '{hull.Name}' Kind names no station kind this catalog holds.";
         }
-        else if (hull.Kind.IsSet())
-            return $"Hull '{hull.Name}' is a {hull.HullType} and names a Kind; only a station hull has one.";
+        else
+        {
+            if (hull.Kind.IsSet())
+                return $"Hull '{hull.Name}' is a {hull.HullType} and names a Kind; only a station hull has one.";
+            if (hull.Hardpoints.Any(hardpoint => hardpoint.Type == HardpointType.Facility))
+                return $"Hull '{hull.Name}' is a {hull.HullType} and has a Facility row; only a station hull takes facilities.";
+        }
         return null;
     }
 

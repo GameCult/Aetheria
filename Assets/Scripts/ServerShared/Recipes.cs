@@ -35,7 +35,8 @@ public class RecipeData
     [JsonProperty("upkeep"), Key(5)]
     public List<CommodityCount> Upkeep = new List<CommodityCount>();
 
-    // The kind of station that runs this recipe.
+    // The kind of station that runs this recipe: the kind whose Facilities list Facility. A checked mirror of Facility, no longer an
+    // owner; follow-up recipe-station-kind-derived deletes it once every reader reads the facility.
     [JsonProperty("stationKind"), Key(6)]
     public CultRecordRef<StationKindData> StationKind;
 
@@ -51,6 +52,11 @@ public class RecipeData
     // records written before key 9 read it as empty.
     [JsonProperty("roleInputs"), Key(9)]
     public List<ItemRole> RoleInputs = new List<ItemRole>();
+
+    // The facility gear design that runs this recipe: a GearData of HardpointType Facility holding a FacilityData. Records written
+    // before key 10 read it unset.
+    [JsonProperty("facility"), Key(10)]
+    public CultRecordRef<ItemData> Facility;
 
     public static CultRecordKey KeyOf(CultRecordKey outputKey) => new CultRecordKey("recipe:" + outputKey.Value);
 }

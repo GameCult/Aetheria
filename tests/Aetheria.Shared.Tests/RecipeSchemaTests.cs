@@ -32,6 +32,40 @@ public sealed class RecipeSchemaTests
         Assert.Equal(4, counted.Count);
     }
 
+    // A record keeps the slots it was written with: one cut short of a later key reads that member as it starts out.
+    private static byte[] CutShort(byte[] record, int slots)
+    {
+        var reader = new MessagePackReader(record);
+        var count = reader.ReadArrayHeader();
+        Assert.True(count > slots);
+        var start = reader.Consumed;
+        for (var i = 0; i < slots; i++) reader.Skip();
+        var writer = new System.Buffers.ArrayBufferWriter<byte>();
+        var write = new MessagePackWriter(writer);
+        write.WriteArrayHeader(slots);
+        write.Flush();
+        return writer.WrittenSpan.ToArray().Concat(record.Skip((int) start).Take((int) (reader.Consumed - start))).ToArray();
+    }
+
+    [Fact]
+    public void RecordsWrittenBeforeFacilityKeysReadUnsetAndEmpty()
+    {
+        var options = GameCult.Caching.MessagePack.CultDocumentMessagePackSerialization.OptionsFor(typeof(RecipeData).Assembly);
+        var item = new CultRecordRef<ItemData>(new CultRecordKey("gear:mill-works"));
+        var recipe = new RecipeData { Output = item, Facility = item };
+        var kind = new StationKindData { Name = "Mill", Facilities = new System.Collections.Generic.List<CultRecordRef<ItemData>> { item } };
+        var current = MessagePackSerializer.Deserialize<RecipeData>(MessagePackSerializer.Serialize(recipe, options), options);
+        Assert.Equal("gear:mill-works", current.Facility.Key.Value);
+        Assert.Equal("gear:mill-works", MessagePackSerializer.Deserialize<StationKindData>(MessagePackSerializer.Serialize(kind, options), options).Facilities.Single().Key.Value);
+
+        var oldRecipe = MessagePackSerializer.Deserialize<RecipeData>(CutShort(MessagePackSerializer.Serialize(recipe, options), 10), options);
+        Assert.False(oldRecipe.Facility.IsSet());
+        Assert.Equal("gear:mill-works", oldRecipe.Output.Key.Value);
+        var oldKind = MessagePackSerializer.Deserialize<StationKindData>(CutShort(MessagePackSerializer.Serialize(kind, options), 3), options);
+        Assert.Empty(oldKind.Facilities);
+        Assert.Equal("Mill", oldKind.Name);
+    }
+
     [Fact]
     public void RoleCountSurvivesTheStore()
     {

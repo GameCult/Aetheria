@@ -49,7 +49,10 @@ public enum HardpointType
     Energy,
     Ballistic,
     Launcher,
-    ControlModule
+    ControlModule,
+    // A station facility mount: only a station hull carries one (StationKinds.HullKindFault). Internal: no anchor, nothing on the
+    // model. Filled only by a kind's Facilities; the random hardpoint fill never touches it. Appended: stored types keep their values.
+    Facility
 }
 
 public enum WeaponType

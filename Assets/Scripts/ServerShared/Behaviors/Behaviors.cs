@@ -200,6 +200,7 @@ public interface IPowerConsumer
  Union(50, typeof(ListenerData)),
  Union(51, typeof(ScannerData)),
  Union(52, typeof(LockWeaponData)),
+ Union(53, typeof(FacilityData)),
  JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {

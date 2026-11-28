@@ -38,7 +38,8 @@ A row has all of `id`, `kind`, `cell`, `footprint`, `rotation`, `armor`, `arc`:
 
 - `id` is the mount id the model's anchor binds to (`aetheria.id`); unique in the manifest.
 - `kind` is one of `ship_cc.HARDPOINT_TYPE_NAMES` (Hull, Tool, Thermal, Thruster, WarpDrive, Reactor, Radiator, Shield, Sensors,
-  Energy, Ballistic, Launcher, ControlModule). The packager keeps no list of its own.
+  Energy, Ballistic, Launcher, ControlModule, Facility). The packager keeps no list of its own. A `Facility` row is internal (no
+  anchor, nothing on the model) and only a Station hull takes one.
 - `cell` is `[x, y]`, whole numbers of at least 0: the footprint's lowest-x, lowest-y cell on the raster. `x` runs across, `y` from
   the stern (0) toward the bow, as the layout panel shows it. Cells are in schematic space, not model space.
 - `footprint` is rows of `#` (the mount's cells) and `.` separated by `/`, all one width, at least one `#`. The first row is the top
