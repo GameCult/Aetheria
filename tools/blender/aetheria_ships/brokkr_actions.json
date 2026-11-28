@@ -1,0 +1,24 @@
+{
+  "schema": "brokkr.blender.host_actions.v0",
+  "actions": [
+    {
+      "name": "aetheria.open_ship",
+      "doc": "Read the ship's .cc into the layout buffer (binds the collection from the Ship .cc field when it is not bound yet). Replaces the buffer; one undo step.",
+      "changesScene": true,
+      "editModeSafe": false,
+      "fields": [
+        {"name": "collection", "type": "string", "default": "", "maxLength": 63, "doc": "the ship collection's name; empty means the active object's collection"}
+      ]
+    },
+    {
+      "name": "aetheria.push_ship",
+      "doc": "Dry-run the layout buffer against the ship's .cc: the result lists the changes Apply would write. Writes nothing.",
+      "changesScene": false,
+      "editModeSafe": true,
+      "result": "aetheria_push_result",
+      "fields": [
+        {"name": "collection", "type": "string", "default": "", "maxLength": 63, "doc": "the ship collection's name; empty means the active object's collection"}
+      ]
+    }
+  ]
+}

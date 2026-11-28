@@ -58,7 +58,7 @@ class AETHERIA_PG_hardpoint(bpy.types.PropertyGroup):
 class AETHERIA_PG_layout(bpy.types.PropertyGroup):
     ship_id: bpy.props.StringProperty()
     ship_cc: bpy.props.StringProperty()
-    versions: bpy.props.StringProperty()  # open's versions as JSON text: opaque, replaced by an applied Save
+    versions: bpy.props.StringProperty()  # open's versions as JSON text: opaque, replaced by an Apply
     width: bpy.props.IntProperty(default=1)
     height: bpy.props.IntProperty(default=1)
     new_width: bpy.props.IntProperty(name="Width", default=1, min=1, max=32)
@@ -219,7 +219,7 @@ def _mount_frame(context):
     collection, path = _layout_path(context)
     state = context.scene.aetheria_layout
     if state.ship_id != collection["aetheria.id"] or state.ship_cc != path:
-        raise ValueError("Load this collection's layout first")
+        raise ValueError("Open this collection first")
     root = _ship_root(collection)
     if root is None:
         raise ValueError("A mount needs the ship's Ship Root: Rasterise or Build From Hull Source first")
@@ -386,13 +386,185 @@ def _layout_section(state):
             "hardpoints": rows}
 
 
+def _request(context, collection):
+    """The one builder of what a push carries: (path, pending, request) for the collection and the layout buffer. The
+    buffer must be this ship's; a pending ship's request has no versions (Apply makes them when it creates the file)."""
+    if not collection.get("aetheria.ship_cc"):
+        raise ValueError("The ship collection has no bound .cc path")
+    path = bpy.path.abspath(collection["aetheria.ship_cc"])
+    ship_id = collection["aetheria.id"]
+    state = context.scene.aetheria_layout
+    if state.ship_id != ship_id or state.ship_cc != path:
+        raise Refusal("Open this collection first")
+    pending = collection.get("aetheria.pending")
+    pending = list(pending) if pending else None
+    if not pending and not state.versions:
+        raise Refusal("Open this collection first")
+    versions = {} if pending else json.loads(state.versions)
+    return path, pending, {"ship": ship_id, "versions": versions, "layout": _layout_section(state)}
+
+
+def _summary(outcome):
+    """The one line that ends a push's result: AetherDb's outcome and what it carries."""
+    kind = outcome["outcome"]
+    if kind == "refused":
+        return f"refused: {outcome.get('message', '')}"
+    if kind == "stale":
+        return "stale: the .cc changed since it was opened; Open and push again"
+    count = len(outcome.get("changed", []))
+    if kind == "applied":
+        return f"applied: {count} changed; {outcome.get('verdict', '')}"
+    return f"{kind}: {count} changed" if count else f"{kind}: nothing would change"
+
+
+def _result_text(outcome):
+    return "\n".join(outcome.get("lines", []) + [_summary(outcome)])
+
+
+def _push_ship(context, collection):
+    """A dry run of the buffer, or for a pending ship the sentence about what Apply will do. Writes only the window
+    manager's result and reviewed text: nothing undo tracks."""
+    path, pending, request = _request(context, collection)
+    if pending:
+        text = (f"new: Apply creates the ship like {pending[1]}, then writes "
+                f"{len(request['layout']['hardpoints'])} hardpoints")
+        outcome = {"outcome": "new", "lines": [text], "changed": []}
+    else:
+        outcome = _push(context, path, request, apply=False)
+        text = _result_text(outcome)
+    wm = context.window_manager
+    wm.aetheria_push_result = text
+    wm.aetheria_push_reviewed = json.dumps({"ship_cc": path, "pending": pending, "request": request,
+                                            "outcome": outcome["outcome"]}, sort_keys=True)
+    return outcome
+
+
+def _apply(context, collection):
+    """The one lander of the layout buffer: writes exactly what the last dry run showed, creating the file first when
+    the ship is pending. A failure after the file was created removes what this made. Returns the hardpoint count."""
+    wm = context.window_manager
+    if not wm.aetheria_push_reviewed:
+        raise Refusal("Push (dry run) first")
+    reviewed = json.loads(wm.aetheria_push_reviewed)
+    path, pending, request = _request(context, collection)
+    fresh = {"ship_cc": path, "pending": pending, "request": request}
+    if json.dumps(fresh, sort_keys=True) != json.dumps({key: reviewed[key] for key in fresh}, sort_keys=True):
+        raise Refusal("The scene changed since the dry run; Push again")
+    if reviewed["outcome"] not in ("dry-run", "new"):
+        raise Refusal("The dry run did not pass; Open and Push again")
+    state = context.scene.aetheria_layout
+    ship_id = collection["aetheria.id"]
+    folder = Path(path).parent
+    if pending and Path(path).exists():
+        raise ValueError("A ship file already exists at the bound path (Ctrl+Z past a first Apply leaves it there); "
+                         "choose that ship.cc and Open")
+    made_folder = bool(pending) and not folder.exists()
+    try:
+        if pending:
+            code, output = _aetherdb(context, "create", path, ship_id, pending[0], "--like", pending[1], ship_cc=path)
+            if output:
+                print(output)
+            if code != 0:
+                raise RuntimeError("AetherDb refused to create the ship; its message is in the system console")
+            request["versions"] = _open(context, path)["versions"]
+        outcome = _landed(_push(context, path, request, apply=True))
+    except Exception:
+        if pending:
+            Path(path).unlink(missing_ok=True)
+            if made_folder:
+                shutil.rmtree(folder, ignore_errors=True)
+        raise
+    state.versions = json.dumps(outcome["versions"])
+    # The store minted an element id for every row made here: take them, so the next push names these rows, not new ones.
+    elements = {row["mount"]: row["element"] for row in _open(context, path)["layout"]["hardpoints"]}
+    for hp in state.hardpoints:
+        hp.element = elements[hp.mount_id]
+    if pending:
+        del collection["aetheria.pending"]
+    _redraw_grid(collection, state)
+    wm.aetheria_push_reviewed = ""
+    wm.aetheria_push_result = _result_text(outcome)
+    return len(request["layout"]["hardpoints"])
+
+
+class AETHERIA_OT_open_ship(bpy.types.Operator):
+    bl_idname = "aetheria.open_ship"
+    bl_label = "Open Ship"
+    bl_description = ("Read the ship's .cc into the layout buffer. A collection that is not bound yet is bound to the "
+                      "Ship .cc file first")
+    bl_options = {"REGISTER", "UNDO"}
+
+    collection: bpy.props.StringProperty(name="Collection", default="", maxlen=63,
+                                         description="The ship collection's name; empty means the active object's")
+
+    def execute(self, context):
+        try:
+            collection = _ship_collection(context, unbound_ok=True, name=self.collection)
+            if collection.get("aetheria.pending"):
+                raise Refusal("Not created yet; Apply creates it")
+            if not _is_ship(collection) or not collection.get("aetheria.ship_cc"):
+                if not context.scene.aetheria_ship_cc_path:
+                    raise Refusal("Choose the ship's .cc, then Open")
+                path = bpy.path.abspath(context.scene.aetheria_ship_cc_path)
+                _bind_collection(collection, path, _open(context, path)["ship"])
+            path = bpy.path.abspath(collection["aetheria.ship_cc"])
+            width, height, count = _load_layout(context, collection, path)
+            context.window_manager.aetheria_push_reviewed = ""
+            context.window_manager.aetheria_push_result = f"opened: {width}x{height}, {count} hardpoints"
+            self.report({"INFO"}, f"Opened {width}x{height} layout and {count} hardpoints")
+            return {"FINISHED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+
+
+class AETHERIA_OT_push_ship(bpy.types.Operator):
+    bl_idname = "aetheria.push_ship"
+    bl_label = "Push (dry run)"
+    bl_description = "Show what Apply would change in the ship's .cc; writes nothing"
+    bl_options = {"REGISTER"}
+
+    collection: bpy.props.StringProperty(name="Collection", default="", maxlen=63,
+                                         description="The ship collection's name; empty means the active object's")
+
+    def execute(self, context):
+        try:
+            _push_ship(context, _ship_collection(context, name=self.collection))
+            return {"FINISHED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+
+
+class AETHERIA_OT_apply_ship(bpy.types.Operator):
+    bl_idname = "aetheria.apply_ship"
+    bl_label = "Apply to .cc"
+    bl_description = "Write to the ship's .cc exactly what the last dry run showed. Only you press this"
+    bl_options = {"REGISTER"}
+
+    collection: bpy.props.StringProperty(name="Collection", default="", maxlen=63,
+                                         description="The ship collection's name; empty means the active object's")
+
+    def execute(self, context):
+        try:
+            count = _apply(context, _ship_collection(context, name=self.collection))
+            self.report({"INFO"}, f"Applied the layout and {count} hardpoints")
+            return {"FINISHED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+
+
 def _is_ship(collection):
     return collection.get("aetheria.asset_kind") == "ship"
 
 
-def _ship_collection(context, unbound_ok=False):
-    """The one chooser: the ship collection holding the active object. unbound_ok (Bind, New Ship) also accepts the
-    active object's only collection when no ship collection holds it."""
+def _ship_collection(context, unbound_ok=False, name=""):
+    """The one chooser: the ship collection holding the active object. unbound_ok (Open, New Ship) also accepts the
+    active object's only collection when no ship collection holds it. name (an agent's field) chooses the one collection
+    of that name instead: a ship collection, or with unbound_ok any."""
+    if name:
+        found = bpy.data.collections.get(name)
+        if found is None or not (unbound_ok or _is_ship(found)):
+            raise Refusal("Name a ship collection")
+        return found
     obj = context.active_object
     if obj is None:
         raise Refusal("Select an object in the ship collection")
@@ -407,7 +579,7 @@ def _ship_collection(context, unbound_ok=False):
 
 def _bind_collection(collection, path, ship_id, pending=None):
     """Binds the collection to the ship .cc at path (aetheria.asset_kind, .id and .ship_cc, and .pending = [name,
-    reference] for a ship whose file the first Save creates), or changes nothing."""
+    reference] for a ship whose file the first Apply creates), or changes nothing."""
     if collection.get("aetheria.asset_kind") not in (None, "ship"):
         raise ValueError("The collection has another aetheria.asset_kind")
     if collection.get("aetheria.id") not in (None, ship_id):
@@ -458,8 +630,8 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
             lines = _schematic_lines(context, collection)
             if lines is None:
                 raise ValueError("No schematic lines were captured; the ship record was not changed")
-            _push(context, path, {"ship": opened["ship"], "versions": opened["versions"], "lines": _line_rows(lines)},
-                  apply=True)
+            _landed(_push(context, path, {"ship": opened["ship"], "versions": opened["versions"],
+                                          "lines": _line_rows(lines)}, apply=True))
             self.report({"INFO"}, f"Captured {len(lines)} lines")
             return {"FINISHED"}
         except _EXPECTED as exc:
@@ -568,18 +740,32 @@ def _open(context, path):
 
 
 def _push(context, path, request, apply):
-    """'ship-authoring push' of a request: its change lines and outcome go to the system console. Returns the outcome
-    dict (changed, verdict, versions); judging is AetherDb's alone."""
+    """'ship-authoring push' of a request: its change lines and outcome go to the system console. Returns AetherDb's
+    outcome dict (outcome, changed, stale, verdict, versions; a refusal has outcome and message) with 'lines', the change
+    lines before the JSON line, for exit 0, 1 and 2; judging is AetherDb's alone."""
     args = ("push", path, "apply") if apply else ("push", path)
     code, out, err = _call(context, args, ship_cc=path, stdin=json.dumps(request))
     shown = _merged(out, err)
     if shown:
         print(shown)
-    if code == 2:
-        raise RuntimeError("The .cc changed since it was opened; Load Layout and try again")
-    if code != 0:
+    rows = [line for line in out.splitlines() if line.strip()]
+    try:
+        outcome = json.loads(rows[-1])
+    except (IndexError, ValueError):
+        raise RuntimeError("AetherDb printed no outcome; its message is in the system console") from None
+    if code not in (0, 1, 2) or not isinstance(outcome, dict) or "outcome" not in outcome:
+        raise RuntimeError("AetherDb did not answer the push; its message is in the system console")
+    outcome["lines"] = rows[:-1]
+    return outcome
+
+
+def _landed(outcome):
+    """The outcome of a push that was to write: stale and refused raise their fixed texts."""
+    if outcome["outcome"] == "stale":
+        raise RuntimeError("The .cc changed since it was opened; Open and try again")
+    if outcome["outcome"] == "refused":
         raise RuntimeError("AetherDb refused the push; its message is in the system console")
-    return json.loads([line for line in out.splitlines() if line.strip()][-1])
+    return outcome
 
 
 def _layer_collection(layer, collection):
@@ -786,7 +972,7 @@ def _frame_inputs(context, collection, state):
     if root is None:
         raise ValueError("The ship collection has no Ship Root; run New Ship first")
     if state.ship_id != collection["aetheria.id"]:
-        raise ValueError("Load this collection's layout first")
+        raise ValueError("Open this collection first")
     _refuse_loose_meshes(context, collection)
     meshes = _frame_meshes(collection)
     if not meshes:
@@ -980,7 +1166,7 @@ def _regenerate_anchors(context, collection, root):
 class AETHERIA_OT_rasterise_hull(bpy.types.Operator):
     bl_idname = "aetheria.rasterise_hull"
     bl_label = "Rasterise Hull"
-    bl_description = "Propose the hull's cells from its top-down silhouette; you edit them afterwards, then Save Layout"
+    bl_description = "Propose the hull's cells from its top-down silhouette; you edit them afterwards, then Push and Apply"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -1336,7 +1522,7 @@ def _new_ship(context, ship_id, name, reference, length):
     them nose to -Y, sizes them to length cells, fills the layout buffer and draws the Grid. The meshes keep their data:
     the placement is the objects' own matrix, so modifiers act as the author saw them and the cells are the ones checked
     here. Every check and the rasterising come first; after the bind nothing can refuse. Nothing is written to disk: the
-    first Save creates the file."""
+    first Apply creates the file."""
     if not valid_ship_id(ship_id):
         raise ValueError("The ship ID must use lower-case letters, digits, dots, underscores or hyphens, must not end "
                          "in a dot, and must not be a Windows device name")
@@ -1344,8 +1530,8 @@ def _new_ship(context, ship_id, name, reference, length):
         raise ValueError("Give the ship a display name and a reference hull")
     path = _game_folder(context, bpy.data.filepath or None) / "GameData" / "Mods" / ship_id / "ship.cc"
     if path.exists():
-        raise ValueError("A ship with this ID already exists under GameData/Mods (Ctrl+Z past a first Save leaves it "
-                         "there); use Bind Ship Collection with its ship.cc, then Load Layout, or give the new ship "
+        raise ValueError("A ship with this ID already exists under GameData/Mods (Ctrl+Z past a first Apply leaves it "
+                         "there); choose its ship.cc and Open, or give the new ship "
                          "another ID")
     collection = _ship_collection(context, unbound_ok=True)
     if collection.get("aetheria.id") is not None or _ship_root(collection) is not None:
@@ -1391,7 +1577,7 @@ class AETHERIA_OT_new_ship(bpy.types.Operator):
     bl_idname = "aetheria.new_ship"
     bl_label = "New Ship"
     bl_description = ("Set the active collection up as a new ship: nose toward -Y, sized to the length, with a drafted "
-                      "grid. Nothing is written until Save Layout")
+                      "grid. Nothing is written until Apply")
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -1399,7 +1585,7 @@ class AETHERIA_OT_new_ship(bpy.types.Operator):
         try:
             _new_ship(context, scene.aetheria_new_ship_id, scene.aetheria_new_ship_name,
                       scene.aetheria_new_ship_like, scene.aetheria_new_ship_length)
-            self.report({"INFO"}, "New ship set up; Save Layout creates its file")
+            self.report({"INFO"}, "New ship set up; Apply creates its file")
             return {"FINISHED"}
         except _EXPECTED as exc:
             return _refuse(self, exc)
@@ -1698,7 +1884,7 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
         try:
             collection, path = _layout_path(context)
             if collection.get("aetheria.pending"):
-                raise ValueError("Save Layout first")
+                raise ValueError("Apply first")
             _refuse_loose_meshes(context, collection)
             _refuse_shared_ids(context, collection)
             opened = _open(context, path)
@@ -1706,10 +1892,10 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             ship_id = collection["aetheria.id"]
             state = scene.aetheria_layout
             if state.ship_id == ship_id and state.ship_cc == path:
-                gate = _push(context, path, {"ship": opened["ship"], "versions": opened["versions"],
-                                             "layout": _layout_section(state)}, apply=False)
+                gate = _landed(_push(context, path, dict(_request(context, collection)[2], versions=opened["versions"]),
+                                     apply=False))
                 if gate["changed"]:
-                    raise ValueError("Save Layout first")
+                    raise ValueError("Apply first")
             if opened["ship"] != ship_id:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
             root = _ship_root(collection)
@@ -1725,7 +1911,7 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
                 request["lines"] = _line_rows(lines)
             elif _hull_state(collection) == HULL_ART:  # the lines in the slot are the retired hull's, not hers
                 request["lines"] = []
-            outcome = _push(context, path, request, apply=True)
+            outcome = _landed(_push(context, path, request, apply=True))
         except _EXPECTED as exc:
             scene.aetheria_package_report = f"Package failed: {_failure_text(exc)}"
             self.report({"ERROR"}, scene.aetheria_package_report)
@@ -1766,7 +1952,7 @@ class AETHERIA_PT_ship(bpy.types.Panel):
             collection = _ship_collection(context)
             layout.label(text=f"Ship: {collection['aetheria.id']}")
             if collection.get("aetheria.pending"):
-                layout.label(text="Not saved yet: Save Layout creates the file", icon="INFO")
+                layout.label(text="Not created yet: Apply creates the file", icon="INFO")
             elif (collection.get("aetheria.grid_origin") is not None and state.ship_id == collection["aetheria.id"]
                   and not _grid_current(collection, state)):
                 layout.label(text="Rasterise again: the grid no longer matches the layout", icon="INFO")
@@ -1776,6 +1962,7 @@ class AETHERIA_PT_ship(bpy.types.Panel):
 
         layout.separator()
         row = layout.row(align=True)
+        row.operator("aetheria.open_ship", icon="IMPORT")
         row.operator("aetheria.flip_nose", icon="LOOP_BACK")
         row.operator("aetheria.rasterise_hull", icon="MESH_GRID")
         layout.operator("aetheria.bake_from_source", icon="RENDER_RESULT")
@@ -1834,6 +2021,18 @@ class AETHERIA_PT_ship(bpy.types.Panel):
     @staticmethod
     def _draw_package(context, layout):
         layout.separator()
+        if context.scene.aetheria_layout.ship_id:
+            layout.operator("aetheria.push_ship", icon="VIEWZOOM")
+            row = layout.row()
+            row.enabled = bool(context.window_manager.aetheria_push_reviewed)
+            row.operator("aetheria.apply_ship", icon="FILE_TICK")
+            lines = context.window_manager.aetheria_push_result.splitlines()
+            if lines:
+                box = layout.box()
+                for line in lines[:40]:
+                    box.label(text=line)
+                if len(lines) > 40:
+                    box.label(text=f"... {len(lines) - 40} more")
         layout.operator("aetheria.package_ship", icon="PACKAGE")
         obj = context.active_object
         if obj is not None and "aetheria.role" in obj:
@@ -1852,6 +2051,7 @@ class AETHERIA_PT_ship(bpy.types.Panel):
 
 
 classes = (AETHERIA_PG_cell, AETHERIA_PG_hardpoint, AETHERIA_PG_layout,
+           AETHERIA_OT_open_ship, AETHERIA_OT_push_ship, AETHERIA_OT_apply_ship,
            AETHERIA_OT_resize_layout,
            AETHERIA_OT_add_hardpoint, AETHERIA_OT_remove_hardpoint,
            AETHERIA_OT_add_weapon, AETHERIA_OT_add_muzzle, AETHERIA_OT_mirror_mount, AETHERIA_OT_remove_mount,
@@ -1876,6 +2076,10 @@ def register():
     bpy.types.Scene.aetheria_new_ship_length = bpy.props.IntProperty(
         name="Length (cells)", default=10, min=1, max=hull_grid.MAX_CELLS,
         description="Cells from stern to nose; the hull's long axis becomes this many 2 m cells")
+    bpy.types.WindowManager.aetheria_push_result = bpy.props.StringProperty(
+        name="Push result", description="AetherDb's change lines and outcome of the last Push, Apply or Open; display only")
+    bpy.types.WindowManager.aetheria_push_reviewed = bpy.props.StringProperty(
+        name="Reviewed push", description="The last dry run's request, which Apply compares the scene against")
     bpy.types.Scene.aetheria_package_report = bpy.props.StringProperty(
         name="Package report", description="AetherDb's verdict on the last Package Ship")
     bpy.types.Scene.aetheria_capture_evaluated_lines = bpy.props.BoolProperty(
@@ -1894,5 +2098,7 @@ def unregister():
     del bpy.types.Scene.aetheria_new_ship_name
     del bpy.types.Scene.aetheria_new_ship_id
     del bpy.types.Scene.aetheria_package_report
+    del bpy.types.WindowManager.aetheria_push_reviewed
+    del bpy.types.WindowManager.aetheria_push_result
     del bpy.types.Scene.aetheria_ship_cc_path
 
