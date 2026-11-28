@@ -442,17 +442,17 @@ def main():
     require(result == {"CANCELLED"} and "The GLB export failed" in report, f"A failed GLB export was not refused: {report}")
     require("Traceback" not in report and not any(name in report for name in NAMES_NOT_ECHOED),
             f"A library error reached the report: {report}")
-    real_visual = aetheria_ships.replace_visual
+    real_push = aetheria_ships._push
 
     def unwritable(*args, **kwargs):
         raise OSError(f"probe: cannot write {path}")
 
-    aetheria_ships.replace_visual = unwritable
+    aetheria_ships._push = unwritable
     try:
         result, message = run(bpy.ops.aetheria.package_ship)
         report = scene.aetheria_package_report
     finally:
-        aetheria_ships.replace_visual = real_visual
+        aetheria_ships._push = real_push
     require(result == {"CANCELLED"} and report == "Package failed: Stopped by OSError; see the system console",
             f"A library error of another type is not reported by its type alone: {report}")
     result, message = run(bpy.ops.aetheria.package_ship)
