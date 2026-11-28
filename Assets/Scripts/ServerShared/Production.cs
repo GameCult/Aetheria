@@ -36,6 +36,13 @@ public static class Production
     public static bool Runs(CultCache catalog, RecipeData recipe) =>
         !Recipes.IsRaw(catalog, recipe) && catalog.Get(recipe.Output) is SimpleCommodityData;
 
+    // The recipe a run names as the catalog holds it now, or null when the catalog no longer has it or no longer runs it here.
+    public static RecipeData Live(CultCache catalog, CultRecordRef<RecipeData> recipe)
+    {
+        var held = catalog.Get(recipe);
+        return held != null && Runs(catalog, held) ? held : null;
+    }
+
     // The recipes a facility design runs, in recipe-key order. Derived from the catalog, never stored.
     public static IReadOnlyList<RecipeData> RunList(CultCache catalog, CultRecordKey facilityDesign) =>
         Recipes.RunOn(catalog, facilityDesign).Where(recipe => Runs(catalog, recipe)).ToArray();
@@ -78,10 +85,15 @@ public static class Production
     // time; at Progress >= Cycle it stores the output and goes idle, the recipe staying as the cursor. A store the hold refuses
     // holds the batch at Cycle (Room) and retries on the next call. Time left after a cycle ends runs the next one in the same call,
     // so a long span runs several cycles (the rule that makes one span equal as many steps as it covers); time that no cycle can start is
-// dropped. A facility with nothing to start writes nothing.
+    // dropped. A facility with nothing to start writes nothing.
     public static (FacilityRun run, Stall stall) Advance(CultCache catalog, IReadOnlyList<RecipeData> runList, FacilityRun run,
         double seconds, IProductionHold hold)
     {
+        // A run whose recipe the catalog no longer has, or no longer runs here (a save outliving a catalog edit), is dropped: its
+        // progress is gone and the inputs it took stay consumed, as they are taken whole at cycle start and the recipe that named
+        // them is not there to return them against. The facility then starts its next recipe. Nothing below can meet a run that is not
+        // live: a start is of a recipe the catalog holds and runs, so Advance never throws on one and never spins.
+        if (run != null && run.Progress > 0 && Live(catalog, run.Recipe) == null) run = null;
         if (runList.Count == 0) return (run, Stall.Unrunnable);
         while (true)
         {
@@ -92,7 +104,10 @@ public static class Production
                 RecipeData start = null;
                 for (var step = 1; step <= runList.Count && start == null; step++)
                 {
-                    var candidate = runList[(cursor + step + runList.Count) % runList.Count];
+                    // The list may be older than the catalog: a candidate starts only as the catalog now holds it and runs it, so a
+                    // started run is always one the next pass of this loop resolves, and a pass over the whole list ends the loop.
+                    var candidate = Live(catalog, new CultRecordRef<RecipeData>(RecipeData.KeyOf(runList[(cursor + step + runList.Count) % runList.Count].Output.Key)));
+                    if (candidate == null) continue;
                     var units = Take(catalog, candidate, hold);
                     if (units != null && hold.TryTake(units)) start = candidate;
                 }
@@ -100,15 +115,7 @@ public static class Production
                 run = new FacilityRun { Recipe = new CultRecordRef<RecipeData>(RecipeData.KeyOf(start.Output.Key)), Progress = 0 };
             }
 
-            var recipe = catalog.Get(run.Recipe);
-            // A run whose recipe the catalog no longer has, or no longer runs here (a save outliving a catalog edit), is dropped: its
-            // progress is gone and the inputs it took stay consumed, as they are taken whole at cycle start and the recipe that named
-            // them is not there to return them against. The facility then starts its next recipe, and Advance never throws on it.
-            if (recipe == null || !Runs(catalog, recipe))
-            {
-                run = null;
-                continue;
-            }
+            var recipe = Live(catalog, run.Recipe);
             var progress = run.Progress;
             if (progress < recipe.Cycle)
             {

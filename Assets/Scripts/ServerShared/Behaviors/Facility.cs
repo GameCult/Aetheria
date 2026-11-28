@@ -23,7 +23,7 @@ public class FacilityData : BehaviorData
 // Production.Advance for what is off screen. Its recipes are the run list of its design, fixed for a run because the catalog is.
 public class Facility : Behavior
 {
-    private readonly IReadOnlyList<RecipeData> _runList;
+    private IReadOnlyList<RecipeData> _runList;
     private EntityHold _hold;
 
     // Why the facility advanced no further this step: derived by Advance every step, never stored on the unit.
@@ -47,6 +47,10 @@ public class Facility : Behavior
         var idle = Item.EquippableItem.Run == null || Item.EquippableItem.Run.Progress <= 0;
         if (idle && Stall == Stall.Inputs && _hold.Revision == _failedAt) return true;
         Attempts++;
+        // A running cycle whose recipe left the catalog or stopped running here is dropped by Advance: the list it was built from is
+        // stale, so it is rebuilt from the catalog before that step.
+        if (!idle && Production.Live(ItemManager.ItemData, Item.EquippableItem.Run.Recipe) == null)
+            _runList = Production.RunList(ItemManager.ItemData, Item.EquippableItem.Data.Key);
         var (run, stall) = Production.Advance(ItemManager.ItemData, _runList, Item.EquippableItem.Run, dt, _hold);
         Item.EquippableItem.Run = run;
         Stall = stall;

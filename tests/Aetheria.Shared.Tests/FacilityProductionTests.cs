@@ -471,6 +471,73 @@ public sealed class FacilityProductionTests : IDisposable
         Assert.Equal(0, Held(restored, IronFillers[0]));
     }
 
+    private void Edit(CultRecordKey recipe, Action<RecipeData> change)
+    {
+        var held = _cache.Get<RecipeData>(recipe);
+        change(held);
+        _cache.Upsert(typeof(RecipeData), held, recipe);
+    }
+
+    private static T Within<T>(Func<T> work)
+    {
+        var task = System.Threading.Tasks.Task.Run(work);
+        Assert.True(task.Wait(TimeSpan.FromSeconds(20)), "Advance did not return: it spins on a stale run list");
+        return task.Result;
+    }
+
+    // A run list built before the catalog changed names a recipe the catalog no longer holds, or holds as a raw one: nothing starts
+    // from it, the stock is untouched, the call returns, and the recipes that still run still start.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AStaleRunListStartsNothingAndReturns(bool removed)
+    {
+        var world = Build();
+        var runList = Production.RunList(_cache, _cache.RefOf<ItemData>(_cache.GetByName<GearData>("Refinery")).Key);
+        Assert.Contains(runList, recipe => recipe.Output.Key.Equals(Iron));
+        var ironKey = RecipeData.KeyOf(Iron);
+        if (removed) _cache.Remove(ironKey);
+        else Edit(ironKey, recipe => recipe.RoleInputs.Clear());
+        Stock(world, IronFillers[0], 3);
+
+        var (run, stall) = Within(() => Production.Advance(_cache, runList, null, 1200, world.Hold));
+        Assert.Null(run);
+        Assert.Equal(Stall.Inputs, stall);
+        Assert.Equal(3, Held(world, IronFillers[0]));
+        Assert.Equal(0, Held(world, Iron));
+
+        var copperOre = Recipes.Fillers(_cache, "copper ore").Except(IronFillers).First();
+        Stock(world, copperOre, 4);
+        (run, _) = Within(() => Production.Advance(_cache, runList, null, 10, world.Hold));
+        Assert.Equal(RecipeData.KeyOf(new CultRecordKey("commodity:copper")), run.Recipe.Key);
+    }
+
+    // A running cycle whose recipe the catalog changed under it is dropped, whatever the change: the recipe removed, made raw (it takes
+    // nothing now) or given a compound output (a graded output needs a lot). The facility's list is rebuilt and it moves on.
+    [Theory]
+    [InlineData("removed")]
+    [InlineData("raw")]
+    [InlineData("compound")]
+    public void ARunningCycleWhoseRecipeStoppedRunningIsDropped(string change)
+    {
+        var world = Build();
+        Stock(world, IronFillers[0], 3);
+        Step(world, 101);
+        Assert.Equal(RecipeData.KeyOf(Iron), world.Unit.Run.Recipe.Key);
+        var ironKey = RecipeData.KeyOf(Iron);
+        if (change == "removed") _cache.Remove(ironKey);
+        else if (change == "raw") Edit(ironKey, recipe => recipe.RoleInputs.Clear());
+        else Edit(ironKey, recipe => recipe.Output = new CultRecordRef<ItemData>(_cache.RefOf<ItemData>(_cache.GetAll<CompoundCommodityData>().First()).Key));
+
+        Step(world, 2);
+        Assert.Null(world.Unit.Run);
+        Assert.Equal(0, Held(world, Iron));
+        Assert.Equal(0, Held(world, IronFillers[0]));
+        Stock(world, IronFillers[0], 3);
+        Step(world, 2);
+        Assert.Null(world.Unit.Run);
+    }
+
     // Recipes.Fillers reads an index built once per catalog; it is rebuilt when a recipe changes.
     [Fact]
     public void FillersFollowTheCatalogThroughAChange()
