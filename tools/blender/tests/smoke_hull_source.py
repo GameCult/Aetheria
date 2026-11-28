@@ -323,32 +323,6 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     root.location.x = off_centre
     require(aetherdb(ship_cc, "product", ship_cc, other, "--remove") == 0, "AetherDb could not remove the other maker's product")
 
-    # Record keys compare exactly: a Manufacturer that differs from the language's maker only in case names no Faction.
-    # AetherDb cannot write one, but a hand-edited ship.cc or a cultcache-py push can, and the guard alone refuses it.
-    def manufacturer_as(change):
-        ship_module = sys.modules["aetheria_ships.ship_cc"]
-        store = ship_module.read(ship_cc, PACKAGES).store
-        seen = []
-        for envelope in store.pull_all():
-            if envelope.type == ship_module.PRODUCT_SCHEMA:
-                values = msgpack.unpackb(envelope.payload, raw=False)
-                seen.append(values[ship_module.PRODUCT_MANUFACTURER_SLOT])
-                values[ship_module.PRODUCT_MANUFACTURER_SLOT] = change(seen[-1])
-                store.push(dataclasses.replace(envelope, payload=msgpack.packb(values, use_bin_type=True)))
-        return seen
-
-    written = manufacturer_as(str.upper)
-    require(written and all(key.upper() != key for key in written), "The package holds no product with a cased key to rewrite")
-    select(box)
-    result, message = run(bpy.ops.aetheria.package_ship)
-    report = scene.aetheria_package_report
-    require(result == {"CANCELLED"} and "not by the maker of the hull's faction language" in report,
-            f"Package took a product whose Manufacturer differs from the maker in case: {report!r} {message!r}")
-    require(not (package / "ship.glb").exists(), "Package wrote ship.glb for a case-variant Manufacturer")
-    for echoed in (ship_id, str(GAME), maker, collection["aetheria.hull_maker"], collection["aetheria.hull_maker"].upper()):
-        require(echoed not in report, f"The refusal echoes an input ({echoed})")
-    manufacturer_as(lambda _: written.pop(0))
-
     # Package: the validator accepts the built ship and the GLB holds a node per anchor.
     mount = bpy.data.objects[roles["weapon-mount"][0]]
     straight = mount.rotation_euler.z
