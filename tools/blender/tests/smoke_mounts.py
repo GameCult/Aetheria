@@ -3,8 +3,8 @@ Mount, and that Package moves nothing of them.
 
     blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_mounts.py
 
-Environment as smoke_package.py's header says: CULTLIB_PACKAGES and SMOKE_GAME_FOLDER (the published AetherDb under its
-ModTools, no dotnet), and msgpack importable. The ship is created under <game folder>/GameData/Mods/smoke.mounts, which
+Environment as smoke_package.py's header says: SMOKE_GAME_FOLDER (the published AetherDb under its
+ModTools, no dotnet). The ship is created under <game folder>/GameData/Mods/smoke.mounts, which
 this smoke removes when it ends.
 
 The schematic and the model are separate spaces (ruling schematic-and-model-are-separate-spaces): a row's Position is
@@ -34,7 +34,6 @@ import bpy
 from mathutils import Vector
 
 REPO = Path(__file__).resolve().parents[3]
-PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
 SHIP_ID = "smoke.mounts"
 ODD_ID = "smoke.mounts.odd"
 # (ship id, length in cells, the source sphere's Y scale, wide, grid width parity) of passes 6 to 8; the id's mod directory
@@ -271,7 +270,6 @@ def main():
     sys.path.insert(0, str(REPO / "tools" / "blender"))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
     import aetheria_ships
-    aetheria_ships._brokkr_cultlib = lambda context: PACKAGES
     bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(GAME)
     require(not (MODS / SHIP_ID).exists(), f"{MODS / SHIP_ID} exists; remove it first")
     path = str(MODS / SHIP_ID / "ship.cc")
@@ -413,11 +411,26 @@ def main():
     require(row(scene, "weapon.2")[3] == REVERSED and row(scene, "reactor.a") == reactor_before, "Package changed a Rotation or an internal row")
     require(abs(gun.rotation_euler.z - 0.3) < 1e-6, f"Package turned a hand-set yaw: {gun.rotation_euler.z}")
     require(abs(twin.rotation_euler.z - twin_yaw) < 1e-6, f"Package turned a mount to its row's Rotation: {twin.rotation_euler.z}")
-    saved = aetheria_ships.ship_cc.read_layout(path, PACKAGES)[1]
-    by_mount = {fields["Transform"]: fields for fields in map(aetheria_ships.ship_cc.decode_hardpoint, saved)}
-    require(tuple(by_mount["weapon.1"]["Position"]) == (4, 5) and tuple(by_mount["weapon.2"]["Position"]) == (1, 5)
-            and by_mount["weapon.2"]["Rotation"] == REVERSED and tuple(by_mount["reactor.a"]["Position"]) == (2, 2),
+    def saved_rows():
+        return {fields["mount"]: fields for fields in aetheria_ships._open(bpy.context, path)["layout"]["hardpoints"]}
+
+    by_mount = saved_rows()
+    require(tuple(by_mount["weapon.1"]["cell"]) == (4, 5) and tuple(by_mount["weapon.2"]["cell"]) == (1, 5)
+            and by_mount["weapon.2"]["rotation"] == REVERSED and tuple(by_mount["reactor.a"]["cell"]) == (2, 2),
             "The .cc does not hold what the author left")
+    # An element id is carried: after Load, a row moved and saved stands at its new cell under the same element.
+    select(sphere)
+    require(run(bpy.ops.aetheria.load_ship_layout)[0] == {"FINISHED"}, "Load before the element check was refused")
+    element = saved_rows()["weapon.1"]["element"]
+    require(element, "Open names no element for a saved hardpoint")
+    moved = next(hp for hp in scene.aetheria_layout.hardpoints if hp.mount_id == "weapon.1")
+    require(moved.element == element, "Load did not carry the element")
+    moved.x -= 1
+    require(run(bpy.ops.aetheria.save_ship_layout)[0] == {"FINISHED"}, "Save of a moved row was refused")
+    after = saved_rows()["weapon.1"]
+    require(after["element"] == element and tuple(after["cell"]) == (3, 5), "A moved row did not keep its element")
+    moved.x += 1
+    require(run(bpy.ops.aetheria.save_ship_layout)[0] == {"FINISHED"}, "Save of the restored row was refused")
     require([r for r in rows(scene) if r in pair_rows] == pair_rows, "The second Package moved a mirrored pair")
     print("PASS 3 package moves nothing ok")
 

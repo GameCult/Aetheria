@@ -2,7 +2,7 @@
 
     blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_package.py
 
-Environment: CULTLIB_PACKAGES (CultLib's packages directory, as test_ship_cc.py) and SMOKE_GAME_FOLDER, a folder holding
+Environment: SMOKE_GAME_FOLDER, a folder holding
 GameData/Aetheria.cc and the published AetherDb under ModTools (AetherDb.exe on Windows), which the smoke sets as the
 add-on's Game folder. No dotnet is needed: the add-on runs the published tool and nothing else.
 SMOKE_MODS names the mods directory to write into (default: a new temp directory); the package is left there so the
@@ -36,7 +36,6 @@ import bpy
 
 REPO = Path(__file__).resolve().parents[3]
 GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
-PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
 SHIP_ID = "smoke.gale"
 
 
@@ -329,8 +328,6 @@ def main():
     sys.path.insert(0, str(REPO / "tools" / "blender"))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
     import aetheria_ships
-    # Brokkr is the Blender host's CultLib path provider and is not installed in a factory-startup Blender.
-    aetheria_ships._brokkr_cultlib = lambda context: PACKAGES
     bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(GAME)
 
     mods = Path(os.environ.get("SMOKE_MODS") or tempfile.mkdtemp(prefix="aetheria-smoke-mods-"))
@@ -362,16 +359,15 @@ def main():
     bpy.context.view_layer.objects.active = hull
     bind_cases(ship, path, mods)
 
-    ship_cc = aetheria_ships.ship_cc
-    _, _, revision = ship_cc.read_layout(path, PACKAGES)
-
     def hardpoint(kind, x, mount):
-        return ship_cc.encode_hardpoint(Type=ship_cc.HARDPOINT_TYPE_NAMES.index(kind), Position=[x, 0],
-                                        Shape=[[1, 1, [True]]], Transform=mount, Rotation=0, Armor=0.0, FiringArc=0.0)
+        return {"element": "", "mount": mount, "kind": kind, "cell": [x, 0], "footprint": "#", "rotation": 0,
+                "armor": 0.0, "arc": 0.0}
 
-    ship_cc.replace_layout(path, PACKAGES, SHIP_ID, revision, [4, 1, [True] * 4], [
-        hardpoint("Thruster", 0, "thruster"), hardpoint("Radiator", 1, "radiator"),
-        hardpoint("Energy", 2, "gun"), hardpoint("Reactor", 3, "reactor")])
+    aetheria_ships._push(bpy.context, path, {
+        "ship": SHIP_ID, "versions": aetheria_ships._open(bpy.context, path)["versions"],
+        "layout": {"grid": "####", "hardpoints": [
+            hardpoint("Thruster", 0, "thruster"), hardpoint("Radiator", 1, "radiator"),
+            hardpoint("Energy", 2, "gun"), hardpoint("Reactor", 3, "reactor")]}}, apply=True)
 
     objects_before = sorted(obj.name for obj in bpy.data.objects)
     result, report = package(aetheria_ships)

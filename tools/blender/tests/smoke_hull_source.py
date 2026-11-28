@@ -2,8 +2,8 @@
 
     blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_hull_source.py
 
-Environment: CULTLIB_PACKAGES and SMOKE_GAME_FOLDER as smoke_package.py's header says (the published AetherDb under
-ModTools, GameData/Aetheria.cc), msgpack importable, and OpenSCAD 2026.09 or later at SMOKE_OPENSCAD (default: the add-on
+Environment: SMOKE_GAME_FOLDER as smoke_package.py's header says (the published AetherDb under
+ModTools, GameData/Aetheria.cc) and OpenSCAD 2026.09 or later at SMOKE_OPENSCAD (default: the add-on
 preference's default). SMOKE_PID_LOG, when set, receives one line per OpenSCAD process. Each ship is created under
 <game folder>/GameData/Mods/smoke.hull.*, which this smoke removes when it ends.
 
@@ -59,10 +59,8 @@ from pathlib import Path
 import addon_utils
 import bmesh
 import bpy
-import msgpack
 
 REPO = Path(__file__).resolve().parents[3]
-PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
 GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
 OPENSCAD = os.environ.get("SMOKE_OPENSCAD")
 PID_LOG = os.environ.get("SMOKE_PID_LOG")
@@ -348,7 +346,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
 
     # Schematic lines: Build's, else hers, and never two of hers.
     packaged = ship_lines(ship_cc)
-    require(packaged and packaged[0][0] == "silhouette" and packaged[0][5] is True, f"The first line is not the silhouette: {packaged[:1]}")
+    require(packaged and packaged[0]["layer"] == "silhouette" and packaged[0]["cyclic"] is True, f"The first line is not the silhouette: {packaged[:1]}")
     kit = [row for row in packaged if row[0] != "silhouette"]
     drawn = [row[0] for row in packaged]
     require(drawn[:len(packaged) - len(kit)] == ["silhouette"] * (len(packaged) - len(kit)), "The silhouette contours are not first")
@@ -363,7 +361,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     result, message = run(bpy.ops.aetheria.package_ship)
     require(result == {"FINISHED"}, f"Package refused a ship with one Grease Pencil: {message!r}")
     hers = ship_lines(ship_cc)
-    require(len(hers) == 1 and hers[0][0] == "hers" and len(hers[0][2]) == 9, f"Her Grease Pencil did not replace the kit's lines: {hers}")
+    require(len(hers) == 1 and hers[0]["layer"] == "hers" and len(hers[0]["points"]) == 9, f"Her Grease Pencil did not replace the kit's lines: {hers}")
     second = grease_pencil(collection, "second lines", [(0, 0, 0), (2, 0, 0)])
     before = ship_lines(ship_cc)
     for operator in (bpy.ops.aetheria.package_ship, bpy.ops.aetheria.capture_ship_lines):
@@ -607,15 +605,16 @@ def clear(collection):
 
 
 def ship_lines(ship_path):
-    """The ShipAuthoring.SchematicLines rows of a ship.cc, as Package wrote them."""
-    return sys.modules["aetheria_ships"].read(ship_path, PACKAGES).ship.body[sys.modules["aetheria_ships"].ship_cc.SCHEMATIC_LINES_SLOT]
+    """The schematic line rows of a ship.cc as open prints them, as Package wrote them."""
+    return sys.modules["aetheria_ships"]._open(bpy.context, ship_path)["lines"]
 
 
 def same_lines(a, b, tolerance=1e-4):
-    """Whether two SchematicLines slots hold the same rows: layer, cyclic, colour and every point within tolerance."""
+    """Whether two line lists hold the same rows: layer, cyclic, colour and every point within tolerance."""
     return len(a) == len(b) and all(
-        x[0] == y[0] and x[5] == y[5] and len(x[2]) == len(y[2]) and approx(x[6], y[6], tolerance)
-        and all(abs(p - q) <= tolerance for p, q in zip(x[2], y[2])) for x, y in zip(a, b))
+        x["layer"] == y["layer"] and x["cyclic"] == y["cyclic"] and len(x["points"]) == len(y["points"])
+        and approx(x["color"], y["color"], tolerance)
+        and all(abs(p - q) <= tolerance for p, q in zip(x["points"], y["points"])) for x, y in zip(a, b))
 
 
 def grease_pencil(collection, name, points):
@@ -805,7 +804,7 @@ def hull_type_gate(scene):
     fixture, _, extent, length, rows, *_ = HULLS[0]
     ship_id = "smoke.hull.role"
     collection, box, package = make_ship(scene, fixture, ship_id, extent, length, rows)
-    ship_module = sys.modules["aetheria_ships.ship_cc"]
+    module = sys.modules["aetheria_ships"]
     path = str(package / "ship.cc")
     source = package / "hull.scad"
     original = source.read_text()
@@ -820,20 +819,22 @@ def hull_type_gate(scene):
 
     sys.modules["aetheria_ships"].hull_source.build = recorded
     try:
-        require(ship_module.read_hull_type(path, PACKAGES) == "Ship", "New Ship did not write a Ship hull")
+        require(module._open(bpy.context, path)["hullType"] == "Ship", "New Ship did not write a Ship hull")
         select(box)
         result, message = run(bpy.ops.aetheria.build_hull_source)
         require(result == {"CANCELLED"} and "the body's proportions lie inside the language's ranges" in message,
                 f"A Ship far wider than its language allows was built: {message!r}")
         print("PASS 5.1 a body wider than the language's ships is refused as Ship, on proportion")
 
-        store = ship_module.read(path, PACKAGES).store
-        for envelope in store.pull_all():
-            if envelope.type == ship_module.HULL_SCHEMA:
-                values = msgpack.unpackb(envelope.payload, raw=False)
-                values[ship_module.HULL_TYPE_SLOT] = 1
-                store.push(dataclasses.replace(envelope, payload=msgpack.packb(values, use_bin_type=True)))
-        require(ship_module.read_hull_type(path, PACKAGES) == "Station", "The pushed HullType did not read back as Station")
+        # The add-on's one hull-type reader says Station for this ship: the rest of Build reads it from there.
+        real_open = module._open
+
+        def station(context, ship_path):
+            opened = real_open(context, ship_path)
+            opened["hullType"] = "Station"
+            return opened
+
+        module._open = station
         select(box)
         result, message = run(bpy.ops.aetheria.build_hull_source)
         names = [c.name for c in judged[-1].checks]
@@ -854,6 +855,7 @@ def hull_type_gate(scene):
         print("PASS 5.3 a Station 70 m wide is refused on the layout grid, not on proportion")
     finally:
         sys.modules["aetheria_ships"].hull_source.build = real
+        module._open = real_open
     print("HULL_TYPE_GATE_OK", flush=True)
     return collection
 
@@ -866,7 +868,6 @@ def main():
     import aetheria_ships
     global hull_source, EXECUTABLE
     hull_source = aetheria_ships.hull_source
-    aetheria_ships._brokkr_cultlib = lambda context: PACKAGES
     preferences = bpy.context.preferences.addons["aetheria_ships"].preferences
     preferences.game_folder = str(GAME)
     if OPENSCAD:

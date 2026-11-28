@@ -3,7 +3,7 @@
     blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_bake.py
 
 Blender 5.2 is required: the tolerances below were measured on 5.2.2 (Cycles on the CPU, 256 x 256, one sample).
-Environment as smoke_package.py's header says: CULTLIB_PACKAGES and SMOKE_GAME_FOLDER (a folder holding
+Environment as smoke_package.py's header says: SMOKE_GAME_FOLDER (a folder holding
 GameData/Aetheria.cc and the published AetherDb under ModTools, no dotnet). The ship is created under
 <game folder>/GameData/Mods/smoke.bake, which this smoke removes when it ends.
 
@@ -39,7 +39,6 @@ import numpy
 
 REPO = Path(__file__).resolve().parents[3]
 FIXTURE = REPO / "tools" / "blender" / "tests" / "fixtures" / "tripo-hull.glb"
-PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
 GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
 SHIP_ID = "smoke.bake"
 COLLECTION = "Smoke Bake"
@@ -318,7 +317,6 @@ def main():
     sys.path.insert(0, str(REPO / "tools" / "blender"))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
     import aetheria_ships
-    aetheria_ships._brokkr_cultlib = lambda context: PACKAGES
     preferences = bpy.context.preferences.addons["aetheria_ships"].preferences
     preferences.game_folder = str(GAME)
     require(preferences.bake_size == 2048 and abs(preferences.bake_cage_extrusion - 0.05) < 1e-6

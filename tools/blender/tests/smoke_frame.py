@@ -2,8 +2,8 @@
 
     blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_frame.py
 
-Environment as smoke_package.py's header says: CULTLIB_PACKAGES and SMOKE_GAME_FOLDER (the published AetherDb under its
-ModTools, no dotnet), and msgpack importable. The ship is created under <game folder>/GameData/Mods/smoke.frame, which
+Environment as smoke_package.py's header says: SMOKE_GAME_FOLDER (the published AetherDb under its
+ModTools, no dotnet). The ship is created under <game folder>/GameData/Mods/smoke.frame, which
 this smoke removes when it ends.
 
 Pass 1 sends a UV sphere (1 x 0.6 x 0.4, long axis X, off the origin) through New Ship, length 10, like Djinni: nothing
@@ -41,7 +41,6 @@ import bmesh
 import bpy
 
 REPO = Path(__file__).resolve().parents[3]
-PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
 SHIP_ID = "smoke.frame"
 GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
 MODS = GAME / "GameData" / "Mods"
@@ -106,9 +105,10 @@ def refused(operator, expected, what):
 
 
 def saved_layout(path, aetheria_ships):
-    shape, hardpoints, revision = aetheria_ships.ship_cc.read_layout(path, PACKAGES)
-    width, height, cells = shape
-    return width, height, {(i // height, i % height) for i, cell in enumerate(cells) if cell}, hardpoints, revision
+    opened = aetheria_ships._open(bpy.context, path)
+    width, height, cells = aetheria_ships._parse_footprint(opened["layout"]["grid"])[0]
+    rows = [{key: value for key, value in row.items() if key != "element"} for row in opened["layout"]["hardpoints"]]
+    return width, height, {(i // height, i % height) for i, cell in enumerate(cells) if cell}, rows, opened["versions"]
 
 
 def buffer(scene):
@@ -178,7 +178,6 @@ def main():
     sys.path.insert(0, str(REPO / "tools" / "blender"))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
     import aetheria_ships
-    aetheria_ships._brokkr_cultlib = lambda context: PACKAGES
     bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(GAME)
     require(not (MODS / SHIP_ID).exists(), f"{MODS / SHIP_ID} exists; remove it first")
     path = str(MODS / SHIP_ID / "ship.cc")
@@ -234,7 +233,7 @@ def main():
     width, height, cells, hardpoints = buffer(scene)
     require((width, height) == (6, 10) and hardpoints == 0, f"The buffer is {width}x{height} with {hardpoints} hardpoints")
     require((0, 0) not in cells and (width // 2, height // 2) in cells, "The ellipse's cells are wrong")
-    require(not scene.aetheria_layout.revision, "A pending ship's buffer has a revision")
+    require(not scene.aetheria_layout.versions, "A pending ship's buffer has versions")
     origin = collection.get("aetheria.grid_origin")
     require(origin is not None and len(origin) == 4 and (origin[2], origin[3]) == (width, height),
             "aetheria.grid_origin does not carry the grid's size")
@@ -269,25 +268,25 @@ def main():
     refused(bpy.ops.aetheria.save_ship_layout, "AetherDb refused to create the ship", "Save with an unknown reference hull")
     require(not (MODS / SHIP_ID).exists(), "A refused create left the ship folder behind")
     collection["aetheria.pending"] = ["Smoke Frame", "Djinni"]
-    real = aetheria_ships.replace_layout
+    real = aetheria_ships._push
 
     def failing(*args, **kwargs):
-        raise ValueError("probe: replace_layout failed")
+        raise ValueError("probe: push failed")
 
-    aetheria_ships.replace_layout = failing
+    aetheria_ships._push = failing
     try:
-        message = refused(bpy.ops.aetheria.save_ship_layout, "probe: replace_layout failed", "Save with a failing write")
+        message = refused(bpy.ops.aetheria.save_ship_layout, "probe: push failed", "Save with a failing write")
     finally:
-        aetheria_ships.replace_layout = real
+        aetheria_ships._push = real
     require(not (MODS / SHIP_ID).exists(), "A failed first Save left the ship folder behind")
     require(collection.get("aetheria.pending") is not None, "A failed first Save cleared aetheria.pending")
     result, message = run(bpy.ops.aetheria.save_ship_layout)
     require(result == {"FINISHED"}, f"The retried Save was refused: {message}")
     require(collection.get("aetheria.pending") is None, "Save left aetheria.pending set")
-    width, height, cells, hardpoints, revision = saved_layout(path, aetheria_ships)
+    width, height, cells, hardpoints, versions = saved_layout(path, aetheria_ships)
     require((width, height, cells) == buffer(scene)[:3], "The saved .cc is not the buffer")
-    require(scene.aetheria_layout.revision == revision, "The buffer did not record the saved revision")
-    require(aetheria_ships.ship_cc.read(path, PACKAGES).ship.body[0] == SHIP_ID, "The saved file is not the ship")
+    require(json.loads(scene.aetheria_layout.versions) == versions, "The buffer did not record the saved versions")
+    require(aetheria_ships._open(bpy.context, path)["ship"] == SHIP_ID, "The saved file is not the ship")
     require(grid_faces() == len(cells), "Save did not redraw the Grid")
     refused_existing = _second_collection_refused()
     print("PASS 2 save creates and cleans up ok", refused_existing)
@@ -431,19 +430,6 @@ def main():
     require("Source Sphere" not in names and "Grid" not in names, "The GLB holds the Source or the Grid")
     require("the validator accepted the ship" in report and not any(name in report for name in NAMES_NOT_ECHOED),
             f"Package's report is not the fixed text: {report}")
-    # Members a later schema adds to a hardpoint row are not unsaved edits.
-    real_read_layout = aetheria_ships.read_layout
-
-    def later_schema(*args, **kwargs):
-        shape, rows, revision = real_read_layout(*args, **kwargs)
-        return shape, [list(row) + [0] for row in rows], revision
-
-    aetheria_ships.read_layout = later_schema
-    try:
-        result, message = run(bpy.ops.aetheria.package_ship)
-    finally:
-        aetheria_ships.read_layout = real_read_layout
-    require(result == {"FINISHED"}, f"A .cc whose rows carry a later schema's members read as unsaved edits: {message}")
     # A library error is the console's, not the panel's: a directory where ship.glb goes fails the exporter.
     glb = Path(path).with_name("ship.glb")
     glb.unlink()
@@ -780,22 +766,24 @@ def guards_pass(aetheria_ships):
     del collection_a["aetheria.pending"]
 
     # A failed Save of a saved ship (a write that raises, then a .cc that changed since Load) leaves its real ship.cc.
-    real = aetheria_ships.replace_layout
+    real = aetheria_ships._push
 
     def failing(*args, **kwargs):
-        raise ValueError("probe: replace_layout failed")
+        raise ValueError("probe: push failed")
 
-    aetheria_ships.replace_layout = failing
+    aetheria_ships._push = failing
     try:
-        refused(bpy.ops.aetheria.save_ship_layout, "probe: replace_layout failed", "Save of a saved ship with a failing write")
+        refused(bpy.ops.aetheria.save_ship_layout, "probe: push failed", "Save of a saved ship with a failing write")
     finally:
-        aetheria_ships.replace_layout = real
+        aetheria_ships._push = real
     require(Path(path_a).is_file() and digest(path_a) == saved, "A failed Save deleted or changed a saved ship's ship.cc")
     state = bpy.context.scene.aetheria_layout
-    revision, state.revision = state.revision, "changed outside Blender"
-    refused(bpy.ops.aetheria.save_ship_layout, "changed since Load", "Save with a stale revision")
-    state.revision = revision
-    require(Path(path_a).is_file() and digest(path_a) == saved, "A stale-revision Save deleted or changed the ship.cc")
+    versions, armor = state.versions, state.hardpoints[0].armor
+    state.hardpoints[0].armor = armor + 1  # a change, so the push has a write to find stale
+    state.versions = json.dumps({key: "1999-01-01T00:00:00.0000000+00:00" for key in json.loads(versions)})
+    refused(bpy.ops.aetheria.save_ship_layout, "changed since it was opened", "Save with a stale version")
+    state.versions, state.hardpoints[0].armor = versions, armor
+    require(Path(path_a).is_file() and digest(path_a) == saved, "A stale-version Save deleted or changed the ship.cc")
 
     # New Ship checks everything, the rasterising included, before it changes the collection: a vertical wall has
     # horizontal extent and no top-down area.
@@ -849,16 +837,16 @@ def guards_pass(aetheria_ships):
     keep = MODS / GUARD_B / "keep.txt"
     keep.write_text("an author file")
     select(hull_b)
-    real = aetheria_ships.replace_layout
+    real = aetheria_ships._push
 
     def failing(*args, **kwargs):
-        raise ValueError("probe: replace_layout failed")
+        raise ValueError("probe: push failed")
 
-    aetheria_ships.replace_layout = failing
+    aetheria_ships._push = failing
     try:
-        refused(bpy.ops.aetheria.save_ship_layout, "probe: replace_layout failed", "Save with a failing write into an existing folder")
+        refused(bpy.ops.aetheria.save_ship_layout, "probe: push failed", "Save with a failing write into an existing folder")
     finally:
-        aetheria_ships.replace_layout = real
+        aetheria_ships._push = real
     require(keep.is_file(), "A failed Save deleted a file the author had in the ship folder")
     require(not Path(path_b).exists() and collection_b.get("aetheria.pending") is not None, "A failed Save left a half-made ship")
     result, message = run(bpy.ops.aetheria.save_ship_layout)
