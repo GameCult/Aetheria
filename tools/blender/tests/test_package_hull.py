@@ -115,7 +115,7 @@ class SwapTests(unittest.TestCase):
         self.manifest.write_text(json.dumps(data), encoding="utf-8")
         (root / data["hull"]).write_text("// hull" + chr(10), encoding="utf-8")
         self.package_dir = self.game / "GameData" / "Mods" / self.id
-        old = mock.patch.dict(os.environ, {"GAME_FOLDER": str(self.game), "CULTLIB_PACKAGES": "x", "OPENSCAD": "x"})
+        old = mock.patch.dict(os.environ, {"GAME_FOLDER": str(self.game), "OPENSCAD": "x"})
         old.start()
         self.addCleanup(old.stop)
         self.real = ph.package
@@ -131,7 +131,7 @@ class SwapTests(unittest.TestCase):
         return [(str(p.relative_to(self.game)), p.read_bytes() if p.is_file() else None) for p in files]
 
     def builder(self, then):
-        def package(manifest, manifest_dir, game, packages, openscad):
+        def package(manifest, manifest_dir, game, openscad):
             self.package_dir.mkdir(parents=True, exist_ok=True)
             (self.package_dir / "ship.cc").write_bytes(b"derived")
             (self.package_dir / "hull.scad").write_bytes(b"half built")

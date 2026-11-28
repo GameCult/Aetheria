@@ -2,7 +2,7 @@
 
 One bench hull plus one manifest becomes one ship package (`GameData/Mods/<id>/ship.cc`, `ship.glb`, `hull.scad`) that the
 validator accepts, with no Unity and no clicking. The header of `package_hull.py` gives the command line, the environment
-(`GAME_FOLDER`, `CULTLIB_PACKAGES`, `OPENSCAD`) and the order of steps. This file is the manifest schema and the way to check the
+(`GAME_FOLDER`, `OPENSCAD`) and the order of steps. This file is the manifest schema and the way to check the
 packager still matches the committed first-party package.
 
 ## Contract
@@ -55,7 +55,7 @@ The committed example is `tests/fixtures/hulls/zh-ammo-tender/package.json`; its
 - `build_aetherdb.ps1` publishes `tools/AetherDb` into `<game>/ModTools`: it needs CultLib and CultMath worktrees at the revisions
   `Directory.Build.props` names and passes `ErrorOnDuplicatePublishOutputFiles=false` (the NETSDK1152 workaround).
 - `manifests/arsenal-depot/` is the committed manifest of the Arsenal Depot (its `hull.scad` is a copy of the package's; a test holds both equal to the shipped package, `Fa.1` included): a station's manifest is written by hand, and `gen_manifest.py` refuses a station with a message.
-- `gen_manifest.py <ship.cc> <hull.scad> <out.json> --like ... --extent X Y Z --maker ...` turns an existing package into a manifest.
+- `gen_manifest.py <ship.cc> <hull.scad> <out.json> --like ... --extent X Y Z --maker ...` turns an existing package into a manifest. `gen_manifest.py` and `compare.py` read through AetherDb's `ship-authoring open` and need `GAME_FOLDER`.
 - `compare.py <committed ship.cc> <derived ship.cc>` prints `COMPARE_EQUAL` when shape, rows, stats, price and product match.
 - `job.ps1` runs the regression on a workstation with Blender and OpenSCAD: the fixture manifest; the committed
   `aetheria.nakovalnya` regenerated from its own manifest and compared; a refused second run and a failed `--replace`, each

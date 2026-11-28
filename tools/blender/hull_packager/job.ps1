@@ -1,4 +1,4 @@
-# job.ps1 -Scratch <dir> -Game <folder> [-Blender <exe>] [-OpenScad <exe>] [-Packages <dir>] [-Lock <starfire_lock.py>]
+# job.ps1 -Scratch <dir> -Game <folder> [-Blender <exe>] [-OpenScad <exe>] [-Lock <starfire_lock.py>]
 # The packager's regression job: package_hull.py on the fixture manifest; on a manifest generated from the committed
 # aetheria.nakovalnya package, compared (compare.py) with that package; a second run without --replace (must refuse and leave
 # the package byte-identical); a --replace that fails (must leave it byte-identical); and AetherDb compose over the result.
@@ -10,7 +10,6 @@ param(
     [Parameter(Mandatory)] [string]$Game,
     [string]$Blender = "C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe",
     [string]$OpenScad = "C:\Tools\OpenSCAD-2026.09.23-x86-64\openscad.com",
-    [string]$Packages = "F:\Projects\CultLib\packages",
     [string]$Lock = "F:\Projects\eureka-handoff-aux-2026-10-19\starfire_lock.py"
 )
 $ErrorActionPreference = "Stop"
@@ -36,15 +35,7 @@ State "waiting for the Starfire lock"
 if (Test-Path $Lock) { & py -3 $Lock acquire hull-packager 2>&1 | ForEach-Object { Say $_ } }
 try {
     $env:GAME_FOLDER = $Game
-    $env:CULTLIB_PACKAGES = $Packages
     $env:OPENSCAD = $OpenScad
-    # Blender's Python needs msgpack: PYTHONPATH, unless set, is the newest Blender user-site scripts\modules that holds it.
-    if (-not $env:PYTHONPATH) {
-        $site = Get-ChildItem "$env:APPDATA\Blender Foundation\Blender" -Directory | Sort-Object { [version]$_.Name } -Descending |
-            Where-Object { Test-Path "$($_.FullName)\scripts\modules\msgpack" } | Select-Object -First 1
-        if (-not $site) { throw "no Blender user site holds msgpack; install it with Blender's Python (pip --target <user>\scripts\modules)" }
-        $env:PYTHONPATH = "$($site.FullName)\scripts\modules"
-    }
     $Fixture = "$Repo\tools\blender\tests\fixtures\hulls\zh-ammo-tender\package.json"
     $Committed = "$Repo\GameData\Mods\aetheria.nakovalnya"
     $Mods = "$Game\GameData\Mods"

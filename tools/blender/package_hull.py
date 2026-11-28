@@ -2,7 +2,7 @@
 
     blender --background --factory-startup --python-use-system-env --python tools/blender/package_hull.py -- <manifest.json> [--replace]
 
-Environment: GAME_FOLDER (holds GameData/Aetheria.cc and ModTools/AetherDb.exe), CULTLIB_PACKAGES, OPENSCAD. The repo (and so the
+Environment: GAME_FOLDER (holds GameData/Aetheria.cc and ModTools/AetherDb.exe) and OPENSCAD. The repo (and so the
 add-on) is found from this file. The manifest is creation input only: once GameData/Mods/<id> exists, ship.cc owns rows, stats and
 product, and a manifest is never read again; --replace re-derives the package and discards edits made since. Without --replace an
 existing package is refused untouched. A run is all or nothing: --replace moves the existing package aside, builds, and deletes the old one
@@ -183,7 +183,7 @@ def rows_of(manifest):
             for row in manifest["rows"]]
 
 
-def package(manifest, manifest_dir, game, packages, openscad):
+def package(manifest, manifest_dir, game, openscad):
     """The Blender half, run inside swap(). Builds GameData/Mods/<id>; raises Refused with a message on any failure."""
     import addon_utils
     import bmesh
@@ -250,6 +250,9 @@ def package(manifest, manifest_dir, game, packages, openscad):
     if "top_speed" in stats:
         args += ["--top-speed", stats["top_speed"]]
     require(db(*args) == 0, "stats was refused")
+    if "top_speed" in stats:
+        require(aetheria_ships._open(bpy.context, str(ship_cc_path))["hull"]["topSpeed"] == stats["top_speed"],
+                "stats did not set the top speed")
     if "kind" in manifest:
         # A station's kind is ship.cc's own fact and AetherDb its one writer; the packager holds no kind table.
         require(db("kind", ship_cc_path, manifest["kind"]) == 0, "kind was refused")
@@ -308,7 +311,7 @@ def main(argv):
     if len(paths) != 1:
         raise Refused("usage: package_hull.py -- <manifest.json> [--replace]")
     env = {}
-    for key in ("GAME_FOLDER", "CULTLIB_PACKAGES", "OPENSCAD"):
+    for key in ("GAME_FOLDER", "OPENSCAD"):
         if not os.environ.get(key):
             raise Refused(f"Set {key}")
         env[key] = os.environ[key]
@@ -316,7 +319,7 @@ def main(argv):
     manifest = load_manifest(manifest_path)
     game = Path(env["GAME_FOLDER"])
     with swap(game / "GameData" / "Mods" / manifest["id"], game / f".hull-packager-backup-{manifest['id']}", replace):
-        package(manifest, manifest_path.parent, game, env["CULTLIB_PACKAGES"], env["OPENSCAD"])
+        package(manifest, manifest_path.parent, game, env["OPENSCAD"])
 
 
 def entry(argv):
