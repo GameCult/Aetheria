@@ -199,7 +199,7 @@ public static class ShipAuthoringCommands
         ShipAuthoringPush.Request request;
         using (var cache = ShipAuthoringStore.Open(path)) request = ShipAuthoringPush.Opened(cache, path);
         edit(request);
-        var result = ShipAuthoringPush.Run(path, request, apply: true);
+        var result = ShipAuthoringPush.Run(path, request, apply: true, judge: false);
         if (result.Outcome == "refused") throw new InvalidOperationException(result.Message);
         if (result.Outcome == "stale")
         {

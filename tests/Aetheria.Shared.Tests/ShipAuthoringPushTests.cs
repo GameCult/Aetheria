@@ -427,6 +427,8 @@ public sealed class ShipAuthoringPushTests : IDisposable
         Assert.Equal((string)Parse(opened)["versions"]["mod-ship:mod.skiff"], (string)reopened["versions"]["mod-ship:mod.skiff"]);
         Assert.NotEqual((string)Parse(opened)["versions"]["mod-hull:mod.skiff"], (string)reopened["versions"]["mod-hull:mod.skiff"]);
 
+        RefusedUntouched(path, Edit(Open(path), json => Hull(json)["name"] = ""), "name");
+        RefusedUntouched(path, Edit(Open(path), json => Hull(json)["name"] = "  "), "name");
         RefusedUntouched(path, Edit(Open(path), json => Hull(json)["price"] = -1), "price");
         RefusedUntouched(path, Edit(Open(path), json => Hull(json)["price"] = 1.5), "price");
         RefusedUntouched(path, Edit(Open(path), json => Hull(json)["mass"] = -1), "mass");
@@ -611,5 +613,49 @@ public sealed class ShipAuthoringPushTests : IDisposable
 
         var ship = Package();
         RefusedUntouched(ship, Edit(Open(ship), json => Hull(json)["kind"] = "station-kind:depot"), "only a station hull has one");
+    }
+
+    // A stored kind that names no station kind is never passed as fine: it is judged whenever the request or the hull names one,
+    // by push and by the kind command alike.
+    [Fact]
+    public void AnInvalidStoredKindIsNeverAccepted()
+    {
+        Catalog();
+        var target = Path.Combine(ShipFixture.WritePackage(Mods, "probe.bad", "Probe Bad", tweak: ship =>
+        {
+            ship.Hull.HullType = HullType.Station;
+            ship.Hull.Kind = new CultRecordRef<StationKindData>(StationKindData.KeyOf("nowhere"));
+        }), "ship.cc");
+        var before = File.ReadAllBytes(target);
+        var (code, _, error) = Command("kind", target, "nowhere");
+        Assert.Equal(1, code);
+        Assert.Contains("names no station kind", error);
+        RefusedUntouched(target, Edit(Open(target), json => Hull(json)["mass"] = 11), "names no station kind");
+        Assert.Equal(before, File.ReadAllBytes(target));
+    }
+
+    // price and stats on a valid product package need no shipped catalog: it is opened only for a product's maker or a kind.
+    [Fact]
+    public void PriceAndStatsNeedNoGameData()
+    {
+        var path = Path.Combine(ShipFixture.WritePackage(Mods, "probe.sold", "Probe Sold"), "ship.cc");
+        using (var cache = ShipAuthoringStore.Open(path, writable: true))
+        {
+            ShipAuthoringStore.WriteProduct(cache, "probe.sold", new FactionProductData
+            {
+                Name = "Sold",
+                Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey("probe.sold")),
+                Manufacturer = new CultRecordRef<Faction>(new CultRecordKey("faction:maker"))
+            });
+            cache.FlushAsync().Wait();
+        }
+        Assert.False(File.Exists(Path.Combine(_root.Path, "GameData", "Aetheria.cc")));
+        var (code, _, error) = Command("price", path, "300");
+        Assert.True(code == 0, error);
+        (code, _, error) = Command("stats", path, "--mass", "7", "--top-speed", "33");
+        Assert.True(code == 0, error);
+        var (hull, _, products) = ShipAuthoringStore.Load(path);
+        Assert.Equal((300, 7f), (hull.Price, hull.Mass));
+        Assert.Single(products);
     }
 }

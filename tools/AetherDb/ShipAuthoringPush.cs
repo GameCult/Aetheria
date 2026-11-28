@@ -217,8 +217,8 @@ public static class ShipAuthoringPush
     }
 
     // The one core: push and the builders both come here. A refusal leaves the file untouched (Code 1, Message); a stale
-    // record writes nothing (Code 2).
-    internal static Result Run(string path, Request request, bool apply)
+    // record writes nothing (Code 2). Push judges the derived package (judge); the builders do not.
+    internal static Result Run(string path, Request request, bool apply, bool judge = true)
     {
         var result = new Result();
         try
@@ -259,7 +259,8 @@ public static class ShipAuthoringPush
             var written = productWrites.ToDictionary(write => write.Key.Value, StringComparer.Ordinal);
             var judged = products.Where(product => !written.ContainsKey(ShipModCatalog.ProductKey(ship.Id, product.Manufacturer.Key).Value))
                 .Concat(productWrites.Where(write => write.Derived != null).Select(write => (FactionProductData)write.Derived)).ToArray();
-            result.Verdict = Verdict(path, newHull, newShip, judged);
+            // A builder reports its own line and reads no verdict, so a plain stats or price write never opens the shipped catalog.
+            if (judge) result.Verdict = Verdict(path, newHull, newShip, judged);
 
             // A record the request carries a version for is expected as that instance; one it carries none for (a product it
             // did not open) is expected absent.
@@ -335,6 +336,7 @@ public static class ShipAuthoringPush
         if (section.Price < 0) throw new InvalidOperationException("hull: price must be a whole number of at least 0.");
         foreach (var (field, value) in new[] { ("mass", section.Mass), ("durability", section.Durability), ("armor", section.Armor), ("drag", section.Drag) })
             if (!(value >= 0) || float.IsInfinity(value)) throw new InvalidOperationException($"hull: {field} must be finite and at least 0.");
+        if (string.IsNullOrWhiteSpace(section.Name)) throw new InvalidOperationException("hull: name must not be blank.");
         derived.Name = section.Name;
         derived.Price = section.Price;
         derived.Mass = section.Mass;
@@ -356,8 +358,9 @@ public static class ShipAuthoringPush
             limits[0].TopSpeed.Min = limits[0].TopSpeed.Max = speed;
         }
         derived.Kind = string.IsNullOrEmpty(section.Kind) ? default : new CultRecordRef<StationKindData>(new CultRecordKey(section.Kind));
-        // Only a changed kind is judged here, so a kindless station draft still takes stats and price; the verdict judges the package.
-        if (KindText(derived) != KindText(held))
+        // A kind is judged whenever the request or the stored hull names one, so an invalid stored kind is never passed as fine; a
+        // kindless draft that stays kindless is not, so it still takes stats and price (and needs no catalog).
+        if (derived.Kind.IsSet() || held.Kind.IsSet())
             using (var catalog = AetherDb.Open().Cache)
                 if (StationKinds.HullKindFault(catalog, derived) is { } fault) throw new InvalidOperationException($"{shipId}: {fault}");
         FlatDiff(lines, key, HullFields(held), HullFields(derived));
