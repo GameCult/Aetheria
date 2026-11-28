@@ -13,6 +13,12 @@ using MessagePack;
 // (ruling economy-numbers-are-sim-tuned-knobs); names and descriptions are first drafts for the economy content pass.
 public sealed class Facilities : EconomyBatch
 {
+    // The thermal band of every facility design, sim-tuned knobs like the prices (ruling economy-numbers-are-sim-tuned-knobs). A facility
+    // is Active only while its cells are inside the band, and a station's cells start at 280 and cool toward 0 with no heater, so the
+    // band holds that whole range: full performance from 0 to 560 around 280, tapering to nothing at 1000, with the floor just below
+    // 0 so a cell that has cooled all the way is still inside it. Gear that leaves these unauthored gets GearData's 0 to 100.
+    private const float ThermalMin = -1, ThermalMax = 1000, ThermalOptimal = 280, ThermalPlateau = 560;
+
     private static readonly (string Kind, string Id, string Name, string Description)[] Table =
     {
         ("mining", "extraction-rig", "Extraction Rig", "Drills, crushers and loaders that turn a station's miners into a steady flow of ore."),
@@ -53,11 +59,13 @@ public sealed class Facilities : EconomyBatch
             // A stored behavior carries a cache-minted element id, so a design is compared by its fields, never by bytes.
             if (!(catalog.Get(designKey) is GearData held && held.Name == name && held.Description == description && held.Hardpoint == HardpointType.Facility
                   && held.Durability == 100 && held.Mass == 250 && held.Price == 1000 && held.Shape.Width == 2 && held.Shape.Height == 2 && held.Shape.Coordinates.Length == 4
-                  && held.Behaviors.Count == 1 && held.Behaviors[0] is FacilityData))
+                  && held.Behaviors.Count == 1 && held.Behaviors[0] is FacilityData
+                  && held.MinimumTemperature == ThermalMin && held.MaximumTemperature == ThermalMax && held.OptimalTemperature == ThermalOptimal && held.PlateauWidth == ThermalPlateau))
                 author.Put(new GearData
                 {
                     Name = name, Description = description, Hardpoint = HardpointType.Facility, Shape = shape,
-                    Durability = 100, Mass = 250, Price = 1000, Behaviors = { new FacilityData() }
+                    Durability = 100, Mass = 250, Price = 1000, Behaviors = { new FacilityData() },
+                    MinimumTemperature = ThermalMin, MaximumTemperature = ThermalMax, OptimalTemperature = ThermalOptimal, PlateauWidth = ThermalPlateau
                 }, designKey);
             var factions = catalog.GetAll<Faction>().Select(faction => (Key: catalog.RefOf(faction).Key, Faction: faction)).OrderBy(pair => pair.Key.Value, StringComparer.Ordinal).ToArray();
             var maker = factions.FirstOrDefault(pair => StationKinds.KindsOf(catalog, pair.Faction).Any(kind => kind.Key.Value == kindKey));
