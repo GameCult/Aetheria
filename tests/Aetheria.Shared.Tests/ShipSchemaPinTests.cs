@@ -140,6 +140,33 @@ public sealed class ShipSchemaPinTests
         Assert.Equal(EnumNames<HullType>(), Strings("HULL_TYPE_NAMES"));
     }
 
+    // The stored number of each HardpointType: a row is stored by value, so an arm inserted mid-enum silently turns every later
+    // stored row into another type. New arms are appended with the next number.
+    [Fact]
+    public void HardpointTypeValuesAreTheStoredNumbers()
+    {
+        var stored = new[]
+        {
+            ("Hull", 0), ("Tool", 1), ("Thermal", 2), ("Thruster", 3), ("WarpDrive", 4), ("Reactor", 5), ("Radiator", 6), ("Shield", 7),
+            ("Sensors", 8), ("Energy", 9), ("Ballistic", 10), ("Launcher", 11), ("ControlModule", 12), ("Facility", 13)
+        };
+        Assert.Equal(stored, Enum.GetValues<HardpointType>().Select(type => (type.ToString(), (int) type)).OrderBy(pair => pair.Item2));
+    }
+
+    // GameSettings.GetIcon(HardpointType) indexes the Settings asset's ItemIcons by value: one sprite per type, none null. (GameSettings is
+    // Unity code, so the asset is read as text; the loud failure of a missing entry is for the Unity editor to confirm.)
+    [Fact]
+    public void EveryHardpointTypeHasAnIconInTheSettingsAsset()
+    {
+        var text = File.ReadAllText(Path.Combine(AetherDb.FindRoot(), "Assets", "Resources", "Settings.asset"));
+        var lines = text.Split('\n').Select(line => line.TrimEnd('\r')).ToList();
+        var start = lines.IndexOf("  ItemIcons:") + 1;
+        Assert.True(start > 0, "Settings.asset has no ItemIcons");
+        var entries = lines.Skip(start).TakeWhile(line => line.StartsWith("  - ")).ToArray();
+        Assert.Equal(Enum.GetValues<HardpointType>().Length, entries.Length);
+        Assert.DoesNotContain(entries, entry => entry.Contains("fileID: 0}"));
+    }
+
     [Fact]
     public void SerializedShipHasTheNestedArrayShapesPythonIndexes()
     {

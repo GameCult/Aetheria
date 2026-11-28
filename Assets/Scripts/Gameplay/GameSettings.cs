@@ -69,7 +69,16 @@ public class GameSettings : ScriptableObject
     [HideInInspector] public Sprite[] WeaponFireTypeIcons;
     [HideInInspector] public Sprite[] WeaponModifierIcons;
 
-    public Sprite GetIcon(HardpointType type) => ItemIcons[(int) type];
+    // Every HardpointType has an entry in the asset's ItemIcons; a missing one is named, never an IndexOutOfRange.
+    public Sprite GetIcon(HardpointType type) => IconOf(ItemIcons, type);
+
+    public static Sprite IconOf(Sprite[] icons, HardpointType type)
+    {
+        var index = (int) type;
+        if (icons == null || index < 0 || index >= icons.Length || icons[index] == null)
+            throw new InvalidOperationException($"GameSettings.ItemIcons has no sprite for HardpointType.{type} (index {index}, {icons?.Length ?? 0} entries); set it in the Settings asset.");
+        return icons[index];
+    }
     public Sprite GetIcon(WeaponType type) => WeaponTypeIcons[(int) type];
     public Sprite GetIcon(WeaponRange range) => WeaponRangeIcons[(int) range];
     public Sprite GetIcon(WeaponCaliber caliber) => WeaponCaliberIcons[(int) caliber];
