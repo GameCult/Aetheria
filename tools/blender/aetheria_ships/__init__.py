@@ -439,6 +439,10 @@ def _save_layout(context, collection, state):
                 shutil.rmtree(folder, ignore_errors=True)
         raise
     state.versions = json.dumps(outcome["versions"])
+    # The store minted an element id for every row made here: take them, so the next push names these rows, not new ones.
+    elements = {row["mount"]: row["element"] for row in _open(context, path)["layout"]["hardpoints"]}
+    for hp in state.hardpoints:
+        hp.element = elements[hp.mount_id]
     if pending:
         del collection["aetheria.pending"]
     _redraw_grid(collection, state)
