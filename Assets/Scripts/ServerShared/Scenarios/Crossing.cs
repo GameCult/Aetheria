@@ -27,10 +27,10 @@ public sealed class Crossing : Scenario
     public static readonly CultMath.float2 CrosserAt = Origin + float2(-90, 45), CrosserFacing = float2(1, 0), CrosserVelocity = float2(25, 0);
     // The fighter is staged at this quality, so its gear and the range below do not ride the item stream.
     public const float StagedQuality = .6f;
-    // The Lightning Projector's Range in metres at the staged fit: 996.99 after the three seconds the test settles for
-    // (EvSettle); it falls toward 864 m as the projector heats. The fit as it stood at 0f5def17 (unstaged, its draws on the
-    // item stream) measured 1216.4.
-    public const float ProjectorRange = 997f;
+    // The Lightning Projector's Range in metres at the staged fit: 1001.17 after the three seconds the test settles for
+    // (EvSettle), the hull conducting its heat away from construction (996.99 when it was insulated); it falls as the projector heats.
+    // The fit as it stood at 0f5def17 (unstaged, its draws on the item stream) measured 1216.4.
+    public const float ProjectorRange = 1001f;
     public static readonly CultMath.float2 Waiting = Origin + float2(0, ProjectorRange * .8f);
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
