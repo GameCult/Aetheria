@@ -10,6 +10,7 @@ bl_info = {
     "category": "Object",
 }
 
+import json
 import math
 import shutil
 import subprocess
@@ -23,9 +24,7 @@ import numpy
 from mathutils import Matrix, Vector
 
 from . import hull_grid, hull_source
-from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, clear_lines, decode_hardpoint,
-                      encode_hardpoint, layout_revision, read, read_hull_type, read_layout, replace_layout, replace_lines,
-                      product_makers, replace_visual, valid_ship_id)
+from .ship_cc import HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, valid_ship_id
 
 MODEL_ASSET = "ship.glb"
 SOURCE = "Source"  # child collection: the Tripo mesh, input to Rasterise, never exported
@@ -44,6 +43,7 @@ class AETHERIA_PG_cell(bpy.types.PropertyGroup):
 
 class AETHERIA_PG_hardpoint(bpy.types.PropertyGroup):
     mount_id: bpy.props.StringProperty(name="Mount ID")
+    element: bpy.props.StringProperty()  # the stored hardpoint this row is, as open named it; '' for a row made here
     kind: bpy.props.EnumProperty(name="Type", items=HARDPOINT_TYPES)
     x: bpy.props.IntProperty(name="X", min=0, max=31)
     y: bpy.props.IntProperty(name="Y", min=0, max=31)
@@ -58,7 +58,7 @@ class AETHERIA_PG_hardpoint(bpy.types.PropertyGroup):
 class AETHERIA_PG_layout(bpy.types.PropertyGroup):
     ship_id: bpy.props.StringProperty()
     ship_cc: bpy.props.StringProperty()
-    revision: bpy.props.StringProperty()
+    versions: bpy.props.StringProperty()  # open's versions as JSON text: opaque, replaced by an applied Save
     width: bpy.props.IntProperty(default=1)
     height: bpy.props.IntProperty(default=1)
     new_width: bpy.props.IntProperty(name="Width", default=1, min=1, max=32)
@@ -101,24 +101,26 @@ def _set_cells(state, width, height, cells):
 
 def _load_layout(context, collection, path):
     """Fills the scene's layout buffer from the bound .cc and redraws the Grid; returns (width, height, hardpoints)."""
-    shape, hardpoints, revision = read_layout(path, _brokkr_cultlib(context))
-    width, height, cells = shape
+    opened = _open(context, path)
+    layout = opened["layout"]
+    width, height, cells = _parse_footprint(layout["grid"])[0]
+    hardpoints = layout["hardpoints"]
     state = context.scene.aetheria_layout
     state.ship_id = collection["aetheria.id"]
     state.ship_cc = path
-    state.revision = revision
+    state.versions = json.dumps(opened["versions"])
     _set_cells(state, width, height, cells)
     state.hardpoints.clear()
-    for raw in hardpoints:
-        fields = decode_hardpoint(raw)
+    for row in hardpoints:
         hp = state.hardpoints.add()
-        hp.kind = str(fields["Type"])
-        hp.x, hp.y = fields["Position"]
-        hp.footprint = _footprint(fields["Shape"])
-        hp.mount_id = fields["Transform"] or ""
-        hp.rotation = str(fields["Rotation"])
-        hp.armor = fields["Armor"]
-        hp.firing_arc = fields["FiringArc"]
+        hp.element = row["element"]
+        hp.kind = str(HARDPOINT_TYPE_NAMES.index(row["kind"]))
+        hp.x, hp.y = row["cell"]
+        hp.footprint = row["footprint"]
+        hp.mount_id = row["mount"]
+        hp.rotation = str(row["rotation"])
+        hp.armor = row["armor"]
+        hp.firing_arc = row["arc"]
     _redraw_grid(collection, state)
     return width, height, len(hardpoints)
 
@@ -389,13 +391,16 @@ class AETHERIA_OT_remove_mount(bpy.types.Operator):
         return {"FINISHED"}
 
 
-def _encode_buffer(state):
-    """The layout buffer as ship_cc stores it: (shape, hardpoint rows)."""
-    shape = [state.width, state.height, [cell.occupied for cell in state.cells]]
-    rows = [encode_hardpoint(Type=int(hp.kind), Position=[hp.x, hp.y], Shape=_parse_footprint(hp.footprint),
-                             Transform=hp.mount_id, Rotation=int(hp.rotation), Armor=hp.armor, FiringArc=hp.firing_arc)
-            for hp in state.hardpoints]
-    return shape, rows
+def _layout_section(state):
+    """The layout buffer as a push request's layout section."""
+    rows = []
+    for hp in state.hardpoints:
+        _parse_footprint(hp.footprint)  # refuses a malformed footprint here, in the buffer's own words
+        rows.append({"element": hp.element, "mount": hp.mount_id, "kind": HARDPOINT_TYPE_NAMES[int(hp.kind)],
+                     "cell": [hp.x, hp.y], "footprint": hp.footprint, "rotation": int(hp.rotation),
+                     "armor": hp.armor, "arc": hp.firing_arc})
+    return {"grid": _footprint([[state.width, state.height, [cell.occupied for cell in state.cells]]]),
+            "hardpoints": rows}
 
 
 def _save_layout(context, collection, state):
@@ -407,15 +412,13 @@ def _save_layout(context, collection, state):
     ship_id = collection["aetheria.id"]
     if state.ship_id != ship_id or state.ship_cc != path:
         raise ValueError("Load this collection's layout before saving")
-    cultlib = _brokkr_cultlib(context)
-    shape, rows = _encode_buffer(state)
+    layout = _layout_section(state)
     pending = collection.get("aetheria.pending")
     folder = Path(path).parent
     if pending and Path(path).exists():
         raise ValueError("A ship file already exists at the bound path (Ctrl+Z past a first Save leaves it there); "
                          "use Bind Ship Collection with that ship.cc, then Load Layout")
     made_folder = bool(pending) and not folder.exists()
-    revision = state.revision
     try:
         if pending:
             code, output = _aetherdb(context, "create", path, ship_id, pending[0], "--like", pending[1], ship_cc=path)
@@ -423,19 +426,23 @@ def _save_layout(context, collection, state):
                 print(output)
             if code != 0:
                 raise RuntimeError("AetherDb refused to create the ship; its message is in the system console")
-            revision = read_layout(path, cultlib)[2]
-        revision = replace_layout(path, cultlib, ship_id, revision, shape, rows)
+            versions = _open(context, path)["versions"]
+        else:
+            if not state.versions:
+                raise ValueError("Load this collection's layout before saving")
+            versions = json.loads(state.versions)
+        outcome = _push(context, path, {"ship": ship_id, "versions": versions, "layout": layout}, apply=True)
     except Exception:
         if pending:
             Path(path).unlink(missing_ok=True)
             if made_folder:
                 shutil.rmtree(folder, ignore_errors=True)
         raise
-    state.revision = revision
+    state.versions = json.dumps(outcome["versions"])
     if pending:
         del collection["aetheria.pending"]
     _redraw_grid(collection, state)
-    return len(rows)
+    return len(layout["hardpoints"])
 
 
 class AETHERIA_OT_save_layout(bpy.types.Operator):
@@ -451,13 +458,6 @@ class AETHERIA_OT_save_layout(bpy.types.Operator):
             return {"FINISHED"}
         except _EXPECTED as exc:
             return _refuse(self, exc)
-
-
-def _brokkr_cultlib(context):
-    brokkr = context.preferences.addons.get("brokkr_bridge")
-    if brokkr is None:
-        raise RuntimeError("Enable Brokkr before using Aetheria Ships")
-    return brokkr.preferences.cultlib_py_src
 
 
 def _is_ship(collection):
@@ -523,7 +523,7 @@ class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
                 raise ValueError("Choose an existing ship authoring .cc file")
             path = bpy.path.abspath(context.scene.aetheria_ship_cc_path)
             collection = _ship_collection(context, unbound_ok=True)
-            _bind_collection(collection, path, read(path, _brokkr_cultlib(context)).ship.body[0])
+            _bind_collection(collection, path, _open(context, path)["ship"])
             self.report({"INFO"}, "Bound the ship collection")
             return {"FINISHED"}
         except _EXPECTED as exc:
@@ -542,18 +542,18 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
             if not collection.get("aetheria.ship_cc"):
                 raise ValueError("The ship collection has no bound .cc path")
             path = bpy.path.abspath(collection["aetheria.ship_cc"])
-            cultlib = _brokkr_cultlib(context)
-            if read(path, cultlib).ship.body[0] != collection["aetheria.id"]:
+            opened = _open(context, path)
+            if opened["ship"] != collection["aetheria.id"]:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
-            saved_shape, _, _ = read_layout(path, cultlib)
             root = _ship_root(collection)
             if root is not None:  # the frame Package would write the model in, so the lines match ship.glb
-                _frame_ship(context, collection, root, path, saved_shape)
+                _frame_ship(context, collection, root, path, _parse_footprint(opened["layout"]["grid"])[0])
             lines = _schematic_lines(context, collection)
             if lines is None:
                 raise ValueError("No schematic lines were captured; the ship record was not changed")
-            count = replace_lines(path, cultlib, lines)
-            self.report({"INFO"}, f"Captured {count} lines")
+            _push(context, path, {"ship": opened["ship"], "versions": opened["versions"], "lines": _line_rows(lines)},
+                  apply=True)
+            self.report({"INFO"}, f"Captured {len(lines)} lines")
             return {"FINISHED"}
         except _EXPECTED as exc:
             return _refuse(self, exc)
@@ -624,22 +624,55 @@ def _game_folder(context, ship_cc=None):
     raise ValueError(GAME_FOLDER_REFUSAL)
 
 
-def _aetherdb(context, *args, ship_cc=None):
-    """Runs one AetherDb ship-authoring command from the game folder's ModTools; returns its exit code and its output,
-    stdout then stderr. ship_cc is the bound .cc the game folder is found from when the preference is empty."""
+def _call(context, args, ship_cc=None, stdin=None):
+    """Runs one AetherDb ship-authoring command from the game folder's ModTools, stdin to its standard input; returns
+    (exit code, stdout, stderr). ship_cc is the bound .cc the game folder is found from when the preference is empty."""
     folder = _game_folder(context, ship_cc)
     tool = folder / "ModTools" / ("AetherDb.exe" if sys.platform == "win32" else "AetherDb")
     if not tool.is_file():
         raise ValueError(GAME_FOLDER_REFUSAL)
     try:
         result = subprocess.run([str(tool), "ship-authoring", *args], cwd=folder, capture_output=True, text=True,
-                                timeout=AETHERDB_TIMEOUT)
+                                input=stdin, timeout=AETHERDB_TIMEOUT)
     except subprocess.TimeoutExpired:
         raise RuntimeError("AetherDb did not finish in time") from None
     except OSError:
         raise RuntimeError("AetherDb could not be started") from None
-    lines = (result.stdout + "\n" + result.stderr).splitlines()
-    return result.returncode, "\n".join(line for line in lines if line.strip())
+    return result.returncode, result.stdout, result.stderr
+
+
+def _merged(out, err):
+    return "\n".join(line for line in (out + "\n" + err).splitlines() if line.strip())
+
+
+def _aetherdb(context, *args, ship_cc=None):
+    """Runs one AetherDb ship-authoring command; returns its exit code and its output, stdout then stderr."""
+    code, out, err = _call(context, args, ship_cc)
+    return code, _merged(out, err)
+
+
+def _open(context, path):
+    """'ship-authoring open' as a dict: the package's authored members and the versions they were read at."""
+    code, out, err = _call(context, ("open", path), ship_cc=path)
+    if code != 0:
+        print(_merged(out, err))
+        raise RuntimeError("AetherDb could not open the ship; its message is in the system console")
+    return json.loads(out)
+
+
+def _push(context, path, request, apply):
+    """'ship-authoring push' of a request: its change lines and outcome go to the system console. Returns the outcome
+    dict (changed, verdict, versions); judging is AetherDb's alone."""
+    args = ("push", path, "apply") if apply else ("push", path)
+    code, out, err = _call(context, args, ship_cc=path, stdin=json.dumps(request))
+    shown = _merged(out, err)
+    if shown:
+        print(shown)
+    if code == 2:
+        raise RuntimeError("The .cc changed since it was opened; Load Layout and try again")
+    if code != 0:
+        raise RuntimeError("AetherDb refused the push; its message is in the system console")
+    return json.loads([line for line in out.splitlines() if line.strip()][-1])
 
 
 def _layer_collection(layer, collection):
@@ -1442,7 +1475,7 @@ def _new_ship(context, ship_id, name, reference, length):
     state = context.scene.aetheria_layout
     state.ship_id = ship_id
     state.ship_cc = bpy.path.abspath(collection["aetheria.ship_cc"])
-    state.revision = ""
+    state.versions = ""
     state.hardpoints.clear()
     _place_grid(collection, state, width, height, cells, origin)
 
@@ -1578,7 +1611,7 @@ def _build_hull_source(context, collection):
                              "changed; Build From Hull Source replaces only what it made and nobody touched")
     addon = context.preferences.addons.get(__package__)
     executable = addon.preferences.openscad if addon and addon.preferences else DEFAULT_OPENSCAD
-    hull_type = read_hull_type(bpy.path.abspath(collection["aetheria.ship_cc"]), _brokkr_cultlib(context))
+    hull_type = _open(context, bpy.path.abspath(collection["aetheria.ship_cc"]))["hullType"]
     hull = hull_source.build(hull_source.openscad_runner(executable, source), hull_source.language_library(executable),
                              hull_type, hull_source.openscad_projector(executable))
     broken = hull.failed()
@@ -1665,6 +1698,14 @@ def _schematic_lines(context, collection):
     return rows
 
 
+def _line_rows(lines):
+    """_schematic_lines rows [layer, material, points, radii, opacities, cyclic, color] as a push request's line rows;
+    every row is new (element '')."""
+    return [{"element": "", "layer": layer, "material": material, "points": points, "radii": radii,
+             "opacities": opacities, "cyclic": cyclic, "color": color}
+            for layer, material, points, radii, opacities, cyclic, color in lines]
+
+
 def _hull_state(collection):
     """The one owner of a ship collection's hull state (map HS), decided in this order: an untouched Build zone mesh
     keeps the hull agent's; her meshes beside Build's record or hull.scad make it art; then Build's record is agent,
@@ -1698,7 +1739,7 @@ def _retire_hull_source(collection):
     return True
 
 
-def _refuse_wrong_maker(collection, path, cultlib):
+def _refuse_wrong_maker(collection, opened):
     """Refuses, before Package writes anything, a hull in the agent state unless the package holds a product and every
     product is by the maker of the language Build judged the hull against (ruling hull-faction-is-product-maker), and
     refuses an unbuilt hull.scad. _hull_state is the owner of which state this is; this function reads neither hull.scad
@@ -1712,7 +1753,7 @@ def _refuse_wrong_maker(collection, path, cultlib):
     maker = collection.get(HULL_MAKER)
     if maker is None:
         raise ValueError("Build From Hull Source first: Package needs the maker it judged the hull against")
-    makers = product_makers(path, cultlib)
+    makers = [row["maker"] for row in opened["products"]]
     if not makers:
         raise ValueError("The package has no product: add one for the hull's maker before packaging")
     if any(product != maker for product in makers):
@@ -1753,37 +1794,36 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
                 raise ValueError("Save Layout first")
             _refuse_loose_meshes(context, collection)
             _refuse_shared_ids(context, collection)
-            cultlib = _brokkr_cultlib(context)
-            _refuse_wrong_maker(collection, path, cultlib)
+            opened = _open(context, path)
+            _refuse_wrong_maker(collection, opened)
             ship_id = collection["aetheria.id"]
             state = scene.aetheria_layout
-            saved_shape, saved_rows, _ = read_layout(path, cultlib)
             if state.ship_id == ship_id and state.ship_cc == path:
-                shape, rows = _encode_buffer(state)
-                if layout_revision(shape, rows) != layout_revision(
-                        saved_shape, [row[:len(HARDPOINT_MEMBERS)] for row in saved_rows]):
+                gate = _push(context, path, {"ship": opened["ship"], "versions": opened["versions"],
+                                             "layout": _layout_section(state)}, apply=False)
+                if gate["changed"]:
                     raise ValueError("Save Layout first")
-            if read(path, cultlib).ship.body[0] != ship_id:
+            if opened["ship"] != ship_id:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
             root = _ship_root(collection)
             if root is not None:
-                _frame_ship(context, collection, root, path, saved_shape)
+                _frame_ship(context, collection, root, path, _parse_footprint(opened["layout"]["grid"])[0])
             anchors = _anchors(collection)
             _export_glb(context, collection, str(Path(path).with_name(MODEL_ASSET)))
-            replace_visual(path, cultlib, ship_id, MODEL_ASSET, anchors)
+            request = {"ship": opened["ship"], "versions": opened["versions"],
+                       "visual": {"model": MODEL_ASSET, "anchors": [
+                           {"id": a[0], "role": a[1], "node": a[2], "parent": a[3], "order": a[4]} for a in anchors]}}
             lines = _schematic_lines(context, collection)
             if lines is not None:
-                replace_lines(path, cultlib, lines)
+                request["lines"] = _line_rows(lines)
             elif _hull_state(collection) == HULL_ART:  # the lines in the slot are the retired hull's, not hers
-                clear_lines(path, cultlib)
-            code, message = _aetherdb(context, "validate", path, ship_cc=path)
+                request["lines"] = []
+            outcome = _push(context, path, request, apply=True)
         except _EXPECTED as exc:
             scene.aetheria_package_report = f"Package failed: {_failure_text(exc)}"
             self.report({"ERROR"}, scene.aetheria_package_report)
             return {"CANCELLED"}
-        if message:
-            print(message)
-        if code != 0:
+        if not outcome["verdict"].startswith("accepted"):
             scene.aetheria_package_report = (f"Packaged {len(anchors)} anchors; the validator refused the ship; "
                                              "its message is in the system console")
             self.report({"ERROR"}, scene.aetheria_package_report)
