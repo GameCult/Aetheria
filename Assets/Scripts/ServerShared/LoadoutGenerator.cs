@@ -403,7 +403,6 @@ public class LoadoutGenerator
     private void EquipHardpoints(Entity entity)
     {
         var hullData = ItemManager.GetData(entity.Hull) as HullData;
-        foreach (var v in hullData.Shape.Coordinates) entity.HullConductivity[v.x, v.y] = true;
         var previousProducts = new List<(FactionProductData product, GearData design)>();
         foreach (var hardpoint in hullData.Hardpoints.OrderByDescending(h=>h.Shape.Coordinates.Length))
         {

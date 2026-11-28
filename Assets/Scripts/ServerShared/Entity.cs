@@ -1422,6 +1422,8 @@ public abstract class Entity
             }
         }
         var cellCount = hullData.Shape.Coordinates.Length;
+        // A hull conducts heat on every edge from construction; the player insulates an edge, a saved ship's edges overwrite this.
+        foreach (var v in hullData.Shape.Coordinates) HullConductivity[v.x, v.y] = true;
         foreach (var v in hullData.Shape.Coordinates)
         {
             Armor[v.x, v.y] = hullData.Armor;
