@@ -77,13 +77,13 @@ public static class EconomyCommand
     {
         if (args.Length > 0 && args[0] == "report")
         {
-            using var db = AetherDb.Open();
+            using var db = AetherDb.OpenBooted();
             return Report(db.Cache, output);
         }
         if (args.Length > 0 && args[0] == "prices") return EconomyPrices.Run(args.Skip(1).ToArray(), output);
         if (args.Length > 0 && args[0] == "balance")
         {
-            using var db = AetherDb.Open();
+            using var db = AetherDb.OpenBooted();
             var settings = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings");
             var rest = args.Skip(1).ToList();
             var cap = EconomyLoop.DefaultCap;

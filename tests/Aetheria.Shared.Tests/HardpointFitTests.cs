@@ -32,8 +32,7 @@ public sealed class HardpointFitTests
     public void TheCensusReadsThePackagesTheGameBoots()
     {
         var root = RunStartTests.FindRepoRoot();
-        using (var db = AetherDb.Open(root: root, withMods: true))
+        using (var db = AetherDb.OpenBooted(root: root))
             Assert.Contains(db.Cache.GetAll<HullData>(), hull => hull.Name == "Nakovalnya");
-        Assert.Throws<ArgumentException>(() => AetherDb.Open(catalogWritable: true, root: root, withMods: true));
     }
 }

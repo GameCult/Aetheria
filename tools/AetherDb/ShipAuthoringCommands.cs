@@ -221,6 +221,7 @@ public static class ShipAuthoringCommands
         var judged = model != null && File.Exists(model) ? "records and model" : "records only, no model yet";
         ShipAuthoringStore.ValidateLoaded(hull, ship, products);
         if (judged == "records and model") ShipModCatalog.Bind(hull, ship, products, Path.GetDirectoryName(full), full);
+        // Shipped file alone, on purpose: a package is judged against the shipped catalog it will be composed over, never against itself.
         // Compose's verdict on a package's bins and its offered hull's schematic; the author sees it here, before compose.
         using var catalog = products.Length > 0 || hull.HullType == HullType.Station ? AetherDb.Open().Cache : null;
         if (ShipModCatalog.MarketFault(catalog, ship, products) is { } fault) throw new InvalidOperationException(fault);
@@ -233,6 +234,7 @@ public static class ShipAuthoringCommands
     // A shipped faction by record key, name or short name, from GameData/Aetheria.cc opened read-only: exactly one, or refused.
     internal static (CultRecordKey Key, string Name) ShippedFaction(string text)
     {
+        // Shipped file alone, on purpose: this resolves a shipped faction, the one a package names by key.
         using var catalog = AetherDb.Open().Cache;
         var matches = catalog.GetAll<Faction>()
             .Where(faction => string.Equals(faction.Name, text, StringComparison.Ordinal) ||
@@ -246,6 +248,7 @@ public static class ShipAuthoringCommands
     // A shipped hull by name, from GameData/Aetheria.cc opened read-only, of one of the types allowed.
     private static HullData ShippedHull(string name, params HullType[] allowed)
     {
+        // Shipped file alone, on purpose: --like copies a shipped hull, not a package's.
         using var catalog = AetherDb.Open().Cache;
         var hull = catalog.GetAll<HullData>().FirstOrDefault(candidate => candidate.Name == name) ??
             throw new InvalidOperationException($"--like: the shipped catalog has no hull named '{name}'.");

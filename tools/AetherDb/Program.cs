@@ -96,6 +96,7 @@ public static class Program
             {
                 if (args.Length < 2 || args[1] != "resave") { Console.WriteLine("catalog resave [apply]"); return 1; }
                 var apply = args.Contains("apply");
+                // Shipped file alone, on purpose: a resave restamps GameData/Aetheria.cc itself, so a composed catalog would write the packages into it.
                 using var db = AetherDb.Open(catalogWritable: apply);
                 return CatalogResaveCommand.Run(db.Cache, apply, Console.Out);
             }
@@ -111,7 +112,7 @@ public static class Program
     // Designs by kind and manufacturer, designs no product sells, and products with authored role quality.
     private static int Census()
     {
-        var db = AetherDb.Open();
+        var db = AetherDb.OpenBooted();
         var items = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>()
             .OrderBy(p => db.Cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
@@ -534,7 +535,7 @@ public static class Program
     // generation equips hardpoint gear first and only the first of those is guaranteed.
     private static int StationFit()
     {
-        var db = AetherDb.Open();
+        var db = AetherDb.OpenBooted();
         var bays = db.Cache.GetAll<DockingBayData>().ToArray();
         var failures = 0;
         foreach (var hull in db.Cache.GetAll<HullData>().Where(h => h.HullType == HullType.Station))
@@ -564,7 +565,7 @@ public static class Program
     // cannot place; the count is UnfillableHardpoints', and so is the exit code.
     private static int HardpointFit()
     {
-        using var db = AetherDb.Open(withMods: true);
+        using var db = AetherDb.OpenBooted();
         var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
         var sold = SoldDesigns(db.Cache.GetAll<FactionProductData>());
         foreach (var hull in db.Cache.GetAll<HullData>().OrderBy(h => h.HullType).ThenBy(h => h.Name, StringComparer.Ordinal))
@@ -768,7 +769,7 @@ public static class Program
     // Galaxy.NamePlaces falls back to catalogue designations for a faction without one.
     private static int Factions()
     {
-        var db = AetherDb.Open();
+        var db = AetherDb.OpenBooted();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         Console.WriteLine($"{"faction",-26} {"short",-13} {"places",-22} {"boss loadout",-14} {"influence",-9} {"doctrine",-10} products");
         var broken = 0;
@@ -800,7 +801,7 @@ public static class Program
         AetherDb db;
         try
         {
-            db = AetherDb.Open(withRun: true);
+            db = AetherDb.OpenBooted(withRun: true);
         }
         catch (Exception e)
         {
@@ -857,7 +858,7 @@ public static class Program
     private static int Loadout(string[] args)
     {
         var seed = uint.TryParse(args.FirstOrDefault(), out var parsed) ? parsed : 1u;
-        var db = AetherDb.Open();
+        var db = AetherDb.OpenBooted();
         var settings = new GameplaySettings
         {
             DefaultEntitySettings = new EntitySettings(),
@@ -1170,7 +1171,7 @@ public static class Program
     // against the catalog and not against names.
     private static int WeaponAmmo()
     {
-        var db = AetherDb.Open();
+        var db = AetherDb.OpenBooted();
         Console.WriteLine($"{"weapon",-28} {"behaviour",-20} {"energy",-11} {"mag",5} {"reload",6} ammo");
         foreach (var item in db.Cache.GetAll<WeaponItemData>().OrderBy(i => i.Name, StringComparer.Ordinal))
             foreach (var w in item.Behaviors.OfType<WeaponData>())

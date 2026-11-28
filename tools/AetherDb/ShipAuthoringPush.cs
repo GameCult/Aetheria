@@ -361,6 +361,7 @@ public static class ShipAuthoringPush
         // A kind is judged whenever the request or the stored hull names one, so an invalid stored kind is never passed as fine; a
         // kindless draft that stays kindless is not, so it still takes stats and price (and needs no catalog).
         if (derived.Kind.IsSet() || held.Kind.IsSet())
+            // Shipped file alone, on purpose: a station kind is the shipped catalog's, the rule Compose applies to a package.
             using (var catalog = AetherDb.Open().Cache)
                 if (StationKinds.HullKindFault(catalog, derived) is { } fault) throw new InvalidOperationException($"{shipId}: {fault}");
         FlatDiff(lines, key, HullFields(held), HullFields(derived));

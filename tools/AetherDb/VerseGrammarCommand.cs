@@ -52,6 +52,7 @@ public static class VerseGrammarCommand
 
     public static int Run(bool apply, string root = null)
     {
+        // Shipped file alone, on purpose: the grammar is authored into GameData/Aetheria.cc, and the dry run reads what apply would write.
         var catalogPath = Path.Combine(root ?? AetherDb.FindRoot(), "GameData", "Aetheria.cc");
         using var cache = new CultCache();
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath, !apply), AetheriaStores.CatalogTypes);

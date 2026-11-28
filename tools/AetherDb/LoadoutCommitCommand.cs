@@ -12,7 +12,7 @@ using GameCult.Caching;
 // loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace] [--boss-of <faction>]
 // (aetheria-release, cut loadout-commit; rulings boss-loadouts-agent-authored, catalog-is-a-package-stack): writes one Loadout
 // record into GameData/Aetheria.cc through Loadouts.Commit, the only writer, and with --boss-of makes it that faction's boss in
-// the same commit. Names resolve exactly against the catalog the game boots: ShipModCatalog.ResolveCatalog over the shipped
+// the same commit. Names resolve exactly against the catalog the game boots: AetherDb.ComposeBooted over the shipped
 // file and GameData/Mods, composed into a scratch file that is never committed. So a loadout may name a package's hull,
 // design or product (one hull product, one design per slot, one product where a slot names one, a rotation by its
 // ItemRotation name, a faction by Name or ShortName). The loadout is then built once on a throwaway ItemManager with
@@ -69,13 +69,12 @@ public static class LoadoutCommitCommand
         var scratch = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-loadout-commit-" + Guid.NewGuid().ToString("N"))).FullName;
         try
         {
-            var (composed, excluded) = ShipModCatalog.ResolveCatalog(catalogPath, Path.Combine(scratch, "derived.cc"), Path.Combine(root, "GameData", "Mods"));
-            foreach (var exclusion in excluded) output.WriteLine($"package left out, as at boot: {exclusion}");
+            var composed = AetherDb.ComposeBooted(root, scratch);
 
             Loadout loadout;
             CultRecordRef<Faction> bossOf = default;
             string summary;
-            // Disposed before the commit: with no package composed, this is the shipped file itself.
+            // Disposed before the commit; the commit opens the shipped file alone (it is the one writer, and a composed catalog is derived).
             using (var cache = AetheriaStores.Open(composed))
             {
                 loadout = Build(cache, positional[0], positional[1], positional.Skip(2).ToArray(), groups);
@@ -94,6 +93,7 @@ public static class LoadoutCommitCommand
                           (bossOf.IsSet() ? $", boss of {cache.Get(bossOf).Name}" : "");
             }
 
+            // Shipped file alone, on purpose: the commit writes GameData/Aetheria.cc, never the composed catalog.
             if (!Loadouts.Commit(catalogPath, loadout, replace, bossOf))
                 throw new InvalidOperationException("the catalog changed since it was read; nothing was written");
             output.WriteLine(summary);

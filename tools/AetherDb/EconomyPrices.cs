@@ -22,6 +22,8 @@ public static class EconomyPrices
             else if (other == null && !args[i].StartsWith("--", StringComparison.Ordinal)) other = args[i];
             else { output.WriteLine(Usage); return 1; }
         }
+        // The shipped file alone, on purpose: a package's hull price is read from its ship.cc below, so a composed catalog would list the
+        // same hull twice, and the second catalog an old side is compared against is a shipped file.
         using var db = AetherDb.Open();
         var now = Read(db.Cache, mods ?? Path.Combine(db.Root, "GameData", "Mods"));
         if (other == null)
