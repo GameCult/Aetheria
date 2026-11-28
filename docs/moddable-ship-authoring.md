@@ -38,23 +38,26 @@ to Blender's add-on search path and enable `brokkr_bridge` then
 Create a draft with `dotnet run --project tools/AetherDb -- ship-authoring
 create <ship.cc> <stable-id> <name> [--like <shipped hull name>]`; `--like Djinni`
 copies that shipped ship's stats and leaves the body and layout empty. Choose that `.cc` in the **Aetheria
-Ship** panel, select an object in its ship collection, and press **Bind Ship
-Collection**. The collection stores `aetheria.asset_kind=ship`, the stable
+Ship** panel's Ship .cc field, select an object in its ship collection, and press **Open Ship**. An unbound
+collection is bound to that file first: it stores `aetheria.asset_kind=ship`, the stable
 `aetheria.id`, and a relative `.cc` path. Select a Grease Pencil object in
 that bound collection and press **Capture Ship Lines**. Capture checks the
 collection ID against the record before writing; object and collection
 display names are not IDs.
-**Load Ship Layout** opens the same `.cc` file's hull grid and hardpoints in
+**Open Ship** also reads the `.cc` file's hull grid and hardpoints into
 the panel. Toggle occupied grid cells, resize up to 32×32, and edit each
 hardpoint's type, mount ID, position, footprint, rotation, armor, and firing
 arc. A footprint uses top-to-bottom rows of `#` (occupied) and `.` (empty),
-separated by `/`; `##/##` is a 2×2 mount. **Save Layout to .cc** replaces only
-the hull shape and hardpoint slots. It preserves hull stats, anchors, visual
-assets, lines, the record key, and schema. Save is refused when a record of the
-package was written since Load (the versions Load took from `open`); reload first.
-A write to stats, price or a product between Load and Save refuses the Save too.
-A line capture replaces the versions it holds with the push's. The saved layout is a draft until
+separated by `/`; `##/##` is a 2×2 mount. **Push (dry run)** shows, in the panel, the lines AetherDb would
+change (`armor: 40 -> 45`) and writes nothing. **Apply to .cc** then writes exactly what that dry run showed, and
+replaces only the hull shape and hardpoint slots: it preserves hull stats, anchors, visual
+assets, lines, the record key, and schema. Apply is refused with no dry run, or when the scene changed since it, and
+AetherDb refuses the write when a record the push writes was changed since Open; open again. The first Apply of a new
+ship creates its file. The applied layout is a draft until
 its mount IDs resolve to visual anchors and C# validation passes.
+Agents may call Open and Push through Brokkr (`aetheria.open_ship`, `aetheria.push_ship`, listed in the add-on's
+`brokkr_actions.json`) once you press **Reload Host Actions** in the Brokkr panel; the change lines come back in the
+receipt. Apply, Capture Ship Lines and Package Ship are not in that file: they stay your buttons.
 **Package Ship** turns the bound collection into the package. Tag each anchor
 object with the custom properties `aetheria.role` (`map-icon`, `hull-collider`,
 `shield`, `tractor`, `thruster-emitter`, `radiator-mesh`, `weapon-mount`,
