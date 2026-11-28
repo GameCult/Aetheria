@@ -96,6 +96,10 @@ public class EquippableItem : CraftedItemInstance
     // it from the schematic UI; from then on PowerBus only ever reads it, never derives it. An old run store
     // missing key 12 deserializes to this same field initializer, so no migration is needed (§ Cut 5).
     [JsonProperty("powerTier"), Key(12)] public int PowerTier = PowerTiers.Unassigned;
+
+    // A facility's cycle in progress: per-unit installation state like PowerTier, null on everything but a facility that has started
+    // a cycle. Its one writer is Facility.Execute, storing Production.Advance's result. 13 is CompoundCommodity's, so 14.
+    [JsonProperty("run"), Key(14)] public FacilityRun Run;
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]

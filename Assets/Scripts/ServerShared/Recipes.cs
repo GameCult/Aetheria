@@ -110,8 +110,8 @@ public class OutsideMarketRow
     [Key(5)] [CultElementId] public string Id = "";
 }
 
-// The one reader of recipes: which recipe makes a good, a recipe's role slots (RoleInputsOf), which commodities fill a role, and
-// what a good is by its recipe.
+// The one reader of recipes: which recipe makes a good, a recipe's role slots (RoleInputsOf), which commodities fill a role, which
+// recipes a facility design runs (RunOn), and what a good is by its recipe.
 public static class Recipes
 {
     public static RecipeData RecipeOf(CultCache catalog, ItemData item) =>
@@ -146,5 +146,13 @@ public static class Recipes
             .Where(recipe => recipe.Fills != null && recipe.Fills.Contains(role) && IsCommodity(catalog.Get(recipe.Output)))
             .Select(recipe => recipe.Output.Key)
             .OrderBy(key => key.Value, StringComparer.Ordinal)
+            .ToArray();
+
+    // The recipes a facility design runs, ordered by recipe key so a choice never depends on store order. The one reader of which
+    // recipes a facility runs; RecipeData.Facility owns it and nothing is stored on the facility.
+    public static RecipeData[] RunOn(CultCache catalog, CultRecordKey facilityDesign) =>
+        catalog.GetAll<RecipeData>()
+            .Where(recipe => recipe.Facility.IsSet() && recipe.Facility.Key.Equals(facilityDesign))
+            .OrderBy(recipe => RecipeData.KeyOf(recipe.Output.Key).Value, StringComparer.Ordinal)
             .ToArray();
 }
