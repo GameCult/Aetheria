@@ -30,6 +30,32 @@ public static class RunStart
             itemManager, zoneSettings, planetSettings, galaxy, galaxy.Entrance, scenario.EntranceStations, scenario.Ambient);
     }
 
+    // The arena's live Zone, which staging needs before the rest of the region exists. Idempotent.
+    public static Zone BuildArena(ItemManager itemManager, PlanetSettings planetSettings, Galaxy galaxy) =>
+        Live(itemManager, planetSettings, galaxy, galaxy.Entrance);
+
+    // The one owner of whether a zone of the run exists: every zone, in index order, has a generation snapshot and a live
+    // Zone. A zone draws its items from the run seed and its index alone (RegionStep), so the order zones are generated
+    // in, or whether the rest were generated at all, moves none of them. A fresh run generates every zone but its arena
+    // (GenerateArena's); a saved run generates only a zone its save holds no pack for. Idempotent, and ambient: only the
+    // arena takes the scenario's orders and Ambient rule. Nothing steps but the player's zone, so the others stay frozen.
+    public static void Materialize(ItemManager itemManager, ZoneGenerationSettings zoneSettings, PlanetSettings planetSettings, Galaxy galaxy)
+    {
+        for (var i = 0; i < galaxy.Zones.Length; i++)
+        {
+            var zone = galaxy.Zones[i];
+            if (zone.PackedContents == null)
+            {
+                SeedItems(itemManager, galaxy, RegionStep + (uint) i);
+                zone.PackedContents = ZoneGenerator.GenerateZone(itemManager, zoneSettings, planetSettings, galaxy, zone);
+            }
+            Live(itemManager, planetSettings, galaxy, zone);
+        }
+    }
+
+    private static Zone Live(ItemManager itemManager, PlanetSettings planetSettings, Galaxy galaxy, GalaxyZone zone) =>
+        zone.Contents ??= new Zone(itemManager, planetSettings, zone.PackedContents, zone, galaxy);
+
     // Runs a start and answers whether it produced a run: null, with the reason in `failures`, when `start` throws or
     // returns nothing. The caller shows the failure and clears its run; nothing past a null may run the game.
     public static Staged Launch(Func<Staged> start, List<string> failures, Action<Exception> log = null)
@@ -69,10 +95,14 @@ public static class RunStart
     private static void SeedItems(ItemManager itemManager, Galaxy galaxy, uint step) =>
         itemManager.Random = new Random(ItemSeed(galaxy, step));
 
-    // The steps of a run that draw items: generating its arena, staging its scenario, and continuing a saved run.
+    // The steps of a run that draw items: generating its arena, staging its scenario, continuing a saved run, and generating each zone of the region.
     public const uint ArenaStep = 1;
     public const uint StageStep = 2;
     public const uint ContinueStep = 3;
+
+    // Zone i of the region draws its items from ItemSeed(galaxy, RegionStep + i). It sits clear of the steps above, since
+
+    public const uint RegionStep = 0x100;
 
     // The item seed of an ActionGameManager scene opened with no galaxy. No run is loaded, so nothing a run decides
     // draws from it.
