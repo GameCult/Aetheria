@@ -260,8 +260,12 @@ public class ZoneStage
 // once at admission. Neutral writes nothing (the faction rule and grudges decide). Only RunStart builds one.
 public sealed class ScenarioStage : ZoneStage
 {
+    private readonly ItemManager _runItems;
+    private readonly List<(string id, HaulOrderData order)> _haulOrders = new List<(string, HaulOrderData)>();
+
     internal ScenarioStage(ItemManager items, Zone arena, string startingHull) : base(items, arena)
     {
+        _runItems = items;
         StartingHull = startingHull;
         Credits = items.GameplaySettings.StartingCredits;
     }
@@ -301,11 +305,43 @@ public sealed class ScenarioStage : ZoneStage
         return null;
     }
 
+    // The arena's one station of a kind (what it is for, never its hull); a failure naming the kind when there is none or several.
+    public OrbitalEntity Station(string kindId)
+    {
+        var kind = StationKindData.KeyOf(kindId);
+        var found = Arena.Entities.OfType<OrbitalEntity>().Where(entity => entity.Kind.IsSet() && entity.Kind.Key.Equals(kind)).Take(2).ToArray();
+        if (found.Length == 1) return found[0];
+        _failures.Add(found.Length == 0 ? $"station {kindId}: the arena holds no station of that kind" : $"station {kindId}: the arena holds more than one station of that kind");
+        return null;
+    }
+
+    // A standing haul order between two of the arena's stations, by their orbits (ruling transit-depots-buy-for-onward-haul).
+    // Queued here and written only in Admit, so a refused stage writes nothing.
+    public void HaulOrder(string id, OrbitalEntity from, OrbitalEntity to, IEnumerable<CultRecordRef<ItemData>> goods, string commitment)
+    {
+        if (from == null || to == null) return; // the verb that found them named why
+        if (!from.OrbitData.IsSet() || !to.OrbitData.IsSet())
+        {
+            _failures.Add($"haul order {id}: a station with no orbit record cannot be a haul order's end");
+            return;
+        }
+        _haulOrders.Add((id, new HaulOrderData
+        {
+            From = new CultRecordRef<OrbitData>(from.OrbitData), To = new CultRecordRef<OrbitData>(to.OrbitData),
+            Goods = goods.ToList(), Commitment = commitment
+        }));
+    }
+
     // Run start's admission: stock unauthored ammunition, the player, then everything placed. Nothing at admission or
     // activation reads cargo (ammunition is read when a weapon fires), so stocking is not ordered by admission; it keeps
     // the run start's order.
     internal void Admit()
     {
+        if (_haulOrders.Count > 0)
+            _runItems.ItemData.Commit(batch =>
+            {
+                foreach (var (id, order) in _haulOrders) batch.Upsert(typeof(HaulOrderData), order, HaulOrderData.KeyOf(id));
+            });
         StockUnauthoredAmmunition();
         PlayerShip.IsPlayerShip = true;
         Arena.Admit(PlayerShip, piloted: false);

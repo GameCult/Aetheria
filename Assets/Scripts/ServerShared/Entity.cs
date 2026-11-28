@@ -1685,28 +1685,27 @@ public abstract class Entity
         // The one seat of hardpoint gear's rotation, before EquippedItem's ctor reads it.
         if (hardpoint != null) item.Rotation = hardpoint.Rotation;
 
+        // A bay is decided by its type before its hardpoint: a docking bay or cargo bay, a silo among them, is a bay whether it
+        // sits free (Tool) or on a row (a silo on its Facility row); then Tool gear, then hardpoint gear.
         EquippedItem equippedItem;
-        if (itemData.HardpointType == HardpointType.Tool)
+        if (itemData is CargoBayData)
         {
-            if(itemData is CargoBayData)
+            if (itemData is DockingBayData)
             {
-                if (itemData is DockingBayData)
-                {
-                    equippedItem = new EquippedDockingBay(ItemManager, item, hullCoord, this, $"{Name} Docking Bay {DockingBays.Count + 1}");
-                    DockingBays.Add((EquippedDockingBay) equippedItem);
-                }
-                else
-                {
-                    equippedItem = new EquippedCargoBay(ItemManager, item, hullCoord, this, $"{Name} Cargo Bay {CargoBays.Count + 1}");
-                    CargoBays.Add((EquippedCargoBay) equippedItem);
-                    CargoChanged();
-                }
+                equippedItem = new EquippedDockingBay(ItemManager, item, hullCoord, this, $"{Name} Docking Bay {DockingBays.Count + 1}");
+                DockingBays.Add((EquippedDockingBay) equippedItem);
             }
             else
             {
-                equippedItem = new EquippedItem(ItemManager, item, hullCoord, this, null);
-                Equipment.Add(equippedItem);
+                equippedItem = new EquippedCargoBay(ItemManager, item, hullCoord, this, $"{Name} Cargo Bay {CargoBays.Count + 1}", hardpoint);
+                CargoBays.Add((EquippedCargoBay) equippedItem);
+                CargoChanged();
             }
+        }
+        else if (itemData.HardpointType == HardpointType.Tool)
+        {
+            equippedItem = new EquippedItem(ItemManager, item, hullCoord, this, null);
+            Equipment.Add(equippedItem);
         }
         else
         {
@@ -2443,7 +2442,7 @@ public class EquippedCargoBay : EquippedItem
         }
     }
 
-    public EquippedCargoBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity, null)
+    public EquippedCargoBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name, HardpointData hardpoint = null) : base(itemManager, item, position, entity, hardpoint)
     {
         Data = ItemManager.GetData(EquippableItem) as CargoBayData;
         Name = name;
@@ -2457,6 +2456,8 @@ public class EquippedCargoBay : EquippedItem
     // Check whether the given item will fit when its origin is placed at the given coordinate
     public bool ItemFits(ItemInstance item, int2 cargoCoord)
     {
+        // A silo holds bulk only: gear, consumables and crafted sales never land in it.
+        if (Data is SiloData && !(item is ICommodityStack)) return false;
         var itemData = ItemManager.GetData(item);
         // Check every cell of the item's shape
         foreach (var i in itemData.Shape.Coordinates)

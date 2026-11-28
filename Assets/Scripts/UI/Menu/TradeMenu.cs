@@ -297,17 +297,10 @@ public class TradeMenu : MonoBehaviour
 
     private void Sell(ItemInstance item)
     {
-        if (item is CompoundCommodity compound)
+        // A commodity stack sells by what the station wants and as far as its bays hold (StationServices.TrySellPart).
+        if (item is ICommodityStack stack)
         {
-            var offered = compound.Quantity;
-            var sold = StationServices.TrySellPart(_targetCargo, GameManager.DockedEntity, compound, ref GameManager.Credits);
-            UpdateCreditsLabel();
-            Populate();
-            if (sold == offered) return;
-            Dialog.Clear();
-            Dialog.Title.text = $"Sold {sold} of {offered}: Station Cargo Full!";
-            Dialog.Show();
-            Dialog.MoveToCursor();
+            Report(StationServices.TrySellPart(_targetCargo, GameManager.DockedEntity, stack, ref GameManager.Credits), GameManager.ItemManager.Title(item));
             return;
         }
         if (StationServices.TrySell(_targetCargo, GameManager.DockedEntity, item, ref GameManager.Credits))
@@ -322,13 +315,23 @@ public class TradeMenu : MonoBehaviour
         Dialog.MoveToCursor();
     }
 
-    // Sells every mined stack of the player's ships' bays in one step; the station pays through TrySell, so nothing refuses.
-    private void SellOre()
+    // Refreshes the menu after a commodity sale and says what happened when the station took less than was offered.
+    private void Report(SaleResult result, string good)
     {
-        StationServices.TrySellOre(PlayerBays(), GameManager.DockedEntity, ref GameManager.Credits);
         UpdateCreditsLabel();
         Populate();
+        if (result.Refusal == SaleRefusal.None) return;
+        Dialog.Clear();
+        Dialog.Title.text = result.Refusal == SaleRefusal.NotWanted
+            ? $"{GameManager.DockedEntity.Name} does not buy {good}"
+            : $"Sold {result.Sold} of {result.Offered}: station hold full";
+        Dialog.Show();
+        Dialog.MoveToCursor();
     }
+
+    // Sells every mined stack of the player's ships' bays the station wants in one step, as far as its bays hold them.
+    private void SellOre() =>
+        Report(StationServices.TrySellOre(PlayerBays(), GameManager.DockedEntity, ref GameManager.Credits), "ore");
 
     private IEnumerable<EquippedCargoBay> PlayerBays() =>
         GameManager.CurrentEntity.Parent.Children.Where(e => e is Ship {IsPlayerShip: true}).SelectMany(s => s.CargoBays);
@@ -419,7 +422,7 @@ public class TradeMenu : MonoBehaviour
             });
             var repairCost = StationServices.RepairCost(GameManager.ItemManager, GameManager.CurrentEntity);
             if (repairCost > 0) ContextMenu.AddOption($"Repair ({repairCost:N0})", Repair);
-            var oreValue = StationServices.OreValue(GameManager.ItemManager, PlayerBays());
+            var oreValue = StationServices.OreValue(GameManager.ItemManager, PlayerBays(), GameManager.DockedEntity);
             if (oreValue > 0) ContextMenu.AddOption($"Sell Ore ({oreValue:N0})", SellOre);
             ContextMenu.Show();
         });

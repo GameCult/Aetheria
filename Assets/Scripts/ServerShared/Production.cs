@@ -47,6 +47,14 @@ public static class Production
     public static IReadOnlyList<RecipeData> RunList(CultCache catalog, CultRecordKey facilityDesign) =>
         Recipes.RunOn(catalog, facilityDesign).Where(recipe => Runs(catalog, recipe)).ToArray();
 
+    // The designs Take can take for the recipe: Inputs, Upkeep, and the fillers of each role slot, in that order, each once. Beside
+    // Take, which it must never disagree with: a good a recipe draws is a good its facility's station wants (StationWants).
+    public static IReadOnlyList<CultRecordKey> Draws(CultCache catalog, RecipeData recipe) =>
+        recipe.Inputs.Select(input => input.Commodity.Key)
+            .Concat(recipe.Upkeep.Select(upkeep => upkeep.Commodity.Key))
+            .Concat(Recipes.RoleInputsOf(catalog, recipe).SelectMany(role => Recipes.Fillers(catalog, role.Name)))
+            .Distinct().ToArray();
+
     // The units one cycle of the recipe takes from the hold, summed per design: Inputs, then Upkeep, then each role slot filled
     // greedily across Recipes.Fillers order. Null when the hold is short of any.
     public static IReadOnlyList<(CultRecordKey design, int units)> Take(CultCache catalog, RecipeData recipe, IProductionHold hold)

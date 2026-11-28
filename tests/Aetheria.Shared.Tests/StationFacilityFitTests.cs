@@ -28,7 +28,7 @@ public sealed class StationFacilityFitTests
             .Where(kind => cache.Get(kind).Facilities.Count > 0)
             .SelectMany(kind => Enumerable.Range(1, 6).Select(seed => (faction, kind, (uint) seed))));
 
-    private static string[] FacilityKeys(Entity station) => station.Equipment.Where(item => item.Data.HardpointType == HardpointType.Facility)
+    private static string[] FacilityKeys(Entity station) => station.Equipment.Concat<EquippedItem>(station.CargoBays).Where(item => item.Data.HardpointType == HardpointType.Facility)
         .Select(item => item.Data.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray();
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class StationFacilityFitTests
             var (items, station) = Generate(cache, maker, kind, seed);
             var wanted = cache.Get(kind).Facilities.Select(facility => cache.Get(facility).Name).OrderBy(name => name, StringComparer.Ordinal).ToArray();
             Assert.Equal(wanted, FacilityKeys(station));
-            Assert.All(station.Equipment.Where(item => item.Data.HardpointType == HardpointType.Facility),
+            Assert.All(station.Equipment.Concat<EquippedItem>(station.CargoBays).Where(item => item.Data.HardpointType == HardpointType.Facility),
                 item => Assert.Equal(HardpointType.Facility, item.Hardpoint.Type));
         }
     }

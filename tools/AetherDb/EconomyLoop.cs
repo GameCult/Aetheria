@@ -38,7 +38,12 @@ public sealed class LoopSample
     public int Units;
     // The sim second the first unit floated, i.e. the hold was full; null if it never filled.
     public double? HoldFullAt;
+    // What the arena's processing station paid for the hold at sortie end (TrySellOre), and what it would have paid for every ore
+    // stack it wants had its bays had room (OreValue); the units it took and the units it refused for want of room.
     public int SellValue;
+    public int OfferedValue;
+    public int UnitsSold;
+    public int UnitsRefused;
     public int AmmoSpent;
     public int Repair;
 
@@ -109,9 +114,9 @@ public static class EconomyLoop
     // One sortie in the demo run of this seed on one belt: the staged ship is held forty units off each rock of the belt in index
     // order, fires every weapon at it, and stops when the first unit floats (the hold is full), when a starting stock runs out, or
     // at the cap. Everything it touches is its own: a scratch copy of the catalog, its own run store and its own ItemManager (a
-    // shared one advances its Random and gave the same seed different results). atEnd, if given, sees the ship and items as the
+    // shared one advances its Random and gave the same seed different results). atEnd, if given, sees the ship, items and the processing station as the
     // sample is taken, so a test can read the same state the sample was priced from.
-    public static LoopSample Sortie(string root, uint seed, int beltIndex, float capSeconds, Action<Ship, ItemManager> atEnd = null)
+    public static LoopSample Sortie(string root, uint seed, int beltIndex, float capSeconds, Action<Ship, ItemManager, Entity> atEnd = null)
     {
         if (!float.IsFinite(capSeconds) || capSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(capSeconds), "the cap must be a positive, finite number of sim seconds");
         var scratch = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "aetherdb-loop-" + Guid.NewGuid().ToString("N"))).FullName;
@@ -136,6 +141,8 @@ public static class EconomyLoop
             var failures = new List<string>();
             var player = RunStart.Stage(items, arena, scenario, startingHull, failures).Player;
             if (failures.Count > 0) throw new InvalidOperationException($"seed {seed}: staging failed: {string.Join("; ", failures)}");
+            // The station that buys the sortie's ore, found by what it is for.
+            var processing = arena.Entities.OfType<OrbitalEntity>().Single(entity => entity.Kind.Key.Equals(StationKindData.KeyOf("processing")));
 
             var belts = arena.Planets.Where(body => body.Value is AsteroidBeltData).ToList();
             if (beltIndex < 0 || beltIndex >= Math.Max(belts.Count, 1)) throw new ArgumentOutOfRangeException(nameof(beltIndex), $"seed {seed} has {belts.Count} belts");
@@ -212,7 +219,7 @@ public static class EconomyLoop
             sample.SimSeconds = ticks * (double) Step;
             sample.Units = units;
             sample.HoldFullAt = fullTick == null ? null : fullTick * (double) Step;
-            sample.SellValue = StationServices.OreValue(items, player.CargoBays);
+            sample.OfferedValue = StationServices.OreValue(items, player.CargoBays, processing);
             sample.AmmoSpent = (int) Math.Min(spentOnAmmo, int.MaxValue);
             sample.Repair = StationServices.RepairCost(items, player);
             if (fullTick != null) sample.Outcome = LoopOutcome.Full;
@@ -220,7 +227,13 @@ public static class EconomyLoop
             else if (targeted == 0) { sample.Outcome = LoopOutcome.RigFault; sample.Note = "no rock of the belt could be targeted"; }
             else if (ticks >= capTicks) sample.Outcome = LoopOutcome.Capped;
             else { sample.Outcome = LoopOutcome.RigFault; sample.Note = "ran out of rocks before the cap"; }
-            atEnd?.Invoke(player, items);
+            atEnd?.Invoke(player, items, processing);
+            // The hold sells to the processing station: it pays for the units its bays take, and the rest stays aboard.
+            var credits = 0;
+            var sale = StationServices.TrySellOre(player.CargoBays, processing, ref credits);
+            sample.SellValue = credits;
+            sample.UnitsSold = sale.Sold;
+            sample.UnitsRefused = sale.Offered - sale.Sold;
             return sample;
         }
         finally

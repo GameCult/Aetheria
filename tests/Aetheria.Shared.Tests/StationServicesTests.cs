@@ -24,7 +24,11 @@ public sealed class StationServicesTests : IDisposable
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
         var hardpoint = new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() };
         _cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = shape, Price = 1000, Durability = 10, Armor = 10, Hardpoints = { hardpoint } });
-        _cache.Upsert(new HullData { Name = "Hub", HullType = HullType.Station, Shape = shape, Price = 5000, Durability = 10 });
+        _cache.Upsert(new HullData
+        {
+            Name = "Hub", HullType = HullType.Station, Shape = shape, Price = 5000, Durability = 10,
+            Hardpoints = { new HardpointData { Type = HardpointType.Facility, Position = new int2(0, 0), Shape = new Shape() } }
+        });
         _cache.Upsert(new HullData { Name = "Bare Hub", HullType = HullType.Station, Shape = shape, Price = 5000, Durability = 10 });
         _cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 400, Durability = 8 });
         _cache.Upsert(new GearData { Name = "Sweep", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1, Durability = 20 });
@@ -42,6 +46,15 @@ public sealed class StationServicesTests : IDisposable
             Yields = { new FieldYield { Commodity = _cache.RefOf(ore), Abundance = 1f } }
         });
         _cache.Upsert(new SimpleCommodityData { Name = "Shells", Shape = new Shape(), Price = 3, MaxStack = 100 });
+        // The fixture station wants what its Smelter's one recipe draws: Ore, and not Shells.
+        var bar = new SimpleCommodityData { Name = "Bar", Shape = new Shape(), Price = 9, MaxStack = 100 };
+        _cache.Upsert(bar);
+        _cache.Upsert(new GearData { Name = "Smelter", Hardpoint = HardpointType.Facility, Shape = new Shape(), Price = 1, Durability = 4, Behaviors = { new FacilityData() } });
+        _cache.Upsert(typeof(RecipeData), new RecipeData
+        {
+            Output = _cache.RefOf<ItemData>(bar), Facility = _cache.RefOf<ItemData>(_cache.GetByName<GearData>("Smelter")),
+            Inputs = { new CommodityCount { Commodity = _cache.RefOf<ItemData>(ore), Count = 1 } }
+        }, RecipeData.KeyOf(_cache.RefOf<ItemData>(bar).Key));
         _cache.FlushAsync().Wait();
 
         var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
@@ -79,10 +92,11 @@ public sealed class StationServicesTests : IDisposable
     }
 
     // A station whose one cargo bay can take the goods, or one with no cargo bay at all.
-    private OrbitalEntity Station(bool withBay = true)
+    private OrbitalEntity Station(bool withBay = true, bool wants = true)
     {
         var station = new OrbitalEntity(_items, _zone, Mint(withBay ? "Hub" : "Bare Hub"), default, new EntitySettings());
         if (withBay) Assert.True(station.TryEquip(Mint("Crate"), new int2(1, 1)));
+        if (withBay && wants) Assert.True(station.TryEquip(Mint("Smelter"), new int2(0, 0)));
         return station;
     }
 
@@ -134,9 +148,7 @@ public sealed class StationServicesTests : IDisposable
         var ship = Ship();
         var from = ship.CargoBays.Single();
         var gun = Mint("Gun", 4);
-        var ore = Ore(10);
         Assert.True(from.TryStore(gun));
-        Assert.True(from.TryStore(ore));
         var station = Station();
         var credits = 1000;
 
@@ -144,12 +156,6 @@ public sealed class StationServicesTests : IDisposable
         Assert.Equal(1000 + StationServices.SellPrice(_items, Mint("Gun", 4)), credits);
         Assert.DoesNotContain(gun, from.Cargo.Keys);
         Assert.Contains(gun, station.CargoBays.Single().Cargo.Keys);
-
-        credits = 1000;
-        Assert.True(StationServices.TrySell(from, station, ore, ref credits));
-        Assert.Equal(1035, credits);
-        Assert.Empty(from.Cargo.Keys.OfType<SimpleCommodity>());
-        Assert.Equal(10, station.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>().Sum(c => c.Quantity));
 
         // A station with nowhere to put it takes nothing and pays nothing.
         var other = Mint("Gun");
@@ -160,6 +166,45 @@ public sealed class StationServicesTests : IDisposable
         Assert.Equal(1000, credits);
         Assert.Equal(packed, from.Cargo.Count);
         Assert.Contains(other, from.Cargo.Keys);
+
+        // A commodity stack never sells through TrySell: it has no unit count to say how many sold.
+        Assert.Throws<ArgumentException>(() => StationServices.TrySell(from, station, Ore(10), ref credits));
+    }
+
+    // A commodity sells by what the station's installed gear draws: the Smelter's recipe takes Ore, so Ore sells whole into room and
+    // Shells, which no facility draws, are NotWanted with nothing moved (ruling installed-gear-decides-what-a-station-buys).
+    [Fact]
+    public void AStationBuysOnlyWhatItsGearWants()
+    {
+        var from = Ship().CargoBays.Single();
+        var ore = Ore(10);
+        var shells = Shells(5);
+        Assert.True(from.TryStore(ore));
+        Assert.True(from.TryStore(shells));
+        var station = Station();
+        Assert.Equal(new[] { _cache.RefOf<ItemData>(_cache.GetByName<SimpleCommodityData>("Ore")).Key }, StationWants.Of(station));
+
+        var credits = 1000;
+        var sold = StationServices.TrySellPart(from, station, ore, ref credits);
+        Assert.Equal((10, 10, SaleRefusal.None), (sold.Sold, sold.Offered, sold.Refusal));
+        Assert.Equal(1035, credits);
+        Assert.DoesNotContain(ore, from.Cargo.Keys);
+        Assert.Equal(10, station.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>().Sum(c => c.Quantity));
+
+        var refused = StationServices.TrySellPart(from, station, shells, ref credits);
+        Assert.Equal((0, 5, SaleRefusal.NotWanted), (refused.Sold, refused.Offered, refused.Refusal));
+        Assert.Equal(1035, credits);
+        Assert.Contains(shells, from.Cargo.Keys);
+        Assert.Equal(5, shells.Quantity);
+
+        // A station with no facility wants nothing, Ore included.
+        var bare = Station(wants: false);
+        Assert.Empty(StationWants.Of(bare));
+        var held = Ore(1);
+        Assert.True(from.TryStore(held));
+        var none = StationServices.TrySellPart(from, bare, held, ref credits);
+        Assert.Equal((0, 1, SaleRefusal.NotWanted), (none.Sold, none.Offered, none.Refusal));
+        Assert.Equal(1035, credits);
     }
 
     // A station's first bay being full is no reason to refuse: the goods go to whichever bay takes them.
@@ -180,9 +225,39 @@ public sealed class StationServicesTests : IDisposable
 
         var credits = 0;
         Assert.True(StationServices.TrySell(from, station, gun, ref credits));
-        Assert.True(StationServices.TrySell(from, station, ore, ref credits));
+        Assert.Equal(10, StationServices.TrySellPart(from, station, ore, ref credits).Sold);
         Assert.Contains(gun, open.Cargo.Keys);
         Assert.Contains(ore, open.Cargo.Keys);
+    }
+
+    // Nothing is absorbed (ruling no-market-absorption): a hold with room for some units takes those and pays for those
+    // alone, the rest stays in the seller's hold, and a hold with no room pays nothing.
+    [Fact]
+    public void AFullStationHoldTakesOnlyWhatFits()
+    {
+        var from = Ship().CargoBays.Single();
+        var station = Station();
+        var bay = station.CargoBays[0];
+        // The station's one ore stack holds 60 of its 100 and every other cell holds a gun: 40 units fit.
+        var shelf = Ore(60);
+        Assert.True(bay.TryStore(shelf));
+        while (bay.TryStore(Mint("Gun"))) { }
+        var big = Ore(100);
+        Assert.True(from.TryStore(big));
+        var credits = 0;
+        var result = StationServices.TrySellPart(from, station, big, ref credits);
+        Assert.Equal((40, 100, SaleRefusal.NoRoom), (result.Sold, result.Offered, result.Refusal));
+        Assert.Equal(StationServices.SellPrice(_items, Ore(40)), credits);
+        Assert.Contains(big, from.Cargo.Keys);
+        Assert.Equal(60, big.Quantity);
+        Assert.Equal(100, shelf.Quantity);
+
+        // Now the stack is full and no cell is free: nothing sells, nothing is paid, the stack stays.
+        credits = 0;
+        var refused = StationServices.TrySellPart(from, station, big, ref credits);
+        Assert.Equal((0, 60, SaleRefusal.NoRoom), (refused.Sold, refused.Offered, refused.Refusal));
+        Assert.Equal(0, credits);
+        Assert.Equal(60, big.Quantity);
     }
 
     // A commodity the seller does not hold sells for nothing: not one never stored, and not a stale copy of a stack the sale
@@ -196,14 +271,14 @@ public sealed class StationServicesTests : IDisposable
         var station = Station();
         var credits = 500;
 
-        Assert.False(StationServices.TrySell(from, station, Ore(10), ref credits));
+        Assert.Equal(0, StationServices.TrySellPart(from, station, Ore(10), ref credits).Sold);
         Assert.Equal(500, credits);
         Assert.Empty(station.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>());
         Assert.Equal(10, Assert.Single(from.Cargo.Keys.OfType<SimpleCommodity>()).Quantity);
 
-        Assert.True(StationServices.TrySell(from, station, held, ref credits));
+        Assert.Equal(10, StationServices.TrySellPart(from, station, held, ref credits).Sold);
         var paid = credits;
-        Assert.False(StationServices.TrySell(from, station, held, ref credits));
+        Assert.Equal(0, StationServices.TrySellPart(from, station, held, ref credits).Sold);
         Assert.Equal(paid, credits);
         Assert.Equal(10, station.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>().Sum(c => c.Quantity));
     }
@@ -511,12 +586,12 @@ public sealed class StationServicesTests : IDisposable
         Assert.True(bay.TryStore(shells));
         Assert.True(bay.TryStore(gun));
         var station = Station();
-        var value = StationServices.OreValue(_items, ship.CargoBays);
+        var value = StationServices.OreValue(_items, ship.CargoBays, station);
         Assert.Equal(StationServices.SellPrice(_items, bought), value);
         Assert.True(value > 0);
 
         var credits = 100;
-        Assert.Equal(10, StationServices.TrySellOre(ship.CargoBays, station, ref credits));
+        Assert.Equal(10, StationServices.TrySellOre(ship.CargoBays, station, ref credits).Sold);
         Assert.Equal(100 + value, credits);
         Assert.DoesNotContain(bought, bay.Cargo.Keys);
         Assert.Contains(shells, bay.Cargo.Keys);
@@ -532,15 +607,26 @@ public sealed class StationServicesTests : IDisposable
         Assert.True(one.CargoBays.Single().TryStore(Ore(30)));
         Assert.True(two.CargoBays.Single().TryStore(Ore(40)));
         var station = Station();
-        // Fill the station's bay so nothing more fits: the market absorbs the sale at full price all the same.
-        for (var i = 0; i < 20; i++) station.CargoBays.Single().TryStore(Ore(100));
-        var value = StationServices.OreValue(_items, bays);
+        var value = StationServices.OreValue(_items, bays, station);
         Assert.Equal(StationServices.SellPrice(_items, Ore(70)), value);
 
+        // Across bays, a station with room takes all of it and pays for all of it.
         var credits = 0;
-        Assert.Equal(70, StationServices.TrySellOre(bays, station, ref credits));
+        var roomy = StationServices.TrySellOre(bays, station, ref credits);
+        Assert.Equal((70, 70), (roomy.Sold, roomy.Offered));
         Assert.Equal(value, credits);
         Assert.All(bays, bay => Assert.Empty(bay.Cargo.Keys.OfType<SimpleCommodity>()));
+
+        // The full station takes nothing: credits 0, the 70 units stay.
+        Assert.True(one.CargoBays.Single().TryStore(Ore(30)));
+        Assert.True(two.CargoBays.Single().TryStore(Ore(40)));
+        var full = Station();
+        while (full.CargoBays.Single().TryStore(Mint("Gun"))) { }
+        credits = 0;
+        var refused = StationServices.TrySellOre(bays, full, ref credits);
+        Assert.Equal((0, 70, SaleRefusal.NoRoom), (refused.Sold, refused.Offered, refused.Refusal));
+        Assert.Equal(0, credits);
+        Assert.Equal(70, bays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()).Sum(stack => stack.Quantity));
     }
 
     [Fact]
@@ -552,8 +638,8 @@ public sealed class StationServicesTests : IDisposable
         Assert.True(bay.TryStore(Mint("Gun")));
         var held = bay.Cargo.Count;
         var credits = 100;
-        Assert.Equal(0, StationServices.OreValue(_items, ship.CargoBays));
-        Assert.Equal(0, StationServices.TrySellOre(ship.CargoBays, Station(), ref credits));
+        Assert.Equal(0, StationServices.OreValue(_items, ship.CargoBays, Station()));
+        Assert.Equal(0, StationServices.TrySellOre(ship.CargoBays, Station(), ref credits).Sold);
         Assert.Equal(100, credits);
         Assert.Equal(held, bay.Cargo.Count);
     }

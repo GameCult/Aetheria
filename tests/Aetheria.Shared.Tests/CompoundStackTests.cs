@@ -35,7 +35,9 @@ public sealed class CompoundStackTests : IDisposable
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
         _cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = shape, Price = 1000, Durability = 10, Armor = 10 });
         _cache.Commit(batch => batch.Upsert(typeof(StationKindData), new StationKindData { Name = "Trade Hub" }, StationKindData.KeyOf("trade-hub")));
-        _cache.Upsert(new HullData { Name = "Hub", HullType = HullType.Station, Kind = TestStationKinds.TradeHub, Shape = shape, Price = 5000, Durability = 10 });
+        _cache.Upsert(new HullData { Name = "Hub", HullType = HullType.Station, Kind = TestStationKinds.TradeHub, Shape = shape, Price = 5000, Durability = 10,
+            Hardpoints = { new HardpointData { Type = HardpointType.Facility, Position = new int2(0, 0), Shape = new Shape() } } });
+        _cache.Upsert(new GearData { Name = "Smelter", Hardpoint = HardpointType.Facility, Shape = new Shape(), Price = 1, Durability = 4, Behaviors = { new FacilityData() } });
         _cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 400, Durability = 8 });
         var bay = new Shape(4, 4);
         foreach (var cell in bay.AllCoordinates) bay[cell] = true;
@@ -51,6 +53,16 @@ public sealed class CompoundStackTests : IDisposable
         foreach (var cell in rodShape.AllCoordinates) rodShape[cell] = true;
         _rod = new CompoundCommodityData { Name = "Rod", Shape = rodShape, Price = 4, Mass = 1f, SpecificHeat = 1f, MaxStack = 4 };
         _cache.Upsert(_rod);
+        // The fixture station wants what its facility draws: the Smelter's one recipe takes any filler of the role the gem fills, so
+        // the station wants Gem and not Rod.
+        var bar = new SimpleCommodityData { Name = "Bar", Shape = new Shape(), Price = 1, MaxStack = 10 };
+        _cache.Upsert(bar);
+        _cache.Upsert(typeof(RecipeData), new RecipeData { Output = _cache.RefOf<ItemData>(_gem), Fills = { "gemmed" } }, RecipeData.KeyOf(_cache.RefOf<ItemData>(_gem).Key));
+        _cache.Upsert(typeof(RecipeData), new RecipeData
+        {
+            Output = _cache.RefOf<ItemData>(bar), Facility = _cache.RefOf<ItemData>(_cache.GetByName<GearData>("Smelter")),
+            RoleInputs = { new ItemRole { Name = "gemmed", Count = 1 } }
+        }, RecipeData.KeyOf(_cache.RefOf<ItemData>(bar).Key));
         _cache.FlushAsync().Wait();
 
         var settings = AuthoredSettings.Load(RestoredHullsTests.FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
@@ -103,10 +115,11 @@ public sealed class CompoundStackTests : IDisposable
         return ship;
     }
 
-    private OrbitalEntity Station()
+    private OrbitalEntity Station(bool wants = true)
     {
         var station = new OrbitalEntity(_items, _zone, Mint("Hub"), default, new EntitySettings());
         Assert.True(station.TryEquip(Mint("Crate"), new int2(1, 1)));
+        if (wants) Assert.True(station.TryEquip(Mint("Smelter"), new int2(0, 0)));
         return station;
     }
 
@@ -452,6 +465,22 @@ public sealed class CompoundStackTests : IDisposable
         Assert.Equal(units, crate.Count(key) + pocket.Count(key) + from.Count(key));
         Assert.Equal(Weight(from), from.Mass, 3);
         Assert.Equal(Weight(crate), crate.Mass, 3);
+    }
+
+    // A station whose gear draws no gem does not buy one: nothing moves and nothing is paid.
+    [Fact]
+    public void AStationThatDoesNotWantTheGemRefusesItNotWanted()
+    {
+        var from = ShipWith("Crate").CargoBays[0];
+        var stack = Gem(_lotA, 3);
+        Assert.True(from.TryStore(stack));
+        var station = Station(wants: false);
+        var credits = 0;
+        var result = StationServices.TrySellPart(from, station, stack, ref credits);
+        Assert.Equal((0, 3, SaleRefusal.NotWanted), (result.Sold, result.Offered, result.Refusal));
+        Assert.Equal(0, credits);
+        Assert.Equal(3, stack.Quantity);
+        Assert.Empty(station.CargoBays[0].Cargo);
     }
 
     [Fact]

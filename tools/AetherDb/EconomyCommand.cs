@@ -165,10 +165,10 @@ public static class EconomyCommand
     private static void PrintLoop(LoopReport loop, TextWriter output)
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        output.WriteLine("\nPlayer loop (seed belt | kind | weapons | outcome | rocks | sim s | hold full at | units | sell | ammo | repair | net per minute)");
+        output.WriteLine("\nPlayer loop (seed belt | kind | weapons | outcome | rocks | sim s | hold full at | units | sold | refused | offered value | sell | ammo | repair | net per minute)");
         foreach (var s in loop.Samples)
-            output.WriteLine(string.Format(inv, "  {0} {11}/{12} | {1} | {2} | {13} | {3} | {4:0.#} | {5} | {6} | {7} | {8} | {9} | {10:0.#}", s.Seed, s.BeltKind, s.Weapons, s.Rocks, s.SimSeconds,
-                s.HoldFullAt.HasValue ? s.HoldFullAt.Value.ToString("0.#", inv) + " s" : "never", s.Units, s.SellValue, s.AmmoSpent, s.Repair, s.RatePerMinute, s.Belt + 1, s.Belts, s.Outcome));
+            output.WriteLine(string.Format(inv, "  {0} {11}/{12} | {1} | {2} | {13} | {3} | {4:0.#} | {5} | {6} | {14} | {15} | {16} | {7} | {8} | {9} | {10:0.#}", s.Seed, s.BeltKind, s.Weapons, s.Rocks, s.SimSeconds,
+                s.HoldFullAt.HasValue ? s.HoldFullAt.Value.ToString("0.#", inv) + " s" : "never", s.Units, s.SellValue, s.AmmoSpent, s.Repair, s.RatePerMinute, s.Belt + 1, s.Belts, s.Outcome, s.UnitsSold, s.UnitsRefused, s.OfferedValue));
         output.WriteLine(string.Format(inv, "  median {0:0.#} per minute, best {1:0.#} per minute over the {3} sorties that mined to a full hold or the cap; purse {2}", loop.Median, loop.Best, loop.Purse, loop.Samples.Count(s => s.Measured)));
         output.WriteLine(string.Format(inv, "  median net per sortie {0:0.#} (the afford band counts sorties of this net, resting on {1} measured sorties)", loop.MedianNet, loop.MeasuredSorties));
         string Minutes(double? m) => m.HasValue ? m.Value.ToString("0.#", inv) : "-";

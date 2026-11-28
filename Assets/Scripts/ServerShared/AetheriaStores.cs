@@ -8,7 +8,7 @@ using GameCult.Caching.MessagePack;
 public static class AetheriaStores
 {
     public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(ShipAuthoring), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(InputLayout), typeof(Loadout), typeof(FieldKindData), typeof(ProvinceData), typeof(VerseGrammar), typeof(VerseVerb), typeof(StationKindData), typeof(RecipeData), typeof(OutsideMarketData) };
-    public static readonly Type[] RunTypes = { typeof(OrbitData), typeof(BodyData), typeof(SavedZone), typeof(SavedGame), typeof(ProvenanceLedger) };
+    public static readonly Type[] RunTypes = { typeof(OrbitData), typeof(BodyData), typeof(SavedZone), typeof(SavedGame), typeof(ProvenanceLedger), typeof(HaulOrderData) };
     public static readonly Type[] PlayerTypes = { typeof(PlayerSettings) };
 
     // Attaches (hydrates) the catalog read-only unless catalogWritable, then the run and player stores when given.

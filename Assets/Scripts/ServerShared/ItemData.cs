@@ -488,6 +488,15 @@ public class DockingBayData : CargoBayData
     public int2 MaxSize;
 }
 
+// A silo: bulk storage seated on a Facility row (idea stations-gear-map.one-mount-for-station-gear). It is a cargo bay that holds
+// commodity stacks only, so gear, consumables and crafted sales never land in it; what a station buys for one is its haul
+// orders' goods (StationWants).
+[CultDocument("aetheria.silodata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class SiloData : CargoBayData
+{
+    [IgnoreMember] public override HardpointType HardpointType => HardpointType.Facility;
+}
+
 [CultDocument("aetheria.weaponitemdata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class WeaponItemData : GearData
 {

@@ -114,14 +114,15 @@ public static class StationServices
         return true;
     }
 
-    // The sale of a commodity stack (aetheria-living-world:ruling:no-market-absorption): the station's bays take what they
-    // can hold, the station pays SellPrice for those units alone, and the rest stays in the seller's hold. Sold units are
-    // moved, never absorbed.
+    // The sale of a commodity stack: only a good the station wants (StationWants; NotWanted moves nothing). The station's bays
+    // take what they can hold (aetheria-living-world:ruling:no-market-absorption), the station pays SellPrice for those units
+    // alone, and the rest stays in the seller's hold with the refusal NoRoom. Sold units are moved, never absorbed.
     public static SaleResult TrySellPart(EquippedCargoBay from, Entity station, ICommodityStack stack, ref int credits)
     {
         var item = (ItemInstance) stack;
         var offered = stack.Quantity;
         if (!from.Cargo.ContainsKey(item)) return new SaleResult(0, offered, SaleRefusal.None);
+        if (!StationWants.Of(station).Contains(item.Data.Key)) return new SaleResult(0, offered, SaleRefusal.NotWanted);
         var sold = 0;
         var remaining = offered;
         while (remaining > 0)
@@ -146,18 +147,25 @@ public static class StationServices
     private static ItemInstance[] OreStacks(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>
         bays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>().Where(stack => FieldKinds.IsOre(items.ItemData, items.GetData(stack))).Select(stack => (ItemInstance) stack)).ToArray();
 
-    // What the station pays for every ore stack of the bays: the sum of SellPrice over the stacks TrySellOre sells.
-    public static int OreValue(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>
-        (int) Math.Min(OreStacks(items, bays).Sum(stack => (long) SellPrice(items, stack)), int.MaxValue);
+    // What the station would pay for every ore stack of the bays that it wants: the sum of SellPrice over the stacks TrySellOre
+    // sells. A display value: it ignores the station's room.
+    public static int OreValue(ItemManager items, IEnumerable<EquippedCargoBay> bays, Entity station) =>
+        (int) Math.Min(WantedOreStacks(items, bays, station).Sum(stack => (long) SellPrice(items, stack)), int.MaxValue);
 
-    // Sells every ore stack of the bays, each through TrySellPart, so the price and the room rule are the single-stack
+    private static ItemInstance[] WantedOreStacks(ItemManager items, IEnumerable<EquippedCargoBay> bays, Entity station)
+    {
+        var wants = StationWants.Of(station);
+        return OreStacks(items, bays).Where(stack => wants.Contains(stack.Data.Key)).ToArray();
+    }
+
+    // Sells every ore stack of the bays that the station wants, each through TrySellPart, so the price and the room rule are the single-stack
     // path's. Returns the units sold and offered, with the last refusal.
     public static SaleResult TrySellOre(IEnumerable<EquippedCargoBay> bays, Entity station, ref int credits)
     {
         var bayList = bays.ToArray();
         int sold = 0, offered = 0;
         var refusal = SaleRefusal.None;
-        foreach (var stack in OreStacks(station.ItemManager, bayList))
+        foreach (var stack in WantedOreStacks(station.ItemManager, bayList, station))
         {
             var from = bayList.First(bay => bay.Cargo.ContainsKey(stack));
             var result = TrySellPart(from, station, (ICommodityStack) stack, ref credits);

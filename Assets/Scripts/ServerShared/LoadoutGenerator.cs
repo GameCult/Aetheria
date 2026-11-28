@@ -21,6 +21,10 @@ public class LoadoutGenerator
     // station draws 1 to the maximum.
     public const float StationConsumableChance = .25f;
     public const int StationConsumableUnits = 2;
+    // The share of a station's stock bay its generated gear may fill; the rest stays free for what the station buys (rulings
+    // no-market-absorption, station-intake-few-sorties). A first value of a sim-tuned knob (economy-numbers-are-sim-tuned-knobs):
+    // follow-up economy-balance-station-drain tunes it.
+    public const float StationStockShare = .5f;
     public const float ShipConsumableChance = .1f;
     public const int ShipConsumableUnits = 1;
 
@@ -140,14 +144,21 @@ public class LoadoutGenerator
         // offer nothing is drawn here, so the gear draws are exactly what they were.
         StockConsumables(entity, StationConsumableChance, StationConsumableUnits);
 
-        var cargo = entity.CargoBays.First();
+        // The gear stock goes to the first bay that is not a silo and stops short of StationStockShare of its cells, so a
+        // station's hold keeps room for what it buys (ruling no-market-absorption). All sixteen picks are still drawn, so no
+        // random stream moves; only storing stops.
+        var cargo = entity.CargoBays.First(bay => !(bay.Data is SiloData));
+        var stockCells = (int) (cargo.Data.InteriorShape.Coordinates.Length * StationStockShare);
+        var stocked = cargo.Data.InteriorShape.Coordinates.Count(cell => cargo.Occupancy[cell.x, cell.y] != null);
         var inventory = RandomProducts<EquippableItemData>(16, 1,
             data => !(data is HullData hull && hull.HullType != HullType.Ship) && !(data is CargoBayData))
             .OrderByDescending(entry => entry.design.Shape.Coordinates.Length);
         foreach (var entry in inventory)
         {
             var instance = ItemManager.CreateInstance(entry.product);
-            cargo.TryStore(instance);
+            var cells = entry.design.Shape.Coordinates.Length;
+            if (stocked + cells > stockCells) continue;
+            if (cargo.TryStore(instance)) stocked += cells;
         }
 
         entity.CanTow = hullData.CanTow;
@@ -441,7 +452,7 @@ public class LoadoutGenerator
         var emptyShape = entity.UnoccupiedSpace;
 
         var (cargoProduct, cargoData) = RandomProduct<CargoBayData>(3, item =>
-            !(item is DockingBayData) &&
+            !(item is DockingBayData) && !(item is SiloData) &&
             item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
         if (cargoData == null) throw new InvalidLoadoutException("No compatible cargo bay found for entity!");
 

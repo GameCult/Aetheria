@@ -6,6 +6,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using CultMath;
+using GameCult.Caching;
 using UniRx;
 using Xunit;
 
@@ -59,12 +60,30 @@ public sealed partial class RunStartTests
         var refinery = StationOfKind(arena, "processing");
         var zenith = StationOfKind(arena, "trade-hub");
         var credits = 0;
-        // Every mined stack goes in one sale: the market takes it all, whatever the full hold of the refinery has room for.
-        var value = StationServices.OreValue(_items, player.CargoBays);
+        // The refinery buys the mined ore as far as its bays hold it (ruling no-market-absorption): the units it took are paid for, and
+        // what did not fit stays in the hold.
+        var value = StationServices.OreValue(_items, player.CargoBays, refinery);
         Assert.True(value > 0);
-        Assert.Equal(gains.Sum(gain => gain.Stored), StationServices.TrySellOre(player.CargoBays, refinery, ref credits));
-        Assert.Equal(value, credits);
-        Assert.DoesNotContain(player.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()), c => ores.Contains(_items.GetData(c).Name));
+        var mined = gains.Sum(gain => gain.Stored);
+        var sale = StationServices.TrySellOre(player.CargoBays, refinery, ref credits);
+        Assert.Equal(mined, sale.Offered);
+        Assert.True(sale.Sold > 0, "the refinery has room for some of the ore");
+        var left = player.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()).Where(c => ores.Contains(_items.GetData(c).Name)).Sum(c => c.Quantity);
+        Assert.Equal(mined - sale.Sold, left);
+        if (left == 0) Assert.Equal(value, credits);
+        else Assert.True(credits > 0 && credits < value);
+
+        // Zenith's silo wants the ores of the haul order to the refinery: it buys what the hold still carries, and a fresh stack too.
+        var zenithWants = StationWants.Of(zenith);
+        Assert.NotEmpty(zenithWants);
+        Assert.All(zenithWants, good => Assert.True(FieldKinds.IsOre(_cache, _cache.Get(new CultRecordRef<ItemData>(good)))));
+        var silo = zenith.CargoBays.Single(bay => bay.Data is SiloData);
+        var oreGood = zenithWants.OrderBy(good => good.Value, StringComparer.Ordinal).First();
+        var fresh = new SimpleCommodity { Data = new CultRecordRef<ItemData>(oreGood), Quantity = 5 };
+        Assert.True(player.CargoBays[0].TryStore(fresh));
+        var atZenith = StationServices.TrySellPart(player.CargoBays[0], zenith, fresh, ref credits);
+        Assert.Equal((5, SaleRefusal.None), (atZenith.Sold, atZenith.Refusal));
+        Assert.Equal(5, silo.Count(oreGood));
 
         var cell = Enumerable.Range(0, player.MaxArmor.GetLength(0)).SelectMany(x => Enumerable.Range(0, player.MaxArmor.GetLength(1)).Select(y => (x, y)))
             .First(c => player.MaxArmor[c.x, c.y] > 0);
@@ -96,14 +115,14 @@ public sealed partial class RunStartTests
     // with all its armour lost and against the authored Price of the cheapest piece Zenith stocks (ruling demo-loop-reads-authored-price:
     // the rolled BuyPrice moves with any catalog change that shifts the stock draw, 47053 against 36806 for the same Ring Station Reactor
     // across design-bills, which is not what this test is about). Margin rule: the anchors are the readings the shipped catalog gives at
-    // design-bills (V 282.149, repair 55404, cheapest authored price 15500), and the band is 1/sqrt(10) to sqrt(10) of each, the
+    // design-bills (V 282.149, repair 55404, cheapest authored price 15500; the price re-read at station-sale-by-wants as 2500, since generated stock stops at half the bay and the smaller, cheaper pieces then fit where the full bay refused them), and the band is 1/sqrt(10) to sqrt(10) of each, the
     // geometric midpoint between the shipped reading and the least mutant this test claims to catch (a divisor of ten on either side, a
     // ratio of 10 or 0.1): the shipped reading and that mutant each sit 3.16x from a bound.
     // The one station of a kind in the arena: the demo's two stations are told apart by what they are for, never by hull.
     private static OrbitalEntity StationOfKind(Zone arena, string kind) =>
         arena.Entities.OfType<OrbitalEntity>().Single(entity => entity.Kind.Key.Equals(StationKindData.KeyOf(kind)));
 
-    private const double BaseRepairRatio = 0.0050925, BaseBuyRatio = 0.018203;
+    private const double BaseRepairRatio = 0.0050925, BaseBuyRatio = 0.11286;
     private static readonly double Margin = Math.Sqrt(10);
 
     [Fact]

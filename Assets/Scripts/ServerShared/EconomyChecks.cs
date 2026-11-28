@@ -265,7 +265,7 @@ public static class EconomyChecks
                 var item = catalog.Get(listed);
                 if (!listed.IsSet()) NoFacility(kindKey, $"Station kind '{kind.Name}' Facilities[{i}] is unset.");
                 else if (item == null) NoFacility(kindKey, $"Station kind '{kind.Name}' Facilities[{i}] names no item this catalog holds.");
-                else if (!StationKinds.IsRecipeFacility(item)) NoFacility(kindKey, $"Station kind '{kind.Name}' Facilities[{i}] '{item.Name}' is not a recipe facility.");
+                else if (!StationKinds.IsRecipeFacility(item) && !(item is SiloData)) NoFacility(kindKey, $"Station kind '{kind.Name}' Facilities[{i}] '{item.Name}' is not a recipe facility or a silo.");
             }
         foreach (var gear in catalog.GetAll<GearData>().Select(gear => (Key: catalog.RefOf(gear).Key.Value, Gear: gear)).OrderBy(pair => pair.Key, StringComparer.Ordinal))
             if (gear.Gear.Behaviors != null && gear.Gear.Behaviors.Any(behavior => behavior is FacilityData) && gear.Gear.HardpointType != HardpointType.Facility)

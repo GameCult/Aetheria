@@ -250,15 +250,19 @@ public sealed class EconomyLoopTests
     public void AFullHoldSortieIsPricedFromTheShipItEndedWith()
     {
         int ore = -1, repair = -1;
-        var sample = EconomyLoop.Sortie(Root, 1, 0, 300, (ship, items) =>
+        var sample = EconomyLoop.Sortie(Root, 1, 0, 300, (ship, items, processing) =>
         {
-            ore = StationServices.OreValue(items, ship.CargoBays);
+            ore = StationServices.OreValue(items, ship.CargoBays, processing);
             repair = StationServices.RepairCost(items, ship);
         });
         Assert.Equal(LoopOutcome.Full, sample.Outcome);
         Assert.True(sample.HoldFullAt > 0 && sample.HoldFullAt <= sample.SimSeconds);
         Assert.True(sample.SellValue > 0);
-        Assert.Equal(ore, sample.SellValue);
+        // The station pays for the units its bays took: what it would pay for all of them, less what it refused for want of room.
+        Assert.Equal(ore, sample.OfferedValue);
+        Assert.True(sample.SellValue <= sample.OfferedValue);
+        Assert.Equal(sample.Units, sample.UnitsSold + sample.UnitsRefused);
+        if (sample.UnitsRefused == 0) Assert.Equal(sample.OfferedValue, sample.SellValue);
         Assert.True(sample.Repair > 0);
         Assert.Equal(repair, sample.Repair);
         // Laser fit: no ammunition is spent.
@@ -269,7 +273,7 @@ public sealed class EconomyLoopTests
     public void ASortieThatSpendsItsStarterAmmunitionEndsAmmoOutAndPaysForIt()
     {
         var ammoLeft = -1;
-        var sample = EconomyLoop.Sortie(Root, 2, 0, 150, (ship, items) =>
+        var sample = EconomyLoop.Sortie(Root, 2, 0, 150, (ship, items, _) =>
             ammoLeft = ship.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()).Where(c => items.GetData(c).Name == "Ammo").Sum(c => c.Quantity));
         Assert.Equal(LoopOutcome.AmmoOut, sample.Outcome);
         Assert.Equal(0, ammoLeft);

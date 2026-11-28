@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using GameCult.Caching;
 using float2 = CultMath.float2;
 
 // The demo: one gate, one region and one boss, with a fixed cast. The Pirates are the protagonist's ostensible
@@ -49,5 +51,15 @@ public sealed class DemoTerminus : Scenario
         foreach (var neutral in Cast.NeutralFactions)
             galaxy.FactionRelationships[galaxy.ResolveFaction(neutral)] = FactionRelationship.Neutral;
         stage.Player(stage.Generated("Longinus"), float2.zero);
+
+        // Zenith's silo buys the ores the refinery's gear draws (ruling demo-zenith-ore-depot), by a standing order to the
+        // refinery; nothing hauls it yet (follow-up ore-haul-run).
+        var zenith = stage.Station("trade-hub");
+        var refinery = stage.Station("processing");
+        if (refinery == null) return;
+        var items = refinery.ItemManager;
+        var ores = StationWants.Of(refinery).Where(good => FieldKinds.IsOre(items.ItemData, items.ItemData.Get(new CultRecordRef<ItemData>(good))))
+            .OrderBy(good => good.Value, System.StringComparer.Ordinal).Select(good => new CultRecordRef<ItemData>(good));
+        stage.HaulOrder("demo-terminus-ore", zenith, refinery, ores, "scenario:demo-terminus");
     }
 }
