@@ -53,7 +53,7 @@ public sealed class DemoTerminus : Scenario
         stage.Player(stage.Generated("Longinus"), float2.zero);
 
         // Zenith's silo buys the ores the refinery's gear draws (ruling demo-zenith-ore-depot), by a standing order to the
-        // refinery; nothing hauls it yet (follow-up ore-haul-run).
+        // refinery, and a hauler of Zenith's faction carries it (ore-haul-run).
         var zenith = stage.Station("trade-hub");
         var refinery = stage.Station("processing");
         if (refinery == null) return;
@@ -61,5 +61,6 @@ public sealed class DemoTerminus : Scenario
         var ores = StationWants.Of(refinery).Where(good => FieldKinds.IsOre(items.ItemData, items.ItemData.Get(new CultRecordRef<ItemData>(good))))
             .OrderBy(good => good.Value, System.StringComparer.Ordinal).Select(good => new CultRecordRef<ItemData>(good));
         stage.HaulOrder("demo-terminus-ore", zenith, refinery, ores, "scenario:demo-terminus");
+        stage.Hauler(stage.Generated(null, zenith.Faction), "demo-terminus-ore", stage.Arena.GetOrbitPosition(zenith.OrbitData));
     }
 }

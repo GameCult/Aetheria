@@ -136,6 +136,16 @@ public class ZoneStage
         return entity;
     }
 
+    // A piloted ship that carries a standing haul order (ruling demo-zenith-ore-depot): its task is derived from the order at
+    // admission (HaulRun.TaskOf), so the order must exist by then; ScenarioStage writes its orders before it admits. A fit that is not
+    // a ship is Place's failure.
+    public Ship Hauler(ScenarioFit fit, string orderId, float2 at)
+    {
+        var ship = Place(fit, at, piloted: true) as Ship;
+        if (ship != null) ship.Haul = new CultRecordRef<HaulOrderData>(HaulOrderData.KeyOf(orderId));
+        return ship;
+    }
+
     // The task a piloted entity starts on: it closes on the target and holds there (the flight's follow task, standoff
     // nothing), in place of the patrol circuit the zone would draw for it. The pilot starts knowing it (RunStart seeds a sensor track). A check that rests on where a pilot goes states
     // it here, so the pilot's course is the scenario's and not a draw. An entity that is not placed and piloted, or a
