@@ -76,7 +76,7 @@ public sealed class StationPackageTests : IDisposable
         using var cache = Catalog();
         var hull = cache.Get(new CultRecordRef<HullData>(ShipModCatalog.HullKey(RefineryId)));
         Assert.NotNull(hull);
-        Assert.Equal(("Seized Refinery", HullType.Station), (hull.Name, hull.HullType));
+        Assert.Equal(("🔥🏭", HullType.Station), (hull.Name, hull.HullType));
         Assert.Equal(StationKindData.KeyOf("processing"), hull.Kind.Key);
         Assert.True(hull.Visual.IsSet());
         var product = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Design.Key.Equals(ShipModCatalog.HullKey(RefineryId)));
