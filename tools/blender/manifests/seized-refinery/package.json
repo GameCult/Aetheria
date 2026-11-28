@@ -15,6 +15,7 @@
     {"id": "Reactor", "kind": "Reactor", "cell": [3, 0], "footprint": "####/####/####/####", "rotation": 0, "armor": 0, "arc": 0},
     {"id": "Ra.1", "kind": "Radiator", "cell": [0, 3], "footprint": "#/#/#/#", "rotation": 1, "armor": 0, "arc": 0},
     {"id": "Ra.2", "kind": "Radiator", "cell": [11, 4], "footprint": "#/#/#/#", "rotation": 3, "armor": 0, "arc": 0},
-    {"id": "Fa.1", "kind": "Facility", "cell": [4, 10], "footprint": "##/##", "rotation": 0, "armor": 0, "arc": 0}
+    {"id": "Fa.1", "kind": "Facility", "cell": [4, 10], "footprint": "##/##", "rotation": 0, "armor": 0, "arc": 0},
+    {"id": "Fa.2", "kind": "Facility", "cell": [6, 9], "footprint": "##/##", "rotation": 0, "armor": 0, "arc": 0}
   ]
 }

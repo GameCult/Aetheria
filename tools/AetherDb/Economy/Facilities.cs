@@ -8,8 +8,8 @@ using MessagePack;
 // Economy content: the facility gear a station is fitted with to run its recipes (aetheria-living-world, cut recipe-facilities;
 // rulings demand-consumed-inputs-processed-by-facilities, installed-gear-decides-what-a-station-buys). One facility design per station
 // kind that some recipe names, a 2x2 GearData on a Facility mount holding FacilityData, sold by a NotOffered product (a design no
-// product sells is an unsold design; a not-offered product is on no market). Sets each kind's Facilities to its design and every
-// recipe's Facility to its kind's. Writes whole values, only where they differ, so a rerun touches nothing. Price is a sim-tuned knob
+// product sells is an unsold design; a not-offered product is on no market). Sets each kind's Facilities to its recipe design, then the
+// silo when the silo lists the kind, and every recipe's Facility to its kind's. Writes whole values, only where they differ, so a rerun touches nothing. Price is a sim-tuned knob
 // (ruling economy-numbers-are-sim-tuned-knobs); names and descriptions are first drafts for the economy content pass.
 public sealed class Facilities : EconomyBatch
 {
@@ -29,10 +29,11 @@ public sealed class Facilities : EconomyBatch
         ("munitions-works", "munitions-line", "Munitions Line", "A sealed line that makes energetics and loads rounds, primers, fuzes, warheads and motors."),
     };
 
-    // The one storage facility: Zenith's ore silo (ruling demo-zenith-ore-depot). Storage, not a recipe facility, so it has no recipe and
-    // its kind is named here; a silo is bulk storage on a Facility row and holds only commodity stacks (SiloData).
-    private static readonly (string Kind, string Id, string Name, string Description) Silo =
-        ("trade-hub", "ore-silo", "Ore Silo", "A sealed bulk store that holds ore waiting for the haul to the refinery.");
+    // The one storage facility: the silo (rulings demo-zenith-ore-depot, facility-output-room). Storage, not a recipe facility, so it has no
+    // recipe and its kinds are named here: Zenith's trade hub holds the ore its orders haul, a processing station holds what its
+    // facilities make. A silo is bulk storage on a Facility row and holds only commodity stacks (SiloData).
+    private static readonly (string[] Kinds, string Id, string Name, string Description) Silo =
+        (new[] { "trade-hub", "processing" }, "ore-silo", "Silo", "A sealed bulk store for the goods a station hauls or makes.");
 
     // The kind's first facility design, or unset: the one lookup the recipe-writing batches use.
     public static CultRecordRef<ItemData> Of(CultCache catalog, string kindId)
@@ -80,14 +81,18 @@ public sealed class Facilities : EconomyBatch
                 Manufacturer = new CultRecordRef<Faction>(maker.Key), NotOffered = true
             }, new CultRecordKey("product:facility:" + id));
 
-            var kind = catalog.Get<StationKindData>(new CultRecordKey(kindKey)) ?? throw new InvalidOperationException($"A recipe names station kind '{kindKey}', which the catalog does not hold.");
-            if (kind.Facilities.Count != 1 || !kind.Facilities[0].Key.Equals(designKey))
+        }
+        AuthorSilo(author, catalog, (wanted, key) => Put(wanted, key));
+        foreach (var kindKey in kinds.Concat(Silo.Kinds.Select(id => StationKindData.KeyOf(id).Value)).Distinct(StringComparer.Ordinal))
+        {
+            var kind = catalog.Get<StationKindData>(new CultRecordKey(kindKey)) ?? throw new InvalidOperationException($"Station kind '{kindKey}' is not in the catalog.");
+            var wanted = WantedFacilities(kindKey, kinds.Contains(kindKey));
+            if (!kind.Facilities.Select(facility => facility.Key).SequenceEqual(wanted))
             {
-                kind.Facilities = new List<CultRecordRef<ItemData>> { new CultRecordRef<ItemData>(designKey) };
+                kind.Facilities = wanted.Select(key => new CultRecordRef<ItemData>(key)).ToList();
                 author.Put(kind, new CultRecordKey(kindKey));
             }
         }
-        AuthorSilo(author, catalog, (wanted, key) => Put(wanted, key));
         foreach (var recipe in catalog.GetAll<RecipeData>().ToArray())
         {
             var facility = FirstOf(catalog.Get(recipe.StationKind));
@@ -105,11 +110,20 @@ public sealed class Facilities : EconomyBatch
         return maker.Faction == null ? factions.First() : maker;
     }
 
-    // The silo design, its NotOffered product, and its kind's Facilities holding it: each only where it differs. Compared by fields, as
-    // the recipe facilities are.
+    // A kind's Facilities: its recipe facility when a recipe runs on it, then the silo when the silo lists the kind.
+    private static List<CultRecordKey> WantedFacilities(string kindKey, bool runsRecipes)
+    {
+        var wanted = new List<CultRecordKey>();
+        var row = Table.SingleOrDefault(entry => StationKindData.KeyOf(entry.Kind).Value == kindKey);
+        if (runsRecipes && row.Id != null) wanted.Add(new CultRecordKey("facility:" + row.Id));
+        if (Silo.Kinds.Any(id => StationKindData.KeyOf(id).Value == kindKey)) wanted.Add(new CultRecordKey("facility:" + Silo.Id));
+        return wanted;
+    }
+
+    // The silo design and its NotOffered product: each only where it differs. Compared by fields, as the recipe facilities are.
     private static void AuthorSilo(EconomyAuthor author, CultCache catalog, Action<FactionProductData, CultRecordKey> put)
     {
-        var (kindId, id, name, description) = Silo;
+        var (kindIds, id, name, description) = Silo;
         var designKey = new CultRecordKey("facility:" + id);
         var shape = new Shape(2, 2);
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
@@ -125,18 +139,11 @@ public sealed class Facilities : EconomyBatch
                 Durability = 100, Mass = 250, Price = 1000,
                 MinimumTemperature = ThermalMin, MaximumTemperature = ThermalMax, OptimalTemperature = ThermalOptimal, PlateauWidth = ThermalPlateau
             }, designKey);
-        var kindKey = StationKindData.KeyOf(kindId);
-        var maker = MakerOf(catalog, kindKey.Value);
+        var maker = MakerOf(catalog, StationKindData.KeyOf(kindIds[0]).Value);
         put(new FactionProductData
         {
             Name = $"{maker.Faction.Name} {name}", Description = description, Design = new CultRecordRef<CraftedItemData>(designKey),
             Manufacturer = new CultRecordRef<Faction>(maker.Key), NotOffered = true
         }, new CultRecordKey("product:facility:" + id));
-        var kind = catalog.Get<StationKindData>(kindKey) ?? throw new InvalidOperationException($"The silo's station kind '{kindId}' is not in the catalog.");
-        if (kind.Facilities.Count != 1 || !kind.Facilities[0].Key.Equals(designKey))
-        {
-            kind.Facilities = new List<CultRecordRef<ItemData>> { new CultRecordRef<ItemData>(designKey) };
-            author.Put(kind, kindKey);
-        }
     }
 }
