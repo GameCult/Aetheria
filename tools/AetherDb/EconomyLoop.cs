@@ -36,6 +36,8 @@ public sealed class LoopSample
     public int Rocks;
     public double SimSeconds;
     public int Units;
+    // The ore the hold carried when the sortie ended, as mined, in key order: what a station is offered. Not printed.
+    public List<(CultRecordKey Ore, int Units)> Mined = new List<(CultRecordKey, int)>();
     // The sim second the first unit floated, i.e. the hold was full; null if it never filled.
     public double? HoldFullAt;
     // What the arena's processing station paid for the hold at sortie end (TrySellOre), and what it would have paid for every ore
@@ -246,6 +248,8 @@ public static class EconomyLoop
         else if (targeted == 0) { sample.Outcome = LoopOutcome.RigFault; sample.Note = "no rock of the belt could be targeted"; }
         else if (ticks >= capTicks) sample.Outcome = LoopOutcome.Capped;
         else { sample.Outcome = LoopOutcome.RigFault; sample.Note = "ran out of rocks before the cap"; }
+        sample.Mined = player.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()).Where(stack => FieldKinds.IsOre(cache, items.GetData(stack)))
+            .GroupBy(stack => stack.Data.Key).OrderBy(g => g.Key.Value, StringComparer.Ordinal).Select(g => (g.Key, g.Sum(stack => stack.Quantity))).ToList();
         atEnd?.Invoke(player, items, processing);
         // The hold sells to the processing station: it pays for the units its bays take, and the rest stays aboard.
         var credits = 0;

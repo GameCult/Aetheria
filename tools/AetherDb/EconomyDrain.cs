@@ -9,7 +9,7 @@ using MessagePack;
 
 // What a station's intake and drain look like in the demo run of one seed (ruling station-intake-few-sorties: a station takes ore
 // for a few sorties, then fills, and installed facilities work it down). Measurement only: it reads a booted copy of the catalog,
-// fills the two demo stations with the seed's median sortie hold through the shipped sale (StationServices.TrySellOre), then reads
+// fills the two demo stations with the holds the base loop's sorties mined (a faulted sortie is reported and left out) through the shipped sale (StationServices.TrySellOre), then reads
 // the drain twice. On screen for a bounded window, stepping the arena; and by Production.Advance spans on inactive copies for the
 // window (which must agree with the steps: H-drain-sim) and for the long horizon (the same rule, FacilityProductionTests.
 // OneSpanEqualsManySteps). Writes no catalog, changes no setting: every record it touches is in the booted scratch.
@@ -28,7 +28,8 @@ public sealed class BayIntake
 // One sortie's hold offered to the station through the shipped sale.
 public sealed class SortieSale
 {
-    public string Ore;
+    // The ores of the hold as mined, with units; Held is what the station wants of them (the offer), Sold what its bays took.
+    public string Hold;
     public int Held, Sold;
     public int Refused => Held - Sold;
 }
@@ -73,47 +74,44 @@ public sealed class StationDrain
     public List<OutputPile> Outputs = new List<OutputPile>();
     // Sim seconds into the horizon at the end of the first span any facility ended stalled Room, or null.
     public double? FirstRoomStall;
-    // Units held of every design after the window by steps and by spans, where they differ.
-    public List<(string Design, int Steps, int Spans)> WindowDisagreements = new List<(string, int, int)>();
+    // Where the window by steps and by spans part: units held of a design, a facility's run progress, the sim time of its first Room stall.
+    public List<string> WindowDisagreements = new List<string>();
 }
 
 public sealed class DrainSample
 {
     public uint Seed;
-    public int SortieUnits;
+    // The base loop's sorties of this seed: the usable ones fill the stations, the rest are faults and left out of the count.
+    public int Usable;
+    public List<LoopSample> Excluded = new List<LoopSample>();
     public double WindowSeconds, HorizonHours;
     public List<StationDrain> Stations = new List<StationDrain>();
 }
 
 public static class EconomyDrain
 {
-    public const string HStall = "H-drain-stall", HSim = "H-drain-sim";
-    public const double DefaultWindowSeconds = 600, DefaultHorizonHours = 24;
+    public const string HStall = "H-drain-stall", HSim = "H-drain-sim", HSortie = "H-drain-sortie";
+    public const double DefaultWindowSeconds = 1200, DefaultHorizonHours = 24;
     // One span of the off-screen path, in sim seconds: the resolution of every time the horizon reports.
     public const double Span = 60;
     private const int MaxSorties = 500;
+    // Stepped and spanned run progress differ by float rounding only; a skew of one step (0.02 s) is far outside this. A cycle that ends on a
+    // span boundary is met by the steps one or two steps later, as their sum falls just short of it.
+    private const double ProgressTolerance = 1e-3;
 
-    // The seed's median sortie hold, in units: the middle of the holds of the sorties that mined something (the upper one of an
-    // even count), whatever stopped them. Most seeds' sorties stop on a starting stock long before the hold fills.
-    public static int SortieUnits(uint seed, IReadOnlyList<LoopSample> samples)
-    {
-        var units = samples.Where(s => s.Units > 0).Select(s => s.Units).OrderBy(u => u).ToList();
-        if (units.Count == 0) throw new InvalidOperationException($"seed {seed}: no sortie mined anything, so there is no hold to sell");
-        return units[units.Count / 2];
-    }
-
-    // beforeFill sees the booted arena before any sale (a test empties a bay there); beforeWindow sees it after the fill and before
-    // the window is read by steps or by spans (a test switches a facility off there).
-    public static DrainSample Run(string root, uint seed, double windowSeconds, double horizonHours, int sortieUnits,
-        Action<DemoArena> beforeFill = null, Action<DemoArena> beforeWindow = null)
+    // sorties are the base loop's samples of this seed (EconomyLoop.Sorties). A measured one that mined something fills the
+    // stations with the ore it carried as mined; any other (ammunition out, the rig measured nothing) is reported as a fault by
+    // Report and is not a sortie of the fill count. beforeWindow sees the arena after the fill and before the window is read by steps
+    // or by spans (a test makes room or switches a facility off there); onStep sees it before each on-screen step (a test skews time).
+    public static DrainSample Run(string root, uint seed, double windowSeconds, double horizonHours, IReadOnlyList<LoopSample> sorties,
+        Action<DemoArena> beforeWindow = null, Action<DemoArena, int> onStep = null)
     {
         if (!double.IsFinite(windowSeconds) || windowSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(windowSeconds), "the window must be a positive, finite number of sim seconds");
         if (!double.IsFinite(horizonHours) || horizonHours <= 0) throw new ArgumentOutOfRangeException(nameof(horizonHours), "the horizon must be a positive, finite number of sim hours");
-        if (sortieUnits < 1) throw new ArgumentOutOfRangeException(nameof(sortieUnits), "a sortie holds at least one unit");
         using var demo = EconomyLoop.Boot(root, seed);
-        beforeFill?.Invoke(demo);
         var catalog = demo.Cache;
-        var sample = new DrainSample { Seed = seed, SortieUnits = sortieUnits, WindowSeconds = windowSeconds, HorizonHours = horizonHours };
+        var usable = sorties.Where(s => s.Measured && s.Mined.Count > 0).ToList();
+        var sample = new DrainSample { Seed = seed, Usable = usable.Count, Excluded = sorties.Except(usable).ToList(), WindowSeconds = windowSeconds, HorizonHours = horizonHours };
         var stations = new[] { ("processing", demo.Processing), ("trade-hub", demo.Zenith) };
         var runs = new List<StationRun>();
         foreach (var (role, station) in stations)
@@ -121,7 +119,7 @@ public static class EconomyDrain
             var drain = new StationDrain { Role = role, Name = station.Name, Kind = station.Kind.Key.Value };
             var ores = WantedOres(demo, station);
             foreach (var bay in station.CargoBays) drain.Bays.Add(Intake(demo, station, bay, ores));
-            Fill(demo, station, ores, sortieUnits, drain);
+            Fill(demo, station, usable, drain);
             for (var at = 0; at < drain.Bays.Count; at++)
                 drain.Bays[at].Taken = station.CargoBays.ElementAt(at).Cargo.Keys.OfType<ICommodityStack>().Where(stack => ores.Contains(((ItemInstance) stack).Data.Key)).Sum(stack => stack.Quantity);
             sample.Stations.Add(drain);
@@ -130,11 +128,16 @@ public static class EconomyDrain
         beforeWindow?.Invoke(demo);
         foreach (var run in runs) run.Copy();
 
-        // The window on screen: the arena steps, every facility's Stall is read after each step.
+        // The window on screen: the arena steps, every facility's Stall is read after each step, and the first Room is timed.
         var steps = (int) Math.Round(windowSeconds / EconomyLoop.Step);
-        foreach (var run in runs) run.Live = run.Station.Equipment.SelectMany(unit => unit.Behaviors.OfType<Facility>().Select(facility => (unit, facility))).ToArray();
+        foreach (var run in runs)
+        {
+            run.Live = run.Station.Equipment.SelectMany(unit => unit.Behaviors.OfType<Facility>().Select(facility => (unit, facility))).ToArray();
+            run.LiveRoom = new double?[run.Live.Length];
+        }
         for (var step = 0; step < steps; step++)
         {
+            onStep?.Invoke(demo, step);
             demo.Arena.Update(EconomyLoop.Step);
             foreach (var run in runs)
                 for (var at = 0; at < run.Live.Length; at++)
@@ -142,18 +145,39 @@ public static class EconomyDrain
                     var tally = run.Drain.Facilities[at].WindowSteps;
                     var stall = run.Live[at].facility.Stall;
                     tally[stall] = tally.TryGetValue(stall, out var n) ? n + 1 : 1;
+                    if (stall == Stall.Room && run.LiveRoom[at] == null) run.LiveRoom[at] = (step + 1) * (double) EconomyLoop.Step;
                 }
         }
+        // The same window by spans on the copy: the units held, each facility's run (recipe and progress) and the time of its first Room
+        // must read as the steps did, to the span for the time. Held counts alone are blind to a facility that stalls Room.
         foreach (var run in runs)
         {
+            var spanRoom = new double?[run.Live.Length];
+            run.Spans(run.WindowCopy, steps * (double) EconomyLoop.Step, (at, stalls) =>
+            {
+                for (var i = 0; i < stalls.Length; i++)
+                    if (stalls[i] == Stall.Room && spanRoom[i] == null) spanRoom[i] = at;
+            });
             var onScreen = Held(run.Station);
-            run.Spans(run.WindowCopy, steps * (double) EconomyLoop.Step);
             var spanned = Held(run.WindowCopy);
             foreach (var design in onScreen.Keys.Union(spanned.Keys).OrderBy(k => k, StringComparer.Ordinal))
             {
                 onScreen.TryGetValue(design, out var a);
                 spanned.TryGetValue(design, out var b);
-                if (a != b) run.Drain.WindowDisagreements.Add((Name(catalog, design), a, b));
+                if (a != b) run.Drain.WindowDisagreements.Add($"{Name(catalog, design)} held {a} by steps against {b} by spans");
+            }
+            var copied = StationRun.Units(run.WindowCopy);
+            for (var i = 0; i < run.Live.Length; i++)
+            {
+                var name = run.Drain.Facilities[i].Name;
+                var (live, copy) = (run.Live[i].unit.EquippableItem.Run, copied[i].Run);
+                var (liveRecipe, copyRecipe) = (live?.Recipe.Key.Value, copy?.Recipe.Key.Value);
+                var (liveProgress, copyProgress) = (live?.Progress ?? 0, copy?.Progress ?? 0);
+                if (liveRecipe != copyRecipe || Math.Abs(liveProgress - copyProgress) > ProgressTolerance)
+                    run.Drain.WindowDisagreements.Add($"{name} run {liveRecipe ?? "idle"} at {liveProgress:0.###} s by steps against {copyRecipe ?? "idle"} at {copyProgress:0.###} s by spans");
+                var (steppedRoom, spannedRoom) = (run.LiveRoom[i], spanRoom[i]);
+                if (steppedRoom.HasValue != spannedRoom.HasValue || (steppedRoom.HasValue && !(steppedRoom.Value > spannedRoom.Value - Span - ProgressTolerance && steppedRoom.Value <= spannedRoom.Value + 2 * EconomyLoop.Step)))
+                    run.Drain.WindowDisagreements.Add($"{name} first Room at {(steppedRoom.HasValue ? steppedRoom.Value.ToString("0.##", CultureInfo.InvariantCulture) : "never")} s by steps against {(spannedRoom.HasValue ? spannedRoom.Value.ToString("0.##", CultureInfo.InvariantCulture) : "never")} s by spans");
             }
         }
 
@@ -168,29 +192,34 @@ public static class EconomyDrain
     {
         var faults = new List<EconomyFault>();
         foreach (var sample in samples)
+        {
+            foreach (var excluded in sample.Excluded)
+                faults.Add(new EconomyFault(HSortie, $"seed {sample.Seed} belt {excluded.Belt + 1} of {excluded.Belts}", $"the base sortie is {excluded.Outcome} after {excluded.SimSeconds:0.#} s ({excluded.Units} units mined{(string.IsNullOrEmpty(excluded.Note) ? "" : ", " + excluded.Note)}): it is left out of the fill count."));
             foreach (var station in sample.Stations)
             {
                 var where = $"seed {sample.Seed} {station.Role}";
                 foreach (var facility in station.Facilities.Where(f => f.OresLeft.Count > 0 && (f.HorizonEnd == Stall.Room || f.HorizonEnd == Stall.Inputs)))
                     faults.Add(new EconomyFault(HStall, where, $"{facility.Name} ends the {sample.HorizonHours:0.##} h horizon stalled {facility.HorizonEnd} with {string.Join(", ", facility.OresLeft)} still held: the station does not drain what it took."));
                 if (station.WindowDisagreements.Count > 0)
-                    faults.Add(new EconomyFault(HSim, where, $"the {sample.WindowSeconds:0.##} s window by steps and by spans disagree on {string.Join(", ", station.WindowDisagreements.Select(d => $"{d.Design} {d.Steps} against {d.Spans}"))}."));
+                    faults.Add(new EconomyFault(HSim, where, $"the {sample.WindowSeconds:0.##} s window by steps and by spans disagree: {string.Join("; ", station.WindowDisagreements)}."));
             }
+        }
         return faults;
     }
 
     public static void Print(DrainSample sample, TextWriter output)
     {
         var inv = CultureInfo.InvariantCulture;
-        output.WriteLine(string.Format(inv, "\nStation drain, seed {0} (a sortie holds {1} units; window {2:0.##} s on screen and by spans; horizon {3:0.##} h by spans of {4:0} s)", sample.Seed, sample.SortieUnits, sample.WindowSeconds, sample.HorizonHours, Span));
+        output.WriteLine(string.Format(inv, "\nStation drain, seed {0} (window {1:0.##} s on screen and by spans; horizon {2:0.##} h by spans of {3:0} s)", sample.Seed, sample.WindowSeconds, sample.HorizonHours, Span));
+        output.WriteLine($"  sorties usable {sample.Usable} of {sample.Usable + sample.Excluded.Count}" + string.Concat(sample.Excluded.Select(x => $"; excluded belt {x.Belt + 1}/{x.Belts} {x.BeltKind} {x.Outcome} at {x.SimSeconds:0.#} s")));
         foreach (var station in sample.Stations)
         {
             output.WriteLine($"  {station.Role} {station.Name} ({station.Kind})");
             foreach (var bay in station.Bays)
                 output.WriteLine($"    bay {bay.Name} | {(bay.Silo ? "silo" : "stock")} | cells {bay.Cells} | free {bay.Free} | ore units at MaxStack: {(bay.Capacity.Count == 0 ? "none wanted" : string.Join("; ", bay.Capacity.GroupBy(c => c.Units).Select(g => $"{g.Key} each of {string.Join(", ", g.Select(c => c.Ore))}")))} | wanted ore held after the fill: {bay.Taken}");
             output.WriteLine(station.Sorties.Count == 0
-                ? "    sorties to fill: none (the station wants no ore)"
-                : $"    sorties to fill: {station.Sorties.Count}{(station.Filled ? "" : "+ (the cap on sorties ended it)")} | per sortie (ore held sold refused): {string.Join("; ", station.Sorties.Select(s => $"{s.Ore} {s.Held} {s.Sold} {s.Refused}"))}");
+                ? "    sorties to fill: none (no usable sortie)"
+                : $"    sorties to fill: {station.Sorties.Count}{(station.Filled ? "" : "+ (the station took the whole hold of the last one or the cap on sorties ended it)")} | per sortie (hold as mined | wanted sold refused): {string.Join("; ", station.Sorties.Select(s => $"{s.Hold} | {s.Held} {s.Sold} {s.Refused}"))}");
             foreach (var facility in station.Facilities)
             {
                 output.WriteLine($"    facility {facility.Name}: {facility.RunList.Count} recipes");
@@ -199,8 +228,8 @@ public static class EconomyDrain
                 output.WriteLine($"      window stalls: {(total == 0 ? "no steps" : string.Join(", ", facility.WindowSteps.Select(kv => string.Format(inv, "{0} {1:0.#}%", kv.Key, 100.0 * kv.Value / total))))} | horizon ends {facility.HorizonEnd}");
             }
             output.WriteLine(station.WindowDisagreements.Count == 0
-                ? "    window by steps and by spans: held counts agree"
-                : $"    window by steps and by spans: DISAGREE on {string.Join(", ", station.WindowDisagreements.Select(d => $"{d.Design} {d.Steps} against {d.Spans}"))}");
+                ? "    window by steps and by spans: units held, run progress and first Room time agree"
+                : $"    window by steps and by spans: DISAGREE: {string.Join("; ", station.WindowDisagreements)}");
             foreach (var ore in station.Ores)
             {
                 var drained = ore.Hourly[0] - ore.Hourly[ore.Hourly.Count - 1];
@@ -248,38 +277,40 @@ public static class EconomyDrain
         return intake;
     }
 
-    // Sorties to fill: the seed's median sortie hold (one ore a sortie, the wanted ores in turn) sold through the shipped sale until
-    // a sortie sells less than it brought. The hold is the player's own; what the sale leaves aboard is put away.
-    private static void Fill(DemoArena demo, Entity station, List<CultRecordKey> ores, int sortieUnits, StationDrain drain)
+    // Sorties to fill: the usable sorties of the seed in turn, each hold as it was mined, sold through the shipped sale until a sortie
+    // sells less than the station wanted of it. The hold is the player's own; what the sale leaves aboard is put away.
+    private static void Fill(DemoArena demo, Entity station, List<LoopSample> usable, StationDrain drain)
     {
-        if (ores.Count == 0) return;
+        if (usable.Count == 0) return;
         var player = demo.Player;
         for (var sortie = 0; sortie < MaxSorties; sortie++)
         {
-            var ore = ores[sortie % ores.Count];
-            var maxStack = demo.Cache.Get<SimpleCommodityData>(ore).MaxStack;
-            var held = 0;
-            for (var left = sortieUnits; left > 0;)
+            var mined = usable[sortie % usable.Count];
+            foreach (var (ore, units) in mined.Mined)
             {
-                var quantity = Math.Min(left, maxStack);
-                if (!player.CargoBays.Any(bay => bay.TryStore(new SimpleCommodity { Data = new CultRecordRef<ItemData>(ore), Quantity = quantity }))) break;
-                held += quantity;
-                left -= quantity;
+                var maxStack = demo.Cache.Get<SimpleCommodityData>(ore).MaxStack;
+                for (var left = units; left > 0;)
+                {
+                    var quantity = Math.Min(left, maxStack);
+                    if (!player.CargoBays.Any(bay => bay.TryStore(new SimpleCommodity { Data = new CultRecordRef<ItemData>(ore), Quantity = quantity })))
+                        throw new InvalidOperationException($"seed {drain.Name}: the player's hold cannot take back the {units} units of {ore.Value} its sortie mined");
+                    left -= quantity;
+                }
             }
-            if (held == 0) throw new InvalidOperationException($"seed {drain.Name}: the player's hold takes no {ore.Value}");
             var credits = 0;
             var result = StationServices.TrySellOre(player.CargoBays, station, ref credits);
-            drain.Sorties.Add(new SortieSale { Ore = demo.Cache.Get<ItemData>(ore).Name, Held = held, Sold = result.Sold });
+            drain.Sorties.Add(new SortieSale { Hold = string.Join(", ", mined.Mined.Select(m => $"{m.Units} {demo.Cache.Get<ItemData>(m.Ore).Name}")), Held = result.Offered, Sold = result.Sold });
             foreach (var bay in player.CargoBays)
-                foreach (var stack in bay.Cargo.Keys.OfType<SimpleCommodity>().Where(s => s.Data.Key.Equals(ore)).ToList())
+                foreach (var stack in bay.Cargo.Keys.OfType<SimpleCommodity>().Where(s => mined.Mined.Any(m => m.Ore.Equals(s.Data.Key))).ToList())
                     bay.Remove(stack);
-            if (result.Sold < held) { drain.Filled = true; return; }
+            if (result.Offered == 0) return;
+            if (result.Sold < result.Offered) { drain.Filled = true; return; }
         }
     }
 
     // An inactive copy of a station as it stands, through the bytes a save would hold: Pack alone shares the stack objects with the
     // live station, so a copy's sale or take would move the original's units.
-    internal static Entity Copy(DemoArena demo, Entity station)
+    public static Entity Copy(DemoArena demo, Entity station)
     {
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
         var bytes = MessagePackSerializer.Serialize(EntitySerializer.Pack(station), options);
@@ -307,6 +338,8 @@ public static class EconomyDrain
         public readonly List<CultRecordKey> Ores;
         public Entity WindowCopy, HorizonCopy;
         public (EquippedItem unit, Facility facility)[] Live = Array.Empty<(EquippedItem, Facility)>();
+        // The sim second each live facility first stalled Room on screen, null while it has not.
+        public double?[] LiveRoom = Array.Empty<double?>();
 
         public StationRun(DemoArena demo, Entity station, StationDrain drain, List<CultRecordKey> ores)
         {
@@ -330,6 +363,10 @@ public static class EconomyDrain
             }
         }
 
+        // The facility gear of an entity, in equipment order: the order every per-facility list here is indexed in.
+        public static EquippableItem[] Units(Entity entity) =>
+            entity.Equipment.Where(unit => unit.Behaviors.OfType<Facility>().Any()).Select(unit => unit.EquippableItem).ToArray();
+
         private static IEnumerable<(EquippedItem unit, Facility facility)> Facilities(Entity entity) =>
             entity.Equipment.SelectMany(unit => unit.Behaviors.OfType<Facility>().Select(facility => (unit, facility)));
 
@@ -339,7 +376,7 @@ public static class EconomyDrain
         {
             var catalog = Demo.Cache;
             var hold = new EntityHold(copy);
-            var units = copy.Equipment.Where(unit => unit.Behaviors.OfType<Facility>().Any()).Select(unit => unit.EquippableItem).ToArray();
+            var units = Units(copy);
             var last = new Stall[units.Length];
             for (var at = 0.0; at < seconds - 1e-9;)
             {

@@ -104,6 +104,12 @@ public static class EconomyCommand
                 output.WriteLine(Usage);
                 return 1;
             }
+            // A cap the sortie takes as a float: a finite double too big for one is as bad as a word.
+            if (capped && !float.IsFinite((float) cap))
+            {
+                output.WriteLine(Usage);
+                return 1;
+            }
             if (!capped) cap = EconomyLoop.DefaultCap;
             if (!windowed) window = EconomyDrain.DefaultWindowSeconds;
             if (!horizoned) horizon = EconomyDrain.DefaultHorizonHours;
@@ -129,7 +135,7 @@ public static class EconomyCommand
                 loop = EconomyLoop.Report(db.Cache, settings, seedList.SelectMany(seed => EconomyLoop.Sorties(db.Root, seed, (float) cap)).ToList());
             List<DrainSample> drain = null;
             if (drainAt >= 0)
-                drain = seedList.Select(seed => EconomyDrain.Run(db.Root, seed, window, horizon, EconomyDrain.SortieUnits(seed, EconomyLoop.Sorties(db.Root, seed, EconomyLoop.DefaultCap)))).ToList();
+                drain = seedList.Select(seed => EconomyDrain.Run(db.Root, seed, window, horizon, EconomyLoop.Sorties(db.Root, seed, EconomyLoop.DefaultCap))).ToList();
             return Balance(db.Cache, settings.EconomyWageSpread, output, loop, drain);
         }
         if (args.Length > 0 && args[0] == "author")
