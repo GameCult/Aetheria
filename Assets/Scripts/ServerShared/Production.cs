@@ -77,7 +77,8 @@ public static class Production
     // starts the first recipe after the cursor, wrapping, whose units the hold grants, and takes them at once; a running one adds
     // time; at Progress >= Cycle it stores the output and goes idle, the recipe staying as the cursor. A store the hold refuses
     // holds the batch at Cycle (Room) and retries on the next call. Time left after a cycle ends runs the next one in the same call,
-    // so a long span runs several cycles; time that no cycle can use is dropped. A facility with nothing to start writes nothing.
+    // so a long span runs several cycles (the rule that makes one span equal as many steps as it covers); time that no cycle can start is
+// dropped. A facility with nothing to start writes nothing.
     public static (FacilityRun run, Stall stall) Advance(CultCache catalog, IReadOnlyList<RecipeData> runList, FacilityRun run,
         double seconds, IProductionHold hold)
     {
@@ -130,6 +131,18 @@ public sealed class EntityHold : IProductionHold
     private readonly Entity _entity;
 
     public EntityHold(Entity entity) => _entity = entity;
+
+    // Changes whenever anything the bays hold changes (each bay counts its own changes); a bay seated or removed moves it too. A holder
+    // that remembers the value it last failed to take from learns whether a retry could differ.
+    public long Revision
+    {
+        get
+        {
+            long revision = _entity.CargoBays.Count;
+            for (var at = 0; at < _entity.CargoBays.Count; at++) revision += _entity.CargoBays[at].Revision;
+            return revision;
+        }
+    }
 
     public int Held(CultRecordKey design) => _entity.CargoBays.Sum(bay => bay.Count(design));
 

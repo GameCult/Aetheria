@@ -29,6 +29,10 @@ public class Facility : Behavior
     // Why the facility advanced no further this step: derived by Advance every step, never stored on the unit.
     public Stall Stall { get; private set; }
 
+    // The hold's Revision when an idle facility last failed to take a cycle's inputs. A failed take reads nothing but the hold, so
+    // until the hold changes a retry fails the same way and is skipped. Not persisted: a restored facility tries once on its first step.
+    private long _failedAt;
+
     public Facility(FacilityData data, EquippedItem item) : base(data, item)
     {
         _runList = Production.RunList(ItemManager.ItemData, Item.EquippableItem.Data.Key);
@@ -37,9 +41,12 @@ public class Facility : Behavior
     public override bool Execute(float dt)
     {
         _hold ??= new EntityHold(Entity);
+        var idle = Item.EquippableItem.Run == null || Item.EquippableItem.Run.Progress <= 0;
+        if (idle && Stall == Stall.Inputs && _hold.Revision == _failedAt) return true;
         var (run, stall) = Production.Advance(ItemManager.ItemData, _runList, Item.EquippableItem.Run, dt, _hold);
         Item.EquippableItem.Run = run;
         Stall = stall;
+        if (idle && stall == Stall.Inputs) _failedAt = _hold.Revision;
         return true;
     }
 }

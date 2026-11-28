@@ -140,13 +140,55 @@ public static class Recipes
     public static bool IsConsumerGood(CultCache catalog, RecipeData recipe) =>
         IsCommodity(catalog.Get(recipe.Output)) && IsRoleRecipe(catalog, recipe);
 
-    // The commodities whose recipes Fill the role, ordered by key so a choice never depends on store order.
-    public static CultRecordKey[] Fillers(CultCache catalog, string role) =>
-        catalog.GetAll<RecipeData>()
-            .Where(recipe => recipe.Fills != null && recipe.Fills.Contains(role) && IsCommodity(catalog.Get(recipe.Output)))
-            .Select(recipe => recipe.Output.Key)
-            .OrderBy(key => key.Value, StringComparer.Ordinal)
-            .ToArray();
+    // The commodities whose recipes Fill the role, ordered by key so a choice never depends on store order. Read from the catalog's
+    // filler index, which is built on the first read and rebuilt on the first read after a recipe or commodity changes.
+    public static CultRecordKey[] Fillers(CultCache catalog, string role) => FillerIndexes.GetValue(catalog, cache => new FillerIndex(cache)).Of(role);
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CultCache, FillerIndex> FillerIndexes = new();
+
+    // Role to its fillers, derived from the recipes and owned by the catalog it was built from (one index per catalog, dropped with it).
+    // The catalog is read-only while a game runs, so a build serves every read; a write to a recipe or a commodity design (a test, an
+    // authoring batch) marks it stale, and the next read rebuilds it.
+    private sealed class FillerIndex
+    {
+        private readonly CultCache _catalog;
+        private readonly object _gate = new object();
+        private Dictionary<string, CultRecordKey[]> _byRole;
+        private volatile bool _stale = true;
+
+        public FillerIndex(CultCache catalog)
+        {
+            _catalog = catalog;
+            // The journal runs under the catalog's own gate and must wait for nothing, so it only raises the flag.
+            catalog.AddJournal(changes =>
+            {
+                foreach (var change in changes)
+                    if (Matters(change.Document) || Matters(change.PreviousDocument)) _stale = true;
+            });
+        }
+
+        private static bool Matters(object document) => document is RecipeData || document is SimpleCommodityData || document is CompoundCommodityData;
+
+        public CultRecordKey[] Of(string role)
+        {
+            lock (_gate)
+            {
+                if (_stale)
+                {
+                    _stale = false;
+                    _byRole = Build();
+                }
+                return _byRole.TryGetValue(role, out var fillers) ? fillers : Array.Empty<CultRecordKey>();
+            }
+        }
+
+        private Dictionary<string, CultRecordKey[]> Build() =>
+            _catalog.GetAll<RecipeData>()
+                .Where(recipe => recipe.Fills != null && IsCommodity(_catalog.Get(recipe.Output)))
+                .SelectMany(recipe => recipe.Fills.Where(role => role != null).Distinct().Select(role => (role, recipe.Output.Key)))
+                .GroupBy(pair => pair.role)
+                .ToDictionary(group => group.Key, group => group.Select(pair => pair.Key).OrderBy(key => key.Value, StringComparer.Ordinal).ToArray());
+    }
 
     // The recipes a facility design runs, ordered by recipe key so a choice never depends on store order. The one reader of which
     // recipes a facility runs; RecipeData.Facility owns it and nothing is stored on the facility.

@@ -17,20 +17,17 @@ public sealed class FacilityProductionTests : IDisposable
     private const double IronCycle = 600;
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-facilityproduction-" + Guid.NewGuid().ToString("N"));
     private readonly CultCache _cache;
-    private readonly CultCache _scratch;
 
     public FacilityProductionTests()
     {
         Directory.CreateDirectory(_root);
         _cache = Open("catalog.cc");
-        _scratch = Open("scratch.cc");
         Add(_cache);
     }
 
     public void Dispose()
     {
         _cache.Dispose();
-        _scratch.Dispose();
         Directory.Delete(_root, true);
     }
 
@@ -62,18 +59,6 @@ public sealed class FacilityProductionTests : IDisposable
         cache.Upsert(new CargoBayData { Name = "Pocket", Shape = new Shape(), InteriorShape = Solid(1, 1), Price = 5, Durability = 4 });
         cache.Upsert(new SimpleCommodityData { Name = "Slag", Shape = new Shape(), Price = 1, MaxStack = 100 });
         cache.Upsert(new ConsumableItemData { Name = "Facility Pill", Shape = new Shape(), Price = 1, Behaviors = { new FacilityData() } });
-        // The shipped facility gear carries GearData's unauthored thermal defaults (0 to 100, best at 50) while every station cell starts
-        // at 280, so a shipped facility is not Active (ThermalOnline) on a station that is not kept warm: a catalog fact this cut does
-        // not write. The fixture's station has no heater and cools toward 0, so its private copy of the catalog gives facility gear a
-        // band that holds every temperature a cell reaches, and the cycle rule is what these tests read.
-        foreach (var facility in cache.GetAll<GearData>().Where(StationKinds.IsRecipeFacility).ToArray())
-        {
-            facility.MinimumTemperature = -1000;
-            facility.MaximumTemperature = 1000;
-            facility.OptimalTemperature = 0;
-            facility.PlateauWidth = 1000;
-            cache.Upsert(facility);
-        }
     }
 
     private sealed class World
@@ -344,5 +329,93 @@ public sealed class FacilityProductionTests : IDisposable
         };
         var error = Assert.Throws<InvalidOperationException>(() => new ConsumableItemEffect(pill, world.Station));
         Assert.Contains("Facility Pill", error.Message);
+    }
+
+    // The shipped catalog as it boots, a shipped station hull with no heater, the shipped Refinery on its Facility row: an hour of sim
+    // time (the station's cells cool toward 0 meanwhile) turns 15 ore into 5 cycles of iron, one cycle fewer than the hour holds.
+    [Fact]
+    public void TheShippedRefineryRunsAnHourOnAHeaterlessShippedStation()
+    {
+        using var shipped = Open("shipped.cc");
+        var items = new ItemManager(1u, shipped, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var station = new OrbitalEntity(items, zone, Mint(items, shipped, "Zenith"), default, new EntitySettings());
+        Assert.True(station.TryEquip(Mint(items, shipped, "Refinery")));
+        var bay = shipped.GetAll<CargoBayData>().Where(data => !(data is DockingBayData)).OrderByDescending(data => data.InteriorShape.Coordinates.Length).ThenBy(data => data.Name, StringComparer.Ordinal).First();
+        Assert.True(station.TryEquip(Mint(items, shipped, bay.Name)));
+        Assert.DoesNotContain(station.Equipment.Select(equipped => equipped.Data), data => data is GearData gear && gear.Behaviors.Any(behavior => behavior is HeatData));
+        zone.Admit(station, piloted: false);
+        var world = Wrap(items, zone, station);
+        // An ore only iron takes, so no other recipe competes for it in the round robin.
+        var others = shipped.GetAll<RecipeData>().SelectMany(recipe => Recipes.RoleInputsOf(shipped, recipe)).Select(role => role.Name).Where(role => role != "iron ore").Distinct();
+        var ore = Recipes.Fillers(shipped, "iron ore").Except(others.SelectMany(role => Recipes.Fillers(shipped, role))).First();
+        var maxStack = items.MaxStack(Goods(ore, 1));
+        for (var left = 15; left > 0; left -= maxStack) Assert.True(station.CargoBays[0].TryStore(Goods(ore, Math.Min(left, maxStack))));
+
+        Step(world, StepsOf(3600));
+        Assert.Equal(10, world.Hold.Held(new CultRecordKey("commodity:iron")));
+        Assert.Equal(0, world.Hold.Held(ore));
+        Assert.True(world.Station.Equipment.Single(equipped => equipped.Behaviors.Any(behavior => behavior is Facility)).Active.Value);
+    }
+
+    [Fact]
+    public void AnIdleFacilityTriesAgainWhenTheHoldChanges()
+    {
+        var world = Build();
+        Stock(world, IronFillers[0], 2);
+        Step(world, 3);
+        Assert.Equal(Stall.Inputs, world.Facility.Stall);
+        Assert.Null(world.Unit.Run);
+
+        Stock(world, IronFillers[0], 1);
+        Step(world, 1);
+        Assert.Equal(RecipeData.KeyOf(Iron), world.Unit.Run.Recipe.Key);
+        Assert.Equal(0, Held(world, IronFillers[0]));
+    }
+
+    // The bay's change count moves on every kind of change to its contents and on nothing else.
+    [Fact]
+    public void ABayCountsEveryChangeToWhatItHolds()
+    {
+        var world = Build();
+        var bay = world.Station.CargoBays[0];
+        var at = bay.Revision;
+        Assert.Equal(at, bay.Revision);
+        Assert.True(bay.TryStore(Goods("Slag", 5)));
+        Assert.True(bay.Revision > at);
+        at = bay.Revision;
+        Assert.True(bay.TryStore(Goods("Slag", 5)));
+        Assert.True(bay.Revision > at);
+        at = bay.Revision;
+        var stack = bay.Cargo.Keys.Single();
+        Assert.NotNull(bay.Remove(stack, 3));
+        Assert.True(bay.Revision > at);
+        at = bay.Revision;
+        Assert.Equal(7, bay.Count(((ItemInstance) stack).Data.Key));
+        Assert.Equal(at, bay.Revision);
+        bay.Remove(stack);
+        Assert.True(bay.Revision > at);
+    }
+
+    // Recipes.Fillers reads an index built once per catalog; it is rebuilt when a recipe changes.
+    [Fact]
+    public void FillersFollowTheCatalogThroughAChange()
+    {
+        var roles = _cache.GetAll<RecipeData>().SelectMany(recipe => recipe.Fills).Distinct().ToArray();
+        foreach (var role in roles)
+        {
+            var scan = _cache.GetAll<RecipeData>()
+                .Where(recipe => recipe.Fills.Contains(role) && Recipes.IsCommodity(_cache.Get(recipe.Output)))
+                .Select(recipe => recipe.Output.Key).OrderBy(key => key.Value, StringComparer.Ordinal).ToArray();
+            Assert.Equal(scan, Recipes.Fillers(_cache, role));
+        }
+
+        var slag = _cache.RefOf<ItemData>(_cache.GetByName<SimpleCommodityData>("Slag"));
+        Assert.DoesNotContain(slag.Key, Recipes.Fillers(_cache, "iron ore"));
+        _cache.Upsert(typeof(RecipeData), new RecipeData { Output = slag, Fills = { "iron ore" } }, RecipeData.KeyOf(slag.Key));
+        Assert.Contains(slag.Key, Recipes.Fillers(_cache, "iron ore"));
+        _cache.Remove(RecipeData.KeyOf(slag.Key));
+        Assert.DoesNotContain(slag.Key, Recipes.Fillers(_cache, "iron ore"));
+        Assert.Empty(Recipes.Fillers(_cache, "no such role"));
     }
 }

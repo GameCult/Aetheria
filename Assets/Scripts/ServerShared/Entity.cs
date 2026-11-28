@@ -2425,6 +2425,10 @@ public class EquippedCargoBay : EquippedItem
     public float ThermalMass { get; private set; }
     public string Name { get; }
 
+    // Counts every change to what the bay holds (a stack stored, merged, split or removed, a unit stored or removed). Monotonic and
+    // not persisted: a holder that remembers the value it last read learns whether the contents changed since, without comparing them.
+    public long Revision { get; private set; }
+
     public Shape UnoccupiedSpace
     {
         get
@@ -2579,6 +2583,7 @@ public class EquippedCargoBay : EquippedItem
                 Occupancy[pos.x, pos.y] = item;
             }
             Cargo[item] = cargoCoord;
+            Revision++;
 
             if(!ItemsOfType.ContainsKey(item.Data.Key))
                 ItemsOfType[item.Data.Key] = new List<ItemInstance>();
@@ -2586,6 +2591,7 @@ public class EquippedCargoBay : EquippedItem
         }
         else if (Occupancy[cargoCoord.x, cargoCoord.y] is ICommodityStack held && stack.StacksWith(Occupancy[cargoCoord.x, cargoCoord.y]))
         {
+            Revision++;
             if (held.Quantity + stack.Quantity <= maxStack)
             {
                 held.Quantity += stack.Quantity;
@@ -2623,6 +2629,7 @@ public class EquippedCargoBay : EquippedItem
             Occupancy[pos.x, pos.y] = item;
         }
         Cargo[item] = cargoCoord;
+        Revision++;
 
         if(!ItemsOfType.ContainsKey(item.Data.Key))
             ItemsOfType[item.Data.Key] = new List<ItemInstance>();
@@ -2681,6 +2688,7 @@ public class EquippedCargoBay : EquippedItem
         if (item is ICommodityStack stack && quantity < stack.Quantity)
         {
             var itemData = ItemManager.GetData(item);
+            Revision++;
             stack.Quantity -= quantity;
             Mass -= itemData.Mass * quantity;
             ThermalMass -= itemData.Mass * itemData.SpecificHeat * quantity;
@@ -2702,6 +2710,7 @@ public class EquippedCargoBay : EquippedItem
     // The item, with everything it holds, leaves the bay: the one place a cell is freed.
     private void RemoveWhole(ItemInstance item)
     {
+        Revision++;
         foreach(var v in Data.InteriorShape.Coordinates)
             if (Occupancy[v.x, v.y] == item)
                 Occupancy[v.x, v.y] = null;
