@@ -20,6 +20,14 @@ public class Minion : Agent
         followState.AddTransition(patrolState, () => Task is PatrolOrbitsTask, Patrol);
         followState.AddTransition(_rootState, () => !(Task is FollowTask));
 
+        // The hauler's task (HaulRun.TaskOf): the same switch as patrol's, ignoring the other task states each walk could reach.
+        var haulState = new HaulState(this);
+        _rootState.AddTransition(haulState, () => Task is HaulingTask);
+        haulState.AddTransition(followState, () => Task is FollowTask, null, true, _rootState);
+        haulState.AddTransition(_rootState, () => !(Task is HaulingTask), null, true, _rootState, followState);
+        followState.AddTransition(haulState, () => Task is HaulingTask);
+        patrolState.AddTransition(haulState, () => Task is HaulingTask, null, true, _rootState, followState);
+
         var combatState = new CombatState(this);
         _rootState.AddTransition(combatState,
             () => View.TargetOf(Ship) != null, null, true, _rootState);
