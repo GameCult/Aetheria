@@ -1,0 +1,22 @@
+{
+  "id": "aetheria.arsenal-depot",
+  "name": "Arsenal Depot",
+  "like": "Zenith",
+  "kind": "depot",
+  "length": 12,
+  "extent": [28.0, 23.7, 13.6],
+  "hull": "hull.scad",
+  "maker": "Zhestokost",
+  "description": "A Zhestokost ammunition depot built like a lidded cast-iron Dutch oven: one squat charcoal pot under a heavy iron lid, a round control-tower knob, two thick lugs that are the docking piers and four magazine bands with oxide hatches.",
+  "offered": true,
+  "price": 100000,
+  "stats": {"mass": 50000, "durability": 5000, "armor": 100, "drag": 0},
+  "rows": [
+    {"id": "Reactor", "kind": "Reactor", "cell": [5, 8], "footprint": "####/####/####/####", "rotation": 0, "armor": 0, "arc": 0},
+    {"id": "Ra.N1", "kind": "Radiator", "cell": [2, 2], "footprint": "#/#/#/#", "rotation": 1, "armor": 0, "arc": 0},
+    {"id": "Ra.N2", "kind": "Radiator", "cell": [2, 6], "footprint": "#/#/#/#", "rotation": 1, "armor": 0, "arc": 0},
+    {"id": "Ra.S1", "kind": "Radiator", "cell": [11, 2], "footprint": "#/#/#/#", "rotation": 3, "armor": 0, "arc": 0},
+    {"id": "Ra.S2", "kind": "Radiator", "cell": [11, 6], "footprint": "#/#/#/#", "rotation": 3, "armor": 0, "arc": 0},
+    {"id": "Fa.1", "kind": "Facility", "cell": [4, 2], "footprint": "##/##", "rotation": 0, "armor": 0, "arc": 0}
+  ]
+}

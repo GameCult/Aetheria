@@ -1,5 +1,7 @@
+using System.IO;
 using System.Linq;
 using CultMath;
+using Newtonsoft.Json.Linq;
 using Xunit;
 
 // Station facilities on typed mounts (aetheria-living-world, cut recipe-facilities; ruling station-facilities-on-typed-mounts): over
@@ -14,6 +16,24 @@ public sealed class StationFacilityRoomTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         Assert.Empty(StationKinds.FacilityRoomFaults(cache));
+    }
+
+    // A repackage from the committed manifest reproduces the shipped depot: the manifest's kind, rows (Fa.1 included) and hull.scad are the
+    // package's own. The packager is creation input only, so this keeps the two from drifting apart.
+    [Fact]
+    public void TheCommittedDepotManifestIsTheShippedDepot()
+    {
+        var root = AetherDb.FindRoot();
+        var manifest = JObject.Parse(File.ReadAllText(Path.Combine(root, "tools", "blender", "manifests", "arsenal-depot", "package.json")));
+        Assert.Equal(File.ReadAllBytes(Path.Combine(root, "GameData", "Mods", "aetheria.arsenal-depot", "hull.scad")),
+            File.ReadAllBytes(Path.Combine(root, "tools", "blender", "manifests", "arsenal-depot", "hull.scad")));
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var depot = Assert.Single(cache.GetAll<HullData>(), hull => hull.Name == (string) manifest["name"]);
+        Assert.Equal("station-kind:" + (string) manifest["kind"], depot.Kind.Key.Value);
+        var shipped = depot.Hardpoints.Select(row => $"{row.Transform}|{row.Type}|{row.Position.x},{row.Position.y}|{ShipAuthoringPush.Footprint(row.Shape)}|{(int) row.Rotation}|{row.Armor}|{row.FiringArc}").OrderBy(x => x);
+        var written = manifest["rows"].Select(row => $"{(string) row["id"]}|{(string) row["kind"]}|{(int) row["cell"][0]},{(int) row["cell"][1]}|{(string) row["footprint"]}|{(int) row["rotation"]}|{(float) row["armor"]}|{(float) row["arc"]}").OrderBy(x => x);
+        Assert.Equal(shipped, written);
+        Assert.Contains(depot.Hardpoints, row => row.Type == HardpointType.Facility);
     }
 
     // Positive control: Zenith's Facility rows taken away (in memory, on a read-only catalog), the census names the hull, a kind it

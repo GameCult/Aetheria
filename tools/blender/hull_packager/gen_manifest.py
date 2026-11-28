@@ -40,6 +40,9 @@ def main():
     f = sc.read(args.ship_cc, packages)
     _, rows, _ = sc.read_layout(args.ship_cc, packages)
     body = f.hull.body
+    if sc.read_hull_type(args.ship_cc, packages) == "Station":
+        sys.exit("gen_manifest reads a ship: a station has no top speed and its kind is not in the hull record. "
+                 "Station manifests are written by hand (see manifests/arsenal-depot, package_hull.md).")
     limit = [p for u, p in body[11] if u == 11][0][1]
     assert limit[0] == limit[1], "the manifest holds one top speed"
     product = [msgpack.unpackb(e.payload, raw=False) for e in f.store.pull_all() if e.type == sc.PRODUCT_SCHEMA][0]
