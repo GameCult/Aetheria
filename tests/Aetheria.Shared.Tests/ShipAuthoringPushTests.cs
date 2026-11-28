@@ -119,6 +119,19 @@ public sealed class ShipAuthoringPushTests : IDisposable
         Assert.Equal(files, Listing(path));
     }
 
+    // An anchor the request adds is a whole anchor: the Id is the one the validator and the node binding read.
+    [Fact]
+    public void AnAddedAnchorKeepsItsId()
+    {
+        var path = Package();
+        var request = Edit(Open(path), json => ((JArray)json["visual"]["anchors"]).Add(
+            new JObject { ["id"] = "extra", ["role"] = "map-icon", ["node"] = "extra", ["parent"] = null, ["order"] = 0 }));
+        var (code, changes, outcome) = Push(path, request, apply: true);
+        Assert.True(code == 0, outcome.ToString());
+        Assert.Contains("mod-ship:mod.skiff anchor[extra] added", changes);
+        Assert.Contains(Parse(Open(path))["visual"]["anchors"], anchor => (string)anchor["id"] == "extra");
+    }
+
     [Fact]
     public void ApplyWritesTheDryRunResult()
     {

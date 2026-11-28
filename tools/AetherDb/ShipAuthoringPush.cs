@@ -531,7 +531,7 @@ public static class ShipAuthoringPush
             if (string.IsNullOrWhiteSpace(row.Id)) throw new InvalidOperationException("visual: every anchor needs an id.");
             if (!seen.Add(row.Id)) throw new InvalidOperationException($"visual: anchor id {row.Id} is used twice.");
             // Joint is not authored here and is carried by the anchor's identity; so is its element id.
-            var target = stored.TryGetValue(row.Id, out var found) ? Copy(found) : new ShipAnchor { ElementId = row.Id };
+            var target = stored.TryGetValue(row.Id, out var found) ? Copy(found) : new ShipAnchor { Id = row.Id, ElementId = row.Id };
             target.Role = row.Role;
             target.ModelNodeId = row.Node;
             target.ParentId = row.Parent;
