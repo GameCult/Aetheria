@@ -381,7 +381,8 @@ public sealed partial class RunStartTests : IDisposable
     public void GenerationOffersExactlyTheSoldGearSomeHullCanFit()
     {
         var hulls = LoadoutGenerator.SoldHulls(_cache);
-        var sold = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).Select(p => p.Design.Key).ToHashSet();
+        // Sold means on the market: a facility design's product is NotOffered, which no generation draws.
+        var sold = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet() && LoadoutGenerator.IsOffered(_cache, p)).Select(p => p.Design.Key).ToHashSet();
         var generator = PreludeGenerator();
         var wrong = _cache.GetAll<EquippableItemData>()
             .Where(design => sold.Contains(_cache.RefOf(design).Key) && design.Price > 0)

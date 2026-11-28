@@ -197,6 +197,22 @@ public sealed class StationKindTests : IDisposable
         Assert.Contains(opened.GetAll<HullData>(), hull => hull.Hardpoints.Any(row => row.Type == HardpointType.Facility));
     }
 
+    // The random fill never decides a Facility row (a kind's Facilities fill it, follow-up station-buys-by-installed-gear): Zenith
+    // generates with no gear of a Facility design and no "No compatible item" log for its row, whatever seed draws it.
+    [Fact]
+    public void AStationGeneratesWithItsFacilityRowUnfilledAndUnlogged()
+    {
+        var world = World.Make(this, zenithOffered: true);
+        Assert.Single(world.Zenith.Hardpoints, row => row.Type == HardpointType.Facility);
+        for (uint seed = 1; seed <= 8; seed++)
+        {
+            var pack = world.Generator(world.Au, seed).GenerateStationLoadout(Kind("trade-hub"));
+            Assert.Equal("Zenith", world.HullName(pack));
+            Assert.DoesNotContain(pack.Equipment, entry => entry.item != null && ((EquippableItemData) world.Items.GetData(entry.item)).HardpointType == HardpointType.Facility);
+        }
+        Assert.DoesNotContain(world.Log, line => line.Contains("Facility hardpoint"));
+    }
+
     [Fact]
     public void OpenRefusesBadStandIn()
     {

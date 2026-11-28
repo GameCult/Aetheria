@@ -50,17 +50,22 @@ public sealed class Facilities : EconomyBatch
             var designKey = new CultRecordKey("facility:" + id);
             var shape = new Shape(2, 2);
             foreach (var cell in shape.AllCoordinates) shape[cell] = true;
-            Put(new GearData
-            {
-                Name = name, Description = description, Hardpoint = HardpointType.Facility, Shape = shape,
-                Durability = 100, Mass = 250, Price = 1000, Behaviors = { new FacilityData() }
-            }, designKey);
+            // A stored behavior carries a cache-minted element id, so a design is compared by its fields, never by bytes.
+            if (!(catalog.Get(designKey) is GearData held && held.Name == name && held.Description == description && held.Hardpoint == HardpointType.Facility
+                  && held.Durability == 100 && held.Mass == 250 && held.Price == 1000 && held.Shape.Width == 2 && held.Shape.Height == 2 && held.Shape.Coordinates.Length == 4
+                  && held.Behaviors.Count == 1 && held.Behaviors[0] is FacilityData))
+                author.Put(new GearData
+                {
+                    Name = name, Description = description, Hardpoint = HardpointType.Facility, Shape = shape,
+                    Durability = 100, Mass = 250, Price = 1000, Behaviors = { new FacilityData() }
+                }, designKey);
             var factions = catalog.GetAll<Faction>().Select(faction => (Key: catalog.RefOf(faction).Key, Faction: faction)).OrderBy(pair => pair.Key.Value, StringComparer.Ordinal).ToArray();
             var maker = factions.FirstOrDefault(pair => StationKinds.KindsOf(catalog, pair.Faction).Any(kind => kind.Key.Value == kindKey));
             if (maker.Faction == null) maker = factions.First();
+            // The brand lives in the product (ruling designs-are-tech-nodes): the maker's name before the design's.
             Put(new FactionProductData
             {
-                Name = name, Description = description, Design = new CultRecordRef<CraftedItemData>(designKey),
+                Name = $"{maker.Faction.Name} {name}", Description = description, Design = new CultRecordRef<CraftedItemData>(designKey),
                 Manufacturer = new CultRecordRef<Faction>(maker.Key), NotOffered = true
             }, new CultRecordKey("product:facility:" + id));
 

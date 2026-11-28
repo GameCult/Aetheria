@@ -140,7 +140,7 @@ public sealed partial class RunStartTests
         Assert.Contains(Enumerable.Range(1, 64), seed => For("AU", unchecked((uint) seed * 2654435761u)).ChooseProduct(autocannon)?.Name == pattern30.Name);
 
         var terri = For("Miss Terri's", 1);
-        var theirs = _cache.GetAll<FactionProductData>().Where(p => new[] { "Aya", "Megiddo", "Forge" }.Contains(_cache.Get(p.Manufacturer).ShortName)).ToArray();
+        var theirs = _cache.GetAll<FactionProductData>().Where(p => LoadoutGenerator.IsOffered(_cache, p) && new[] { "Aya", "Megiddo", "Forge" }.Contains(_cache.Get(p.Manufacturer).ShortName)).ToArray();
         // 10 until the shield projectors: Awning (Aya) and Migdal (Megiddo) join their makers' lines.
         Assert.Equal(12, theirs.Length);
         Assert.All(theirs, product => Assert.False(terri.IsAvailable(product), product.Name));
