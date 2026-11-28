@@ -120,7 +120,12 @@ public static class EconomyLoop
             var catalog = Path.Combine(scratch, "Aetheria.cc");
             File.Copy(Path.Combine(root, "GameData", "Aetheria.cc"), catalog);
             new FileInfo(catalog).IsReadOnly = false;
-            using var cache = AetheriaStores.Open(catalog, runPath: Path.Combine(scratch, "run.cc"));
+            // The catalog the game boots: the first-party packages in GameData/Mods composed over the copy (the Pirates' station hulls
+            // are a package's), read from a derived file in the scratch, never written back to the shipped one.
+            var (composed, excluded) = ShipModCatalog.ResolveCatalog(catalog, Path.Combine(scratch, "derived.cc"), Path.Combine(root, "GameData", "Mods"));
+            if (excluded.Length > 0)
+                throw new InvalidOperationException("First-party packages were excluded from the catalog: " + string.Join("; ", excluded.Select(entry => entry.Package + ": " + entry.Reason)));
+            using var cache = AetheriaStores.Open(composed, runPath: Path.Combine(scratch, "run.cc"));
             var authored = AuthoredSettings.Load(root);
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
             var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");

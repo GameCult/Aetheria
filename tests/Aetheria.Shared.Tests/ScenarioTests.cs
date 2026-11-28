@@ -791,8 +791,11 @@ public sealed partial class RunStartTests
         Assert.Equal(0, StationsOf(natural));
         Assert.True(StationsOf(forced) >= 1);
 
-        // Through RunStart, the scenario's declaration is what reaches the generator.
-        Assert.Equal(2, StationsOf(RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new DemoTerminus())));
+        // Through RunStart, the scenario's declaration is what reaches the generator: the demo, in its own galaxy (the fixture's cast has
+        // no Pirates), holds both stations.
+        var (_, demoArena, _, failures) = Launch(new DemoTerminus());
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        Assert.Equal(2, demoArena.Entities.OfType<OrbitalEntity>().Count(entity => entity.HullData.HullType == HullType.Station));
         Assert.Equal(0, StationsOf(RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new MainGalaxy())));
 
         // An order the galaxy or the catalog cannot meet is refused by name, never placed as something else.
