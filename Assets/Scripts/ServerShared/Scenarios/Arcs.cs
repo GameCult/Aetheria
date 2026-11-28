@@ -21,10 +21,11 @@ public sealed class Arcs : Scenario
     public static readonly CultMath.float2 Bow = float2(0, 400), Stern = float2(0, -400), Turret = float2(600, 300),
         Port = float2(-400, 0), Starboard = float2(400, 0);
 
-    // Crates of ammunition each shooter's hold is stocked with: the measured draw over a run (ScenarioAmmunitionRunTests: at most ten minutes of play, and in
-    // practice the ~260 s a shooter holding every gun down lasts before it dies of heat; a pilot who vents heat is unmeasured) plus half again and one. The turret drew 14 Ammo with the player in its range; the player drew 27 Ammo
-    // holding every gun down. The guided launchers fire only on a lock, which that run cannot give them, so they carry the default three crates.
-    public const int TurretAmmoCrates = 22, PlayerAmmoCrates = 42, PlayerMissileCrates = 3;
+    // Crates of ammunition each shooter's hold is stocked with: the measured draw over the 600 s run of ScenarioAmmunitionRunTests (a hull conducts heat
+    // from construction, so a shooter holding every gun down no longer dies of heat at ~260 s) plus half again, capped at what the hold carries.
+    // Measured draws: turret 110 Ammo (its hold fills at 80 crates), player 230 Ammo (its hold fills at 75 Ammo and 3 Missiles). Neither hold carries its draw, so each is
+    // stocked full and runs dry. The guided launchers fire only on a lock, which that run cannot give them, so they carry the default three crates.
+    public const int TurretAmmoCrates = 80, PlayerAmmoCrates = 75, PlayerMissileCrates = 3;
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Cast(DemoTerminus.Cast);
 

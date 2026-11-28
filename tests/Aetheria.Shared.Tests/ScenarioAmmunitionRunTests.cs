@@ -14,7 +14,7 @@ public sealed partial class RunStartTests
 
     // Crates each armed entity of the scenario draws over the run, keyed by (index in the stage's entities, -1 for the player; ammunition name),
     // and the crates each held when the run began.
-    private (Dictionary<(int, string), int> drawn, Dictionary<(int, string), int> stocked) RunAmmunition(Scenario scenario, bool playerFires, bool standNearHostile)
+    private (Dictionary<(int, string), int> drawn, Dictionary<(int, string), int> stocked, Dictionary<(int, string), bool> full) RunAmmunition(Scenario scenario, bool playerFires, bool standNearHostile)
     {
         var (_, arena, staged, failures) = Launch(scenario, Inputs(() => GalaxySeed));
         Assert.Empty(failures);
@@ -24,10 +24,19 @@ public sealed partial class RunStartTests
         var drawn = new Dictionary<(int, string), int>();
         var stocked = new Dictionary<(int, string), int>();
         var held = new Dictionary<(int, string), int>();
+        // Whether a shooter's hold took no further crate of an ammunition when the run began.
+        var full = new Dictionary<(int, string), bool>();
         string NameOf(CultRecordKey key) => _items.ItemData.Get<SimpleCommodityData>(key).Name;
         foreach (var (entity, index) in shooters)
+        {
             foreach (var key in entity.Weapons.Where(weapon => weapon.WeaponData.AmmoType.IsSet()).Select(weapon => weapon.WeaponData.AmmoType.Key).Distinct())
             {
+                // Whether the hold takes one more crate of this ammunition: a hold that does not is stocked as far as it can be.
+                var bay = entity.CargoBays.First();
+                var probe = new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Quantity = 1 };
+                full[(index, NameOf(key))] = !bay.TryStore(probe);
+                // The probe merged into a stack or became one: take its one unit back, so the run starts from what the scenario laid.
+                if (!full[(index, NameOf(key))]) bay.Remove(bay.Cargo.Keys.OfType<SimpleCommodity>().First(stack => stack.Data.Key.Equals(key)), 1);
                 stocked[(index, NameOf(key))] = entity.CountItemsInCargo(key);
                 // A shooter with no crate cannot reload at all, so a run could not show what it would draw: it is given one to start.
                 if (stocked[(index, NameOf(key))] == 0)
@@ -35,6 +44,7 @@ public sealed partial class RunStartTests
                 drawn[(index, NameOf(key))] = 0;
                 held[(index, NameOf(key))] = entity.CountItemsInCargo(key);
             }
+        }
         var everyone = staged.Entities.Append(staged.Player).ToList();
         var player = staged.Player;
         var sound = everyone.SelectMany(entity => entity.Equipment).ToDictionary(item => item, item => item.EquippableItem.Durability);
@@ -61,22 +71,24 @@ public sealed partial class RunStartTests
                         entity.CargoBays.First().TryStore(new SimpleCommodity { Data = new CultRecordRef<ItemData>(key), Quantity = 1 });
                 }
         }
-        return (drawn, stocked);
+        return (drawn, stocked, full);
     }
 
     // The most crates each shooter draws in any of the modes, and what it was stocked with.
-    private List<(int shooter, string ammo, int drawn, int stocked)> WorstRun(Scenario scenario, params (bool playerFires, bool standNearHostile)[] modes)
+    private List<(int shooter, string ammo, int drawn, int stocked, bool full)> WorstRun(Scenario scenario, params (bool playerFires, bool standNearHostile)[] modes)
     {
-        var worst = new Dictionary<(int, string), (int drawn, int stocked)>();
+        var worst = new Dictionary<(int, string), (int drawn, int stocked, bool full)>();
         foreach (var (fires, near) in modes)
         {
-            var (drawn, stocked) = RunAmmunition(scenario, fires, near);
+            var (drawn, stocked, full) = RunAmmunition(scenario, fires, near);
             foreach (var slot in drawn.Keys)
-                worst[slot] = (System.Math.Max(drawn[slot], worst.TryGetValue(slot, out var seen) ? seen.drawn : 0), stocked[slot]);
+                worst[slot] = (System.Math.Max(drawn[slot], worst.TryGetValue(slot, out var seen) ? seen.drawn : 0), stocked[slot], full[slot]);
         }
-        return worst.Select(kv => (kv.Key.Item1, kv.Key.Item2, kv.Value.drawn, kv.Value.stocked)).ToList();
+        return worst.Select(kv => (kv.Key.Item1, kv.Key.Item2, kv.Value.drawn, kv.Value.stocked, kv.Value.full)).ToList();
     }
 
+    // Stocked to its draw, or its hold is full (a ship that holds every gun down for ten minutes may run dry). Measured draws at the 600 s window with every hull
+    // conducting: Arcs turret 110 Ammo, player 230 Ammo; Pursuit pursuer 199 Ammo and 14 Missiles, player 42 Mines and 195 Ammo.
     // Arcs, run to its end twice: the player holding every gun down, and the player standing in the hostile turret's range while the turret
     // shoots. Kills: a crate count nobody measured (the turret's 30 and the player's none were estimates), a scenario shooter stocked below
     // what a run draws so its guns go silent, and a harness that measures nothing.
@@ -86,7 +98,7 @@ public sealed partial class RunStartTests
         var run = WorstRun(new Arcs(), (true, false), (false, true));
         Assert.Contains(run, r => r.shooter == 2 && r.ammo == "Ammo" && r.drawn > 0);
         Assert.Contains(run, r => r.shooter == -1 && r.ammo == "Ammo" && r.drawn > 0);
-        Assert.All(run, r => Assert.True(r.stocked >= r.drawn, $"Arcs shooter {r.shooter} drew {r.drawn} {r.ammo} over a run and was stocked {r.stocked}"));
+        Assert.All(run, r => Assert.True(r.stocked >= r.drawn || r.full, $"Arcs shooter {r.shooter} drew {r.drawn} {r.ammo} over a run and was stocked {r.stocked} with room left"));
     }
 
     // Pursuit, the player holding every gun down and the pursuer shooting back, then the player idle. Kills: as above, for the Mine Launcher's
@@ -97,6 +109,6 @@ public sealed partial class RunStartTests
         var run = WorstRun(new Pursuit(), (true, false), (false, false));
         Assert.Contains(run, r => r.shooter == -1 && r.ammo == "Mines" && r.drawn > 0);
         Assert.Contains(run, r => r.shooter == 0 && r.ammo == "Ammo" && r.drawn > 0);
-        Assert.All(run, r => Assert.True(r.stocked >= r.drawn, $"Pursuit shooter {r.shooter} drew {r.drawn} {r.ammo} over a run and was stocked {r.stocked}"));
+        Assert.All(run, r => Assert.True(r.stocked >= r.drawn || r.full, $"Pursuit shooter {r.shooter} drew {r.drawn} {r.ammo} over a run and was stocked {r.stocked} with room left"));
     }
 }

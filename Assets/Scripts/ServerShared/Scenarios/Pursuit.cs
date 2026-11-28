@@ -8,11 +8,12 @@ public sealed class Pursuit : Scenario
     // cloud breaking a sensor's lock, and well outside the 40 at which AStrongCloseSensorBurnsThrough shows a close
     // sensor burning through.
     private const float Astern = 300;
-    // Crates each shooter's hold is stocked with: the measured draw over a run (ScenarioAmmunitionRunTests: at most ten minutes of play, and in
-    // practice the ~250-270 s a shooter holding every gun down lasts before it dies of heat; a pilot who vents heat is unmeasured) plus half again and one where the hold has room. The player laid four crates of Mines and drew
-    // 33 Ammo; its hold takes 54 crates after five consumables and Mines, so its Ammo stops at 39. The pursuer drew 31 Ammo and one Missiles. A launcher
-    // that drew under a reload carries the default three crates.
-    public const int MineCrates = 7, PlayerAmmoCrates = 39, PlayerMissileCrates = 3, PursuerAmmoCrates = 47, PursuerMissileCrates = 3;
+    // Crates each shooter's hold is stocked with: the measured draw over the 600 s run of ScenarioAmmunitionRunTests (a hull conducts heat from
+    // construction, so a shooter holding every gun down no longer dies of heat at ~250-270 s and fires the whole window) plus half again, capped at
+    // what the hold carries. Measured draws: pursuer 199 Ammo and 14 Missiles; player 42 Mines and 195 Ammo. Neither hold carries its draw
+    // (the pursuer's hold fills at 75 Ammo and 5 Missiles, the player's after five consumables at 10 Mines, 40 Ammo and 3 Missiles; crates differ in size), so each is
+    // stocked full and runs dry. A launcher that drew under a reload carries the default three crates.
+    public const int MineCrates = 10, PlayerAmmoCrates = 40, PlayerMissileCrates = 3, PursuerAmmoCrates = 75, PursuerMissileCrates = 5;
 
     public override string Name => "Pursuit";
     public override string Id => "pursuit";
