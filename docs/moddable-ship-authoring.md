@@ -27,12 +27,14 @@ authored `HullData.Shape` in the `.cc`; strokes do not decide armor or mount
 footprints.
 
 `tools/blender/aetheria_ships` is a separate Blender add-on in Brokkr's
-sidebar. It uses Brokkr's configured CultLib Python source and edits the
+sidebar. It reads a ship file only through AetherDb's `ship-authoring open` and
+writes it only through `ship-authoring push`, run from the Game folder's ModTools:
+no CultLib path and no msgpack in Blender. It edits the
 line slot of a ship file's `aetheria.ship_authoring` visual record and the
 hull shape and hardpoint slots of the `aetheria.hulldata` record beside it. To try it, make
 `F:\Projects\Brokkr\surfaces\blender` and this repo's `tools\blender` visible
-to Blender's add-on search path, enable `brokkr_bridge` then
-`aetheria_ships`, and install `msgpack` into Blender's Python environment.
+to Blender's add-on search path and enable `brokkr_bridge` then
+`aetheria_ships`.
 Create a draft with `dotnet run --project tools/AetherDb -- ship-authoring
 create <ship.cc> <stable-id> <name> [--like <shipped hull name>]`; `--like Djinni`
 copies that shipped ship's stats and leaves the body and layout empty. Choose that `.cc` in the **Aetheria
@@ -48,9 +50,10 @@ hardpoint's type, mount ID, position, footprint, rotation, armor, and firing
 arc. A footprint uses top-to-bottom rows of `#` (occupied) and `.` (empty),
 separated by `/`; `##/##` is a 2×2 mount. **Save Layout to .cc** replaces only
 the hull shape and hardpoint slots. It preserves hull stats, anchors, visual
-assets, lines, the record key, and schema. Save rejects a changed ship ID or
-layout revision; reload first if another editor changed those fields. A line
-capture leaves the loaded layout revision intact. The saved layout is a draft until
+assets, lines, the record key, and schema. Save is refused when a record of the
+package was written since Load (the versions Load took from `open`); reload first.
+A write to stats, price or a product between Load and Save refuses the Save too.
+A line capture replaces the versions it holds with the push's. The saved layout is a draft until
 its mount IDs resolve to visual anchors and C# validation passes.
 **Package Ship** turns the bound collection into the package. Tag each anchor
 object with the custom properties `aetheria.role` (`map-icon`, `hull-collider`,
@@ -140,9 +143,10 @@ is not yet an end-to-end ship loader in the current game.
 
 `ship-authoring validate`, the catalog composer, and the visual importer call
 the same `ShipAuthoringStore.Validate(hull, visual)`; that shared path is true of the C# callers only.
-The Blender side checks grid bounds and footprint shape (`ship_cc.py`) and
-nothing semantic. Blender edits the hull grid, hardpoints, and
-captured lines in the typed source records; `inspect` reads incomplete drafts.
+Blender builds requests; AetherDb `push` checks and writes. `ship_cc.py` holds the
+ship id rule, the enum names and Grease Pencil capture, and nothing that reads or writes a record.
+Blender edits the hull grid, hardpoints, and
+captured lines through `open` and `push`; `inspect` reads incomplete drafts.
 Unity's **Aetheria / Preview Mod Ship
 Package** imports a validated package from disk, resolves stable GLB node IDs,
 and draws the captured polylines directly as 3D line segments. Point opacity
