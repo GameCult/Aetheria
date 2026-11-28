@@ -135,7 +135,8 @@ public sealed partial class RunStartTests
         Assert.Equal(.5f, demo.galaxy.InfluenceScale);
         Assert.Equal(_startingHull, demo.staged.Player.HullData.Name);
         Assert.Equal(float3.zero, demo.staged.Player.Position);
-        Assert.Empty(demo.staged.Entities);
+        // The demo places one ship besides the player: Zenith's hauler, which carries the standing haul order (cut ore-haul-run).
+        Assert.True(Assert.Single(demo.staged.Entities).Haul.Key.IsSet());
         Assert.Contains(demo.arena.Pack.Entities, entity => entity is ShipPack { IsPlayerShip: false });
 
         var main = Launch(new MainGalaxy(), Inputs(() => GalaxySeed));
