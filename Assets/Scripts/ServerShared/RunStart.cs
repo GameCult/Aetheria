@@ -27,7 +27,7 @@ public static class RunStart
     {
         SeedItems(itemManager, galaxy, ArenaStep);
         return galaxy.Entrance.PackedContents = ZoneGenerator.GenerateZone(
-            itemManager, zoneSettings, planetSettings, galaxy, galaxy.Entrance, scenario.EntranceStation, scenario.Ambient);
+            itemManager, zoneSettings, planetSettings, galaxy, galaxy.Entrance, scenario.EntranceStations, scenario.Ambient);
     }
 
     // Runs a start and answers whether it produced a run: null, with the reason in `failures`, when `start` throws or

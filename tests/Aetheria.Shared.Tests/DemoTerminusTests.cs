@@ -24,6 +24,30 @@ public sealed partial class RunStartTests
                 DemoGalaxy(seed).Factions.Select(faction => faction.Name));
     }
 
+    // The entrance declares its stations as orders (ruling demo-zenith-ore-depot, demo-processing-station-buys-ore): on every seed,
+    // Aeronautics Unlimited's trade hub on Zenith and the Pirates' processing station with its Refinery, apart by at least their reaches.
+    [Fact]
+    public void DemoEntranceHoldsZenithAndTheRefinery()
+    {
+        var cellSize = _items.GameplaySettings.SchematicCellSize;
+        foreach (var seed in Enumerable.Range(1, 40).Select(s => (uint) s).Concat(new uint[] { 69, 97 }))
+        {
+            var (_, arena, _, failures) = Launch(new DemoTerminus(), Inputs(() => seed));
+            Assert.True(failures.Count == 0, $"seed {seed}: " + string.Join("; ", failures));
+            arena.Update(.02f); // the stations take their places on their orbits
+            var stations = arena.Entities.OfType<OrbitalEntity>().Where(entity => entity.HullData.HullType == HullType.Station).ToArray();
+            Assert.True(stations.Length == 2, $"seed {seed}: {stations.Length} stations");
+            var hub = stations.Single(station => station.Kind.Key.Equals(StationKindData.KeyOf("trade-hub")));
+            var refinery = stations.Single(station => station.Kind.Key.Equals(StationKindData.KeyOf("processing")));
+            Assert.Equal("Aeronautics Unlimited", hub.Faction.Name);
+            Assert.Equal("Pirates", refinery.Faction.Name);
+            Assert.Contains(refinery.Equipment, equipped => equipped.Behaviors.OfType<Facility>().Any() && _items.GetData(equipped.EquippableItem).Name == "Refinery");
+            var apart = math.length(hub.Position.xz - refinery.Position.xz);
+            var reaches = hub.HullData.Reach(cellSize) + refinery.HullData.Reach(cellSize);
+            Assert.True(apart >= reaches, $"seed {seed}: stations {apart} apart against a reach sum of {reaches}");
+        }
+    }
+
     [Fact]
     public void DemoTerminus_gate_at_antagonist_home()
     {

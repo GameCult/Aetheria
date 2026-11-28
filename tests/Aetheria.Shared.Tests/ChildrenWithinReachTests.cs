@@ -50,7 +50,7 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
                     Settings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
                     tune?.Invoke(Settings);
                     var pack = ZoneGenerator.GenerateZone(items, Settings, planetSettings, galaxy, galaxyZone,
-                        true, false);
+                        EntranceStationOrder.Any, false);
                     foreach (var belt in pack.Planets.Select(cache.Get).OfType<AsteroidBeltData>())
                     {
                         Belts++;

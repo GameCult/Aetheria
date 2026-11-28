@@ -150,7 +150,7 @@ public sealed class RestoredHullsTests
             var galaxy = new Galaxy(TestCasts.Wide, TestCasts.Background, cache, _ => { }, null, seed);
             foreach (var zone in galaxy.Zones.Where(z => !ReferenceEquals(z, galaxy.Entrance)))
             {
-                var orbits = ParentedPlanetOrbits(cache, ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, entranceStation: false, ambient: false));
+                var orbits = ParentedPlanetOrbits(cache, ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, entranceStations: EntranceStationOrder.None, ambient: false));
                 if (orbits.Length > 0 && !HasGenuineLagrangeCandidate(orbits)) return (seed, zone.Name);
             }
         }
@@ -381,7 +381,7 @@ public sealed class RestoredHullsTests
                 var galaxy = new Galaxy(tutorialSettings, background, cache, _ => { }, null, seed);
 
                 var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
-                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStation: true);
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStations: EntranceStationOrder.Any);
 
                 var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
                     .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
@@ -421,7 +421,7 @@ public sealed class RestoredHullsTests
                 var galaxy = new Galaxy(tutorialSettings, background, cache, _ => { }, null, seed);
 
                 var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
-                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStation: true);
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStations: EntranceStationOrder.Any);
 
                 var planetOrbits = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
                 var hasGenuineCandidate = planetOrbits.Any(o => planetOrbits.Count(c => c.Parent.Key.Equals(o.Parent.Key) && abs(c.Distance - o.Distance) < .1f) == 1);
@@ -466,7 +466,7 @@ public sealed class RestoredHullsTests
             zoneSettings.SubZoneCount = new ExponentialLerp { Exponent = 1, Minimum = 0, Maximum = 0 };
 
             Assert.Throws<InvalidOperationException>(() =>
-                ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStation: true));
+                ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStations: EntranceStationOrder.Any));
         }
         finally
         {
@@ -500,7 +500,7 @@ public sealed class RestoredHullsTests
             zoneSettings.SatelliteCreationProbability = 0;
             zoneSettings.BinaryCreationProbability = 0;
 
-            var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStation: true);
+            var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStations: EntranceStationOrder.Any);
 
             var roots = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Count(o => !o.Parent.IsSet());
             Assert.True(roots > 1, $"this fixture no longer produces a multi-root entrance (only {roots} root); it no longer tests the fragmented-topology case.");
@@ -544,7 +544,7 @@ public sealed class RestoredHullsTests
                 var galaxy = new Galaxy(tutorialSettings, background, cache, _ => { }, null, seed);
 
                 var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
-                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStation: true);
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStations: EntranceStationOrder.Any);
 
                 var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
                     .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
@@ -738,7 +738,7 @@ public sealed class RestoredHullsTests
             var galaxy = BuildGalaxyWithForcedEntrance(cache, seed, zoneName);
 
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
-            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStation: true);
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStations: EntranceStationOrder.Any);
 
             var station = pack.Entities.OfType<OrbitalEntityPack>()
                 .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
@@ -790,21 +790,21 @@ public sealed class RestoredHullsTests
             var galaxy = new Galaxy(TestCasts.Wide, TestCasts.Background, cache, _ => { }, null, seed: 1u);
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
-            int StationCount(GalaxyZone zone, bool entranceStation) =>
-                ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, entranceStation)
+            int StationCount(GalaxyZone zone, IReadOnlyList<EntranceStationOrder> entranceStations) =>
+                ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, entranceStations)
                     .Entities.OfType<OrbitalEntityPack>()
                     .Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
 
             // (a) A non-entrance tutorial zone that naturally rolls zero stations keeps that roll under
-            // entranceStation: true -- the floor must not leak past the galaxy.Entrance reference check.
-            // The zone is chosen by its natural roll: zero stations without the tutorial floor (entranceStation: false).
-            var otherZone = galaxy.Zones.First(z => !ReferenceEquals(z, galaxy.Entrance) && StationCount(z, entranceStation: false) == 0);
+            // a default order -- the floor must not leak past the galaxy.Entrance reference check.
+            // The zone is chosen by its natural roll: zero stations without the tutorial floor (no orders).
+            var otherZone = galaxy.Zones.First(z => !ReferenceEquals(z, galaxy.Entrance) && StationCount(z, entranceStations: EntranceStationOrder.None) == 0);
             Assert.NotSame(galaxy.Entrance, otherZone);
-            Assert.Equal(0, StationCount(otherZone, entranceStation: true));
+            Assert.Equal(0, StationCount(otherZone, entranceStations: EntranceStationOrder.Any));
 
-            // (b) The entrance zone itself, generated for a non-tutorial game (entranceStation: false), keeps its
-            // natural roll too -- the floor must not leak past the entranceStation flag either.
-            Assert.Equal(0, StationCount(galaxy.Entrance, entranceStation: false));
+            // (b) The entrance zone itself, generated for a non-tutorial game (no orders), keeps its
+            // natural roll too -- the floor must not leak past the declaration either.
+            Assert.Equal(0, StationCount(galaxy.Entrance, entranceStations: EntranceStationOrder.None));
         }
         finally
         {
@@ -815,7 +815,7 @@ public sealed class RestoredHullsTests
     // Cut 1 fix batch 2 (Soul's finding #2, baseStationCount): the entrance override raises stationCount (the
     // orbit-selection floor) but must not also raise the enemyCount roll, which is keyed to baseStationCount
     // (the pre-override value) precisely so the forced station doesn't buy the zone an extra enemy. Seed 1's
-    // entrance zone rolls baseStationCount 0 (confirmed via the entranceStation: false StationCount == 0 above) and
+    // entrance zone rolls baseStationCount 0 (confirmed via the entranceStations: EntranceStationOrder.None StationCount == 0 above) and
     // the override raises stationCount to 1; this pins the resulting ship count at the value baseStationCount
     // produces. It must fail if the enemy-count formula is changed to add stationCount instead (it would add a
     // ship instead of zero).
@@ -830,7 +830,7 @@ public sealed class RestoredHullsTests
             var galaxy = new Galaxy(TestCasts.Wide, TestCasts.Background, cache, _ => { }, null, seed: 1u);
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
 
-            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStation: true);
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, entranceStations: EntranceStationOrder.Any);
             var stationCount = pack.Entities.OfType<OrbitalEntityPack>().Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
             // Soul's finding (this cut's fix batch 3): pack.Entities.OfType<ShipPack>().Count() also counts the
             // zone's neutral wanderers (ZoneGenerator.cs's own EligibleWandererFactions spawn, keyed to
@@ -913,7 +913,7 @@ public sealed class RestoredHullsTests
             Assert.NotSame(galaxy.Entrance, zone);
 
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), Settings(), _ => { });
-            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, entranceStation: true);
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, entranceStations: EntranceStationOrder.Any);
 
             // Confirms this fixture still has no genuine (non-rosette) Lagrange candidate -- a regression here
             // would mean the fixture no longer probes what this test claims to probe.

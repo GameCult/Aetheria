@@ -21,7 +21,7 @@ public sealed partial class RunStartTests
     private ZonePack BossZonePack(Galaxy galaxy, ItemManager items, GalaxyZone zone, bool ambient = true, uint seed = 7)
     {
         items.Random = new CultMath.Random(seed);
-        return ZoneGenerator.GenerateZone(items, _zoneSettings, _planetSettings, galaxy, zone, entranceStation: zone == galaxy.Entrance, ambient);
+        return ZoneGenerator.GenerateZone(items, _zoneSettings, _planetSettings, galaxy, zone, entranceStations: EntranceStationOrder.Any, ambient);
     }
 
     private Zone ZoneOf(Galaxy galaxy, GalaxyZone zone) =>

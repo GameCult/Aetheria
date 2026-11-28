@@ -190,7 +190,7 @@ public sealed class SunsNeverGreenTests : IDisposable
             foreach (var zone in galaxy.Zones)
             {
                 zones++;
-                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, false, false);
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, EntranceStationOrder.None, false);
                 suns.AddRange(pack.Planets.Select(p => cache.Get(p)).OfType<SunData>());
             }
         }

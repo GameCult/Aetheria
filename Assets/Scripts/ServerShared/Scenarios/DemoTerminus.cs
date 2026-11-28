@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using float2 = CultMath.float2;
 
 // The demo: one gate, one region and one boss, with a fixed cast. The Pirates are the protagonist's ostensible
 // employer, Zhestokost the antagonist whose home is the boss zone and the exit, Lucent Media and Aeronautics Unlimited
-// the neutrals. A galaxy of that cast at half influence; the player, who is not a Pirate, flies the base Longinus.
+// the neutrals. A galaxy of that cast at half influence; the player, who is not a Pirate, flies the base Longinus. Its
+// entrance holds two stations on every seed: Aeronautics Unlimited's Zenith trade hub and the Pirates' refinery.
 public sealed class DemoTerminus : Scenario
 {
     public static readonly GalaxyCast Cast = new GalaxyCast
@@ -15,6 +17,14 @@ public sealed class DemoTerminus : Scenario
         ZoneCount = 64,
         LinkDensity = .5f,
         InfluenceScale = .5f
+    };
+
+    // Zenith (ruling demo-zenith-ore-depot) and the Pirates' processing station (ruling demo-processing-station-buys-ore),
+    // named from the cast so the cast and the orders cannot drift.
+    public override IReadOnlyList<EntranceStationOrder> EntranceStations { get; } = new[]
+    {
+        new EntranceStationOrder(Cast.NeutralFactions[0], "trade-hub"),
+        new EntranceStationOrder(Cast.ProtagonistFaction, "processing")
     };
 
     public override string Name => "Terminus (Demo)";

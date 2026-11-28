@@ -782,17 +782,26 @@ public sealed partial class RunStartTests
     [Fact]
     public void EntranceStationIsTheScenariosDeclaration()
     {
-        Assert.True(new DemoTerminus().EntranceStation);
-        Assert.False(new MainGalaxy().EntranceStation);
+        Assert.Equal(new[] { ("Aero", "trade-hub"), ("Pirates", "processing") },
+            new DemoTerminus().EntranceStations.Select(order => (order.Faction, order.Kind)));
+        Assert.Empty(new MainGalaxy().EntranceStations);
 
-        var natural = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, _galaxy, _galaxy.Entrance, entranceStation: false, ambient: false);
-        var forced = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, _galaxy, _galaxy.Entrance, entranceStation: true, ambient: false);
+        var natural = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, _galaxy, _galaxy.Entrance, entranceStations: EntranceStationOrder.None, ambient: false);
+        var forced = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, _galaxy, _galaxy.Entrance, entranceStations: EntranceStationOrder.Any, ambient: false);
         Assert.Equal(0, StationsOf(natural));
         Assert.True(StationsOf(forced) >= 1);
 
         // Through RunStart, the scenario's declaration is what reaches the generator.
-        Assert.True(StationsOf(RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new DemoTerminus())) >= 1);
+        Assert.Equal(2, StationsOf(RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new DemoTerminus())));
         Assert.Equal(0, StationsOf(RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new MainGalaxy())));
+
+        // An order the galaxy or the catalog cannot meet is refused by name, never placed as something else.
+        var badFaction = Assert.Throws<InvalidOperationException>(() => ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, _galaxy,
+            _galaxy.Entrance, new[] { new EntranceStationOrder("Nonesuch", null) }, ambient: false));
+        Assert.Contains("Nonesuch", badFaction.Message);
+        var badKind = Assert.Throws<InvalidOperationException>(() => ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, _galaxy,
+            _galaxy.Entrance, new[] { new EntranceStationOrder(null, "nowhere") }, ambient: false));
+        Assert.Contains("nowhere", badKind.Message);
     }
 
     private int StationsOf(ZonePack pack) =>

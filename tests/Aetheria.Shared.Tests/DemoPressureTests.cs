@@ -17,7 +17,7 @@ public sealed partial class RunStartTests
     private sealed record ZoneRow(int Index, int Jumps, double Depth, DemoPressure.Pressure Asked, int Hostiles, int Friendly, string[] HostileHulls, int[] HostilePrices);
 
     // The demo's own declaration, as RunStart.GenerateArena passes it: the entrance zone gets its station.
-    private static bool DemoEntranceStation => new DemoTerminus().EntranceStation;
+    private static IReadOnlyList<EntranceStationOrder> DemoEntranceStations => new DemoTerminus().EntranceStations;
 
     // Every zone of the demo galaxy as the generator builds it. Hostile means the antagonist's ships, the one cast faction
     // the player is Hated by.
@@ -28,7 +28,7 @@ public sealed partial class RunStartTests
         var antagonist = galaxy.Antagonist;
         return galaxy.Zones.Select((zone, index) =>
         {
-            var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStation);
+            var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStations);
             var ships = pack.Entities.OfType<ShipPack>().ToArray();
             // The boss is the run's goal, placed apart from the pressure.
             var hostile = ships.Where(ship => _cache.Get(ship.Faction) == antagonist && !ship.Boss).ToArray();
@@ -154,11 +154,11 @@ public sealed partial class RunStartTests
             var (galaxy, _, _, _) = Launch(new DemoTerminus(), Inputs(() => seed));
             foreach (var zone in Ring(galaxy))
             {
-                var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStation);
+                var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStations);
                 var hostile = pack.Entities.Where(entity => IsHated(galaxy, entity.Faction)).Select(entity => entity.GetType().Name + ":" + _items.GetData(entity.Hull).Name).ToArray();
                 Assert.True(hostile.Length == 0, $"seed {seed} zone {Array.IndexOf(galaxy.Zones, zone)} (jump {galaxy.Entrance.Distance[zone]}): {string.Join(", ", hostile)}");
             }
-            var entrance = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, galaxy.Entrance, DemoEntranceStation);
+            var entrance = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, galaxy.Entrance, DemoEntranceStations);
             Assert.Contains(entrance.Entities.OfType<OrbitalEntityPack>(), entity => entity.Kind.IsSet());
         }
     }
@@ -180,7 +180,7 @@ public sealed partial class RunStartTests
                 // The depth term itself: where no hostile would be drawn anyway (the curve's own ramp is 0 there), grace is
                 // what moves the antagonist's stations and turrets away, so it is asserted, not left to the generated zone.
                 Assert.True(DemoPressure.InGrace(galaxy, zone), $"seed {seed} zone {Array.IndexOf(galaxy.Zones, zone)} (jump {e}, depth {e / (e + x):0.00}) is not in grace");
-                var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStation);
+                var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStations);
                 var hostile = pack.Entities.Where(entity => IsHated(galaxy, entity.Faction)).Select(entity => entity.GetType().Name + ":" + _items.GetData(entity.Hull).Name).ToArray();
                 Assert.True(hostile.Length == 0, $"seed {seed} zone {Array.IndexOf(galaxy.Zones, zone)} (jump {e}, depth {e / (e + x):0.00}): {string.Join(", ", hostile)}");
             }
@@ -222,10 +222,10 @@ public sealed partial class RunStartTests
         var mid = galaxy.Zones.Where(zone => zone != near && zone != galaxy.Exit && DemoPressure.Of(galaxy, zone).Hostiles > 0)
             .MinBy(zone => Math.Abs(DemoPressure.Depth(galaxy, zone) - .5f));
         Assert.NotNull(mid);
-        var raiders = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, mid, DemoEntranceStation)
+        var raiders = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, mid, DemoEntranceStations)
             .Entities.OfType<ShipPack>().Where(ship => !ship.Boss && _cache.Get(ship.Faction) == zhestokost).ToArray();
         Assert.Equal(DemoPressure.Of(galaxy, mid).Hostiles, raiders.Length);
-        ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, galaxy.Exit, DemoEntranceStation);
+        ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, galaxy.Exit, DemoEntranceStations);
     }
 
     // A galaxy with no gate antagonist keeps the nearest faction's patrol even where BossZones is filled (Main Galaxy's bosses):
@@ -263,7 +263,7 @@ public sealed partial class RunStartTests
         var restored = new Galaxy(_cache, _cache.GetGlobal<SavedGame>(), _ => { });
         Assert.Null(restored.Antagonist);
 
-        string[] Hulls(Galaxy g, int index) => ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, g, g.Zones[index], DemoEntranceStation)
+        string[] Hulls(Galaxy g, int index) => ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, g, g.Zones[index], DemoEntranceStations)
             .Entities.OfType<ShipPack>().Select(ship => _items.GetData(ship.Hull).Name).ToArray();
         var deep = DemoZones(1).Where(row => row.Asked.Hostiles >= 3).ToArray();
         Assert.NotEmpty(deep);
@@ -274,7 +274,7 @@ public sealed partial class RunStartTests
     // adjust edits the generated pack before the arena is built.
     private (Zone arena, Ship player) EnterZone(Galaxy galaxy, GalaxyZone zone, Action<ZonePack> adjust = null)
     {
-        var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStation);
+        var pack = ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, galaxy, zone, DemoEntranceStations);
         adjust?.Invoke(pack);
         var arena = new Zone(_items, _planetSettings, pack, zone, galaxy);
         var failures = new List<string>();
@@ -353,7 +353,7 @@ public sealed partial class RunStartTests
         RunSave.Commit(_cache, game, zones, _items.Lots);
         var restored = new Galaxy(_cache, _cache.GetGlobal<SavedGame>(), _ => { });
 
-        string[] Hulls(Galaxy g, int index) => ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, g, g.Zones[index], DemoEntranceStation)
+        string[] Hulls(Galaxy g, int index) => ZoneGenerator.GenerateZone(_items, _zoneSettings, _planetSettings, g, g.Zones[index], DemoEntranceStations)
             .Entities.OfType<ShipPack>().Select(ship => _items.GetData(ship.Hull).Name).ToArray();
         var deep = DemoZones(1).Where(row => row.Hostiles >= 3).ToArray();
         Assert.NotEmpty(deep);

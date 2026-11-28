@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 // A scenario is one way to set up a new run (docs/scenarios-cut.md, R): a script, compiled with the game, that says
 // which galaxy to generate and what the run starts with. New Game lists them (Scenarios). RunStart runs one: it
 // generates the galaxy through GalaxyStage, the arena under Ambient, and admits what Stage placed through a
@@ -27,9 +30,9 @@ public abstract class Scenario
     // declaration: nothing tests a scenario's type to decide saving.
     public virtual bool Saved => true;
 
-    // True: the arena's zone always gets a generated faction station with a docking bay, whatever its seed rolls
-    // (ZoneGenerator). False: its stations are rolled like any other zone's.
-    public virtual bool EntranceStation => true;
+    // The stations the arena's zone always gets, in slot order after its story stations, whatever its seed rolls
+    // (ZoneGenerator). Empty: its stations are rolled like any other zone's.
+    public virtual IReadOnlyList<EntranceStationOrder> EntranceStations => EntranceStationOrder.Any;
 
     // Which galaxy the run is in: stage.Main() or stage.Cast(cast).
     public abstract Galaxy Generate(GalaxyStage stage);
@@ -44,4 +47,18 @@ public enum ScenarioStance
 {
     Neutral,
     Hostile
+}
+
+// One station a scenario's entrance zone must hold. Faction is a cast name Galaxy.ResolveFaction resolves (null: the zone's
+// structure faction); Kind is a station-kind id, StationKindData.KeyOf (null: StationKinds.Choose picks one).
+public sealed class EntranceStationOrder
+{
+    public string Faction { get; }
+    public string Kind { get; }
+
+    public EntranceStationOrder(string faction, string kind) { Faction = faction; Kind = kind; }
+
+    // One default order: the zone's structure faction, a chosen kind.
+    public static readonly IReadOnlyList<EntranceStationOrder> Any = new[] { new EntranceStationOrder(null, null) };
+    public static readonly IReadOnlyList<EntranceStationOrder> None = Array.Empty<EntranceStationOrder>();
 }

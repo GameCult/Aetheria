@@ -865,7 +865,7 @@ deletes the flag with no behaviour change except where named.
 to its owner:
 - influence halving -> the cast's own `InfluenceScale` (the demo's cast sets .5, so its galaxy is
   unchanged), carried by the Galaxy and the save (key 15) because later zones read it (PR2);
-- the entrance station -> `Scenario.EntranceStation`, a declaration beside `Ambient`, default true,
+- the entrance station -> `Scenario.EntranceStations`, a declaration beside `Ambient`, a list of `EntranceStationOrder` (default one),
   false for MainGalaxy, so every scenario's arena is unchanged; RunStart.GenerateArena applies it;
 - availability -> the general rule of gear-without-presence;
 - the save flag -> deleted (key 11 retired; ruling `no-save-compatibility-before-players`).
@@ -899,7 +899,7 @@ name. Per ruling `no-save-compatibility-before-players` nothing reads key 11.
 | EmojiOne sample | none | Deleted by `emoji-font` | none |
 | Galaxy cast (replaces `TutorialGenerationSettings`) | A scenario's code constant (`DemoTerminus.Cast`) | Compiled with the game; no authored settings copy | The scenario |
 | `Galaxy.InfluenceScale` | Its galaxy | Set by the constructor (the cast's value, 1 for main), saved as `SavedGame` key 15 | The cast |
-| `Scenario.EntranceStation` | Its scenario | Compiled | The scenario; `RunStart` applies it |
+| `Scenario.EntranceStations` | Its scenario | Compiled | The scenario; `RunStart` applies it |
 | `SavedGame` key 11 (`IsTutorial`) | Retired | Not read, not written | none |
 | `Galaxy.IsPrelude`, `TutorialGalaxy`, `TutorialGenerationSettings`, `GameSettings.TutorialGenerationSettings` | Deleted by `retire-prelude` | | none |
 

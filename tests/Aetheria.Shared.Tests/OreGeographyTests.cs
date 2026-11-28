@@ -932,7 +932,7 @@ public sealed class OreGeographyTests : IDisposable
     {
         foreach (var zone in galaxy.Zones.Take(zones))
         {
-            var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, entranceStation: zone == galaxy.Entrance);
+            var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, entranceStations: EntranceStationOrder.Any);
             foreach (var belt in pack.Planets.Select(body => cache.Get(body)).OfType<AsteroidBeltData>())
                 yield return (belt, zone, pack);
         }

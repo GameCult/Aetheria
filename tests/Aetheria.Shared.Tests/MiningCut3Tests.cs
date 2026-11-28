@@ -863,7 +863,7 @@ public sealed partial class MiningCut3Tests : IDisposable
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
             foreach (var zone in galaxy.Zones.Take(4))
             {
-                var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, entranceStation: zone == galaxy.Entrance);
+                var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, entranceStations: EntranceStationOrder.Any);
                 foreach (var body in pack.Planets)
                 {
                     if (!(cache.Get(body) is AsteroidBeltData belt)) continue;
@@ -906,7 +906,7 @@ public sealed partial class MiningCut3Tests : IDisposable
             catch (Exception) { return null; }
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), GameSettings(), _ => { });
             return galaxy.Zones.Take(6).SelectMany(zone =>
-                    ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, entranceStation: zone == galaxy.Entrance)
+                    ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, entranceStations: EntranceStationOrder.Any)
                         .Planets.Select(body => cache.Get(body)).OfType<AsteroidBeltData>().Select(belt => cache.Get(belt.Kind).Name))
                 .ToArray();
         }

@@ -412,7 +412,7 @@ public sealed class StationKindTests : IDisposable
             var galaxy = new Galaxy(TestCasts.Wide,
                 authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"), w.Cache, _ => { }, null, 3);
             var pack = ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, true, true);
+                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, EntranceStationOrder.Any, true);
             Assert.NotEmpty(pack.Entities.OfType<OrbitalEntityPack>());
             return pack.Orbits.Select(orbit => w.Cache.Get(orbit)).Select(orbit => (orbit.Distance, orbit.Phase)).ToArray();
         }
@@ -435,7 +435,7 @@ public sealed class StationKindTests : IDisposable
             var galaxy = new Galaxy(TestCasts.Wide,
                 authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"), w.Cache, _ => { }, null, 3);
             return galaxy.Zones.Take(8).SelectMany(zone => ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-                    authored.Read<PlanetSettings>("PlanetSettings"), galaxy, zone, true, true)
+                    authored.Read<PlanetSettings>("PlanetSettings"), galaxy, zone, EntranceStationOrder.Any, true)
                 .Entities.OfType<OrbitalEntityPack>().Where(e => e.Kind.IsSet()).Select(e => e.Kind.Key.Value)).ToArray();
         }
         var first = Kinds();
@@ -459,7 +459,7 @@ public sealed class StationKindTests : IDisposable
         foreach (var galaxyZone in galaxy.Zones.Take(8))
         {
             var pack = ZoneGenerator.GenerateZone(w.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone, true, true);
+                authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone, EntranceStationOrder.Any, true);
             foreach (var station in pack.Entities.OfType<OrbitalEntityPack>().Where(e => w.HullOf(e).HullType == HullType.Station))
             {
                 stations++;
@@ -530,7 +530,7 @@ public sealed class StationKindTests : IDisposable
         var galaxy = new Galaxy(TestCasts.Wide,
             authored.Read<SectorBackgroundSettings>("CastBackgroundSettings"), world.Cache, _ => { }, null, 5);
         var entrance = ZoneGenerator.GenerateZone(world.Items, authored.Read<ZoneGenerationSettings>("ZoneSettings"),
-            authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, true, true);
+            authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance, EntranceStationOrder.Any, true);
         Assert.Contains(entrance.Entities.OfType<OrbitalEntityPack>(), e => world.HullOf(e).HullType == HullType.Station);
     }
 

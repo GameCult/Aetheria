@@ -64,7 +64,7 @@ public sealed class StationPlacementTests : IDisposable
                 var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
                 tune?.Invoke(zoneSettings);
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone,
-                    true, true);
+                    EntranceStationOrder.Any, true);
                 var zone = new Zone(items, authored.Read<PlanetSettings>("PlanetSettings"), pack, galaxyZone, galaxy);
                 zone.Update(.02f);
                 yield return new Built(seed, zone, items);

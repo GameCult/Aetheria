@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using GameCult.Caching;
 using MessagePack;
 using UniRx;
 using CultMath;
@@ -35,6 +36,8 @@ public static class ZoneGenerator
 
 	private const int MaximumPlacementSamples = 32;
 
+	// entranceStations: the stations the scenario's arena must hold (Scenario.EntranceStations); the orders apply only
+	// when galaxyZone == galaxy.Entrance, null or empty rolls the zone's stations like any other's.
 	// ambient: false keeps the planets, orbits and stations but generates no ship and no turret, so nothing wanders
 	// into a scenario's authored conditions (docs/scenarios-cut.md, 2.1). The rule is applied here, not by pruning.
 	public static ZonePack GenerateZone(
@@ -43,7 +46,7 @@ public static class ZoneGenerator
 		PlanetSettings planetSettings,
 		Galaxy galaxy,
 		GalaxyZone galaxyZone,
-		bool entranceStation = false,
+		IReadOnlyList<EntranceStationOrder> entranceStations = null,
 		bool ambient = true)
 	{
 		var pack = new ZonePack();
@@ -303,12 +306,30 @@ public static class ZoneGenerator
         // Enemy count below is based on this pre-override value, so the entrance station zone doesn't gain an enemy
         // just because its station got forced.
         var baseStationCount = stationCount;
-        // Operator ruling, 2026-09-25 (docs/locomotion-cut.md): a scenario that declares an entrance station
-        // (Scenario.EntranceStation) gets a generated faction station with a docking bay in its entrance zone,
-        // deterministically. A cast galaxy's halved influence and its lowest-influence unowned Entrance otherwise roll
+        // Operator ruling, 2026-09-25 (docs/locomotion-cut.md): a scenario that declares entrance stations
+        // (Scenario.EntranceStations) gets them in its entrance zone, deterministically, one per order after the story
+        // stations. A cast galaxy's halved influence and its lowest-influence unowned Entrance otherwise roll
         // stationCount 0 on every seed. galaxy.Entrance is reference-identity, not a name comparison.
-        var isEntranceStation = entranceStation && galaxyZone == galaxy.Entrance;
-        if (isEntranceStation && stationCount < 1) stationCount = 1;
+        var orders = galaxyZone == galaxy.Entrance && entranceStations != null ? entranceStations : Array.Empty<EntranceStationOrder>();
+        var orderFactions = new Faction[orders.Count];
+        var orderKinds = new CultRecordRef<StationKindData>[orders.Count];
+        for (var o = 0; o < orders.Count; o++)
+        {
+	        if (orders[o].Faction != null)
+	        {
+		        orderFactions[o] = galaxy.ResolveFaction(orders[o].Faction);
+		        if (orderFactions[o] == null || !galaxy.Factions.Contains(orderFactions[o]))
+			        throw new InvalidOperationException($"Entrance station order faction {orders[o].Faction} is not in the galaxy.");
+	        }
+	        if (orders[o].Kind != null)
+	        {
+		        orderKinds[o] = new CultRecordRef<StationKindData>(StationKindData.KeyOf(orders[o].Kind));
+		        if (cache.Get(orderKinds[o]) == null)
+			        throw new InvalidOperationException($"Entrance station order kind {orders[o].Kind} is not in the catalog.");
+	        }
+        }
+        var required = storyStations.Length + orders.Count;
+        if (orders.Count > 0 && stationCount < required) stationCount = required;
         // A station's source is a well-bearing body alone on its ring whose rail clears every massive sibling's extent (the
         // sibling's support, or its Roche margin if more) and the largest reach of any station or turret hull: whatever hull
         // is built there, its Lagrange orbit then sits clear of any other body.
@@ -324,21 +345,29 @@ public static class ZoneGenerator
         // (the rail, how far a body on it keeps others out, whether it is a station's own orbit rather than a base's)
         var sources = candidates.Skip(candidates.Length / 2).Take(stationCount)
 	        .Select(p => (orbit: orbitMap[p], extent: Extent(p), direct: false)).ToArray();
-        if (isEntranceStation && candidates.Length == 0)
+        if (orders.Count > 0 && sources.Length < required)
         {
-	        // The entrance gets a station whatever its bodies: it orbits a root node beyond its ring group (or, for a body, its
-	        // whole family), never at a ring member's distance, and sits there, not at a Lagrange point.
+	        // An order the rails cannot seat orbits a root node beyond its ring group (or, for a body, its whole family), never at
+	        // a ring member's distance, and sits there, not at a Lagrange point. The shortfall shares the first one's phase
+	        // (drawn once) spread evenly round the turn.
 	        var roots = planets.Where(p => p.Parent == null).ToList();
 	        var rootNode = roots.FirstOrDefault(p => p.Children.Count > 0) ?? (roots.Count > 1 ? roots.OrderByDescending(p => p.Mass).First() : null);
 	        if (rootNode == null)
 		        throw new InvalidOperationException(
-			        "The entrance station zone must always get a station, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
+			        "The entrance station zone must always get its stations, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
 	        var distance = rootNode.Empty
 		        ? (1 + GravityField.RingReach) * GravityField.Beta * rootNode.Children.Where(Massive).Min(c => c.Distance)
 		        : Extent(rootNode);
-	        var direct = new OrbitData { Parent = cache.RefOf(orbitMap[rootNode]), Distance = distance, Phase = random.NextFloat() };
-	        pack.Orbits.Add(cache.Upsert(direct));
-	        sources = new[] { (orbit: direct, extent: float.NegativeInfinity, direct: true) };
+	        var shortfall = required - sources.Length;
+	        var phase = random.NextFloat();
+	        var withDirect = sources.ToList();
+	        for (var k = 0; k < shortfall; k++)
+	        {
+		        var direct = new OrbitData { Parent = cache.RefOf(orbitMap[rootNode]), Distance = distance, Phase = phase + (float) k / shortfall };
+		        pack.Orbits.Add(cache.Upsert(direct));
+		        withDirect.Add((orbit: direct, extent: float.NegativeInfinity, direct: true));
+	        }
+	        sources = withDirect.ToArray();
         }
         var selectedStationOrbits = sources.Select(x => x.orbit).ToArray();
         var extentOf = sources.ToDictionary(x => x.orbit, x => x.extent);
@@ -446,14 +475,19 @@ public static class ZoneGenerator
 	        var orbit = selectedStationOrbits[i];
 	        var security = (SecurityLevel) ((int) ((1f - pow(random.NextFloat(), factionPresence / 2f)) * 3f));
 
+	        var slot = i - storyStations.Length;
+	        var isOrder = slot < orders.Count;
+	        var slotFaction = isOrder && orderFactions[slot] != null ? orderFactions[slot] : structureFaction;
+	        var slotKind = isOrder && orders[slot].Kind != null
+		        ? orderKinds[slot]
+		        : StationKinds.Choose(cache, slotFaction, $"{seed}:station:{i}", itemManager.Log);
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
-	        var station = GetLoadoutGenerator(structureFaction).GenerateStationLoadout(
-		        StationKinds.Choose(cache, structureFaction, $"{seed}:station:{i}", itemManager.Log));
+	        var station = GetLoadoutGenerator(slotFaction).GenerateStationLoadout(slotKind);
 	        if (station == null)
 	        {
-		        if (isEntranceStation)
+		        if (isOrder)
 			        throw new InvalidOperationException(
-				        $"The entrance station zone must always get a station, but {structureFaction?.Name} has no station loadout to generate.");
+				        $"The entrance station order for {slotFaction?.Name} ({slotKind.Key}) must always get a station, but it has no station loadout to generate.");
 		        continue;
 	        }
 	        station.Orbit = cache.RefOf(lagrangeOrbit);
@@ -461,7 +495,7 @@ public static class ZoneGenerator
 	        station.SecurityRadius = pack.Radius;
 	        pack.Entities.Add(station);
 
-	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(structureFaction), 2, StationReach(station), orbit);
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(slotFaction), 2, StationReach(station), orbit);
         }
 
         // A boss zone gets its faction's boss whether or not the zone is ambient: the boss is the run's goal, not

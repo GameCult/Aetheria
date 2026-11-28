@@ -10,7 +10,7 @@ using UniRx;
 using Xunit;
 
 // The demo loop on the shipped catalog (aetheria-release, mining 5a): the player's own gun breaks a rock
-// through the trigger, the ore lands in the hold, the Pirates' one station (a depot stand-in, so the Arsenal Depot hull) buys it, repairs the hull and sells a unit back.
+// through the trigger, the ore lands in the hold, the Pirates' refinery buys it and repairs the hull, and Zenith, Aeronautics Unlimited's trade hub, sells a unit back.
 public sealed partial class RunStartTests
 {
     [Fact]
@@ -56,12 +56,13 @@ public sealed partial class RunStartTests
         Assert.All(gains, gain => Assert.Equal((GainKind.Mined, 0), (gain.Kind, gain.Adrift)));
         Assert.Equal(held.Sum(h => h.stack.Quantity), gains.Sum(gain => gain.Stored));
 
-        var zenith = arena.Entities.Single(entity => entity.HullData.HullType == HullType.Station);
+        var refinery = StationOfKind(arena, "processing");
+        var zenith = StationOfKind(arena, "trade-hub");
         var credits = 0;
-        // Every mined stack goes in one sale: the market takes it all, whatever the full hold of Zenith has room for.
+        // Every mined stack goes in one sale: the market takes it all, whatever the full hold of the refinery has room for.
         var value = StationServices.OreValue(_items, player.CargoBays);
         Assert.True(value > 0);
-        Assert.Equal(gains.Sum(gain => gain.Stored), StationServices.TrySellOre(player.CargoBays, zenith, ref credits));
+        Assert.Equal(gains.Sum(gain => gain.Stored), StationServices.TrySellOre(player.CargoBays, refinery, ref credits));
         Assert.Equal(value, credits);
         Assert.DoesNotContain(player.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<SimpleCommodity>()), c => ores.Contains(_items.GetData(c).Name));
 
@@ -76,11 +77,11 @@ public sealed partial class RunStartTests
         Assert.Equal(paid, credits);
         Assert.Equal(player.MaxArmor[cell.x, cell.y], player.Armor[cell.x, cell.y]);
 
-        // Zenith's whole stock is one 16-cell reactor, which fits only an empty 4x4: the player jettisons what the hold
-        // still carries, then buys it.
+        // Zenith's smallest piece may need an empty hold: the player jettisons what the hold still carries, then buys it.
         var hold = player.CargoBays[0];
         foreach (var leftover in hold.Cargo.Keys.ToArray()) hold.Remove(leftover);
-        var stock = zenith.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<CraftedItemInstance>().Select(piece => (bay, piece))).Single();
+        var stock = zenith.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<CraftedItemInstance>().Select(piece => (bay, piece)))
+            .MinBy(held => _items.GetData(held.piece).Shape.Cells.Cast<bool>().Count(occupied => occupied));
         credits = StationServices.BuyPrice(_items, stock.piece);
         Assert.Equal(BuyResult.Bought, StationServices.TryBuy(_items, stock.piece, 1, ref credits,
             () => stock.bay.TryTransferItem(hold, stock.piece, 1)));
@@ -98,6 +99,10 @@ public sealed partial class RunStartTests
     // design-bills (V 282.149, repair 55404, cheapest authored price 15500), and the band is 1/sqrt(10) to sqrt(10) of each, the
     // geometric midpoint between the shipped reading and the least mutant this test claims to catch (a divisor of ten on either side, a
     // ratio of 10 or 0.1): the shipped reading and that mutant each sit 3.16x from a bound.
+    // The one station of a kind in the arena: the demo's two stations are told apart by what they are for, never by hull.
+    private static OrbitalEntity StationOfKind(Zone arena, string kind) =>
+        arena.Entities.OfType<OrbitalEntity>().Single(entity => entity.Kind.Key.Equals(StationKindData.KeyOf(kind)));
+
     private const double BaseRepairRatio = 0.0050925, BaseBuyRatio = 0.018203;
     private static readonly double Margin = Math.Sqrt(10);
 
@@ -116,7 +121,7 @@ public sealed partial class RunStartTests
             for (var y = 0; y < player.MaxArmor.GetLength(1); y++)
                 player.Armor[x, y] = 0;
         var repair = StationServices.RepairCost(_items, player);
-        var zenith = arena.Entities.Single(entity => entity.HullData.HullType == HullType.Station);
+        var zenith = StationOfKind(arena, "trade-hub");
         var cheapest = zenith.CargoBays.SelectMany(bay => bay.Cargo.Keys.OfType<CraftedItemInstance>()).Min(piece => _items.GetData(piece).Price);
         Assert.True(repair > 0 && cheapest > 0);
 

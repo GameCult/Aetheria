@@ -256,7 +256,7 @@ public sealed class OrbitsFromFieldTests : IDisposable
                 cache, _ => { }, null, seed);
             var items = new ItemManager(1u, cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
             var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxy.Entrance,
-                true, false);
+                EntranceStationOrder.Any, false);
             var zone = new Zone(items, authored.Read<PlanetSettings>("PlanetSettings"), pack, galaxy.Entrance, galaxy);
 
             var hosting = zone.Planets.Values.Select(body => body.Orbit.Key).ToHashSet();
