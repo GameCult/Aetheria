@@ -58,12 +58,15 @@ public sealed class PilotCommand
     internal TargetVerb TargetVerb;
     // The step's give verb: a Give, or a stop when its Receiver is null. The last one in a step wins.
     internal (Entity Receiver, ItemInstance Item, int Quantity)? GiveVerb;
+    // The step's call on a station (HaulRun.Call): a one-shot a hauler's pilot commands.
+    internal Entity CallVerb;
     internal int AimCycles;
     internal int ShutdownOverrideToggles, HeatsinkToggles, ShieldToggles, Pings;
 
     public void Designate(TargetRef target) => Designations.Add(target);
     public void SelectItem(EquippedItem item) => Selections.Add(item);
     public void Hail(string message) => Hails.Add(message);
+    public void Call(Entity station) => CallVerb = station;
     public void Use(ConsumableItemData consumable) => Uses.Add(consumable);
     public void Pull(ActivatedBehavior behavior) => Triggers.Add((behavior, true));
     public void Release(ActivatedBehavior behavior) => Triggers.Add((behavior, false));
@@ -120,6 +123,7 @@ public sealed class PilotCommand
         Iffs.Clear();
         TargetVerb = TargetVerb.None;
         GiveVerb = null;
+        CallVerb = null;
         AimCycles = 0;
         ShutdownOverrideToggles = HeatsinkToggles = ShieldToggles = Pings = 0;
     }
@@ -161,6 +165,7 @@ public static class PilotApplier
             if (give.Receiver == null) CargoTransfer.End(entity, GiveEnd.Stopped);
             else if (!ReferenceEquals(give.Receiver, entity)) CargoTransfer.Begin(entity, new GiveOrder(give.Receiver, give.Item, give.Quantity));
         }
+        if (command.CallVerb is Entity station && entity is Ship caller) HaulRun.Call(caller, station);
         if (command.Aim is float3 aim) entity.Aim = aim;
         foreach (var (behavior, pull) in command.Triggers)
             if (pull) behavior.Activate();

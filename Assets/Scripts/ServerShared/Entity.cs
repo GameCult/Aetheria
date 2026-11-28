@@ -1765,7 +1765,7 @@ public abstract class Entity
         return bay;
     }
 
-    public bool TryUndock(Ship ship)
+    public bool TryUndock(Ship ship, bool piloted = false)
     {
         var bay = DockingBays.FirstOrDefault(x => x.DockedShip == ship);
         if (bay == null)
@@ -1779,7 +1779,7 @@ public abstract class Entity
 
         bay.DockedShip = null;
         ship.RemoveParent();
-        Zone.Admit(ship, piloted: false);
+        Zone.Admit(ship, piloted);
 
         return true;
     }

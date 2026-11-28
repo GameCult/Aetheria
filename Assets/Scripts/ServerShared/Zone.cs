@@ -327,7 +327,7 @@ public class Zone
             _flights[key] = flight = new Flight(ship.Faction?.Doctrine, _itemManager.GameplaySettings);
         var id = NextAgentId();
         var agent = new Minion(ship, flight.Combatant) { Id = id };
-        flight.Join(agent, stated ?? PatrolCircuit(id));
+        flight.Join(agent, stated ?? (AgentTask) HaulRun.TaskOf(ship) ?? PatrolCircuit(id));
         return agent;
     }
 
