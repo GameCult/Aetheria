@@ -146,23 +146,6 @@ def _refuse(operator, exc):
     return {"CANCELLED"}
 
 
-class AETHERIA_OT_load_layout(bpy.types.Operator):
-    bl_idname = "aetheria.load_ship_layout"
-    bl_label = "Load Ship Layout"
-    bl_options = {"REGISTER"}
-
-    def execute(self, context):
-        try:
-            collection, path = _layout_path(context)
-            if collection.get("aetheria.pending"):
-                raise ValueError("Not saved yet; Save Layout creates it")
-            width, height, count = _load_layout(context, collection, path)
-            self.report({"INFO"}, f"Loaded {width}x{height} layout and {count} hardpoints")
-            return {"FINISHED"}
-        except _EXPECTED as exc:
-            return _refuse(self, exc)
-
-
 class AETHERIA_OT_resize_layout(bpy.types.Operator):
     bl_idname = "aetheria.resize_ship_layout"
     bl_label = "Resize Grid"
@@ -403,67 +386,6 @@ def _layout_section(state):
             "hardpoints": rows}
 
 
-def _save_layout(context, collection, state):
-    """The one writer of the .cc layout: writes the layout buffer, creating the file first when the ship is pending. A
-    failure after the file was created removes what this save made. Returns the hardpoint count."""
-    if not collection.get("aetheria.ship_cc"):
-        raise ValueError("The ship collection has no bound .cc path")
-    path = bpy.path.abspath(collection["aetheria.ship_cc"])
-    ship_id = collection["aetheria.id"]
-    if state.ship_id != ship_id or state.ship_cc != path:
-        raise ValueError("Load this collection's layout before saving")
-    layout = _layout_section(state)
-    pending = collection.get("aetheria.pending")
-    folder = Path(path).parent
-    if pending and Path(path).exists():
-        raise ValueError("A ship file already exists at the bound path (Ctrl+Z past a first Save leaves it there); "
-                         "use Bind Ship Collection with that ship.cc, then Load Layout")
-    made_folder = bool(pending) and not folder.exists()
-    try:
-        if pending:
-            code, output = _aetherdb(context, "create", path, ship_id, pending[0], "--like", pending[1], ship_cc=path)
-            if output:
-                print(output)
-            if code != 0:
-                raise RuntimeError("AetherDb refused to create the ship; its message is in the system console")
-            versions = _open(context, path)["versions"]
-        else:
-            if not state.versions:
-                raise ValueError("Load this collection's layout before saving")
-            versions = json.loads(state.versions)
-        outcome = _push(context, path, {"ship": ship_id, "versions": versions, "layout": layout}, apply=True)
-    except Exception:
-        if pending:
-            Path(path).unlink(missing_ok=True)
-            if made_folder:
-                shutil.rmtree(folder, ignore_errors=True)
-        raise
-    state.versions = json.dumps(outcome["versions"])
-    # The store minted an element id for every row made here: take them, so the next push names these rows, not new ones.
-    elements = {row["mount"]: row["element"] for row in _open(context, path)["layout"]["hardpoints"]}
-    for hp in state.hardpoints:
-        hp.element = elements[hp.mount_id]
-    if pending:
-        del collection["aetheria.pending"]
-    _redraw_grid(collection, state)
-    return len(layout["hardpoints"])
-
-
-class AETHERIA_OT_save_layout(bpy.types.Operator):
-    bl_idname = "aetheria.save_ship_layout"
-    bl_label = "Save Layout to .cc"
-    bl_options = {"REGISTER"}
-
-    def execute(self, context):
-        try:
-            collection, _ = _layout_path(context)
-            count = _save_layout(context, collection, context.scene.aetheria_layout)
-            self.report({"INFO"}, f"Saved the layout and {count} hardpoints")
-            return {"FINISHED"}
-        except _EXPECTED as exc:
-            return _refuse(self, exc)
-
-
 def _is_ship(collection):
     return collection.get("aetheria.asset_kind") == "ship"
 
@@ -513,25 +435,6 @@ def _bind_collection(collection, path, ship_id, pending=None):
             elif key in collection:
                 del collection[key]
         raise
-
-
-class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
-    bl_idname = "aetheria.bind_ship_collection"
-    bl_label = "Bind Ship Collection"
-    bl_description = "Bind the active collection to one typed ship .cc record"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        try:
-            if not context.scene.aetheria_ship_cc_path:
-                raise ValueError("Choose an existing ship authoring .cc file")
-            path = bpy.path.abspath(context.scene.aetheria_ship_cc_path)
-            collection = _ship_collection(context, unbound_ok=True)
-            _bind_collection(collection, path, _open(context, path)["ship"])
-            self.report({"INFO"}, "Bound the ship collection")
-            return {"FINISHED"}
-        except _EXPECTED as exc:
-            return _refuse(self, exc)
 
 
 class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
@@ -1855,7 +1758,6 @@ class AETHERIA_PT_ship(bpy.types.Panel):
             new.prop(context.scene, prop)
         new.operator("aetheria.new_ship", icon="ADD")
         layout.prop(context.scene, "aetheria_ship_cc_path")
-        layout.operator("aetheria.bind_ship_collection", icon="LINKED")
         layout.prop(context.scene, "aetheria_capture_evaluated_lines")
         obj = context.active_object
         layout.label(text=f"Source: {obj.name if obj else '(none)'}")
@@ -1874,7 +1776,6 @@ class AETHERIA_PT_ship(bpy.types.Panel):
 
         layout.separator()
         row = layout.row(align=True)
-        row.operator("aetheria.load_ship_layout", icon="IMPORT")
         row.operator("aetheria.flip_nose", icon="LOOP_BACK")
         row.operator("aetheria.rasterise_hull", icon="MESH_GRID")
         layout.operator("aetheria.bake_from_source", icon="RENDER_RESULT")
@@ -1928,7 +1829,6 @@ class AETHERIA_PT_ship(bpy.types.Panel):
         mount_box.operator("aetheria.add_ship_muzzle", icon="ADD")
         mount_box.operator("aetheria.mirror_ship_mount", icon="MOD_MIRROR")
         mount_box.operator("aetheria.remove_ship_mount", icon="X")
-        layout.operator("aetheria.save_ship_layout", icon="FILE_TICK")
         self._draw_package(context, layout)
 
     @staticmethod
@@ -1952,10 +1852,9 @@ class AETHERIA_PT_ship(bpy.types.Panel):
 
 
 classes = (AETHERIA_PG_cell, AETHERIA_PG_hardpoint, AETHERIA_PG_layout,
-           AETHERIA_OT_load_layout, AETHERIA_OT_resize_layout,
+           AETHERIA_OT_resize_layout,
            AETHERIA_OT_add_hardpoint, AETHERIA_OT_remove_hardpoint,
            AETHERIA_OT_add_weapon, AETHERIA_OT_add_muzzle, AETHERIA_OT_mirror_mount, AETHERIA_OT_remove_mount,
-           AETHERIA_OT_save_layout, AETHERIA_OT_bind_ship_collection,
            AETHERIA_OT_capture_ship_lines, AETHERIA_OT_new_ship, AETHERIA_OT_flip_nose,
              AETHERIA_OT_bake_from_source,
            AETHERIA_OT_rasterise_hull, AETHERIA_OT_build_hull_source, AETHERIA_OT_package_ship,
