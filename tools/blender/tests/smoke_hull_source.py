@@ -347,14 +347,14 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     # Schematic lines: Build's, else hers, and never two of hers.
     packaged = ship_lines(ship_cc)
     require(packaged and packaged[0]["layer"] == "silhouette" and packaged[0]["cyclic"] is True, f"The first line is not the silhouette: {packaged[:1]}")
-    kit = [row for row in packaged if row[0] != "silhouette"]
-    drawn = [row[0] for row in packaged]
+    kit = [row for row in packaged if row["layer"] != "silhouette"]
+    drawn = [row["layer"] for row in packaged]
     require(drawn[:len(packaged) - len(kit)] == ["silhouette"] * (len(packaged) - len(kit)), "The silhouette contours are not first")
-    require(all(row[3] is None and row[4] is None and row[1] == "" for row in packaged),
+    require(all(row["radii"] is None and row["opacities"] is None and row["material"] == "" for row in packaged),
             "A kit line row is not shaped as Package writes it")
     require(bool(kit) == (fixture == "zh-ammo-tender"), f"The kit drew {len(kit)} lines for {fixture}")
-    require(all(approx(row[6], hull_source.LINE_STYLE[row[0]]) for row in packaged), "A line lost its style")
-    shipped_z = {round(c, 3) for row in packaged for c in row[2][2::3]}
+    require(all(approx(row["color"], hull_source.LINE_STYLE[row["layer"]]) for row in packaged), "A line lost its style")
+    shipped_z = {round(c, 3) for row in packaged for c in row["points"][2::3]}
     require(len(shipped_z) >= 1, "The lines have no height")
     pencil = grease_pencil(collection, "her lines", [(0, 0, 0), (1, 0, 0), (1, 1, 0)])
     select(box)
