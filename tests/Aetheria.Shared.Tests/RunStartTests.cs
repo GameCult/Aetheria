@@ -311,7 +311,10 @@ public sealed partial class RunStartTests : IDisposable
             .OrderBy(design => design.Shape.Coordinates.Length).ThenBy(design => design.Name, StringComparer.Ordinal).First();
         var shape = new Shape(bay.Shape.Width + 2, bay.Shape.Height + 2);
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
-        var cramped = new HullData { Name = "Cramped Station", HullType = HullType.Station, Kind = TestStationKinds.TradeHub, Shape = shape, Durability = 100, Mass = 1000, Price = 1 };
+        // A kind with no facilities: the shipped trade hub now seats a silo, which a hull this small has no Facility row for.
+        var bare = new CultRecordRef<StationKindData>(StationKindData.KeyOf("cramped"));
+        _cache.Commit(batch => batch.Upsert(typeof(StationKindData), new StationKindData { Name = "Cramped" }, bare.Key));
+        var cramped = new HullData { Name = "Cramped Station", HullType = HullType.Station, Kind = bare, Shape = shape, Durability = 100, Mass = 1000, Price = 1 };
         _cache.Upsert(cramped);
         _cache.Upsert(new FactionProductData
         {
@@ -321,7 +324,7 @@ public sealed partial class RunStartTests : IDisposable
             hull.Price = 0; // generation offers no zero-price design, so the cramped hull is the only station
         var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
 
-        var failure = Assert.Throws<InvalidLoadoutException>(() => generator.GenerateStationLoadout(TestStationKinds.TradeHub));
+        var failure = Assert.Throws<InvalidLoadoutException>(() => generator.GenerateStationLoadout(bare));
         Assert.Contains("heater", failure.Message);
     }
 

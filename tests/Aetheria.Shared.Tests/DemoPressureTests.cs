@@ -278,7 +278,16 @@ public sealed partial class RunStartTests
         adjust?.Invoke(pack);
         var arena = new Zone(_items, _planetSettings, pack, zone, galaxy);
         var failures = new List<string>();
-        var staged = RunStart.Stage(_items, arena, new DemoTerminus(), _startingHull, failures);
+        // The demo's player and stances, without its entrance's haul order: a ring arena holds no Zenith or refinery to order between.
+        var staged = RunStart.Stage(_items, arena, new Scripted(false, stage =>
+        {
+            stage.Galaxy.FactionRelationships[stage.Galaxy.ResolveFaction(DemoTerminus.Cast.ProtagonistFaction)] = FactionRelationship.Friendly;
+            stage.Galaxy.FactionRelationships[stage.Galaxy.ResolveFaction(DemoTerminus.Cast.AntagonistFaction)] = FactionRelationship.Hated;
+            stage.Galaxy.FactionRelationships[stage.Galaxy.ResolveFaction(DemoTerminus.Cast.BufferFaction)] = FactionRelationship.Neutral;
+            foreach (var neutral in DemoTerminus.Cast.NeutralFactions)
+                stage.Galaxy.FactionRelationships[stage.Galaxy.ResolveFaction(neutral)] = FactionRelationship.Neutral;
+            stage.Player(stage.Generated("Longinus"), float2.zero);
+        }), _startingHull, failures);
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         arena.Update(0);
         return (arena, staged.Player);
