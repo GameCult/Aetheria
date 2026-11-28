@@ -237,7 +237,7 @@ public sealed class CompoundStackTests : IDisposable
         Assert.True(from.TryStore(stack));
         var station = Station();
         var credits = 100;
-        Assert.Equal(3, StationServices.TrySellPart(from, station, stack, ref credits));
+        Assert.Equal(3, StationServices.TrySellPart(from, station, stack, ref credits).Sold);
         Assert.Equal(100 + Pays(3), credits);
         Assert.Empty(from.Cargo);
         Assert.Equal(3, station.CargoBays[0].Count(_cache.RefOf<ItemData>(_gem).Key));
@@ -249,7 +249,7 @@ public sealed class CompoundStackTests : IDisposable
         var hold = station.CargoBays[0];
         while (hold.TryStore(Mint("Gun"))) { }
         credits = 0;
-        Assert.Equal(1, StationServices.TrySellPart(from, station, second, ref credits));
+        Assert.Equal(1, StationServices.TrySellPart(from, station, second, ref credits).Sold);
         Assert.Equal(Pays(1), credits);
         Assert.Equal(2, second.Quantity);
         Assert.Contains(second, from.Cargo.Keys);
@@ -259,7 +259,7 @@ public sealed class CompoundStackTests : IDisposable
 
         // Full bay: nothing moves and nothing is paid.
         credits = 0;
-        Assert.Equal(0, StationServices.TrySellPart(from, station, second, ref credits));
+        Assert.Equal(0, StationServices.TrySellPart(from, station, second, ref credits).Sold);
         Assert.Throws<ArgumentException>(() => StationServices.TrySell(from, station, second, ref credits));
         Assert.Equal(0, credits);
         Assert.Equal(2, second.Quantity);
@@ -445,7 +445,7 @@ public sealed class CompoundStackTests : IDisposable
         var units = crate.Count(key) + pocket.Count(key) + from.Count(key);
         var credits = 0;
 
-        Assert.Equal(3, StationServices.TrySellPart(from, station, stack, ref credits));
+        Assert.Equal(3, StationServices.TrySellPart(from, station, stack, ref credits).Sold);
 
         Assert.Equal(Pays(2) + Pays(1), credits);
         Assert.Equal((4, 4, 1), (inCrate.Quantity, inPocket.Quantity, stack.Quantity));
@@ -461,7 +461,7 @@ public sealed class CompoundStackTests : IDisposable
         var station = Station();
         var elsewhere = Gem(_lotA, 3);
         var credits = 5;
-        Assert.Equal(0, StationServices.TrySellPart(from, station, elsewhere, ref credits));
+        Assert.Equal(0, StationServices.TrySellPart(from, station, elsewhere, ref credits).Sold);
         Assert.Equal(5, credits);
         Assert.Equal(3, elsewhere.Quantity);
         Assert.Empty(station.CargoBays[0].Cargo);

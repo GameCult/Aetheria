@@ -99,38 +99,31 @@ public static class StationServices
     public static int BuyableQuantity(ItemManager items, ItemInstance stock, int typed, int credits) =>
         Math.Max(1, Math.Min(Math.Min(typed, credits / BuyPrice(items, stock)), stock is ICommodityStack stack ? stack.Quantity : 1));
 
-    // The sale: the item leaves the bay and the station pays SellPrice. A crafted item goes to one of the station's
-    // cargo bays; false, with the item in its bay and the credits unchanged, when no bay can take it. A simple
-    // commodity always sells (aetheria-release:ruling:station-market-absorbs-sold-commodity, retired for every good by
-    // aetheria-living-world:ruling:no-market-absorption; a separate station-outflow cut removes this path): the bays take
-    // as much of the stack as fits and the market absorbs the rest, at the full price. A compound stack sells only
-    // by TrySellPart: only what the bays take.
+    // The sale of a crafted item: it leaves the bay and the station pays SellPrice, into one of the station's cargo bays;
+    // false, with the item in its bay and the credits unchanged, when no bay can take it. A commodity stack sells by
+    // TrySellPart, which says how many units sold and why not more (aetheria-living-world:ruling:no-market-absorption: no
+    // unit is paid for that no bay took). The crafted branch is ungated: follow-up gear-sale-by-answer gates it once the
+    // operator answers question gear-resale-under-installed-gear.
     public static bool TrySell(EquippedCargoBay from, Entity station, ItemInstance item, ref int credits)
     {
-        if (item is CompoundCommodity)
-            throw new ArgumentException("A compound stack sells through TrySellPart, which says how many units sold.", nameof(item));
+        if (item is ICommodityStack)
+            throw new ArgumentException("A commodity stack sells through TrySellPart, which says how many units sold.", nameof(item));
         var price = SellPrice(station.ItemManager, item);
-        if (item is SimpleCommodity commodity)
-        {
-            if (!from.Cargo.ContainsKey(item)) return false;
-            var offered = commodity.Quantity;
-            for (var quantity = offered; quantity >= 1; quantity--)
-                if (station.CargoBays.Any(bay => from.TryTransferItem(bay, item, quantity))) break;
-            if (from.Cargo.ContainsKey(item)) from.Remove(item, commodity.Quantity);
-        }
-        else if (!station.CargoBays.Any(bay => from.TryTransferItem(bay, item, 1))) return false;
+        if (!station.CargoBays.Any(bay => from.TryTransferItem(bay, item, 1))) return false;
         credits += price;
         return true;
     }
 
-    // The sale of a compound stack (aetheria-living-world:ruling:no-market-absorption): the station's bays take what they
-    // can hold, the station pays SellPrice for those units alone, and the rest stays in the seller's hold. Returns the
-    // units sold; zero, with nothing moved and the credits unchanged, when no bay has room for one.
-    public static int TrySellPart(EquippedCargoBay from, Entity station, CompoundCommodity stack, ref int credits)
+    // The sale of a commodity stack (aetheria-living-world:ruling:no-market-absorption): the station's bays take what they
+    // can hold, the station pays SellPrice for those units alone, and the rest stays in the seller's hold. Sold units are
+    // moved, never absorbed.
+    public static SaleResult TrySellPart(EquippedCargoBay from, Entity station, ICommodityStack stack, ref int credits)
     {
-        if (!from.Cargo.ContainsKey(stack)) return 0;
+        var item = (ItemInstance) stack;
+        var offered = stack.Quantity;
+        if (!from.Cargo.ContainsKey(item)) return new SaleResult(0, offered, SaleRefusal.None);
         var sold = 0;
-        var remaining = stack.Quantity;
+        var remaining = offered;
         while (remaining > 0)
         {
             var moved = 0;
@@ -138,14 +131,14 @@ public static class StationServices
             {
                 var q = quantity;
                 var part = stack.Split(q);
-                if (station.CargoBays.Any(bay => from.TryTransferItem(bay, stack, q))) moved = q;
+                if (station.CargoBays.Any(bay => from.TryTransferItem(bay, item, q))) moved = q;
                 credits += moved > 0 ? SellPrice(station.ItemManager, part) : 0;
             }
             if (moved == 0) break;
             sold += moved;
             remaining -= moved;
         }
-        return sold;
+        return new SaleResult(sold, offered, sold < offered ? SaleRefusal.NoRoom : SaleRefusal.None);
     }
 
     // The ore stacks of the bays are the stacks of any design a field kind yields, mined, bought or looted alike (ruling
@@ -157,19 +150,22 @@ public static class StationServices
     public static int OreValue(ItemManager items, IEnumerable<EquippedCargoBay> bays) =>
         (int) Math.Min(OreStacks(items, bays).Sum(stack => (long) SellPrice(items, stack)), int.MaxValue);
 
-    // Sells every ore stack of the bays, each through TrySell, so the market's absorb rule and the price are the
-    // single-stack path's. Returns the units sold.
-    public static int TrySellOre(IEnumerable<EquippedCargoBay> bays, Entity station, ref int credits)
+    // Sells every ore stack of the bays, each through TrySellPart, so the price and the room rule are the single-stack
+    // path's. Returns the units sold and offered, with the last refusal.
+    public static SaleResult TrySellOre(IEnumerable<EquippedCargoBay> bays, Entity station, ref int credits)
     {
         var bayList = bays.ToArray();
-        var units = 0;
+        int sold = 0, offered = 0;
+        var refusal = SaleRefusal.None;
         foreach (var stack in OreStacks(station.ItemManager, bayList))
         {
-            var quantity = ((SimpleCommodity) stack).Quantity;
             var from = bayList.First(bay => bay.Cargo.ContainsKey(stack));
-            if (TrySell(from, station, stack, ref credits)) units += quantity;
+            var result = TrySellPart(from, station, (ICommodityStack) stack, ref credits);
+            sold += result.Sold;
+            offered += result.Offered;
+            if (result.Refusal != SaleRefusal.None) refusal = result.Refusal;
         }
-        return units;
+        return new SaleResult(sold, offered, refusal);
     }
 
     // The repair: armour and every durability go back to design and the station charges RepairCost. False, with
@@ -219,3 +215,21 @@ public static class StationServices
 }
 
 public enum BuyResult { Bought, ShortOfCredits, NoRoom }
+
+// Why a commodity sale moved fewer units than it offered: the station does not buy the good, or its bays are full.
+public enum SaleRefusal { None, NotWanted, NoRoom }
+
+// A commodity sale: the units sold, the units offered, and why the rest stayed.
+public readonly struct SaleResult
+{
+    public readonly int Sold;
+    public readonly int Offered;
+    public readonly SaleRefusal Refusal;
+
+    public SaleResult(int sold, int offered, SaleRefusal refusal)
+    {
+        Sold = sold;
+        Offered = offered;
+        Refusal = refusal;
+    }
+}
