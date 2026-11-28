@@ -342,6 +342,8 @@ public class ZoneRenderer : MonoBehaviour
         _clouds.Add(cloud, instance);
     }
 
+    private const string BeaconChildName = "Anchor Beacon";
+
     public void AddWormhole(Wormhole wormhole)
     {
         var instance = Instantiate(WormholePrefab);
@@ -349,6 +351,10 @@ public class ZoneRenderer : MonoBehaviour
         // Its local +z points away from the zone centre, so the beacon prefab child stands beyond the wormhole.
         if (wormhole.Position.x != 0 || wormhole.Position.y != 0)
             instance.rotation = Quaternion.LookRotation(new Vector3(wormhole.Position.x, 0, wormhole.Position.y));
+        // The prefab ships the beacon inactive so menu dressing instances stay bare; a zone wormhole turns it on.
+        var beacon = instance.Find(BeaconChildName);
+        if (beacon == null) throw new InvalidOperationException($"Wormhole prefab has no '{BeaconChildName}' child");
+        beacon.gameObject.SetActive(true);
         var icon = CompassIconPrototype.Instantiate<CompassIcon>();
         icon.Icon.sprite = WormholeIcon;
         WormholeInstances.Add(wormhole, (instance.gameObject, icon));
