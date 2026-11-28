@@ -46,10 +46,14 @@ public sealed class FacilitiesBatchTests : IDisposable
         foreach (var recipe in recipes)
         {
             var kind = cache.Get(recipe.StationKind);
-            var facility = Assert.Single(kind.Facilities);
+            // A kind's recipe facility comes first; the silo follows only on a kind the silo lists (facility-output-room).
+            var facility = kind.Facilities[0];
             Assert.Equal(facility.Key.Value, recipe.Facility.Key.Value);
             Assert.True(StationKinds.IsRecipeFacility(cache.Get(facility)));
+            Assert.Equal(recipe.StationKind.Key.Value == "station-kind:processing" ? 2 : 1, kind.Facilities.Count);
         }
+        var processing = cache.Get<StationKindData>(StationKindData.KeyOf("processing"));
+        Assert.Equal(new[] { "facility:refinery", "facility:ore-silo" }, processing.Facilities.Select(facility => facility.Key.Value));
         Assert.Equal(recipes.Select(r => r.StationKind.Key.Value).Distinct().Count(), recipes.Select(r => r.Facility.Key.Value).Distinct().Count());
         Assert.DoesNotContain(EconomyChecks.Recipe(cache), fault => fault.Invariant == EconomyChecks.LFacility && fault.Record != "station-facilities");
     }
