@@ -899,6 +899,26 @@ public static class Program
             foreach (var line in log.Distinct()) Console.WriteLine($"      {line}");
         }
 
+        // Every station kind each faction can field: the hull it draws and the facilities it carries on its Facility rows (LoadoutGenerator.EquipFacilities).
+        foreach (var faction in db.Cache.GetAll<Faction>().OrderBy(f => f.Name, StringComparer.Ordinal))
+            foreach (var kind in StationKinds.FieldableKindsOf(db.Cache, faction))
+            {
+                var random = new Random(seed);
+                var generator = new LoadoutGenerator(ref random, itemManager, null, null, faction, .5f);
+                var label = $"{faction.Name} / {db.Cache.Get(kind).Name}";
+                try
+                {
+                    var station = EntitySerializer.Unpack(itemManager, null, generator.GenerateStationLoadout(kind));
+                    var facilities = station.Equipment.Where(item => item.Data.HardpointType == HardpointType.Facility).Select(item => item.Data.Name).ToArray();
+                    Console.WriteLine($"{label,-48} on {station.HullData.Name}: {(facilities.Length == 0 ? "no Facilities" : string.Join(", ", facilities))}");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"{label,-48} THREW {e.GetType().Name}: {e.Message}");
+                    failures++;
+                }
+            }
+
         Console.WriteLine($"\n{failures} hulls failed to generate a loadout (seed {seed}), {targetingGaps} armed hulls generated with no targeting system (fired unaided)");
         return failures;
     }
