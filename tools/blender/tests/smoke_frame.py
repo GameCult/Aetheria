@@ -18,7 +18,7 @@ Pass 7 pins the guards that protect an author's files: a Save over an existing s
 Save leaves the files that were in the folder before, New Ship takes none of the previous ship's hardpoints, and a buffer
 that belongs to another ship is neither saved nor rasterised. Pass 8 calls the operators with undo=True, which pushes the
 native undo step in background Blender only for an operator that carries UNDO: Rasterise, Flip Nose and New Ship are
-undoable, Save is not.
+undoable, Push and Apply are not (Open is).
 
 Pass 7b pins what Package does to a ship with a Ship Root: it puts the saved Shape's centre of mass at the world origin
 (through AetherDb 'centre'), makes the map icon, shield and tractor nobody owns from the render meshes, and never makes a
@@ -87,6 +87,12 @@ def run(operator):
     except RuntimeError as exc:
         print(f"OPERATOR error: {exc}")
         return {"CANCELLED"}, str(exc)
+
+
+def land():
+    """Her two buttons in order, as an operator: Push (dry run), then Apply. Like bpy.ops it raises RuntimeError when either is refused."""
+    bpy.ops.aetheria.push_ship()
+    return bpy.ops.aetheria.apply_ship()
 
 
 def require(condition, message):
@@ -173,7 +179,7 @@ def new_ship(scene, ship_id=SHIP_ID, name="Smoke Frame", reference="Djinni", len
 
 
 def main():
-    require(bpy.app.version[:2] == (5, 2), f"This smoke is for Blender 5.2; this is {bpy.app.version_string}")
+    require(bpy.app.version[:2] in ((5, 2), (5, 3)), f"This smoke is for Blender 5.2 or 5.3; this is {bpy.app.version_string}")
     bpy.data.objects.remove(bpy.data.objects["Cube"], do_unlink=True)
     sys.path.insert(0, str(REPO / "tools" / "blender"))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
@@ -248,7 +254,7 @@ def main():
     require(grid.parent == root and grid.display_type == "WIRE", "The Grid is not a wire child of Ship Root")
     require(len(grid.data.polygons) == len(cells) and len(grid.data.edges) == 4 * width * height,
             "The Grid does not draw occupied cells as faces and every cell's edges")
-    refused(bpy.ops.aetheria.load_ship_layout, "Not saved yet", "Load on a pending ship")
+    refused(bpy.ops.aetheria.open_ship, "Not created yet", "Open on a pending ship")
 
     scene, collection = undo_to_before("New Ship")
     require("aetheria.id" not in collection and "aetheria.pending" not in collection, "Undo left the collection bound")
@@ -265,7 +271,7 @@ def main():
     # Pass 2: a Save that fails in create or after it leaves nothing behind and tells the author nothing of the input;
     # the retry succeeds.
     collection["aetheria.pending"] = ["Smoke Frame", "NoSuchHullXYZ"]
-    refused(bpy.ops.aetheria.save_ship_layout, "AetherDb refused to create the ship", "Save with an unknown reference hull")
+    refused(land, "AetherDb refused to create the ship", "Save with an unknown reference hull")
     require(not (MODS / SHIP_ID).exists(), "A refused create left the ship folder behind")
     collection["aetheria.pending"] = ["Smoke Frame", "Djinni"]
     real = aetheria_ships._push
@@ -275,12 +281,12 @@ def main():
 
     aetheria_ships._push = failing
     try:
-        message = refused(bpy.ops.aetheria.save_ship_layout, "probe: push failed", "Save with a failing write")
+        message = refused(land, "probe: push failed", "Save with a failing write")
     finally:
         aetheria_ships._push = real
     require(not (MODS / SHIP_ID).exists(), "A failed first Save left the ship folder behind")
     require(collection.get("aetheria.pending") is not None, "A failed first Save cleared aetheria.pending")
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"The retried Save was refused: {message}")
     require(collection.get("aetheria.pending") is None, "Save left aetheria.pending set")
     width, height, cells, hardpoints, versions = saved_layout(path, aetheria_ships)
@@ -318,13 +324,13 @@ def main():
         hp = bpy.context.scene.aetheria_layout.hardpoints[index]
         hp.mount_id, hp.kind, hp.x, hp.y, hp.footprint = mount, "5", x, y, "#"  # Reactor: internal, no anchor
         hp.armor, hp.firing_arc = 5.0, 90.0
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save with hardpoints was refused: {message}")
     rows = saved_layout(path, aetheria_ships)[3]
     require(len(rows) == 2, "The saved .cc does not hold two hardpoints")
     result, message = run(bpy.ops.aetheria.rasterise_hull)
     require(result == {"FINISHED"} and buffer(bpy.context.scene)[3] == 2, "Rasterise dropped the buffer's hardpoints")
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"The second Save was refused: {message}")
     require(saved_layout(path, aetheria_ships)[3] == rows, "The second Save changed the hardpoint rows")
     scene = bpy.context.scene
@@ -332,11 +338,11 @@ def main():
     state = scene.aetheria_layout
     cell = next(c for c in state.cells if c.occupied)
     cell.occupied = False
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"} and grid_faces() == faces - 1, "Toggling a cell and Save did not redraw the Grid")
     state.new_width = state.width + 1  # a layout resized after the grid was placed: the placement no longer fits it
     bpy.ops.aetheria.resize_ship_layout()
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"} and bpy.data.objects.get("Grid") is None,
             "A Grid placed for another size is still drawn after the layout was resized")
     print("PASS 4 hardpoints and save ok")
@@ -412,11 +418,11 @@ def main():
     select(bpy.data.objects["Hull"])
     saved_digest = digest(path)
     result, message = run(bpy.ops.aetheria.package_ship)
-    require(result == {"CANCELLED"} and "Save Layout first" in scene.aetheria_package_report,
+    require(result == {"CANCELLED"} and "Apply first" in scene.aetheria_package_report,
             f"Package took an unsaved buffer: {scene.aetheria_package_report}")
     require(digest(path) == saved_digest and not Path(path).with_name("ship.glb").exists(),
             "A refused Package wrote the .cc or the GLB")
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save before Package was refused: {message}")
     preferences.game_folder = ""  # the game folder is then found from the bound .cc
     result, message = run(bpy.ops.aetheria.package_ship)
@@ -495,7 +501,7 @@ def package_frame_pass(aetheria_ships):
     def save_l():
         for index, cell in enumerate(state.cells):  # column 0 and row 0 of the grid: an L, not its bounds' middle
             cell.occupied = index // state.height == 0 or index % state.height == 0
-        result, message = run(bpy.ops.aetheria.save_ship_layout)
+        result, message = run(land)
         require(result == {"FINISHED"}, f"Save of the L was refused: {message}")
 
     def world_state():
@@ -511,7 +517,7 @@ def package_frame_pass(aetheria_ships):
     # A layout resized after Rasterise and saved no longer matches the grid: refused, and nothing moved or made.
     state.new_width = state.width + 1
     bpy.ops.aetheria.resize_ship_layout()
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save of the resized layout was refused: {message}")
     unchanged = world_state()
     select(render)
@@ -639,7 +645,7 @@ def package_asymmetric_pass(aetheria_ships):
     select(arm)
     result, message = run(bpy.ops.aetheria.rasterise_hull)
     require(result == {"FINISHED"}, f"Rasterise of the L hull was refused: {message}")
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save of the L hull was refused: {message}")
     select(arm)
     run(bpy.ops.aetheria.package_ship)
@@ -671,7 +677,7 @@ def package_asymmetric_pass(aetheria_ships):
     select(source_hull)
     result, message = run(bpy.ops.aetheria.rasterise_hull)
     require(result == {"FINISHED"}, f"Rasterise of the Source-only ship was refused: {message}")
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save of the Source-only ship was refused: {message}")
     select(source_hull)
     run(bpy.ops.aetheria.package_ship)
@@ -755,13 +761,13 @@ def guards_pass(aetheria_ships):
         hp = bpy.context.scene.aetheria_layout.hardpoints[index]
         hp.mount_id, hp.kind, hp.x, hp.y, hp.footprint = mount, "5", index + 1, 2, "#"
     select(hull_a)
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"} and len(saved_layout(path_a, aetheria_ships)[3]) == 2, f"Ship A was not saved: {message}")
 
     # A pending ship over an existing ship.cc (what Ctrl+Z past a first Save restores) is refused, and the file stays.
     saved = digest(path_a)
     collection_a["aetheria.pending"] = ["Guard A", "Djinni"]
-    refused(bpy.ops.aetheria.save_ship_layout, "use Bind Ship Collection with that ship.cc, then Load Layout", "Save of a pending ship over its file")
+    refused(land, "choose that ship.cc and Open", "Save of a pending ship over its file")
     require(Path(path_a).is_file() and digest(path_a) == saved, "A refused Save deleted or changed the author's ship.cc")
     del collection_a["aetheria.pending"]
 
@@ -771,9 +777,11 @@ def guards_pass(aetheria_ships):
     def failing(*args, **kwargs):
         raise ValueError("probe: push failed")
 
+    result, message = run(bpy.ops.aetheria.push_ship)  # the dry run is real; the Apply's write is the one that raises
+    require(result == {"FINISHED"}, f"Push of a saved ship was refused: {message}")
     aetheria_ships._push = failing
     try:
-        refused(bpy.ops.aetheria.save_ship_layout, "probe: push failed", "Save of a saved ship with a failing write")
+        refused(bpy.ops.aetheria.apply_ship, "probe: push failed", "Apply of a saved ship with a failing write")
     finally:
         aetheria_ships._push = real
     require(Path(path_a).is_file() and digest(path_a) == saved, "A failed Save deleted or changed a saved ship's ship.cc")
@@ -781,7 +789,10 @@ def guards_pass(aetheria_ships):
     versions, armor = state.versions, state.hardpoints[0].armor
     state.hardpoints[0].armor = armor + 1  # a change, so the push has a write to find stale
     state.versions = json.dumps({key: "1999-01-01T00:00:00.0000000+00:00" for key in json.loads(versions)})
-    refused(bpy.ops.aetheria.save_ship_layout, "changed since it was opened", "Save with a stale version")
+    result, message = run(bpy.ops.aetheria.push_ship)
+    last_line = bpy.context.window_manager.aetheria_push_result.splitlines()[-1]
+    require(result == {"FINISHED"} and last_line.startswith("stale"), f"Push with a stale version did not finish stale: {message} {last_line!r}")
+    refused(bpy.ops.aetheria.apply_ship, "The dry run did not pass", "Apply after a stale dry run")
     state.versions, state.hardpoints[0].armor = versions, armor
     require(Path(path_a).is_file() and digest(path_a) == saved, "A stale-version Save deleted or changed the ship.cc")
 
@@ -821,15 +832,15 @@ def guards_pass(aetheria_ships):
 
     # A pending ship is not packaged, and nothing is written for it.
     select(hull_b)
-    refused(bpy.ops.aetheria.package_ship, "Save Layout first", "Package of a pending ship")
+    refused(bpy.ops.aetheria.package_ship, "Apply first", "Package of a pending ship")
     require(not (MODS / GUARD_B).exists(), "Package wrote for a pending ship")
 
     # A buffer that belongs to ship B is neither saved into ship A's file nor rasterised onto ship A.
     select(hull_a)
-    refused(bpy.ops.aetheria.save_ship_layout, "Load this collection's layout before saving", "Save with another ship's buffer")
+    refused(land, "Open this collection first", "Save with another ship's buffer")
     require(digest(path_a) == saved, "Save wrote another ship's buffer into ship A's file")
     before = buffer(bpy.context.scene)
-    refused(bpy.ops.aetheria.rasterise_hull, "Load this collection's layout first", "Rasterise with another ship's buffer")
+    refused(bpy.ops.aetheria.rasterise_hull, "Open this collection first", "Rasterise with another ship's buffer")
     require(buffer(bpy.context.scene) == before, "Rasterise replaced another ship's buffer")
 
     # A failed Save leaves what the author had in a Mods/<id> folder that existed before it; the retry succeeds.
@@ -844,19 +855,19 @@ def guards_pass(aetheria_ships):
 
     aetheria_ships._push = failing
     try:
-        refused(bpy.ops.aetheria.save_ship_layout, "probe: push failed", "Save with a failing write into an existing folder")
+        refused(land, "probe: push failed", "Save with a failing write into an existing folder")
     finally:
         aetheria_ships._push = real
     require(keep.is_file(), "A failed Save deleted a file the author had in the ship folder")
     require(not Path(path_b).exists() and collection_b.get("aetheria.pending") is not None, "A failed Save left a half-made ship")
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"} and keep.is_file(), f"The retried Save was refused or took the author's file: {message}")
     require(saved_layout(path_b, aetheria_ships)[3] == [], "Ship B's file holds hardpoints from ship A")
 
     # Another ship's unsaved buffer is no reason to refuse Package: ship A's own file is what it checks.
     select(hull_a)
     result, message = run(bpy.ops.aetheria.package_ship)
-    require("Save Layout first" not in message and "Save Layout first" not in scene.aetheria_package_report,
+    require("Apply first" not in message and "Apply first" not in scene.aetheria_package_report,
             "Package read another ship's buffer as ship A's unsaved edits")
 
     # A buffer whose cells do not fill its size draws no Grid.
@@ -918,36 +929,74 @@ def undo_pass():
     select(bpy.data.objects["Undo Hull"])
     undoable(bpy.ops.aetheria.flip_nose, "Flip Nose")
 
-    # Save pushes no step: one undo after it takes back the step before it, and the file stays.
+    # Push and Apply push no step: one undo after them takes back the step before, and the file stays.
     result, message = native(bpy.ops.aetheria.flip_nose)
     require(result == {"FINISHED"}, f"Flip Nose was refused: {message}")
     select(bpy.data.objects["Undo Hull"])
     flipped = frame()
-    result, message = native(bpy.ops.aetheria.save_ship_layout)
-    require(result == {"FINISHED"}, f"Save was refused: {message}")
+    for operator, what in ((bpy.ops.aetheria.push_ship, "Push"), (bpy.ops.aetheria.apply_ship, "Apply")):
+        result, message = native(operator)
+        require(result == {"FINISHED"}, f"{what} was refused: {message}")
     path = MODS / UNDO_SHIP / "ship.cc"
-    require(path.is_file(), "Save did not create the file")
+    require(path.is_file(), "Apply did not create the file")
     result, _ = run(bpy.ops.ed.undo)
-    require(result == {"FINISHED"} and frame()[2:] != flipped[2:], "Save is undoable: one undo took back Save and not the step before it")
+    require(result == {"FINISHED"} and frame()[2:] != flipped[2:], "Push or Apply is undoable: one undo took back more than the step before it")
     require(path.is_file(), "Undo changed the .cc")
 
-    # Ctrl+Z past the first Save leaves the .cc behind an unbound collection: New Ship with the ID is refused with the
-    # way forward, and following it (Bind, Load, Save) works.
+    # Ctrl+Z past the first Apply leaves the .cc behind an unbound collection: New Ship with the ID is refused with the
+    # way forward, and following it (choose ship.cc, Open, Push, Apply) works. Open is one native undo step of its own.
     for _ in range(12):
         if not frame()[0]:
             break
-        require(run(bpy.ops.ed.undo)[0] == {"FINISHED"}, "ed.undo past the first Save did not run")
-    require(not frame()[0] and path.is_file(), "Undo past the first Save did not unbind the collection or changed the .cc")
+        require(run(bpy.ops.ed.undo)[0] == {"FINISHED"}, "ed.undo past the first Apply did not run")
+    require(not frame()[0] and path.is_file(), "Undo past the first Apply did not unbind the collection or changed the .cc")
     scene = bpy.context.scene
     select(bpy.data.objects["Undo Hull"])
     scene.aetheria_new_ship_id, scene.aetheria_new_ship_name = UNDO_SHIP, "Undo Ship"
     scene.aetheria_new_ship_like, scene.aetheria_new_ship_length = "Djinni", 10
-    refused(bpy.ops.aetheria.new_ship, "use Bind Ship Collection with its ship.cc, then Load Layout", "New Ship over the ship the first Save made")
+    refused(bpy.ops.aetheria.new_ship, "choose its ship.cc and Open", "New Ship over the ship the first Apply made")
     scene.aetheria_ship_cc_path = str(path)
-    for operator, what in ((bpy.ops.aetheria.bind_ship_collection, "Bind"), (bpy.ops.aetheria.load_ship_layout, "Load"),
-                           (bpy.ops.aetheria.save_ship_layout, "Save")):
+    undoable(bpy.ops.aetheria.open_ship, "Open")
+    bpy.context.scene.aetheria_ship_cc_path = str(path)  # the undo took the author's field back with the scene
+    select(bpy.data.objects["Undo Hull"])
+    for operator, what in ((bpy.ops.aetheria.open_ship, "Open"), (bpy.ops.aetheria.push_ship, "Push"),
+                           (bpy.ops.aetheria.apply_ship, "Apply")):
         result, message = run(operator)
-        require(result == {"FINISHED"}, f"{what} on the way forward after undoing past the first Save was refused: {message}")
+        require(result == {"FINISHED"}, f"{what} on the way forward after undoing past the first Apply was refused: {message}")
+    authoring_guards(path)
+
+
+def authoring_guards(path):
+    """Push writes nothing; Apply lands exactly the dry run it was shown and refuses a scene that moved since."""
+    import aetheria_ships
+    scene, wm = bpy.context.scene, bpy.context.window_manager
+    state = scene.aetheria_layout
+    select(bpy.data.objects["Undo Hull"])
+    bpy.ops.aetheria.add_ship_hardpoint()
+    hp = state.hardpoints[0]
+    hp.mount_id, hp.kind, hp.x, hp.y, hp.footprint, hp.armor = "mount.u", "5", 1, 1, "#", 5.0
+    require(run(land)[0] == {"FINISHED"}, "Apply of the first hardpoint was refused")
+    world = lambda: sorted((obj.name, rounded(obj.matrix_world)) for obj in bpy.data.objects)
+    before = (digest(path), json.dumps(aetheria_ships._layout_section(state), sort_keys=True), world())
+    state.hardpoints[0].armor = 9.0
+    edited = json.dumps(aetheria_ships._layout_section(state), sort_keys=True)
+    result, message = run(bpy.ops.aetheria.push_ship)
+    require(result == {"FINISHED"}, f"Push was refused: {message}")
+    lines = wm.aetheria_push_result.splitlines()
+    require(any("armor" in line and "5" in line and "9" in line for line in lines) and lines[-1].startswith("dry-run"),
+            f"Push did not show the armor change: {lines}")
+    require(digest(path) == before[0] and json.dumps(aetheria_ships._layout_section(state), sort_keys=True) == edited
+            and world() == before[2], "Push wrote the .cc or changed the scene")
+    state.hardpoints[0].armor = 12.0  # the scene moves after the dry run
+    refused(bpy.ops.aetheria.apply_ship, "changed since the dry run", "Apply after the scene changed")
+    require(digest(path) == before[0], "A refused Apply wrote the .cc")
+    require(run(bpy.ops.aetheria.push_ship)[0] == {"FINISHED"}, "Push again was refused")
+    result, message = run(bpy.ops.aetheria.apply_ship)
+    require(result == {"FINISHED"} and digest(path) != before[0], f"Apply of the shown dry run did not land: {message}")
+    require(not wm.aetheria_push_reviewed, "Apply left the reviewed dry run set")
+    refused(bpy.ops.aetheria.apply_ship, "Push (dry run) first", "A second Apply")
+    require(aetheria_ships._open(bpy.context, str(path))["layout"]["hardpoints"][0]["armor"] == 12.0,
+            "The .cc does not hold the armor Apply landed")
 
 
 def _root_count():

@@ -222,7 +222,7 @@ def bind(ship, label):
         if key in ship:
             del ship[key]
     try:
-        result = bpy.ops.aetheria.bind_ship_collection()
+        result = bpy.ops.aetheria.open_ship()
     except RuntimeError:
         result = {"CANCELLED"}
     stored = ship.get("aetheria.ship_cc")

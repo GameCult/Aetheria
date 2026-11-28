@@ -90,6 +90,12 @@ def run(operator):
         return {"CANCELLED"}, str(exc)
 
 
+def land():
+    """Her two buttons in order, as an operator: Push (dry run), then Apply. Like bpy.ops it raises RuntimeError when either is refused."""
+    bpy.ops.aetheria.push_ship()
+    return bpy.ops.aetheria.apply_ship()
+
+
 def require(condition, message):
     if not condition:
         raise SystemExit(message)
@@ -265,7 +271,7 @@ def mirror_matrix(scene, root, sphere):
 
 
 def main():
-    require(bpy.app.version[:2] == (5, 2), f"This smoke is for Blender 5.2; this is {bpy.app.version_string}")
+    require(bpy.app.version[:2] in ((5, 2), (5, 3)), f"This smoke is for Blender 5.2 or 5.3; this is {bpy.app.version_string}")
     bpy.data.objects.remove(bpy.data.objects["Cube"], do_unlink=True)
     sys.path.insert(0, str(REPO / "tools" / "blender"))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
@@ -306,7 +312,7 @@ def main():
         bpy.ops.aetheria.add_ship_hardpoint()
         hp = state.hardpoints[len(state.hardpoints) - 1]
         hp.mount_id, hp.kind, hp.x, hp.y, hp.footprint = mount, kind, x, y, "#"
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save was refused: {message}")
     reactor_before = row(scene, "reactor.a")
     select(sphere)
@@ -379,7 +385,7 @@ def main():
 
     # Pass 2: Package; the GLB's muzzle nodes face outboard.
     select(sphere)
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save before Package was refused: {message}")
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
@@ -401,7 +407,7 @@ def main():
         if hp.mount_id == "weapon.2":
             hp.rotation = str(REVERSED)
     select(sphere)
-    require(run(bpy.ops.aetheria.save_ship_layout)[0] == {"FINISHED"}, "Save before the second Package was refused")
+    require(run(land)[0] == {"FINISHED"}, "Save before the second Package was refused")
     authored = rows(scene)
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
@@ -420,17 +426,17 @@ def main():
             "The .cc does not hold what the author left")
     # An element id is carried: after Load, a row moved and saved stands at its new cell under the same element.
     select(sphere)
-    require(run(bpy.ops.aetheria.load_ship_layout)[0] == {"FINISHED"}, "Load before the element check was refused")
+    require(run(bpy.ops.aetheria.open_ship)[0] == {"FINISHED"}, "Open before the element check was refused")
     element = saved_rows()["weapon.1"]["element"]
     require(element, "Open names no element for a saved hardpoint")
     moved = next(hp for hp in scene.aetheria_layout.hardpoints if hp.mount_id == "weapon.1")
-    require(moved.element == element, "Load did not carry the element")
+    require(moved.element == element, "Open did not carry the element")
     moved.x -= 1
-    require(run(bpy.ops.aetheria.save_ship_layout)[0] == {"FINISHED"}, "Save of a moved row was refused")
+    require(run(land)[0] == {"FINISHED"}, "Save of a moved row was refused")
     after = saved_rows()["weapon.1"]
     require(after["element"] == element and tuple(after["cell"]) == (3, 5), "A moved row did not keep its element")
     moved.x += 1
-    require(run(bpy.ops.aetheria.save_ship_layout)[0] == {"FINISHED"}, "Save of the restored row was refused")
+    require(run(land)[0] == {"FINISHED"}, "Save of the restored row was refused")
     require([r for r in rows(scene) if r in pair_rows] == pair_rows, "The second Package moved a mirrored pair")
     print("PASS 3 package moves nothing ok")
 
@@ -460,7 +466,7 @@ def matrix_pass(scene, previous, ship_id, length, y_scale, wide, parity):
     scene.aetheria_new_ship_like, scene.aetheria_new_ship_length = "Djinni", length
     result, message = run(bpy.ops.aetheria.new_ship)
     require(result == {"FINISHED"}, f"New Ship ({ship_id}) was refused: {message}")
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save ({ship_id}) was refused: {message}")
     width = scene.aetheria_layout.width
     require(width % 2 == parity and (width >= 10 or not wide), f"The {ship_id} grid is {width} wide")

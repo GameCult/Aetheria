@@ -8,8 +8,8 @@ product, and a manifest is never read again; --replace re-derives the package an
 existing package is refused untouched. A run is all or nothing: --replace moves the existing package aside, builds, and deletes the old one
 only when the new one is complete; any failure removes what the run built and puts the old package back as it was.
 
-Order, one owner per step: New Ship --like, the first Save Layout creates ship.cc, AetherDb stats/kind/price/product (the one writer of
-each; kind only for a station manifest), hull.scad copied in, Load Layout, Build From Hull Source, Rasterise Hull, the rows through place(), Save Layout, Package Ship.
+Order, one owner per step: New Ship --like, the first Push and Apply create ship.cc, AetherDb stats/kind/price/product (the one writer of
+each; kind only for a station manifest), hull.scad copied in, Open, Build From Hull Source, Rasterise Hull, the rows through place(), Push then Apply, Package Ship.
 The last line is PACKAGE_OK (exit 0) or PACKAGE_FAILED (exit 1); a row that does not fit its cell is a failure, never a move.
 Manifest schema and the reproducers: package_hull.md. Everything outside package() is pure Python (test_package_hull.py).
 """
@@ -209,6 +209,13 @@ def package(manifest, manifest_dir, game, openscad):
         except RuntimeError as exc:
             return {"CANCELLED"}, str(exc)
 
+    def land(what):
+        """Push (dry run), then Apply: her two buttons, in order, outside any agent turn."""
+        result, message = run(bpy.ops.aetheria.push_ship)
+        require(result == {"FINISHED"}, f"{what}: Push was refused: {message}")
+        result, message = run(bpy.ops.aetheria.apply_ship)
+        require(result == {"FINISHED"}, f"{what}: Apply was refused: {message}")
+
     def db(*args):
         result = subprocess.run([str(aetherdb), "ship-authoring", *map(str, args)], cwd=game, capture_output=True, text=True, timeout=120)
         print(f"AetherDb {args[0]}: exit {result.returncode} {result.stdout.strip()} {result.stderr.strip()}", flush=True)
@@ -240,9 +247,9 @@ def package(manifest, manifest_dir, game, openscad):
     scene.aetheria_new_ship_like, scene.aetheria_new_ship_length = manifest["like"], manifest["length"]
     result, message = run(bpy.ops.aetheria.new_ship)
     require(result == {"FINISHED"}, f"New Ship was refused: {message}")
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
-    require(result == {"FINISHED"} and ship_cc_path.is_file(), f"The first Save was refused: {message}")
-    print(f"STEP new ship and first save: {ship_cc_path}", flush=True)
+    land("The first Apply")
+    require(ship_cc_path.is_file(), "The first Apply did not create ship.cc")
+    print(f"STEP new ship and first apply: {ship_cc_path}", flush=True)
 
     stats = manifest["stats"]
     args = ["stats", ship_cc_path, "--mass", stats["mass"], "--durability", stats["durability"], "--armor", stats["armor"],
@@ -263,8 +270,8 @@ def package(manifest, manifest_dir, game, openscad):
 
     shutil.copy(manifest_dir / manifest["hull"], package_dir / "hull.scad")
     select(box)
-    result, message = run(bpy.ops.aetheria.load_ship_layout)
-    require(result == {"FINISHED"}, f"Load Layout was refused: {message}")
+    result, message = run(bpy.ops.aetheria.open_ship)
+    require(result == {"FINISHED"}, f"Open was refused: {message}")
     select(box)
     result, message = run(bpy.ops.aetheria.build_hull_source)
     require(result == {"FINISHED"}, f"Build was refused: {message}")
@@ -291,9 +298,8 @@ def package(manifest, manifest_dir, game, openscad):
         hp.mount_id, hp.kind, hp.x, hp.y, hp.footprint = mount_id, kind_value[kind], x, y, footprint
         hp.rotation, hp.armor, hp.firing_arc = str(rotation), armor, arc
     select(box)
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
-    require(result == {"FINISHED"}, f"The layout Save was refused: {message}")
-    print(f"STEP layout saved: {len(state.hardpoints)} rows", flush=True)
+    land("The layout")
+    print(f"STEP layout applied: {len(state.hardpoints)} rows", flush=True)
     for hp in state.hardpoints:
         print(f"ROW {hp.mount_id or '-'} kind {hp.kind} at ({hp.x},{hp.y}) {hp.footprint} rot {hp.rotation} armor {hp.armor:g} arc {hp.firing_arc:g}", flush=True)
 

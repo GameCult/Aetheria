@@ -121,6 +121,12 @@ def run(operator):
         return {"CANCELLED"}, str(exc)
 
 
+def land():
+    """Her two buttons in order, as an operator: Push (dry run), then Apply. Like bpy.ops it raises RuntimeError when either is refused."""
+    bpy.ops.aetheria.push_ship()
+    return bpy.ops.aetheria.apply_ship()
+
+
 def approx(a, b, tolerance=1e-3):
     return all(abs(x - y) <= tolerance for x, y in zip(a, b))
 
@@ -167,7 +173,7 @@ def make_ship(scene, fixture, ship_id, extent, length, rows):
         hp.mount_id, hp.kind, hp.x, hp.y, hp.footprint = mount_id, kind, x, y, "#"
         if kind == THRUSTER:
             hp.rotation = "2"  # Reversed: the hull sources' drives sit at the stern, their emitters yawed 180 so the exhaust leaves aft
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    result, message = run(land)
     require(result == {"FINISHED"}, f"Save was refused: {message}")
     package = MODS / ship_id
     shutil.copy(FIXTURES / fixture / "hull.scad", package / "hull.scad")
@@ -377,7 +383,7 @@ def one_hull(scene, number, fixture, ship_id, extent, length, rows, body, palett
     require(result == {"FINISHED"} and len(ship_lines(ship_cc)) == len(packaged), f"Without Grease Pencil the kit's lines are back: {message!r}")
     print(f"PASS {number}.5b the kit's lines ship, her Grease Pencil wins, two are refused")
 
-    # Capture's kit branch writes what Package wrote, and also when Save Layout has moved the centre of mass since the last
+    # Capture's kit branch writes what Package wrote, and also when Apply has moved the centre of mass since the last
     # Package (here: Ship Root is off the origin), because Capture frames the ship as Package does.
     shipped = ship_lines(ship_cc)
     select(box)
@@ -861,7 +867,7 @@ def hull_type_gate(scene):
 
 
 def main():
-    require(bpy.app.version[:2] == (5, 2), f"This smoke is for Blender 5.2; this is {bpy.app.version_string}")
+    require(bpy.app.version[:2] in ((5, 2), (5, 3)), f"This smoke is for Blender 5.2 or 5.3; this is {bpy.app.version_string}")
     bpy.data.objects.remove(bpy.data.objects["Cube"], do_unlink=True)
     sys.path.insert(0, str(REPO / "tools" / "blender"))
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)

@@ -62,6 +62,12 @@ def run(operator, **arguments):
         return {"CANCELLED"}, str(exc)
 
 
+def land():
+    """Her two buttons in order, as an operator: Push (dry run), then Apply. Like bpy.ops it raises RuntimeError when either is refused."""
+    bpy.ops.aetheria.push_ship()
+    return bpy.ops.aetheria.apply_ship()
+
+
 def pixels(image):
     flat = numpy.empty(len(image.pixels), dtype=numpy.float32)
     image.pixels.foreach_get(flat)
@@ -311,7 +317,7 @@ def refusal(label, expected, snapshot, offenders=None):
 
 
 def main():
-    require(bpy.app.version[:2] == (5, 2), f"This smoke is for Blender 5.2; this is {bpy.app.version_string}")
+    require(bpy.app.version[:2] in ((5, 2), (5, 3)), f"This smoke is for Blender 5.2 or 5.3; this is {bpy.app.version_string}")
     require(FIXTURE.is_file() and FIXTURE.stat().st_size > 1_000_000, "tripo-hull.glb is missing or an LFS pointer")
     bpy.data.objects.remove(bpy.data.objects["Cube"], do_unlink=True)
     sys.path.insert(0, str(REPO / "tools" / "blender"))
@@ -511,8 +517,8 @@ def pass_four(aetheria_ships):
     collider["aetheria.role"], collider["aetheria.id"] = "hull-collider", "collider"
     bpy.data.collections[COLLECTION].objects.link(collider)
     collider.parent = bpy.data.objects["Ship Root"]
-    result, message = run(bpy.ops.aetheria.save_ship_layout)
-    require(result == {"FINISHED"}, f"Pass 4: Save Layout was refused: {message}")
+    result, message = run(land)
+    require(result == {"FINISHED"}, f"Pass 4: Apply was refused: {message}")
     blend = Path(tempfile.mkdtemp(prefix="aetheria-smoke-bake-")) / "ship.blend"
     bpy.ops.wm.save_as_mainfile(filepath=str(blend))
     bpy.ops.wm.open_mainfile(filepath=str(blend))
