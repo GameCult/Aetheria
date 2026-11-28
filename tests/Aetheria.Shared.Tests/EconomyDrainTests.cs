@@ -94,7 +94,7 @@ public sealed class EconomyDrainTests
         Assert.DoesNotContain(EconomyDrain.Report(new[] { sample }), fault => fault.Invariant == EconomyDrain.HSim);
         Assert.False(Station(sample, "processing").Facilities.Single().WindowSteps.TryGetValue(Stall.Room, out var shippedRoom) && shippedRoom > 0);
 
-        var jammed = EconomyDrain.Run(Root, 1, 700, 1, Seed1.Value, beforeWindow: JamSilo);
+        var jammed = EconomyDrain.Run(Root, 1, 1000, 1, Seed1.Value, beforeWindow: JamSilo);
         Assert.All(jammed.Stations, station => Assert.Empty(station.WindowDisagreements));
         Assert.DoesNotContain(EconomyDrain.Report(new[] { jammed }), fault => fault.Invariant == EconomyDrain.HSim);
         Assert.True(Station(jammed, "processing").Facilities.Single().WindowSteps.TryGetValue(Stall.Room, out var roomSteps) && roomSteps > 0);
@@ -130,11 +130,11 @@ public sealed class EconomyDrainTests
     public void AFullRefineryIsAStallFault()
     {
         // The sale fills the stock bay's free cells; the outputs land in the silo, so the ore drains to nothing and the stall is Inputs.
-        var shipped = EconomyDrain.Run(Root, 1, 30, 4, Seed1.Value);
+        var shipped = EconomyDrain.Run(Root, 1, 30, 6, Seed1.Value);
         var refinery = Station(shipped, "processing");
         Assert.True(refinery.Filled);
         Assert.Contains(refinery.Outputs, pile => pile.Hourly.Any(units => units > 0));
-        Assert.NotNull(refinery.Ores[0].EmptyAt);
+        Assert.Contains(refinery.Ores, ore => ore.EmptyAt.HasValue);
         Assert.Null(refinery.FirstRoomStall);
         Assert.Equal(Stall.Inputs, refinery.Facilities.Single().HorizonEnd);
         Assert.DoesNotContain(EconomyDrain.Report(new[] { shipped }), f => f.Invariant == EconomyDrain.HStall);

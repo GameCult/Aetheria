@@ -70,6 +70,8 @@ public sealed class StationFacilityFitTests
         using var cache = RestoredHullsTests.OpenCatalog();
         var mining = cache.Get(Kind("mining"));
         var extra = cache.Get(Kind("processing")).Facilities.First();
+        // Twice, so the kind needs three rows whichever hull of the kind is drawn: no hull has more than two.
+        mining.Facilities.Add(extra);
         mining.Facilities.Add(extra);
         var maker = cache.GetAll<Faction>().First(faction => StationKinds.FieldableKindsOf(cache, faction).Any(kind => kind.Key.Equals(Kind("mining").Key)));
         var error = Assert.Throws<InvalidLoadoutException>(() => Generate(cache, maker, Kind("mining"), 1));
