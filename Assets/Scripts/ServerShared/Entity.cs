@@ -51,6 +51,11 @@ public abstract class Entity
 
     public readonly ReactiveCollection<EquippedItem> Equipment = new ReactiveCollection<EquippedItem>();
     public readonly ReactiveCollection<EquippedCargoBay> CargoBays = new ReactiveCollection<EquippedCargoBay>();
+    // The one counter of what the entity's bays hold: it moves on every change to any bay's contents and on every bay seated or removed,
+    // and never returns to a value it had. Not persisted. A holder that remembers the value it last read learns whether anything it could
+    // hold changed since, without comparing the contents.
+    public long CargoRevision { get; private set; }
+    internal void CargoChanged() => CargoRevision++;
     public readonly ReactiveCollection<EquippedDockingBay> DockingBays = new ReactiveCollection<EquippedDockingBay>();
     public readonly ReactiveCollection<Entity> VisibleEntities = new ReactiveCollection<Entity>();
     // The cache of IsHostileTo for each zone entity: written only by RefreshStance, refreshed each Update.
@@ -1491,6 +1496,7 @@ public abstract class Entity
             }
 
             CargoBays.Remove(cargoBay);
+            CargoChanged();
         }
         
         Equipment.Remove(item);
@@ -1693,6 +1699,7 @@ public abstract class Entity
                 {
                     equippedItem = new EquippedCargoBay(ItemManager, item, hullCoord, this, $"{Name} Cargo Bay {CargoBays.Count + 1}");
                     CargoBays.Add((EquippedCargoBay) equippedItem);
+                    CargoChanged();
                 }
             }
             else
@@ -2425,10 +2432,6 @@ public class EquippedCargoBay : EquippedItem
     public float ThermalMass { get; private set; }
     public string Name { get; }
 
-    // Counts every change to what the bay holds (a stack stored, merged, split or removed, a unit stored or removed). Monotonic and
-    // not persisted: a holder that remembers the value it last read learns whether the contents changed since, without comparing them.
-    public long Revision { get; private set; }
-
     public Shape UnoccupiedSpace
     {
         get
@@ -2583,7 +2586,7 @@ public class EquippedCargoBay : EquippedItem
                 Occupancy[pos.x, pos.y] = item;
             }
             Cargo[item] = cargoCoord;
-            Revision++;
+            Entity.CargoChanged();
 
             if(!ItemsOfType.ContainsKey(item.Data.Key))
                 ItemsOfType[item.Data.Key] = new List<ItemInstance>();
@@ -2591,7 +2594,7 @@ public class EquippedCargoBay : EquippedItem
         }
         else if (Occupancy[cargoCoord.x, cargoCoord.y] is ICommodityStack held && stack.StacksWith(Occupancy[cargoCoord.x, cargoCoord.y]))
         {
-            Revision++;
+            Entity.CargoChanged();
             if (held.Quantity + stack.Quantity <= maxStack)
             {
                 held.Quantity += stack.Quantity;
@@ -2629,7 +2632,7 @@ public class EquippedCargoBay : EquippedItem
             Occupancy[pos.x, pos.y] = item;
         }
         Cargo[item] = cargoCoord;
-        Revision++;
+        Entity.CargoChanged();
 
         if(!ItemsOfType.ContainsKey(item.Data.Key))
             ItemsOfType[item.Data.Key] = new List<ItemInstance>();
@@ -2688,7 +2691,7 @@ public class EquippedCargoBay : EquippedItem
         if (item is ICommodityStack stack && quantity < stack.Quantity)
         {
             var itemData = ItemManager.GetData(item);
-            Revision++;
+            Entity.CargoChanged();
             stack.Quantity -= quantity;
             Mass -= itemData.Mass * quantity;
             ThermalMass -= itemData.Mass * itemData.SpecificHeat * quantity;
@@ -2710,7 +2713,7 @@ public class EquippedCargoBay : EquippedItem
     // The item, with everything it holds, leaves the bay: the one place a cell is freed.
     private void RemoveWhole(ItemInstance item)
     {
-        Revision++;
+        Entity.CargoChanged();
         foreach(var v in Data.InteriorShape.Coordinates)
             if (Occupancy[v.x, v.y] == item)
                 Occupancy[v.x, v.y] = null;

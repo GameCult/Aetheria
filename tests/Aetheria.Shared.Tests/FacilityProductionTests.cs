@@ -373,28 +373,102 @@ public sealed class FacilityProductionTests : IDisposable
         Assert.Equal(0, Held(world, IronFillers[0]));
     }
 
-    // The bay's change count moves on every kind of change to its contents and on nothing else.
+    // The entity's cargo revision moves on every kind of change to what its bays hold (a stack stored, merged, split or removed, a unit
+    // stored or removed, a bay seated or removed) and on nothing else.
     [Fact]
-    public void ABayCountsEveryChangeToWhatItHolds()
+    public void TheCargoRevisionCountsEveryChangeToWhatTheBaysHold()
     {
         var world = Build();
         var bay = world.Station.CargoBays[0];
-        var at = bay.Revision;
-        Assert.Equal(at, bay.Revision);
+        var at = world.Station.CargoRevision;
+        Assert.Equal(at, world.Hold.Revision);
+        void Moved() { Assert.True(world.Station.CargoRevision > at); at = world.Station.CargoRevision; }
         Assert.True(bay.TryStore(Goods("Slag", 5)));
-        Assert.True(bay.Revision > at);
-        at = bay.Revision;
+        Moved();
         Assert.True(bay.TryStore(Goods("Slag", 5)));
-        Assert.True(bay.Revision > at);
-        at = bay.Revision;
+        Moved();
         var stack = bay.Cargo.Keys.Single();
         Assert.NotNull(bay.Remove(stack, 3));
-        Assert.True(bay.Revision > at);
-        at = bay.Revision;
-        Assert.Equal(7, bay.Count(((ItemInstance) stack).Data.Key));
-        Assert.Equal(at, bay.Revision);
+        Moved();
+        Assert.Equal(7, bay.Count(stack.Data.Key));
+        Assert.Equal(at, world.Station.CargoRevision);
         bay.Remove(stack);
-        Assert.True(bay.Revision > at);
+        Moved();
+        var unit = Mint(world.Items, _cache, "Pocket");
+        Assert.True(bay.TryStore(unit));
+        Moved();
+        bay.Remove(unit);
+        Moved();
+        world.Station.Deactivate();
+        var pocket = world.Station.TryEquip(Mint(world.Items, _cache, "Pocket"), new int2(6, 6));
+        Assert.True(pocket);
+        Moved();
+        Assert.NotNull(world.Station.TryUnequip(world.Station.CargoBays[1]));
+        Moved();
+    }
+
+    // Soul's sequence: a take fails with 2 ore held; the station is deactivated, its empty second bay removed, one ore stored, and it
+    // is activated again. The hold's revision is never the one the failure recorded, so the facility takes the 3 ore.
+    [Fact]
+    public void AFacilityTakesWhatIsStockedAfterABayLeaves()
+    {
+        var world = Build();
+        world.Station.Deactivate();
+        Assert.True(world.Station.TryEquip(Mint(world.Items, _cache, "Pocket"), new int2(6, 6)));
+        world.Station.Activate();
+        Stock(world, IronFillers[0], 2);
+        Step(world, 3);
+        Assert.Equal(Stall.Inputs, world.Facility.Stall);
+
+        world.Station.Deactivate();
+        Assert.NotNull(world.Station.TryUnequip(world.Station.CargoBays[1]));
+        Stock(world, IronFillers[0], 1);
+        world.Station.Activate();
+        Step(world, 3);
+        Assert.NotNull(world.Unit.Run);
+        Assert.Equal(0, Held(world, IronFillers[0]));
+    }
+
+    // An idle facility whose take failed does not try again until the hold changes: the failed take is recorded.
+    [Fact]
+    public void AnIdleFacilityDoesNotRetryUntilTheHoldChanges()
+    {
+        var world = Build();
+        Stock(world, IronFillers[0], 2);
+        Step(world, 20);
+        Assert.Equal(1, world.Facility.Attempts);
+        Stock(world, IronFillers[0], 1);
+        Step(world, 1);
+        Assert.Equal(2, world.Facility.Attempts);
+        Assert.NotNull(world.Unit.Run);
+    }
+
+    // A save written mid-cycle, then a catalog that no longer has the recipe: the run is dropped, the inputs it took stay consumed, and
+    // the facility starts its next recipe. Nothing throws on any step.
+    [Fact]
+    public void ASaveNamingADeletedRecipeIsDroppedNotThrown()
+    {
+        var world = Build();
+        var copperOre = Recipes.Fillers(_cache, "copper ore").Except(IronFillers).First();
+        Stock(world, IronFillers[0], 3);
+        Step(world, 101);
+        Assert.Equal(RecipeData.KeyOf(Iron), world.Unit.Run.Recipe.Key);
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+        var bytes = MessagePackSerializer.Serialize(EntitySerializer.Pack(world.Station), options);
+
+        _cache.Remove(RecipeData.KeyOf(Iron));
+        var zone = new Zone(world.Items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var station = (OrbitalEntity) EntitySerializer.Unpack(world.Items, zone, MessagePackSerializer.Deserialize<EntityPack>(bytes, options));
+        if (!zone.Entities.Contains(station)) zone.Admit(station, piloted: false);
+        var restored = Wrap(world.Items, zone, station);
+        Assert.Equal(RecipeData.KeyOf(Iron), restored.Unit.Run.Recipe.Key);
+
+        Stock(restored, copperOre, 4);
+        Step(restored, 2);
+        Assert.Equal(RecipeData.KeyOf(new CultRecordKey("commodity:copper")), restored.Unit.Run.Recipe.Key);
+        Assert.Equal(0, Held(restored, copperOre));
+        Assert.Equal(0, Held(restored, Iron));
+        Assert.Equal(0, Held(restored, IronFillers[0]));
     }
 
     // Recipes.Fillers reads an index built once per catalog; it is rebuilt when a recipe changes.

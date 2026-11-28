@@ -101,6 +101,14 @@ public static class Production
             }
 
             var recipe = catalog.Get(run.Recipe);
+            // A run whose recipe the catalog no longer has, or no longer runs here (a save outliving a catalog edit), is dropped: its
+            // progress is gone and the inputs it took stay consumed, as they are taken whole at cycle start and the recipe that named
+            // them is not there to return them against. The facility then starts its next recipe, and Advance never throws on it.
+            if (recipe == null || !Runs(catalog, recipe))
+            {
+                run = null;
+                continue;
+            }
             var progress = run.Progress;
             if (progress < recipe.Cycle)
             {
@@ -132,17 +140,8 @@ public sealed class EntityHold : IProductionHold
 
     public EntityHold(Entity entity) => _entity = entity;
 
-    // Changes whenever anything the bays hold changes (each bay counts its own changes); a bay seated or removed moves it too. A holder
-    // that remembers the value it last failed to take from learns whether a retry could differ.
-    public long Revision
-    {
-        get
-        {
-            long revision = _entity.CargoBays.Count;
-            for (var at = 0; at < _entity.CargoBays.Count; at++) revision += _entity.CargoBays[at].Revision;
-            return revision;
-        }
-    }
+    // The entity's cargo revision: moves on every change to the bays' contents and on every bay seated or removed, never repeats.
+    public long Revision => _entity.CargoRevision;
 
     public int Held(CultRecordKey design) => _entity.CargoBays.Sum(bay => bay.Count(design));
 

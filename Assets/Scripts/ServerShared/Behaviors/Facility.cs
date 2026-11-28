@@ -33,6 +33,9 @@ public class Facility : Behavior
     // until the hold changes a retry fails the same way and is skipped. Not persisted: a restored facility tries once on its first step.
     private long _failedAt;
 
+    // How many steps tried to take a cycle's inputs: a diagnostic of the skip above, derived and not persisted.
+    public int Attempts { get; private set; }
+
     public Facility(FacilityData data, EquippedItem item) : base(data, item)
     {
         _runList = Production.RunList(ItemManager.ItemData, Item.EquippableItem.Data.Key);
@@ -43,6 +46,7 @@ public class Facility : Behavior
         _hold ??= new EntityHold(Entity);
         var idle = Item.EquippableItem.Run == null || Item.EquippableItem.Run.Progress <= 0;
         if (idle && Stall == Stall.Inputs && _hold.Revision == _failedAt) return true;
+        Attempts++;
         var (run, stall) = Production.Advance(ItemManager.ItemData, _runList, Item.EquippableItem.Run, dt, _hold);
         Item.EquippableItem.Run = run;
         Stall = stall;

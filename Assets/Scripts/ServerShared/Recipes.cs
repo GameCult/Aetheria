@@ -148,7 +148,9 @@ public static class Recipes
 
     // Role to its fillers, derived from the recipes and owned by the catalog it was built from (one index per catalog, dropped with it).
     // The catalog is read-only while a game runs, so a build serves every read; a write to a recipe or a commodity design (a test, an
-    // authoring batch) marks it stale, and the next read rebuilds it.
+    // authoring batch) marks it stale, and the next read rebuilds it. It is right only for recipes written through the catalog: a
+    // document edited in place and never written back is outside the catalog's admission, so the index cannot see it and the scan it
+    // replaced could. Write an edited recipe back (every authoring path and fixture does).
     private sealed class FillerIndex
     {
         private readonly CultCache _catalog;
