@@ -71,7 +71,7 @@ public static class EconomyCommand
         { EconomyChecks.LRecipe, EconomyChecks.LLore, EconomyChecks.LProductive, EconomyChecks.LOneKindList, EconomyChecks.LWeights, EconomyChecks.LShape, EconomyChecks.LPrice };
 
     // A batch is compiled code under tools/AetherDb/Economy/ and runs with the operator's authority: reviewed code, never an input.
-    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance [--loop [<seed>...]] [--cap <sim seconds>]\nbalance reads the chain and changes nothing; --loop adds the player loop (a mining sortie per seed, default seeds 1 2 3 69 97, every belt of each, cap 150 sim seconds a sortie) and the offered gear ladders. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made good (a commodity, or a design with a recipe) to the price its chain derives; with no batch it reprices alone.";
+    private const string Usage = "economy report | author [<batch>...] [apply] | " + EconomyPrices.Usage + " | balance [--loop [<seed>...]] [--cap <sim seconds>] | balance --drain [<seed>...] [--window <sim seconds>] [--horizon <sim hours>]\nbalance reads the chain and changes nothing; --loop adds the player loop (a mining sortie per seed, default seeds 1 2 3 69 97, every belt of each, cap 150 sim seconds a sortie) and the offered gear ladders; --drain, not in the same call, adds a station block per seed: sorties to fill, the window (default 600 sim s) on screen and by spans, and the horizon (default 24 sim h) by spans. A batch is reviewed code: it runs on a trial copy and must write only through EconomyAuthor. After the batches, author reprices every made good (a commodity, or a design with a recipe) to the price its chain derives; with no batch it reprices alone.";
 
     public static int Run(string[] args, TextWriter output)
     {
@@ -86,31 +86,51 @@ public static class EconomyCommand
             using var db = AetherDb.OpenBooted();
             var settings = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings");
             var rest = args.Skip(1).ToList();
-            var cap = EconomyLoop.DefaultCap;
-            var capAt = rest.IndexOf("--cap");
-            if (capAt >= 0 && (capAt + 1 >= rest.Count || !float.TryParse(rest[capAt + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out cap) || !float.IsFinite(cap) || cap <= 0))
+            bool Option(string name, out double value)
+            {
+                value = 0;
+                var at = rest.IndexOf(name);
+                if (at < 0) return false;
+                if (at + 1 >= rest.Count || !double.TryParse(rest[at + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value) || !double.IsFinite(value) || value <= 0)
+                    throw new FormatException(name);
+                rest.RemoveRange(at, 2);
+                return true;
+            }
+            double cap, window, horizon;
+            bool capped, windowed, horizoned;
+            try { (capped, windowed, horizoned) = (Option("--cap", out cap), Option("--window", out window), Option("--horizon", out horizon)); }
+            catch (FormatException)
             {
                 output.WriteLine(Usage);
                 return 1;
             }
-            if (capAt >= 0) rest.RemoveRange(capAt, 2);
+            if (!capped) cap = EconomyLoop.DefaultCap;
+            if (!windowed) window = EconomyDrain.DefaultWindowSeconds;
+            if (!horizoned) horizon = EconomyDrain.DefaultHorizonHours;
             var loopAt = rest.IndexOf("--loop");
+            var drainAt = rest.IndexOf("--drain");
             var seeds = new List<uint>();
-            if (loopAt >= 0)
-                foreach (var word in rest.Skip(loopAt + 1))
+            var flagAt = Math.Max(loopAt, drainAt);
+            if (flagAt >= 0)
+                foreach (var word in rest.Skip(flagAt + 1))
                 {
                     if (!uint.TryParse(word, out var seed)) { output.WriteLine(Usage); return 1; }
                     seeds.Add(seed);
                 }
-            if ((loopAt >= 0 ? rest.Count - 1 - seeds.Count : rest.Count) != 0 || (capAt >= 0 && loopAt < 0))
+            // One of the two stages a call, its seeds last; each option belongs to its own stage.
+            if ((flagAt >= 0 ? rest.Count - 1 - seeds.Count : rest.Count) != 0 || (loopAt >= 0 && drainAt >= 0) || (capped && loopAt < 0) || ((windowed || horizoned) && drainAt < 0))
             {
                 output.WriteLine(Usage);
                 return 1;
             }
+            var seedList = seeds.Count == 0 ? EconomyLoop.DefaultSeeds : seeds.ToArray();
             LoopReport loop = null;
             if (loopAt >= 0)
-                loop = EconomyLoop.Report(db.Cache, settings, (seeds.Count == 0 ? EconomyLoop.DefaultSeeds : seeds.ToArray()).SelectMany(seed => EconomyLoop.Sorties(db.Root, seed, cap)).ToList());
-            return Balance(db.Cache, settings.EconomyWageSpread, output, loop);
+                loop = EconomyLoop.Report(db.Cache, settings, seedList.SelectMany(seed => EconomyLoop.Sorties(db.Root, seed, (float) cap)).ToList());
+            List<DrainSample> drain = null;
+            if (drainAt >= 0)
+                drain = seedList.Select(seed => EconomyDrain.Run(db.Root, seed, window, horizon, EconomyDrain.SortieUnits(EconomyLoop.Sorties(db.Root, seed, EconomyLoop.DefaultCap)))).ToList();
+            return Balance(db.Cache, settings.EconomyWageSpread, output, loop, drain);
         }
         if (args.Length > 0 && args[0] == "author")
         {
@@ -133,10 +153,10 @@ public static class EconomyCommand
 
     // The static balance: the median implied wage, the H faults, one line per chain link by wage over the median, then the belts.
     // Report-only: nothing here is a Shape invariant. Exit 1 when any fault.
-    public static int Balance(CultCache catalog, double wageSpread, TextWriter output, LoopReport loop = null)
+    public static int Balance(CultCache catalog, double wageSpread, TextWriter output, LoopReport loop = null, IReadOnlyList<DrainSample> drain = null)
     {
         var report = EconomyBalance.Balance(catalog, wageSpread);
-        var faults = report.Faults.Concat(loop?.Faults ?? new List<EconomyFault>()).ToList();
+        var faults = report.Faults.Concat(loop?.Faults ?? new List<EconomyFault>()).Concat(drain == null ? new List<EconomyFault>() : EconomyDrain.Report(drain)).ToList();
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         output.WriteLine($"median implied wage {report.WageReference.ToString("0.#####", inv)} per worker-second, spread {wageSpread.ToString(inv)}, {report.Links.Count} links, {report.Links.Count(l => l.Wage == null)} unpriced");
         output.WriteLine($"{faults.Count} faults");
@@ -157,6 +177,7 @@ public static class EconomyCommand
                 output.WriteLine(string.Format(inv, "    {0} {1:P0} | wage {2} | price {3:0.##} | cost {4:0.##}", y.Ore, y.Share, y.WageRatio.HasValue ? y.WageRatio.Value.ToString("0.##", inv) + "x" : "-", y.Price, y.Cost));
         }
         if (loop != null) PrintLoop(loop, output);
+        if (drain != null) foreach (var sample in drain) EconomyDrain.Print(sample, output);
         return faults.Count == 0 ? 0 : 1;
     }
 
