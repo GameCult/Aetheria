@@ -42,14 +42,14 @@ public sealed class PiratesFactionCommandTests : IDisposable
 
     private int AllFactionsButThePirates()
     {
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try { return db.Cache.GetAll<Faction>().Count(f => f.Name != "Pirates"); }
         finally { db.Cache.Dispose(); }
     }
 
     private (Faction[] Pirates, FactionProductData[] Products) Read()
     {
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try
         {
             var pirates = db.Cache.GetAll<Faction>().Where(faction => faction.Name == "Pirates").ToArray();
@@ -80,7 +80,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
         Assert.Equal(AllFactionsButThePirates(), faction.Allegiance.Count);
         Assert.All(faction.Allegiance.Values, value => Assert.Equal(1f, value));
 
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try
         {
             var expected = new (string Design, string Name, string Description)[]
@@ -118,7 +118,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
     [Fact]
     public void An_existing_Pirates_faction_is_topped_up_with_allegiance_and_nothing_else()
     {
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         db.Cache.Commit(batch => batch.Upsert(typeof(Faction), new Faction { Name = "Pirates", ShortName = "Mine", Description = "authored by hand" }));
         var key = db.Cache.RefOf(db.Cache.GetAll<Faction>().Single(f => f.Name == "Pirates")).Key;
         db.Cache.Dispose();
@@ -135,14 +135,14 @@ public sealed class PiratesFactionCommandTests : IDisposable
         Assert.Empty(products);
         var topped = File.ReadAllBytes(CatalogPath);
 
-        var late = AetherDb.Open(catalogWritable: true, root: _root);
+        var late = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         late.Cache.Commit(batch => batch.Upsert(typeof(Faction), new Faction { Name = "Latecomer", ShortName = "Late" }));
         var lateRef = late.Cache.RefOf(late.Cache.GetAll<Faction>().Single(f => f.Name == "Latecomer"));
         var others = late.Cache.GetAll<Faction>().Count(f => f.Name != "Pirates");
         late.Cache.Dispose();
 
         Assert.Equal(0, Program.PiratesFaction(apply: true, root: _root));
-        var check = AetherDb.Open(root: _root);
+        var check = AetherDb.OpenShipped(root: _root);
         try
         {
             var after = check.Cache.GetAll<Faction>().Single(f => f.Name == "Pirates");
@@ -163,7 +163,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
     [Fact]
     public void A_missing_design_refuses_and_lands_nothing()
     {
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         autocannon.Name = "Autocannon (renamed)";
         db.Cache.Commit(batch => batch.Upsert(typeof(WeaponItemData), autocannon, db.Cache.RefOf(autocannon).Key));

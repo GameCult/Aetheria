@@ -81,7 +81,7 @@ public sealed class MinorPowersTests : IDisposable
         Assert.Equal(0, MinorPowerFactionsCommand.Run(new[] { "apply" }, _root));
         var landed = File.ReadAllBytes(CatalogPath);
         Assert.NotEqual(before, landed);
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try
         {
             var factions = db.Cache.GetAll<Faction>().ToArray();
@@ -108,7 +108,7 @@ public sealed class MinorPowersTests : IDisposable
     public void ANameHeldUnderAnotherKeyIsRefusedWithNothingWritten()
     {
         StripTheMinorPowers();
-        var squatter = AetherDb.Open(catalogWritable: true, root: _root);
+        var squatter = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         squatter.Cache.Commit(batch => batch.Upsert(typeof(Faction), new Faction { Name = "Megiddo", ShortName = "Megiddo" }));
         squatter.Cache.Dispose();
         var before = File.ReadAllBytes(CatalogPath);

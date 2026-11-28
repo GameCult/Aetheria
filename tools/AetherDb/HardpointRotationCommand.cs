@@ -15,7 +15,7 @@ public static class HardpointRotationCommand
     {
         var apply = args.Contains("apply");
         var positional = args.Where(a => a != "apply").ToArray();
-        using var db = AetherDb.Open(catalogWritable: apply);
+        using var db = AetherDb.OpenShipped(catalogWritable: apply);
         var code = Run(db.Cache, positional, apply, Console.Out);
         if (apply && code == 0) db.Cache.FlushAsync().GetAwaiter().GetResult();
         return code;

@@ -4,7 +4,7 @@ using System.Linq;
 using GameCult.Caching;
 
 // Opens the catalog through AetheriaStores, the game's own store composition: OpenBooted for a read tool (the catalog the game boots),
-// Open for the shipped GameData/Aetheria.cc alone, which attaches read-only unless a command writes it, so a command that only reads cannot write. A station hull with no kind does not lock the
+// OpenShipped for the shipped GameData/Aetheria.cc alone, which attaches read-only unless a command writes it, so a command that only reads cannot write. A station hull with no kind does not lock the
 // catalog: it is named to warn (stderr by default) and the commands that repair it stay reachable.
 public sealed class AetherDb : IDisposable
 {
@@ -61,7 +61,7 @@ public sealed class AetherDb : IDisposable
 
     // The shipped GameData/Aetheria.cc alone, which is what an apply path (and its dry run) reads and writes. With no root given, walks up
     // from the working directory to the game folder: the first folder whose GameData holds Aetheria.cc.
-    public static AetherDb Open(bool catalogWritable = false, bool withRun = false, string root = null, Action<string> warn = null) =>
+    public static AetherDb OpenShipped(bool catalogWritable = false, bool withRun = false, string root = null, Action<string> warn = null) =>
         new AetherDb(root ?? FindRoot(), false, withRun, warn, catalogWritable);
 
     // The catalog the game boots (see ComposeBooted), read-only: every read tool opens this.

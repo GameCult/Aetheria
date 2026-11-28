@@ -126,7 +126,7 @@ public static class ProductLinesCommand
             return 1;
         }
 
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var designs = db.Cache.GetAll<CraftedItemData>().ToArray();
         var factions = db.Cache.GetAll<Faction>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
@@ -204,7 +204,7 @@ public static class ProductLinesCommand
     // so the same command is the first apply and the replay onto a merged catalog.
     internal static int RunTiers(IReadOnlyList<TierRow> tiers, bool apply, string root)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var designs = db.Cache.GetAll<CraftedItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
 

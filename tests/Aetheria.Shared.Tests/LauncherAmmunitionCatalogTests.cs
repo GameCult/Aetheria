@@ -13,7 +13,7 @@ public sealed class LauncherAmmunitionCatalogTests
     [Fact]
     public void EveryShippedLauncherReloadsFromMissilesAndMissilesCanBeMade()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var missiles = db.Cache.GetAll<SimpleCommodityData>().Single(c => c.Name == "Missiles");
         var key = db.Cache.RefOf(missiles).Key;
         var launchers = db.Cache.GetAll<WeaponItemData>().SelectMany(i => i.Behaviors.OfType<WeaponData>().Where(IsLauncher).Select(d => (i.Name, d))).ToArray();

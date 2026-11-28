@@ -297,7 +297,7 @@ public sealed class PlaceNamesTests : IDisposable
         Assert.Equal(0, PlaceNamesCommand.Run(new[] { "apply" }, root));
         var landed = File.ReadAllBytes(CatalogOf(root));
         Assert.NotEqual(before, landed);
-        var db = AetherDb.Open(root: root);
+        var db = AetherDb.OpenShipped(root: root);
         try
         {
             foreach (var row in PlaceNamesCommand.Table)
@@ -308,7 +308,7 @@ public sealed class PlaceNamesTests : IDisposable
         Assert.Equal(landed, File.ReadAllBytes(CatalogOf(root)));
 
         // Aya's ShortName changed under its key: identity is the key, so the row no longer describes that faction.
-        var squatter = AetherDb.Open(catalogWritable: true, root: root);
+        var squatter = AetherDb.OpenShipped(catalogWritable: true, root: root);
         var aya = squatter.Cache.GetAll<Faction>().Single(f => f.ShortName == "Aya");
         aya.ShortName = "Ayx";
         squatter.Cache.Commit(batch => batch.Upsert(typeof(Faction), aya, squatter.Cache.RefOf(aya).Key));
@@ -325,7 +325,7 @@ public sealed class PlaceNamesTests : IDisposable
         var root = ScratchWithoutLists();
         Assert.Equal(0, PlaceNamesCommand.Run(new[] { "apply" }, root));
         var row = PlaceNamesCommand.Table.First();
-        var edited = AetherDb.Open(catalogWritable: true, root: root);
+        var edited = AetherDb.OpenShipped(catalogWritable: true, root: root);
         var faction = edited.Cache.GetAll<Faction>().Single(f => edited.Cache.RefOf(f).Key.Value == row.RecordKey);
         faction.Places = row.Names.Reverse().Select(n => new FactionPlace { Name = n }).ToArray();
         edited.Cache.Commit(batch => batch.Upsert(typeof(Faction), faction, edited.Cache.RefOf(faction).Key));
@@ -333,7 +333,7 @@ public sealed class PlaceNamesTests : IDisposable
 
         Assert.Equal(0, PlaceNamesCommand.Run(new[] { "apply" }, root));
 
-        var db = AetherDb.Open(root: root);
+        var db = AetherDb.OpenShipped(root: root);
         try { Assert.Equal(row.Names, db.Cache.GetAll<Faction>().Single(f => db.Cache.RefOf(f).Key.Value == row.RecordKey).Places.Select(p => p.Name)); }
         finally { db.Cache.Dispose(); }
     }

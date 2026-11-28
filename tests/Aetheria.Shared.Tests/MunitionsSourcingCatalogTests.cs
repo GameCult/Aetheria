@@ -17,7 +17,7 @@ public sealed class MunitionsSourcingCatalogTests
     [Fact]
     public void EveryRoundFiringGunNamesAnAmmunitionCommodityAndHoldsARealMagazine()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var guns = db.Cache.GetAll<WeaponItemData>()
             .SelectMany(i => i.Behaviors.OfType<WeaponData>().Where(d => FiresRounds(i, d)).Select(d => (i.Name, d))).ToArray();
         Assert.True(guns.Length >= 14, $"fixture: the catalog holds its round-firing guns ({guns.Length})");
@@ -34,7 +34,7 @@ public sealed class MunitionsSourcingCatalogTests
     [Fact]
     public void EveryDrawnAmmunitionHasAFiniteProductionDepth()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var depth = EconomyChecks.Deep(db.Cache);
         var drawn = db.Cache.GetAll<WeaponItemData>().SelectMany(i => i.Behaviors.OfType<WeaponData>()).Where(d => d.AmmoType.IsSet())
             .Select(d => d.AmmoType.Key.Value).Distinct().ToArray();
@@ -47,7 +47,7 @@ public sealed class MunitionsSourcingCatalogTests
     [Fact]
     public void TheMunitionsChainHasNoSourceSinkFault()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var chain = new HashSet<string>(ChainOf(db.Cache), System.StringComparer.Ordinal);
         Assert.True(chain.Count >= 25, $"fixture: the chain is walked ({chain.Count} goods)");
         var faults = EconomyChecks.SourceSink(db.Cache).Where(f => chain.Contains(KeyOfRecipe(f.Record))).ToArray();

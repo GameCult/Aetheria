@@ -362,7 +362,7 @@ public static class ShipAuthoringPush
         // kindless draft that stays kindless is not, so it still takes stats and price (and needs no catalog).
         if (derived.Kind.IsSet() || held.Kind.IsSet())
             // Shipped file alone, on purpose: a station kind is the shipped catalog's, the rule Compose applies to a package.
-            using (var catalog = AetherDb.Open().Cache)
+            using (var catalog = AetherDb.OpenShipped().Cache)
                 if (StationKinds.HullKindFault(catalog, derived) is { } fault) throw new InvalidOperationException($"{shipId}: {fault}");
         FlatDiff(lines, key, HullFields(held), HullFields(derived));
     }

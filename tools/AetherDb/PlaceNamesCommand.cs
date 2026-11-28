@@ -66,7 +66,7 @@ public static class PlaceNamesCommand
     internal static int Run(string[] args, string root, Row[] table)
     {
         var apply = args.Contains("apply");
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var factions = db.Cache.GetAll<Faction>().ToArray();
         var keyOf = factions.ToDictionary(f => db.Cache.RefOf(f).Key.Value, StringComparer.Ordinal);
 

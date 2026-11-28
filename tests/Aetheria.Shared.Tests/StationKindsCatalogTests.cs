@@ -84,7 +84,7 @@ public sealed class StationKindsCatalogTests : IDisposable
 
         var warned = new List<string>();
         var applied = new StringWriter();
-        using (var db = AetherDb.Open(catalogWritable: true, root: root, warn: warned.Add))
+        using (var db = AetherDb.OpenShipped(catalogWritable: true, root: root, warn: warned.Add))
         {
             Assert.Contains(warned, line => line.Contains("Zenith"));
             Assert.Contains(warned, line => line.Contains("Second Station"));
@@ -94,7 +94,7 @@ public sealed class StationKindsCatalogTests : IDisposable
         }
         Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(catalog));
 
-        using (var db = AetherDb.Open(catalogWritable: true, root: root, warn: _ => { }))
+        using (var db = AetherDb.OpenShipped(catalogWritable: true, root: root, warn: _ => { }))
         {
             var dry = new StringWriter();
             Assert.Equal(0, StationKindsCatalog.SetHullKind(db.Cache, "Second Station", "mining", false, dry));
@@ -112,7 +112,7 @@ public sealed class StationKindsCatalogTests : IDisposable
     public void SetHullKindRefusesWhatIsNotAStationHullOrAHeldKind()
     {
         var root = SeedRoot("Zenith");
-        using var db = AetherDb.Open(catalogWritable: true, root: root, warn: _ => { });
+        using var db = AetherDb.OpenShipped(catalogWritable: true, root: root, warn: _ => { });
         StationKindsCatalog.Run(db.Cache, true, new StringWriter());
         string Refusal(string hull, string kind)
         {

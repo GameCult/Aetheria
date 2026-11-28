@@ -31,7 +31,7 @@ public sealed class SmokeHullCommandTests : IDisposable
 
     private (HullData[] Hulls, HullData Longinus, EquippableItemData[] Fitted, int Products) Read()
     {
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try
         {
             var hulls = db.Cache.GetAll<HullData>().Where(h => h.Name == HullName).ToArray();

@@ -37,7 +37,7 @@ public sealed class ConsumablesFirstSetCommandTests : IDisposable
 
     private (ConsumableItemData[] Designs, FactionProductData[] Products) Read()
     {
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try
         {
             var designs = db.Cache.GetAll<ConsumableItemData>().Where(c => DesignNames.Contains(c.Name)).ToArray();

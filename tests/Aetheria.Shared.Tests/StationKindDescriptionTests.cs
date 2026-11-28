@@ -11,7 +11,7 @@ public sealed class StationKindDescriptionTests
     [Fact]
     public void EveryRawGoodAKindExtractsIsNamedInItsDescription()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var cache = db.Cache;
         var unnamed = cache.GetAll<RecipeData>().Where(recipe => Recipes.IsRaw(cache, recipe) && recipe.StationKind.IsSet())
             .Select(recipe => (Kind: cache.Get(recipe.StationKind), Output: cache.Get(recipe.Output)))
@@ -25,7 +25,7 @@ public sealed class StationKindDescriptionTests
     [Fact]
     public void MiningExtractsDiamondAndVolatilesAmmonia()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var cache = db.Cache;
         string RawAt(string kindId) => string.Join(",", cache.GetAll<RecipeData>()
             .Where(recipe => Recipes.IsRaw(cache, recipe) && recipe.StationKind.IsSet() && recipe.StationKind.Key.Equals(StationKindData.KeyOf(kindId)))
@@ -41,7 +41,7 @@ public sealed class StationKindDescriptionTests
     [Fact]
     public void EveryCommodityAStationKindNamesIsMadeOrTakenByARecipe()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var c = db.Cache;
         var used = c.GetAll<RecipeData>().SelectMany(r => r.Inputs.Select(i => i.Commodity.Key.Value).Append(r.Output.Key.Value)).ToHashSet();
         var commodities = c.GetAll<SimpleCommodityData>().ToArray();
@@ -59,7 +59,7 @@ public sealed class StationKindDescriptionTests
     [Fact]
     public void TheShippedDescriptionsAreTheAuthoredTable()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         foreach (var id in new[] { "mining", "volatiles", "agriculture", "habitat-support", "power" })
             Assert.Equal(StationKindsCatalog.DescriptionOf(id), db.Cache.Get<StationKindData>(StationKindData.KeyOf(id)).Description);
     }

@@ -28,7 +28,7 @@ public static class Program
             case "shield-catalog":
             {
                 var apply = args.Contains("apply");
-                using var db = AetherDb.Open(catalogWritable: apply);
+                using var db = AetherDb.OpenShipped(catalogWritable: apply);
                 var code = ShieldCatalog.Run(db.Cache, apply, Console.Out);
                 if (apply) db.Cache.FlushAsync().GetAwaiter().GetResult();
                 return code;
@@ -67,8 +67,8 @@ public static class Program
             case "inspection-scanner": return InspectionScannerCatalog(args.Contains("apply"));
             case "product-lines": return ProductLinesCommand.Run(args.Skip(1).ToArray());
             case "minor-power-factions": return MinorPowerFactionsCommand.Run(args.Skip(1).ToArray());
-            case "station-reactor-spread": return StationReactorSpreadCommand.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
-            case "assembly-from-maker": return AssemblyFromMakerCommand.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
+            case "station-reactor-spread": return StationReactorSpreadCommand.Run(AetherDb.OpenShipped(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
+            case "assembly-from-maker": return AssemblyFromMakerCommand.Run(AetherDb.OpenShipped(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             case "place-names":
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
                 return PlaceNamesCommand.Run(args.Skip(1).ToArray());
@@ -77,7 +77,7 @@ public static class Program
                 var apply = args.Contains("apply");
                 // Shipped file alone, on purpose: every form here (the kinds report included) is the dry run of an apply that writes the shipped
                 // file, so it reads what apply would change; its report is identical over the composed catalog.
-                using var db = AetherDb.Open(catalogWritable: apply);
+                using var db = AetherDb.OpenShipped(catalogWritable: apply);
                 int code;
                 if (args.Length > 1 && args[1] == "hull")
                 {
@@ -99,12 +99,12 @@ public static class Program
                 if (args.Length < 2 || args[1] != "resave") { Console.WriteLine("catalog resave [apply]"); return 1; }
                 var apply = args.Contains("apply");
                 // Shipped file alone, on purpose: a resave restamps GameData/Aetheria.cc itself, so a composed catalog would write the packages into it.
-                using var db = AetherDb.Open(catalogWritable: apply);
+                using var db = AetherDb.OpenShipped(catalogWritable: apply);
                 return CatalogResaveCommand.Run(db.Cache, apply, Console.Out);
             }
             case "economy": return EconomyCommand.Run(args.Skip(1).ToArray(), Console.Out);
-            case "auto-guns": return AutoGunsCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
-            case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
+            case "auto-guns": return AutoGunsCatalog.Run(AetherDb.OpenShipped(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
+            case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.OpenShipped(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
                 Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, hardpoint-rotation \"<hull>\" <x>,<y> <rotation> [apply], loadout [seed], loadout-commit <name> <hull product> [<x>,<y>,<rotation>,<design>[@<product>]]... [--group <i>,<j>...]... [--replace] [--boss-of <faction>], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], place-names [apply], product-lines weapons|minor-powers|gear|tiers [apply], doctrine-catalog [apply], auto-guns [apply], assembly-from-maker [apply], shield-catalog [apply], station-kinds [hull \"<name>\" <kind> | facilities \"<hull>\" <x>,<y>:<footprint>...] [apply], economy report|prices|author <batch>... [apply]|balance");
                 return 1;
@@ -114,7 +114,7 @@ public static class Program
     // Designs by kind and manufacturer, designs no product sells, and products with authored role quality.
     private static int Census()
     {
-        var db = AetherDb.OpenBooted();
+        using var db = AetherDb.OpenBooted();
         var items = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>()
             .OrderBy(p => db.Cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
@@ -373,7 +373,7 @@ public static class Program
     // the operator review table (grouped by item kind) either way.
     public static int RolesMigrate(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var items = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         var changedDesigns = new List<(object Document, CultRecordKey Key)>();
@@ -537,7 +537,7 @@ public static class Program
     // generation equips hardpoint gear first and only the first of those is guaranteed.
     private static int StationFit()
     {
-        var db = AetherDb.OpenBooted();
+        using var db = AetherDb.OpenBooted();
         var bays = db.Cache.GetAll<DockingBayData>().ToArray();
         var failures = 0;
         foreach (var hull in db.Cache.GetAll<HullData>().Where(h => h.HullType == HullType.Station))
@@ -663,7 +663,7 @@ public static class Program
         var clear = new HashSet<string>(args.Select((arg, i) => (arg, i))
             .Where(p => p.arg == "clear" && p.i + 1 < args.Length)
             .Select(p => args[p.i + 1]));
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
 
         var changed = new List<(object Document, CultRecordKey Key)>();
         var found = 0;
@@ -771,7 +771,7 @@ public static class Program
     // Galaxy.NamePlaces falls back to catalogue designations for a faction without one.
     private static int Factions()
     {
-        var db = AetherDb.OpenBooted();
+        using var db = AetherDb.OpenBooted();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         Console.WriteLine($"{"faction",-26} {"short",-13} {"places",-22} {"boss loadout",-14} {"influence",-9} {"doctrine",-10} products");
         var broken = 0;
@@ -800,16 +800,7 @@ public static class Program
             return 0;
         }
 
-        AetherDb db;
-        try
-        {
-            db = AetherDb.OpenBooted(withRun: true);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine($"save does not open: {e.GetType().Name}: {e.Message}");
-            return 1;
-        }
+        using var db = AetherDb.OpenBooted(withRun: true);
 
         var run = db.Cache.GetGlobal<SavedGame>();
         if (run?.Zones == null)
@@ -860,7 +851,7 @@ public static class Program
     private static int Loadout(string[] args)
     {
         var seed = uint.TryParse(args.FirstOrDefault(), out var parsed) ? parsed : 1u;
-        var db = AetherDb.OpenBooted();
+        using var db = AetherDb.OpenBooted();
         var settings = new GameplaySettings
         {
             DefaultEntitySettings = new EntitySettings(),
@@ -935,7 +926,7 @@ public static class Program
     // operator review either way).
     private static int ShieldMigrate(bool apply)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
 
         // ShieldData nests inside either host's Behaviors list (GearData: an equipped item with a hardpoint
         // Shape to size from; ConsumableItemData: a consumable effect with no Shape -- cells reads 0 there, and
@@ -1033,7 +1024,7 @@ public static class Program
     // same contract as ShieldMigrate.
     private static int BrownoutMigrate(bool apply)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
         const float gentleExponent = 1f;
 
         // (behaviour type, target performance-stat field, short label) -- one of these is also a request field
@@ -1120,7 +1111,7 @@ public static class Program
     // otherwise. Dry run unless passed "apply", same contract as ShieldMigrate/BrownoutMigrate.
     private static int FiringArcMigrate(bool apply)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
 
         var hulls = db.Cache.GetAll<HullData>().Where(h => h.Name == "Turret").ToArray();
         if (hulls.Length == 0)
@@ -1173,7 +1164,7 @@ public static class Program
     // against the catalog and not against names.
     private static int WeaponAmmo()
     {
-        var db = AetherDb.OpenBooted();
+        using var db = AetherDb.OpenBooted();
         Console.WriteLine($"{"weapon",-28} {"behaviour",-20} {"energy",-11} {"mag",5} {"reload",6} ammo");
         foreach (var item in db.Cache.GetAll<WeaponItemData>().OrderBy(i => i.Name, StringComparer.Ordinal))
             foreach (var w in item.Behaviors.OfType<WeaponData>())
@@ -1197,7 +1188,7 @@ public static class Program
         }
         var fraction = Option("--effective", .5f);
         var end = Option("--end", 0f);
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
         // A record is rewritten only when what it would store differs from what is stored: that is what drops the retired
         // key 7 from a record the command leaves otherwise unchanged, and what makes a second apply change no byte.
         var persisted = CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(Path.Combine(db.Root, "GameData", "Aetheria.cc")))
@@ -1252,7 +1243,7 @@ public static class Program
     // Dry run unless passed "apply", same contract as the other *-migrate commands.
     private static int TargetingCatalog(bool apply)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
 
         Faction FactionByShortName(string shortName)
         {
@@ -1467,7 +1458,7 @@ public static class Program
     // Dry run unless passed "apply", same contract as the other *-migrate commands.
     private static int TargetingCatalog6c(bool apply)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
 
         Faction FactionByShortName(string shortName)
         {
@@ -1577,7 +1568,7 @@ public static class Program
     // Dry run unless passed "apply", same contract as the other *-migrate commands.
     private static int TargetingCatalog6d(bool apply)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
 
         GearData DesignByName(string name)
         {
@@ -1638,7 +1629,7 @@ public static class Program
     // each carries several products, and branding lives in the products alone. Dry run unless passed "apply".
     private static int PdGearCatalog(bool apply)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
         var weapons = db.Cache.GetAll<WeaponItemData>().ToArray();
 
         var designNames = new[] { "Point Defense Gun", "Point Defense Laser", "Flak Gun" };
@@ -1784,7 +1775,7 @@ public static class Program
     // "apply"; idempotent, so a second apply writes nothing and a catalog another cut changed is rerun, never merged.
     internal static int SensorStatSet(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         Faction MakerOf(FactionProductData p) => db.Cache.Get(p.Manufacturer);
@@ -1941,7 +1932,7 @@ public static class Program
     public static int SmokeHullCatalog(bool apply, string root = null)
     {
         const string name = "Smoke Test Hull";
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         if (db.Cache.GetAll<HullData>().Any(h => h.Name == name))
         {
             Console.WriteLine($"\"{name}\" is already authored; nothing to do.");
@@ -2004,7 +1995,7 @@ public static class Program
     // (Velocity 150) so a scenario can kill the target while one is in the air. Dry run unless passed "apply".
     public static int SmokeRoundsCatalog(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var weapons = db.Cache.GetAll<WeaponItemData>().ToArray();
         var names = new[] { "Smoke Proximity", "Smoke Delayed", "Smoke Refused", "Smoke Refused Beam", "Smoke Refused Charge" };
         var already = names.Count(name => weapons.Any(w => w.Name == name));
@@ -2100,7 +2091,7 @@ public static class Program
     private static int MineLauncherCatalog(bool apply)
     {
         const string name = "Mine Launcher";
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.OpenShipped(catalogWritable: apply);
         const float minimumTemperature = 173.15f, maximumTemperature = 473.15f, optimalTemperature = 249.65f, plateauWidth = 36f;
         if (db.Cache.GetAll<GearData>().SingleOrDefault(gear => gear.Name == name) is { } authored)
         {
@@ -2229,7 +2220,7 @@ public static class Program
 
     public static int RolesBackfill(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var items = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         var targets = BackfillDesigns.Select(name => items.Where(i => i.Name == name).ToArray())
@@ -2342,7 +2333,7 @@ public static class Program
 
     public static int PiratesFaction(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
 
         var existing = db.Cache.GetAll<Faction>().FirstOrDefault(f => f.Name == "Pirates");
         if (existing != null)
@@ -2460,7 +2451,7 @@ public static class Program
     // unless passed "apply".
     public static int ConsumablesFirstSetCatalog(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var designNames = new[] { "Thruster Overdrive", "Coolant Vent" };
         var already = designNames.Count(name => db.Cache.GetAll<ConsumableItemData>().Any(c => c.Name == name));
         if (already == designNames.Length)
@@ -2722,7 +2713,7 @@ public static class Program
     // shipped product text ending in the authoring note loses it. Dry run unless passed "apply".
     public static int GenericDesigns(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         string MakerOf(FactionProductData product) => db.Cache.Get(product.Manufacturer)?.ShortName;
@@ -2827,7 +2818,7 @@ public static class Program
     // unless passed "apply".
     public static int LaunchSuppressorCatalog(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var designNames = new[] { "Launch Suppressor", "Launch Baffle" };
         var template = db.Cache.GetAll<GearData>().Single(g => g.Name == "Targeting Computer");
 
@@ -2961,7 +2952,7 @@ public static class Program
     // 1x1 tool. Dry run unless passed "apply"; a catalog that is neither untouched nor fully authored is refused.
     public static int InspectionScannerCatalog(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         const string designName = "Inspection Scanner";
         const string scanArray = "scan array";
         var template = db.Cache.GetAll<GearData>().Single(g => g.Name == "Targeting Computer");

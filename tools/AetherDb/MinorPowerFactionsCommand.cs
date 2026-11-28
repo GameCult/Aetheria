@@ -48,7 +48,7 @@ public static class MinorPowerFactionsCommand
     public static int Run(string[] args, string root = null)
     {
         var apply = args.Contains("apply");
-        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var db = AetherDb.OpenShipped(catalogWritable: apply, root: root);
         var existing = db.Cache.GetAll<Faction>().ToArray();
 
         // Refuse before any write: a name or short name held by a faction under another key.

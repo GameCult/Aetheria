@@ -24,7 +24,7 @@ public static class EconomyPrices
         }
         // The shipped file alone, on purpose: a package's hull price is read from its ship.cc below, so a composed catalog would list the
         // same hull twice, and the second catalog an old side is compared against is a shipped file.
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var now = Read(db.Cache, mods ?? Path.Combine(db.Root, "GameData", "Mods"));
         if (other == null)
         {

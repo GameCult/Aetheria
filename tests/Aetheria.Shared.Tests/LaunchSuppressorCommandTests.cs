@@ -53,7 +53,7 @@ public sealed class LaunchSuppressorCommandTests : IDisposable
 
     private (GearData[] Designs, string[] Products) Read()
     {
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try
         {
             var designs = db.Cache.GetAll<GearData>().Where(g => DesignNames.Contains(g.Name)).ToArray();

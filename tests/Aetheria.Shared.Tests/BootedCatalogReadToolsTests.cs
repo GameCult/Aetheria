@@ -38,6 +38,8 @@ public sealed class BootedCatalogReadToolsTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_broken.Path, "GameData", "Mods", "mod.broken"));
         File.Copy(Path.Combine(_repo, "GameData", "Aetheria.cc"), Path.Combine(_broken.Path, "GameData", "Aetheria.cc"));
         File.WriteAllBytes(Path.Combine(_broken.Path, "GameData", "Mods", "mod.broken", "ship.cc"), new byte[] { 1, 2, 3 });
+        // The save viewer returns early without a run store, so the fixture holds one; the compose throws before it is read.
+        File.WriteAllBytes(Path.Combine(_broken.Path, "GameData", "run.cc"), Array.Empty<byte>());
         return _broken.Path;
     }
 
@@ -70,6 +72,7 @@ public sealed class BootedCatalogReadToolsTests : IDisposable
     [InlineData("hardpoint-fit")]
     [InlineData("factions")]
     [InlineData("weapon-ammo")]
+    [InlineData("save")]
     [InlineData("economy", "report")]
     [InlineData("economy", "balance")]
     public void AReadToolThrowsNamingAnExcludedPackage(params string[] args)
@@ -78,6 +81,34 @@ public sealed class BootedCatalogReadToolsTests : IDisposable
         var error = Assert.Throws<InvalidOperationException>(() => ConsoleProbe.WrittenBy(() => Program.Main(args)));
         Assert.Contains("mod.broken", error.Message);
     }
+
+    // A read tool's composed scratch (aetherdb-mods-*) is removed when the tool returns or throws. This class runs alone (its collection
+    // disables parallelization), so no other test is making one meanwhile.
+    [Theory]
+    [InlineData("census")]
+    [InlineData("station-fit")]
+    [InlineData("loadout", "2")]
+    [InlineData("hardpoint-fit")]
+    [InlineData("factions")]
+    [InlineData("weapon-ammo")]
+    [InlineData("economy", "report")]
+    public void AReadToolLeavesNoScratchBehind(params string[] args)
+    {
+        var before = Scratches();
+        Run(args);
+        Assert.Equal(before, Scratches());
+    }
+
+    [Fact]
+    public void TheSaveViewerLeavesNoScratchBehindWhenItThrows()
+    {
+        var before = Scratches();
+        Environment.CurrentDirectory = BrokenRoot();
+        Assert.Throws<InvalidOperationException>(() => ConsoleProbe.WrittenBy(() => Program.Main(new[] { "save" })));
+        Assert.Equal(before, Scratches());
+    }
+
+    private static string[] Scratches() => Directory.GetDirectories(Path.GetTempPath(), "aetherdb-mods-*");
 
     [Fact]
     public void ComposeBootedThrowsNamingAnExcludedPackage()

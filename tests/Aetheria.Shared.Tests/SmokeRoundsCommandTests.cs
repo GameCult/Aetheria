@@ -45,7 +45,7 @@ public sealed class SmokeRoundsCommandTests : IDisposable
 
     private (WeaponItemData[] Smoke, WeaponItemData LightLaser, WeaponItemData ChargedScatterBlaster, int Products) Read()
     {
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try
         {
             var smoke = db.Cache.GetAll<WeaponItemData>().Where(w => Names.Contains(w.Name)).ToArray();

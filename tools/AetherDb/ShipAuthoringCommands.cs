@@ -223,7 +223,7 @@ public static class ShipAuthoringCommands
         if (judged == "records and model") ShipModCatalog.Bind(hull, ship, products, Path.GetDirectoryName(full), full);
         // Shipped file alone, on purpose: a package is judged against the shipped catalog it will be composed over, never against itself.
         // Compose's verdict on a package's bins and its offered hull's schematic; the author sees it here, before compose.
-        using var catalog = products.Length > 0 || hull.HullType == HullType.Station ? AetherDb.Open().Cache : null;
+        using var catalog = products.Length > 0 || hull.HullType == HullType.Station ? AetherDb.OpenShipped().Cache : null;
         if (ShipModCatalog.MarketFault(catalog, ship, products) is { } fault) throw new InvalidOperationException(fault);
         // A station package names a kind the shipped catalog holds (the rule Compose applies), so Package refuses it before compose does.
         if (hull.HullType == HullType.Station && StationKinds.HullKindFault(catalog, hull) is { } kindFault)
@@ -235,7 +235,7 @@ public static class ShipAuthoringCommands
     internal static (CultRecordKey Key, string Name) ShippedFaction(string text)
     {
         // Shipped file alone, on purpose: this resolves a shipped faction, the one a package names by key.
-        using var catalog = AetherDb.Open().Cache;
+        using var catalog = AetherDb.OpenShipped().Cache;
         var matches = catalog.GetAll<Faction>()
             .Where(faction => string.Equals(faction.Name, text, StringComparison.Ordinal) ||
                               string.Equals(faction.ShortName, text, StringComparison.Ordinal) ||
@@ -249,7 +249,7 @@ public static class ShipAuthoringCommands
     private static HullData ShippedHull(string name, params HullType[] allowed)
     {
         // Shipped file alone, on purpose: --like copies a shipped hull, not a package's.
-        using var catalog = AetherDb.Open().Cache;
+        using var catalog = AetherDb.OpenShipped().Cache;
         var hull = catalog.GetAll<HullData>().FirstOrDefault(candidate => candidate.Name == name) ??
             throw new InvalidOperationException($"--like: the shipped catalog has no hull named '{name}'.");
         if (!allowed.Contains(hull.HullType))

@@ -123,7 +123,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
 
     private Dictionary<string, string> Read()
     {
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try
         {
             var products = db.Cache.GetAll<FactionProductData>().ToArray();
@@ -189,7 +189,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
 
         Reset(flattened: true, unnamed: true);
         Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         Dictionary<string, Dictionary<string, float>> after;
         try { after = Read(db.Cache.GetAll<EquippableItemData>().ToArray()); }
         finally { db.Cache.Dispose(); }
@@ -201,7 +201,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     public void A_seller_with_one_of_two_roles_authored_gains_only_the_missing_role()
     {
         Reset(flattened: false, unnamed: false);
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Design.Key.Equals(db.Cache.RefOf(autocannon).Key) && p.Roles.Count == 2);
         var kept = seller.Roles.OrderBy(r => r.Role, StringComparer.Ordinal).First();
@@ -213,7 +213,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         db.Cache.Dispose();
 
         Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
-        db = AetherDb.Open(root: _root);
+        db = AetherDb.OpenShipped(root: _root);
         try
         {
             var after = db.Cache.GetAll<FactionProductData>().Single(p => p.Name == sellerName);
@@ -228,7 +228,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     public void A_binned_seller_gains_no_roles()
     {
         Reset(flattened: false, unnamed: false);
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Design.Key.Equals(db.Cache.RefOf(autocannon).Key) && p.Roles.Count == 2);
         var sellerName = seller.Name;
@@ -246,7 +246,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         db.Cache.Dispose();
 
         Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
-        db = AetherDb.Open(root: _root);
+        db = AetherDb.OpenShipped(root: _root);
         try
         {
             Assert.Equal(2, db.Cache.GetAll<FactionProductData>().Single(p => p.Name == sellerName).Roles.Count);
@@ -259,7 +259,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     [Fact]
     public void The_census_reports_a_roleless_seller_and_never_a_bin()
     {
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Design.Key.Equals(db.Cache.RefOf(autocannon).Key));
         var sellerName = seller.Name;
@@ -275,7 +275,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         });
         db.Cache.Dispose();
 
-        db = AetherDb.Open(root: _root);
+        db = AetherDb.OpenShipped(root: _root);
         try
         {
             var gaps = Program.RoleGaps(db.Cache, db.Cache.GetAll<EquippableItemData>().ToArray(), db.Cache.GetAll<FactionProductData>().ToArray()).ToArray();
@@ -289,7 +289,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     [Fact]
     public void A_binned_seller_gains_no_roles_from_roles_migrate()
     {
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Design.Key.Equals(db.Cache.RefOf(autocannon).Key));
         var bin = new FactionProductData
@@ -301,7 +301,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         db.Cache.Dispose();
 
         Assert.Equal(0, Program.RolesMigrate(apply: true, root: _root));
-        db = AetherDb.Open(root: _root);
+        db = AetherDb.OpenShipped(root: _root);
         try { Assert.Empty(db.Cache.GetAll<FactionProductData>().Single(p => p.Name == "Binned " + seller.Name).Roles); }
         finally { db.Cache.Dispose(); }
     }
@@ -310,7 +310,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     [Fact]
     public void A_binned_seller_gains_no_roles_from_sensor_stat_set()
     {
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         var sensor = db.Cache.GetAll<EquippableItemData>().Where(d => d.Behaviors != null && d.Behaviors.OfType<SensorData>().Any()).OrderBy(d => d.Name, StringComparer.Ordinal).First();
         var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Bin == null && p.Design.Key.Equals(db.Cache.RefOf(sensor).Key));
         var bin = new FactionProductData
@@ -322,7 +322,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         db.Cache.Dispose();
 
         Assert.Equal(0, Program.SensorStatSet(apply: true, root: _root));
-        db = AetherDb.Open(root: _root);
+        db = AetherDb.OpenShipped(root: _root);
         try { Assert.Empty(db.Cache.GetAll<FactionProductData>().Single(p => p.Name == "Binned " + seller.Name).Roles); }
         finally { db.Cache.Dispose(); }
     }
@@ -331,7 +331,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     public void A_design_the_catalog_does_not_hold_refuses_and_lands_nothing()
     {
         Reset(flattened: false, unnamed: false);
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         autocannon.Name = "Autocannon (renamed)";
         db.Cache.Commit(batch => batch.Upsert(typeof(WeaponItemData), autocannon, db.Cache.RefOf(autocannon).Key));

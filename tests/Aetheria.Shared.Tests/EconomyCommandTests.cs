@@ -337,7 +337,7 @@ public sealed class EconomyCommandTests
     [Fact]
     public void BalanceOnTheShippedCatalogPrintsEveryLinkAndBeltRow()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var report = EconomyBalance.Balance(db.Cache);
         var output = new StringWriter();
         EconomyCommand.Balance(db.Cache, 2, output);
@@ -352,7 +352,7 @@ public sealed class EconomyCommandTests
     [Fact]
     public void ReportOnTheShippedCatalogGoesToTheGivenWriterAndNeverToConsole()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var expected = new StringWriter();
         var expectedCode = EconomyCommand.Report(db.Cache, expected);
         var output = new StringWriter();

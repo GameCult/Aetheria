@@ -101,7 +101,7 @@ public sealed class EconomyLoopTests
     [Fact]
     public void TheBallisticLadderAndItsTopGunSitInsideTheShippedBands()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var settings = new GameplaySettings();
         Assert.Equal((10f, 30f, 10f, 20f), (settings.EconomyLadderMin, settings.EconomyLadderMax, settings.EconomySortiesMin, settings.EconomySortiesMax));
         var report = EconomyLoop.Report(db.Cache, settings, new[] { Sample(1, 1734, 0, 183, 150) });
@@ -210,7 +210,7 @@ public sealed class EconomyLoopTests
     // The price the catalog authors for a simple commodity of that name.
     private static int PriceOf(string name)
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         return db.Cache.GetAll<SimpleCommodityData>().Single(c => c.Name == name).Price;
     }
 
@@ -317,7 +317,7 @@ public sealed class EconomyLoopTests
     [Fact]
     public void BalanceLoopPrintsTheLoopAndTheLaddersAndLetsTheirFaultsFailTheCommand()
     {
-        using var db = AetherDb.Open();
+        using var db = AetherDb.OpenShipped();
         var settings = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings");
         var report = EconomyLoop.Report(db.Cache, settings, new[] { Sample(7, 100, 100, 0, 60) });
         var plain = new StringWriter();

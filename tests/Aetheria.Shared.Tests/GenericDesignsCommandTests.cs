@@ -26,14 +26,14 @@ public sealed class GenericDesignsCommandTests : IDisposable
 
     private void Edit(Action<AetherDb> edit)
     {
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var db = AetherDb.OpenShipped(catalogWritable: true, root: _root);
         try { edit(db); }
         finally { db.Cache.Dispose(); }
     }
 
     private T Read<T>(Func<AetherDb, T> read)
     {
-        var db = AetherDb.Open(root: _root);
+        var db = AetherDb.OpenShipped(root: _root);
         try { return read(db); }
         finally { db.Cache.Dispose(); }
     }
