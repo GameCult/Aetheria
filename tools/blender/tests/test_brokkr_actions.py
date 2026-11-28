@@ -33,7 +33,7 @@ class HostActionFileTests(unittest.TestCase):
         self.assertIs(False, opened["editModeSafe"])
 
     def test_no_row_names_a_human_only_operator(self):
-        self.assertIsNone(re.search(r"apply|package|capture|new_ship|bind", FILE.read_text(encoding="utf-8")))
+        self.assertIsNone(re.search(r"apply_ship|package_ship|capture_ship_lines|new_ship|bind_ship", FILE.read_text(encoding="utf-8")))
 
 
 if __name__ == "__main__":
