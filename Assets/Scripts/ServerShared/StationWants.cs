@@ -12,6 +12,22 @@ public static class StationWants
 {
     public static IReadOnlyCollection<CultRecordKey> Of(Entity station)
     {
+        var wants = Drawn(station);
+        wants.UnionWith(Ordered(station));
+        return wants;
+    }
+
+    // The bays a bought or delivered good may land in: every bay when an installed recipe facility draws it, only the silo bays
+    // when the station wants it only through a haul order (a transit depot holds goods in its silo, never in its stock bay). The
+    // one owner of where a good lands; none when the station does not want it.
+    public static IEnumerable<EquippedCargoBay> Bays(Entity station, CultRecordKey good)
+    {
+        if (Drawn(station).Contains(good)) return station.CargoBays;
+        return Ordered(station).Contains(good) ? station.CargoBays.Where(bay => bay.Data is SiloData) : Enumerable.Empty<EquippedCargoBay>();
+    }
+
+    private static HashSet<CultRecordKey> Drawn(Entity station)
+    {
         var catalog = station.ItemManager.ItemData;
         var wants = new HashSet<CultRecordKey>();
         foreach (var equipped in station.Equipment)
@@ -22,11 +38,15 @@ public static class StationWants
                 foreach (var draw in Production.Draws(catalog, recipe))
                     wants.Add(draw);
         }
-        if (station is OrbitalEntity { OrbitData: var orbit } && orbit.IsSet() && station.CargoBays.Any(bay => bay.Data is SiloData))
-            foreach (var order in catalog.GetAll<HaulOrderData>().Where(order => order.From.Key.Equals(orbit)))
-                foreach (var good in order.Goods)
-                    wants.Add(good.Key);
         return wants;
+    }
+
+    private static IEnumerable<CultRecordKey> Ordered(Entity station)
+    {
+        if (!(station is OrbitalEntity { OrbitData: var orbit }) || !orbit.IsSet() || !station.CargoBays.Any(bay => bay.Data is SiloData))
+            return Enumerable.Empty<CultRecordKey>();
+        return station.ItemManager.ItemData.GetAll<HaulOrderData>().Where(order => order.From.Key.Equals(orbit))
+            .SelectMany(order => order.Goods.Select(good => good.Key)).ToArray();
     }
 }
 

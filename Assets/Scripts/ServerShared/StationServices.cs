@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Caching;
 
 // What a station pays for goods and charges to mend gear. The one owner of the sell price, the repair cost, and the
 // two commits that move goods or restore durability against the run's credits; TradeMenu shows these numbers and
@@ -114,32 +115,64 @@ public static class StationServices
         return true;
     }
 
-    // The sale of a commodity stack: only a good the station wants (StationWants; NotWanted moves nothing). The station's bays
-    // take what they can hold (aetheria-living-world:ruling:no-market-absorption), the station pays SellPrice for those units
-    // alone, and the rest stays in the seller's hold with the refusal NoRoom. Sold units are moved, never absorbed.
+    // The sale of a commodity stack: TryStorePart, and the station pays SellPrice for the units its bays took, added to
+    // `credits` (aetheria-living-world:ruling:no-market-absorption: no unit is paid for that no bay took). The rest stays in the
+    // seller's hold with the refusal NoRoom; a good the station does not want moves nothing (NotWanted).
     public static SaleResult TrySellPart(EquippedCargoBay from, Entity station, ICommodityStack stack, ref int credits)
+    {
+        var paid = 0;
+        var result = TryStorePart(from, station, stack, part => paid += SellPrice(station.ItemManager, part));
+        credits += paid;
+        return result;
+    }
+
+    // The station taking a commodity stack into the bays that may hold it (StationWants.Bays), as far as they hold, with no
+    // price: the gate and the move of every sale and of a hauler's delivery (ruling transit-depots-buy-for-onward-haul).
+    // `moved` is called with each part that went across. Sold units are moved, never absorbed.
+    public static SaleResult TryStorePart(EquippedCargoBay from, Entity station, ICommodityStack stack, Action<ItemInstance> moved = null)
     {
         var item = (ItemInstance) stack;
         var offered = stack.Quantity;
         if (!from.Cargo.ContainsKey(item)) return new SaleResult(0, offered, SaleRefusal.None);
         if (!StationWants.Of(station).Contains(item.Data.Key)) return new SaleResult(0, offered, SaleRefusal.NotWanted);
-        var sold = 0;
-        var remaining = offered;
+        var stored = MoveParts(from, StationWants.Bays(station, item.Data.Key).ToArray(), stack, moved);
+        return new SaleResult(stored, offered, stored < offered ? SaleRefusal.NoRoom : SaleRefusal.None);
+    }
+
+    // The station's silo bays giving the ship the units of `goods` they hold, as far as the ship's bays take them. The one writer
+    // of a station-to-hauler move; a hauler docks to call it (ruling docking-is-enclosed-bays). Returns the units moved.
+    public static int Load(Entity station, IReadOnlyCollection<CultRecordKey> goods, Entity ship)
+    {
+        var into = ship.CargoBays.ToArray();
+        var loaded = 0;
+        foreach (var silo in station.CargoBays.Where(bay => bay.Data is SiloData).ToArray())
+            foreach (var stack in silo.Cargo.Keys.OfType<ICommodityStack>().Where(stack => goods.Contains(((ItemInstance) stack).Data.Key)).ToArray())
+                loaded += MoveParts(silo, into, stack, null);
+        return loaded;
+    }
+
+    // Moves the stack into the bays, the whole quantity first and then fewer, until nothing more fits: the units moved.
+    private static int MoveParts(EquippedCargoBay from, IReadOnlyCollection<EquippedCargoBay> into, ICommodityStack stack, Action<ItemInstance> moved)
+    {
+        var item = (ItemInstance) stack;
+        var total = 0;
+        var remaining = stack.Quantity;
         while (remaining > 0)
         {
-            var moved = 0;
-            for (var quantity = remaining; quantity >= 1 && moved == 0; quantity--)
+            var count = 0;
+            for (var quantity = remaining; quantity >= 1 && count == 0; quantity--)
             {
                 var q = quantity;
                 var part = stack.Split(q);
-                if (station.CargoBays.Any(bay => from.TryTransferItem(bay, item, q))) moved = q;
-                credits += moved > 0 ? SellPrice(station.ItemManager, part) : 0;
+                if (!into.Any(bay => from.TryTransferItem(bay, item, q))) continue;
+                count = q;
+                moved?.Invoke(part);
             }
-            if (moved == 0) break;
-            sold += moved;
-            remaining -= moved;
+            if (count == 0) break;
+            total += count;
+            remaining -= count;
         }
-        return new SaleResult(sold, offered, sold < offered ? SaleRefusal.NoRoom : SaleRefusal.None);
+        return total;
     }
 
     // The ore stacks of the bays are the stacks of any design a field kind yields, mined, bought or looted alike (ruling
