@@ -4,8 +4,9 @@ using System.Linq;
 using GameCult.Caching;
 using Xunit;
 
-// The station-drain stage of `economy balance --drain` (EconomyDrain) on the demo run of seed 1: the shipped refinery stalls Room the
-// moment a sale fills it, the trade hub's silo and stock bay take ore apart, and the window by steps agrees with the window by spans.
+// The station-drain stage of `economy balance --drain` (EconomyDrain) on the demo run of seed 1: the shipped refinery drains its first
+// fill into its silo (a silo the outputs cannot land in is the Room stall fault), the trade hub's silo and stock bay take ore apart, and
+// the window by steps agrees with the window by spans.
 public sealed class EconomyDrainTests
 {
     private static string Root => RunStartTests.FindRepoRoot();
@@ -27,6 +28,16 @@ public sealed class EconomyDrainTests
     {
         foreach (var bay in demo.Processing.CargoBays)
             foreach (var gear in bay.Cargo.Keys.Where(item => !(item is ICommodityStack)).ToList()) bay.Remove(gear);
+    }
+
+    // A silo the refinery's outputs cannot land in: every cell holds Iron, so a recipe with room under its share still ends its cycle
+    // with nowhere to put the batch.
+    private static void JamSilo(DemoArena demo)
+    {
+        var iron = new CultRecordKey("commodity:iron");
+        var stack = demo.Cache.Get<SimpleCommodityData>(iron).MaxStack;
+        foreach (var bay in demo.Processing.CargoBays.Where(bay => bay.Data is SiloData))
+            while (bay.TryStore(new SimpleCommodity { Data = new CultRecordRef<ItemData>(iron), Quantity = stack })) { }
     }
 
     [Fact]
@@ -76,11 +87,17 @@ public sealed class EconomyDrainTests
     [Fact]
     public void WindowAgreesWithSpans()
     {
-        // Long enough for the first cycle to end: Room is inside the window, not only the horizon (Soul s1, window-stall-vacuous).
+        // Long enough for the first cycle to end: a Room stall is inside the window, not only the horizon (Soul s1, window-stall-vacuous).
+        // The shipped refinery lands its first batch in the silo and never stalls; the jammed silo does, and both agree with the spans.
         var sample = EconomyDrain.Run(Root, 1, 700, 1, Seed1.Value);
         Assert.All(sample.Stations, station => Assert.Empty(station.WindowDisagreements));
         Assert.DoesNotContain(EconomyDrain.Report(new[] { sample }), fault => fault.Invariant == EconomyDrain.HSim);
-        Assert.True(Station(sample, "processing").Facilities.Single().WindowSteps.TryGetValue(Stall.Room, out var roomSteps) && roomSteps > 0);
+        Assert.False(Station(sample, "processing").Facilities.Single().WindowSteps.TryGetValue(Stall.Room, out var shippedRoom) && shippedRoom > 0);
+
+        var jammed = EconomyDrain.Run(Root, 1, 700, 1, Seed1.Value, beforeWindow: JamSilo);
+        Assert.All(jammed.Stations, station => Assert.Empty(station.WindowDisagreements));
+        Assert.DoesNotContain(EconomyDrain.Report(new[] { jammed }), fault => fault.Invariant == EconomyDrain.HSim);
+        Assert.True(Station(jammed, "processing").Facilities.Single().WindowSteps.TryGetValue(Stall.Room, out var roomSteps) && roomSteps > 0);
 
         // A facility that does not run on screen while the spans run it: the held counts and the run part.
         var off = EconomyDrain.Run(Root, 1, 120, 1, Seed1.Value, beforeWindow: demo =>
@@ -112,24 +129,23 @@ public sealed class EconomyDrainTests
     [Fact]
     public void AFullRefineryIsAStallFault()
     {
+        // The sale fills the stock bay's free cells; the outputs land in the silo, so the ore drains to nothing and the stall is Inputs.
         var shipped = EconomyDrain.Run(Root, 1, 30, 4, Seed1.Value);
         var refinery = Station(shipped, "processing");
         Assert.True(refinery.Filled);
-        Assert.Equal(Stall.Room, refinery.Facilities.Single().HorizonEnd);
-        Assert.NotNull(refinery.FirstRoomStall);
-        var fault = Assert.Single(EconomyDrain.Report(new[] { shipped }), f => f.Invariant == EconomyDrain.HStall);
-        Assert.Contains("Room", fault.Message);
+        Assert.Contains(refinery.Outputs, pile => pile.Hourly.Any(units => units > 0));
+        Assert.NotNull(refinery.Ores[0].EmptyAt);
+        Assert.Null(refinery.FirstRoomStall);
+        Assert.Equal(Stall.Inputs, refinery.Facilities.Single().HorizonEnd);
+        Assert.DoesNotContain(EconomyDrain.Report(new[] { shipped }), f => f.Invariant == EconomyDrain.HStall);
 
-        // The sale fills every cell: a bay emptied before the fill is filled again by the next sortie. With the starting gear put
-        // away after the fill (eight cells) there is room for outputs: the ore drains to nothing, the block reports how long that
-        // takes, and the stall is Inputs, not a fault.
-        var made = EconomyDrain.Run(Root, 1, 30, 24, Seed1.Value, beforeWindow: PutGearAway);
-        var roomy = Station(made, "processing");
-        Assert.Contains(roomy.Outputs, pile => pile.Hourly.Any(units => units > 0));
-        Assert.NotNull(roomy.Ores[0].EmptyAt);
-        Assert.Null(roomy.FirstRoomStall);
-        Assert.Equal(Stall.Inputs, roomy.Facilities.Single().HorizonEnd);
-        Assert.DoesNotContain(EconomyDrain.Report(new[] { made }), f => f.Invariant == EconomyDrain.HStall);
+        // Positive control: a silo the batch cannot land in ends the horizon stalled Room with ore still held, which is the fault.
+        var jammed = EconomyDrain.Run(Root, 1, 30, 4, Seed1.Value, beforeWindow: JamSilo);
+        var stuck = Station(jammed, "processing");
+        Assert.Equal(Stall.Room, stuck.Facilities.Single().HorizonEnd);
+        Assert.NotNull(stuck.FirstRoomStall);
+        var fault = Assert.Single(EconomyDrain.Report(new[] { jammed }), f => f.Invariant == EconomyDrain.HStall);
+        Assert.Contains("Room", fault.Message);
     }
 
     // A sortie the base loop faults is a fault of its own and no sortie of the fill count (Soul s1, fill-count-artifact).

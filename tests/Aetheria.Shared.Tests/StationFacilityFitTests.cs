@@ -69,7 +69,7 @@ public sealed class StationFacilityFitTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         var mining = cache.Get(Kind("mining"));
-        var extra = cache.Get(Kind("processing")).Facilities.Single();
+        var extra = cache.Get(Kind("processing")).Facilities.First();
         mining.Facilities.Add(extra);
         var maker = cache.GetAll<Faction>().First(faction => StationKinds.FieldableKindsOf(cache, faction).Any(kind => kind.Key.Equals(Kind("mining").Key)));
         var error = Assert.Throws<InvalidLoadoutException>(() => Generate(cache, maker, Kind("mining"), 1));

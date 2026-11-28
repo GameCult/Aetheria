@@ -45,7 +45,7 @@ public sealed partial class RunStartTests
         Assert.Equal(0, stock.Count(good));
 
         var drawn = StationWants.Of(refinery).First(key => FieldKinds.IsOre(_cache, _cache.Get(new CultRecordRef<ItemData>(key))));
-        Assert.Equal(refinery.CargoBays, StationWants.Bays(refinery, drawn));
+        Assert.Equal(refinery.CargoBays.Where(bay => !(bay.Data is SiloData)), StationWants.Bays(refinery, drawn));
         var ore = new SimpleCommodity { Data = new CultRecordRef<ItemData>(drawn), Quantity = 5 };
         Assert.True(hold.TryStore(ore));
         var taken = StationServices.TrySellPart(hold, refinery, ore, ref credits);

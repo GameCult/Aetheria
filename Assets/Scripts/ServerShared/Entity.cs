@@ -1471,8 +1471,10 @@ public abstract class Entity
             var emptyShape = new Shape(HullData.Shape.Width, HullData.Shape.Height);
             foreach (var v in HullData.Shape.Coordinates)
             {
-                // Empty hardpoint cells count as free: general gear may use them until hardpoint gear claims them
-                if (HullData.InteriorCells[v] && GearOccupancy[v.x, v.y] == null)
+                // Empty hardpoint cells count as free: general gear may use them until hardpoint gear claims them. A Facility row
+                // is the exception: it is the hull's stated facility capacity (ruling station-facilities-on-typed-mounts), so a row
+                // no facility fills stays empty rather than taking a docking bay or a heater.
+                if (HullData.InteriorCells[v] && GearOccupancy[v.x, v.y] == null && !OnFacilityRow(v.x, v.y))
                     emptyShape[v] = true;
             }
 
@@ -1556,7 +1558,7 @@ public abstract class Entity
                 // general gear may take it until hardpoint gear claims it, which is the same rule
                 // UnoccupiedSpace reports, so what generation is offered and what equipping accepts agree.
                 var itemCoord = hullCoord + itemData.Shape.Rotate(i, item.Rotation);
-                if (!hullData.InteriorCells[itemCoord] || !IsFree(itemCoord.x, itemCoord.y, moving))
+                if (!hullData.InteriorCells[itemCoord] || !IsFree(itemCoord.x, itemCoord.y, moving) || OnFacilityRow(itemCoord.x, itemCoord.y))
                     return false;
             }
         }
@@ -1568,6 +1570,8 @@ public abstract class Entity
 
         return true;
     }
+
+    private bool OnFacilityRow(int x, int y) => Hardpoints[x, y]?.Type == HardpointType.Facility;
 
     // A cell is free when no gear occupies it, or when the only occupant is the item being moved: a re-place of
     // equipped gear is judged against the hull minus that item's own cells (the caller unequips, then equips).
