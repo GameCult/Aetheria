@@ -38,15 +38,16 @@ public sealed class EconomyDrainTests
         Assert.Contains("Station drain, seed 1", first);
     }
 
-    // The sortie rig after Boot was lifted out of it, on the shipped catalog, read at the commit before the extraction.
+    // The sortie rig after Boot was lifted out of it, on the shipped catalog, read at the commit before the extraction; re-read at the authored starter
+    // (131/73/58, 1295, 131 mined at the generated one): Light Lasers on the Energy mounts instead of the seed-1 draw.
     [Fact]
     public void SortieOutputUnchangedByBoot()
     {
         var sample = Seed1.Value.Single();
-        Assert.Equal((131, 73, 58), (sample.Units, sample.UnitsSold, sample.UnitsRefused));
-        Assert.Equal(1295, sample.SellValue);
+        Assert.Equal((120, 72, 48), (sample.Units, sample.UnitsSold, sample.UnitsRefused));
+        Assert.Equal(970, sample.SellValue);
         Assert.Equal(150, sample.SimSeconds, 3);
-        Assert.Equal(131, sample.Mined.Sum(m => m.Units));
+        Assert.Equal(120, sample.Mined.Sum(m => m.Units));
     }
 
     // A drain copy shares no object with the live station: EntitySerializer.Pack alone puts the live stacks in the pack, so a copy
