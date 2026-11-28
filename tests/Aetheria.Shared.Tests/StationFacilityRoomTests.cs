@@ -18,22 +18,42 @@ public sealed class StationFacilityRoomTests
         Assert.Empty(StationKinds.FacilityRoomFaults(cache));
     }
 
-    // A repackage from the committed manifest reproduces the shipped depot: the manifest's kind, rows (Fa.1 included) and hull.scad are the
-    // package's own. The packager is creation input only, so this keeps the two from drifting apart.
-    [Fact]
-    public void TheCommittedDepotManifestIsTheShippedDepot()
+    // The committed manifests under tools/blender/manifests, one per station package (a new directory is checked without editing this test).
+    public static TheoryData<string> Manifests()
+    {
+        var data = new TheoryData<string>();
+        foreach (var directory in Directory.GetDirectories(Path.Combine(AetherDb.FindRoot(), "tools", "blender", "manifests")).OrderBy(d => d, System.StringComparer.Ordinal))
+            data.Add(Path.GetFileName(directory));
+        return data;
+    }
+
+    // A repackage from a committed manifest reproduces its shipped package in every field the packager writes: hull.scad, name, kind, rows
+    // (Fa.1 included), stats, price and the product's maker, name, description and whether it is offered. The packager is creation input
+    // only, so this keeps the two from drifting apart.
+    [Theory]
+    [MemberData(nameof(Manifests))]
+    public void TheCommittedManifestsAreTheShippedPackages(string directory)
     {
         var root = AetherDb.FindRoot();
-        var manifest = JObject.Parse(File.ReadAllText(Path.Combine(root, "tools", "blender", "manifests", "arsenal-depot", "package.json")));
-        Assert.Equal(File.ReadAllBytes(Path.Combine(root, "GameData", "Mods", "aetheria.arsenal-depot", "hull.scad")),
-            File.ReadAllBytes(Path.Combine(root, "tools", "blender", "manifests", "arsenal-depot", "hull.scad")));
+        var manifest = JObject.Parse(File.ReadAllText(Path.Combine(root, "tools", "blender", "manifests", directory, "package.json")));
+        var id = (string) manifest["id"];
+        Assert.Equal(File.ReadAllBytes(Path.Combine(root, "GameData", "Mods", id, "hull.scad")),
+            File.ReadAllBytes(Path.Combine(root, "tools", "blender", "manifests", directory, "hull.scad")));
         using var cache = RestoredHullsTests.OpenCatalog();
-        var depot = Assert.Single(cache.GetAll<HullData>(), hull => hull.Name == (string) manifest["name"]);
-        Assert.Equal("station-kind:" + (string) manifest["kind"], depot.Kind.Key.Value);
-        var shipped = depot.Hardpoints.Select(row => $"{row.Transform}|{row.Type}|{row.Position.x},{row.Position.y}|{ShipAuthoringPush.Footprint(row.Shape)}|{(int) row.Rotation}|{row.Armor}|{row.FiringArc}").OrderBy(x => x);
+        var key = ShipModCatalog.HullKey(id);
+        var hull = Assert.Single(cache.GetAll<HullData>(), candidate => cache.RefOf(candidate).Key.Equals(key));
+        Assert.Equal((string) manifest["name"], hull.Name);
+        if (manifest["kind"] != null) Assert.Equal("station-kind:" + (string) manifest["kind"], hull.Kind.Key.Value);
+        var shipped = hull.Hardpoints.Select(row => $"{row.Transform}|{row.Type}|{row.Position.x},{row.Position.y}|{ShipAuthoringPush.Footprint(row.Shape)}|{(int) row.Rotation}|{row.Armor}|{row.FiringArc}").OrderBy(x => x);
         var written = manifest["rows"].Select(row => $"{(string) row["id"]}|{(string) row["kind"]}|{(int) row["cell"][0]},{(int) row["cell"][1]}|{(string) row["footprint"]}|{(int) row["rotation"]}|{(float) row["armor"]}|{(float) row["arc"]}").OrderBy(x => x);
         Assert.Equal(shipped, written);
-        Assert.Contains(depot.Hardpoints, row => row.Type == HardpointType.Facility);
+        var stats = manifest["stats"];
+        Assert.Equal(((float) stats["mass"], (float) stats["durability"], (float) stats["armor"], (float) stats["drag"]), (hull.Mass, hull.Durability, hull.Armor, hull.Drag));
+        Assert.Equal((int) manifest["price"], hull.Price);
+        var product = Assert.Single(cache.GetAll<FactionProductData>(), candidate => candidate.Design.Key.Equals(key));
+        Assert.Equal(((string) manifest["maker"], (string) manifest["name"], (string) manifest["description"], !(bool) manifest["offered"]),
+            (cache.Get(product.Manufacturer).Name, product.Name, product.Description, product.NotOffered));
+        if (hull.HullType == HullType.Station) Assert.Contains(hull.Hardpoints, row => row.Type == HardpointType.Facility);
     }
 
     // Positive control: Zenith's Facility rows taken away (in memory, on a read-only catalog), the census names the hull, a kind it

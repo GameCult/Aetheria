@@ -6,13 +6,15 @@ using GameCult.Caching.MessagePack;
 using MessagePack;
 using Xunit;
 
-// Station packages (aetheria-release, cut station-packages): a package hull of type Station enters the game as data through
-// the one compose path, names its kind (HullData.Kind, written by ship-authoring kind) and is drawn for that kind by
-// StationKinds and LoadoutGenerator. The first is GameData/Mods/aetheria.arsenal-depot, the Zhestokost Arsenal Depot, whose
-// offer makes every depot stand-in live. The tests read the owners (ruling census-tests-read-the-owners).
+// Station packages (aetheria-release, cuts station-packages and station-package-processing): a package hull of type Station enters
+// the game as data through the one compose path, names its kind (HullData.Kind, written by ship-authoring kind) and is drawn for that
+// kind by StationKinds and LoadoutGenerator. The first is GameData/Mods/aetheria.arsenal-depot, the Zhestokost Arsenal Depot, whose
+// offer makes every depot stand-in live; the second is aetheria.seized-refinery, the Pirates' Seized Refinery on a Zhestokost donor,
+// the processing station. The tests read the owners (ruling census-tests-read-the-owners).
 public sealed class StationPackageTests : IDisposable
 {
     private const string Id = "aetheria.arsenal-depot";
+    private const string RefineryId = "aetheria.seized-refinery";
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-stationpackage-" + Guid.NewGuid().ToString("N"));
     private int _caches;
 
@@ -66,6 +68,28 @@ public sealed class StationPackageTests : IDisposable
         Assert.True(LoadoutGenerator.IsDrawable(cache, product, hull));
     }
 
+    // The processing station: a Pirate-made, offered Station hull of kind processing whose Facility row takes the Refinery; Pirates, who
+    // placed only mining before, can now field processing, and the Zhestokost stand-in to depot is unchanged.
+    [Fact]
+    public void TheSeizedRefineryIsAnOfferedPirateProcessingStation()
+    {
+        using var cache = Catalog();
+        var hull = cache.Get(new CultRecordRef<HullData>(ShipModCatalog.HullKey(RefineryId)));
+        Assert.NotNull(hull);
+        Assert.Equal(("Seized Refinery", HullType.Station), (hull.Name, hull.HullType));
+        Assert.Equal(StationKindData.KeyOf("processing"), hull.Kind.Key);
+        Assert.True(hull.Visual.IsSet());
+        var product = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Design.Key.Equals(ShipModCatalog.HullKey(RefineryId)));
+        var pirates = cache.Get(product.Manufacturer);
+        Assert.Equal("Pirates", pirates.Name);
+        Assert.True(LoadoutGenerator.IsDrawable(cache, product, hull));
+        var refinery = Assert.Single(cache.GetAll<GearData>(), gear => gear.Name == "Refinery");
+        Assert.Contains(hull.Hardpoints, row => row.Type == HardpointType.Facility && row.Takes(refinery));
+        var processing = Kind("processing");
+        Assert.Equal(processing.Key, StationKinds.HullKindFor(cache, pirates, processing).Key);
+        Assert.Contains(processing.Key, StationKinds.FieldableKindsOf(cache, pirates).Select(fieldable => fieldable.Key));
+    }
+
     [Fact]
     public void EveryDepotStandInIsLive()
     {
@@ -88,6 +112,7 @@ public sealed class StationPackageTests : IDisposable
         using var cache = Catalog();
         var packages = cache.GetAll<HullData>().Where(hull => hull.HullType == HullType.Station && hull.Visual.IsSet()).ToArray();
         Assert.Contains(Depot(cache), packages);
+        Assert.Contains(cache.Get(new CultRecordRef<HullData>(ShipModCatalog.HullKey(RefineryId))), packages);
         foreach (var hull in packages)
         {
             var makers = cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(cache.RefOf(hull).Key)).Select(p => cache.Get(p.Manufacturer));
