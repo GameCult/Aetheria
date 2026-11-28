@@ -79,6 +79,7 @@ public sealed class EconomyDrainTests
         Assert.Equal(Stall.Inputs, roomy.Facilities.Single().HorizonEnd);
         Assert.DoesNotContain(EconomyDrain.Report(new[] { made }), f => f.Invariant == EconomyDrain.HStall);
     }
+[Fact]    public void TheSortieHoldIsTheMedianOfWhatSortiesMined()    {        LoopSample Mined(int units) => new LoopSample { Units = units, Outcome = LoopOutcome.AmmoOut };        Assert.Equal(15, EconomyDrain.SortieUnits(69, new[] { Mined(6), Mined(18), Mined(2), Mined(15), Mined(0) }));        Assert.Equal(8, EconomyDrain.SortieUnits(3, new[] { Mined(25), Mined(8), Mined(3) }));        Assert.Throws<InvalidOperationException>(() => EconomyDrain.SortieUnits(2, new[] { Mined(0) }));    }
 
 [Fact]    public void DrainRefusesLoopAndStrayOptions()    {        foreach (var args in new[] { new[] { "balance", "--drain", "--loop" }, new[] { "balance", "--loop", "1", "--window", "5" }, new[] { "balance", "--drain", "--cap", "5" }, new[] { "balance", "--drain", "--horizon", "0" }, new[] { "balance", "--drain", "--window" } })        {            var output = new StringWriter();            Assert.Equal(1, EconomyCommand.Run(args, output));            Assert.Contains("balance --drain [<seed>...]", output.ToString());        }    }
     [Fact]

@@ -129,7 +129,7 @@ public static class EconomyCommand
                 loop = EconomyLoop.Report(db.Cache, settings, seedList.SelectMany(seed => EconomyLoop.Sorties(db.Root, seed, (float) cap)).ToList());
             List<DrainSample> drain = null;
             if (drainAt >= 0)
-                drain = seedList.Select(seed => EconomyDrain.Run(db.Root, seed, window, horizon, EconomyDrain.SortieUnits(EconomyLoop.Sorties(db.Root, seed, EconomyLoop.DefaultCap)))).ToList();
+                drain = seedList.Select(seed => EconomyDrain.Run(db.Root, seed, window, horizon, EconomyDrain.SortieUnits(seed, EconomyLoop.Sorties(db.Root, seed, EconomyLoop.DefaultCap)))).ToList();
             return Balance(db.Cache, settings.EconomyWageSpread, output, loop, drain);
         }
         if (args.Length > 0 && args[0] == "author")

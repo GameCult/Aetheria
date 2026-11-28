@@ -93,11 +93,13 @@ public static class EconomyDrain
     public const double Span = 60;
     private const int MaxSorties = 500;
 
-    // The seed's median sortie hold, in units: the median over the sorties that mined to a full hold or the cap.
-    public static int SortieUnits(IReadOnlyList<LoopSample> samples)
+    // The seed's median sortie hold, in units: the middle of the holds of the sorties that mined something (the upper one of an
+    // even count), whatever stopped them. Most seeds' sorties stop on a starting stock long before the hold fills.
+    public static int SortieUnits(uint seed, IReadOnlyList<LoopSample> samples)
     {
-        var units = samples.Where(s => s.Measured).Select(s => s.Units).OrderBy(u => u).ToList();
-        return units.Count == 0 ? 0 : units[units.Count / 2];
+        var units = samples.Where(s => s.Units > 0).Select(s => s.Units).OrderBy(u => u).ToList();
+        if (units.Count == 0) throw new InvalidOperationException($"seed {seed}: no sortie mined anything, so there is no hold to sell");
+        return units[units.Count / 2];
     }
 
     // beforeFill sees the booted arena before any sale (a test empties a bay there); beforeWindow sees it after the fill and before
