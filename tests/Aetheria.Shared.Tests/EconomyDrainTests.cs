@@ -182,7 +182,10 @@ public sealed class EconomyDrainTests
         var stock = zenith.Bays.Single(bay => !bay.Silo);
         Assert.Equal(("Nickel-Iron", 640), silo.Capacity.First(c => c.Ore == "Nickel-Iron"));
         Assert.Equal(("Nickel-Iron", 80), stock.Capacity.First(c => c.Ore == "Nickel-Iron"));
-        Assert.True(silo.Taken > 0 && stock.Taken > 0);
-        Assert.Equal(zenith.Sorties.Sum(sale => sale.Sold), silo.Taken + stock.Taken);
+        // Onward-haul ore goes to the silo only (ore-haul-run): the stock bay holds room for it but takes none.
+        Assert.True(silo.Taken > 0);
+        Assert.Equal(0, stock.Taken);
+        Assert.Equal(zenith.Sorties.Sum(sale => sale.Sold), silo.Taken);
+        Assert.Equal(1, sample.Parked);
     }
 }

@@ -84,6 +84,8 @@ public sealed class DrainSample
     // The base loop's sorties of this seed: the usable ones fill the stations, the rest are faults and left out of the count.
     public int Usable;
     public List<LoopSample> Excluded = new List<LoopSample>();
+    // Haulers taken out of the arena before anything else: the harness measures facilities, so no haul moves on screen or in the spans.
+    public int Parked;
     public double WindowSeconds, HorizonHours;
     public List<StationDrain> Stations = new List<StationDrain>();
 }
@@ -110,8 +112,13 @@ public static class EconomyDrain
         if (!double.IsFinite(horizonHours) || horizonHours <= 0) throw new ArgumentOutOfRangeException(nameof(horizonHours), "the horizon must be a positive, finite number of sim hours");
         using var demo = EconomyLoop.Boot(root, seed);
         var catalog = demo.Cache;
+        // The demo's hauler flies orders on screen and has no span-side model (follow-up drain-haul-throughput; off-screen hauling is
+        // region-haul-legs), so it is parked in both paths: taken out of the arena before the fill, the window and the spans.
+        var haulers = demo.Arena.Entities.OfType<Ship>().Where(ship => ship.Haul.Key.IsSet()).ToList();
+        foreach (var hauler in haulers)
+            if (demo.Arena.Remove(hauler)) hauler.Deactivate();
         var usable = sorties.Where(s => s.Measured && s.Mined.Count > 0).ToList();
-        var sample = new DrainSample { Seed = seed, Usable = usable.Count, Excluded = sorties.Except(usable).ToList(), WindowSeconds = windowSeconds, HorizonHours = horizonHours };
+        var sample = new DrainSample { Seed = seed, Parked = haulers.Count, Usable = usable.Count, Excluded = sorties.Except(usable).ToList(), WindowSeconds = windowSeconds, HorizonHours = horizonHours };
         var stations = new[] { ("processing", demo.Processing), ("trade-hub", demo.Zenith) };
         var runs = new List<StationRun>();
         foreach (var (role, station) in stations)
@@ -149,7 +156,9 @@ public static class EconomyDrain
                 }
         }
         // The same window by spans on the copy: the units held, each facility's run (recipe and progress) and the time of its first Room
-        // must read as the steps did, to the span for the time. Held counts alone are blind to a facility that stalls Room.
+        // must read as the steps did, to the span for the time. Held counts alone are blind to a facility that stalls Room. So is the run
+        // progress: a Room-stalled facility holds at its Cycle whatever the time, so a skew there is caught only through its first-Room
+        // time, within one span, and not at all after.
         foreach (var run in runs)
         {
             var spanRoom = new double?[run.Live.Length];
@@ -211,6 +220,8 @@ public static class EconomyDrain
     {
         var inv = CultureInfo.InvariantCulture;
         output.WriteLine(string.Format(inv, "\nStation drain, seed {0} (window {1:0.##} s on screen and by spans; horizon {2:0.##} h by spans of {3:0} s)", sample.Seed, sample.WindowSeconds, sample.HorizonHours, Span));
+        output.WriteLine($"  haulers parked: {sample.Parked} (no haul moves on screen or in the spans: this block measures facilities; haul throughput is follow-up drain-haul-throughput, off-screen hauling region-haul-legs)");        output.WriteLine("  window compares units held, run progress and first-Room time; a Room-stalled facility holds at its cycle whatever the time, so a skew there shows only as first-Room time within one span");
+        output.WriteLine("  window compares units held, run progress and first-Room time; a Room-stalled facility holds at its cycle whatever the time, so a skew there shows only as first-Room time within one span");
         output.WriteLine($"  sorties usable {sample.Usable} of {sample.Usable + sample.Excluded.Count}" + string.Concat(sample.Excluded.Select(x => $"; excluded belt {x.Belt + 1}/{x.Belts} {x.BeltKind} {x.Outcome} at {x.SimSeconds:0.#} s")));
         foreach (var station in sample.Stations)
         {
